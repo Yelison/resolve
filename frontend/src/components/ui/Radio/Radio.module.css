@@ -1,0 +1,10 @@
+.input {
+  border-radius: var(--radius-round);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-round);
+  background: currentColor;
+}

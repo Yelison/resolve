@@ -1,0 +1,65 @@
+/* Base compartida por Checkbox, Radio y Switch: control nativo y etiqueta clicable. */
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: 36px;
+  font: var(--font-body);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.choice:has(input:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.box {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.box > * {
+  grid-area: 1 / 1;
+}
+
+.input {
+  appearance: none;
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  cursor: inherit;
+  transition:
+    background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.input:checked,
+.input:indeterminate {
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+}
+
+.input:focus-visible {
+  border-color: var(--color-focus);
+}
+
+.mark {
+  color: var(--color-on-brand);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.input:checked + .mark,
+.input:indeterminate + .mark {
+  opacity: 1;
+}
+
+@media (max-width: 767.98px) {
+  .choice {
+    min-height: var(--touch-target);
+  }
+}

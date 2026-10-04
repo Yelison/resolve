@@ -1,0 +1,22 @@
+.wrapper {
+  display: grid;
+  align-items: center;
+}
+
+.select,
+.chevron {
+  grid-area: 1 / 1;
+}
+
+.select {
+  appearance: none;
+  padding-right: calc(var(--space-12) + 20px + var(--space-8));
+  cursor: pointer;
+}
+
+.chevron {
+  justify-self: end;
+  margin-right: var(--space-12);
+  color: var(--color-muted);
+  pointer-events: none;
+}

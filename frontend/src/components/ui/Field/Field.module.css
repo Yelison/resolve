@@ -1,0 +1,65 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.label {
+  font: var(--font-label);
+  color: var(--color-ink);
+}
+
+.hint {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.error {
+  font: var(--font-caption);
+  color: var(--color-red-ink);
+}
+
+/* Caja compartida por Input, Select y Textarea; :where() la deja sin especificidad para que cada control la ajuste. */
+:where(.control) {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 0 var(--space-12);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: var(--font-body);
+  transition:
+    background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.control::placeholder {
+  color: var(--color-muted);
+  opacity: 1;
+}
+
+.control:hover:not(:disabled, :focus) {
+  background: var(--color-surface-hover);
+}
+
+.control:focus-visible {
+  border-color: var(--color-focus);
+  outline: 1px solid var(--color-focus);
+  outline-offset: 0;
+}
+
+.control[aria-invalid='true'] {
+  border-color: var(--color-red-ink);
+}
+
+.control[aria-invalid='true']:focus-visible {
+  outline-color: var(--color-red-ink);
+}
+
+.control:disabled {
+  background: var(--color-bg);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}

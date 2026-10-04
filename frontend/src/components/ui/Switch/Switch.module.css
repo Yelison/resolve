@@ -1,0 +1,29 @@
+.track {
+  appearance: none;
+  margin: 0;
+  width: 36px;
+  height: 22px;
+  border-radius: var(--radius-round);
+  background: var(--color-disabled);
+  cursor: inherit;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.track:checked {
+  background: var(--color-brand);
+}
+
+.thumb {
+  justify-self: start;
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+  border-radius: var(--radius-round);
+  background: var(--color-on-brand);
+  pointer-events: none;
+  transition: transform var(--duration-base) ease;
+}
+
+.track:checked + .thumb {
+  transform: translateX(14px);
+}
