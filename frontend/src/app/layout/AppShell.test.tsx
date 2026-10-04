@@ -1,8 +1,9 @@
-import { render, screen, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { describe, expect, it } from 'vitest'
-import { ToastProvider } from '../../components/ui'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { adminMe, customerMe, mockApi } from '../../test/api'
+import { renderWithProviders } from '../../test/render'
 import { AppShell } from './AppShell'
 
 function renderShell(path = '/tickets') {
@@ -20,16 +21,20 @@ function renderShell(path = '/tickets') {
     ],
     { initialEntries: [path] },
   )
-  render(
-    <ToastProvider>
-      <RouterProvider router={router} />
-    </ToastProvider>,
-  )
+  renderWithProviders(<RouterProvider router={router} />)
   return router
 }
 
 // En jsdom matchMedia no coincide con ninguna query, así que el shell está en modo móvil.
 describe('AppShell en móvil', () => {
+  beforeEach(() => {
+    mockApi({ 'GET /api/me': { body: adminMe } })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('pone el título del documento y un enlace para saltar al contenido', () => {
     renderShell()
     expect(document.title).toBe('Tickets · Resolve')
@@ -43,6 +48,7 @@ describe('AppShell en móvil', () => {
     expect(menuButton).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(menuButton)
     const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    await within(drawer).findByText('Yelisson Ortiz')
     expect(menuButton).toHaveAttribute('aria-expanded', 'true')
     expect(document.documentElement).toHaveClass('scroll-locked')
 
@@ -60,9 +66,26 @@ describe('AppShell en móvil', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('avisa de que la búsqueda aún no está conectada', async () => {
-    renderShell()
+  it('el atajo de búsqueda lleva a la bandeja de tickets', async () => {
+    const router = renderShell('/clientes')
     await userEvent.keyboard('{Control>}k{/Control}')
-    expect(screen.getByRole('region', { name: 'Notificaciones' })).toHaveTextContent('Búsqueda no disponible')
+    expect(router.state.location.pathname).toBe('/tickets')
+    expect(router.state.location.state).toEqual({ focusSearch: expect.any(Number) })
+  })
+})
+
+describe('AppShell para clientes', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('solo muestra las secciones a las que tiene acceso', async () => {
+    mockApi({ 'GET /api/me': { body: customerMe } })
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    await within(drawer).findByText('María Pérez')
+    expect(within(drawer).getByRole('link', { name: 'Tickets' })).toBeInTheDocument()
+    expect(within(drawer).queryByRole('link', { name: 'Clientes' })).not.toBeInTheDocument()
   })
 })

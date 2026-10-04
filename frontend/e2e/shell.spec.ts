@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures'
 
 test.describe('shell', () => {
   test('móvil: el drawer se abre, atrapa el foco, se cierra con Escape y devuelve el foco', async ({ page }) => {

@@ -1,3 +1,4 @@
+import type { Role } from '../api/schema'
 import type { SidebarNavItem } from '../components/ui'
 
 /** Secciones de la navegación principal, en el orden del diseño. */
@@ -11,11 +12,14 @@ export const mainNavigation: SidebarNavItem[] = [
   { to: '/configuracion', label: 'Configuración', icon: 'settings' },
 ]
 
-/**
- * Sesión de demostración. No hay autenticación todavía: cuando exista, estos datos
- * vendrán de la API y no de una constante.
- */
-export const demoSession = {
-  workspace: 'Acme Studio',
-  user: { name: 'Yelisson Ortiz', role: 'Administrador' },
+export const roleLabels: Record<Role, string> = {
+  admin: 'Administrador',
+  agent: 'Agente',
+  customer: 'Cliente',
+}
+
+/** Secciones visibles para cada rol: los clientes solo acceden a sus tickets. */
+export function navigationFor(role: Role | undefined): SidebarNavItem[] {
+  if (role === 'customer') return mainNavigation.filter((item) => item.to === '/tickets')
+  return mainNavigation
 }
