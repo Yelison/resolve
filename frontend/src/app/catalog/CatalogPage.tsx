@@ -93,14 +93,13 @@ export default function CatalogPage() {
     })
 
   const ticketTable = (
-    <TicketTable label="Tickets de ejemplo" selection={selection} onToggleAll={toggleAll}>
+    <TicketTable label="Tickets de ejemplo" selection={{ state: selection, onToggleAll: toggleAll }}>
       {demoTickets.map((ticket) => (
         <TicketRow
           key={ticket.id}
           ticket={ticket}
           to={`/tickets/${ticket.number}`}
-          selected={selected.has(ticket.id)}
-          onSelectedChange={(value) => setTicketSelected(ticket.id, value)}
+          selection={{ selected: selected.has(ticket.id), onChange: (value) => setTicketSelected(ticket.id, value) }}
           actions={[
             { id: 'assign', label: 'Asignar responsable', onSelect: () => {} },
             { id: 'resolve', label: 'Marcar como resuelto', onSelect: () => {} },

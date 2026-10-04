@@ -9,11 +9,12 @@ const ticket: TicketSummary = {
   id: 't-1048',
   number: 1048,
   subject: 'No puedo acceder a mi cuenta',
-  customer: 'María Pérez',
-  company: 'Acme Studio',
+  customer: { id: 'c-1', name: 'María Pérez', email: 'maria@example.com', company: 'Acme Studio' },
   status: 'open',
   priority: 'urgent',
-  assignee: 'Laura Méndez',
+  channel: 'email',
+  assignee: { id: 'u-1', name: 'Laura Méndez' },
+  createdAt: '2026-10-04T10:00:00Z',
   updatedAt: '2026-10-04T10:25:00Z',
 }
 
@@ -28,12 +29,11 @@ function renderTable({ selected = false, selection = 'none' }: Options = {}) {
   const onResolve = vi.fn()
   render(
     <MemoryRouter>
-      <TicketTable label="Tickets" selection={selection} onToggleAll={onToggleAll}>
+      <TicketTable label="Tickets" selection={{ state: selection, onToggleAll }}>
         <TicketRow
           ticket={ticket}
           to="/tickets/1048"
-          selected={selected}
-          onSelectedChange={onSelectedChange}
+          selection={{ selected, onChange: onSelectedChange }}
           actions={[{ id: 'resolve', label: 'Marcar como resuelto', onSelect: onResolve }]}
           now={new Date('2026-10-04T10:30:00Z')}
         />
@@ -87,5 +87,20 @@ describe('TicketTable y TicketRow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Acciones del ticket #1048' }))
     await userEvent.click(screen.getByRole('menuitem', { name: 'Marcar como resuelto' }))
     expect(onResolve).toHaveBeenCalledOnce()
+  })
+})
+
+describe('TicketTable sin selección', () => {
+  it('omite la columna de selección cuando no hay acciones masivas', () => {
+    render(
+      <MemoryRouter>
+        <TicketTable label="Tickets">
+          <TicketRow ticket={ticket} to="/tickets/1048" actions={[]} now={new Date('2026-10-04T10:30:00Z')} />
+        </TicketTable>
+      </MemoryRouter>,
+    )
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('columnheader')).toHaveLength(6)
+    expect(within(screen.getAllByRole('row')[1]!).getAllByRole('cell')).toHaveLength(6)
   })
 })

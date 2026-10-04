@@ -19,6 +19,14 @@
   row-gap: var(--space-8);
 }
 
+.plain .header,
+.plain .row {
+  grid-template-columns: minmax(0, 1fr) var(--touch-target);
+  grid-template-areas:
+    'subject actions'
+    'meta .';
+}
+
 .header {
   position: absolute;
   width: 1px;
@@ -146,6 +154,12 @@
     padding: var(--space-12);
   }
 
+  .plain .header,
+  .plain .row {
+    grid-template-columns: minmax(0, 1fr) 120px 90px var(--touch-target);
+    grid-template-areas: 'subject status priority actions';
+  }
+
   .header {
     position: static;
     width: auto;
@@ -195,6 +209,12 @@
   .row {
     grid-template-columns: 20px minmax(0, 1fr) 120px 90px minmax(120px, 170px) 120px var(--touch-target);
     grid-template-areas: 'check subject status priority assignee updated actions';
+  }
+
+  .plain .header,
+  .plain .row {
+    grid-template-columns: minmax(0, 1fr) 120px 90px minmax(120px, 170px) 120px var(--touch-target);
+    grid-template-areas: 'subject status priority assignee updated actions';
   }
 
   .assignee,

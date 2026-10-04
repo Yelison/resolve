@@ -25,7 +25,13 @@ export { Skeleton, type SkeletonProps } from './Skeleton/Skeleton'
 export { Switch, type SwitchProps } from './Switch/Switch'
 export { Tabs, type TabItem, type TabsProps } from './Tabs/Tabs'
 export { Textarea, type TextareaProps } from './Textarea/Textarea'
-export { TicketRow, TicketTable, type TicketRowProps, type TicketTableProps } from './TicketRow/TicketRow'
+export {
+  TicketRow,
+  TicketTable,
+  type TicketRowProps,
+  type TicketTableProps,
+  type TicketTableSelection,
+} from './TicketRow/TicketRow'
 export { ticketPriority, ticketStatus } from './TicketRow/ticketLabels'
 export { Timeline, type TimelineEvent, type TimelineEventKind, type TimelineProps } from './Timeline/Timeline'
 export { Topbar, type TopbarMenuButton, type TopbarProps } from './Topbar/Topbar'
