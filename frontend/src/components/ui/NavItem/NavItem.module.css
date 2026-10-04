@@ -1,0 +1,43 @@
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--touch-target);
+  padding: 0 var(--space-12);
+  border-radius: var(--radius-control);
+  color: var(--color-nav-text);
+  font: var(--font-label);
+  text-decoration: none;
+  transition:
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.item:hover,
+.active {
+  background: var(--color-nav-active);
+}
+
+.active {
+  color: var(--color-nav-ink);
+}
+
+.item:focus-visible {
+  outline-offset: -2px;
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collapsed {
+  justify-content: center;
+  width: var(--touch-target);
+  padding: 0;
+}

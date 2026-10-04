@@ -1,0 +1,32 @@
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+}
+
+.tab {
+  min-height: var(--button-height);
+  padding: 0 var(--space-12);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font: var(--font-label);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.tab:hover:not([aria-selected='true']) {
+  background: var(--color-surface-hover);
+}
+
+.tab[aria-selected='true'] {
+  background: var(--color-blue-bg);
+  color: var(--color-blue-ink);
+}
+
+.panel:focus-visible {
+  outline-offset: 4px;
+}
