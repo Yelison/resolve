@@ -1,0 +1,47 @@
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+  padding: var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.note {
+  background: var(--color-amber-bg);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-12);
+}
+
+.author {
+  font: var(--font-strong);
+  color: var(--color-ink);
+}
+
+.note .author {
+  color: var(--color-amber-ink);
+}
+
+.time {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.body {
+  font: var(--font-body);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.footer {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}

@@ -1,0 +1,81 @@
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+  max-width: 100%;
+  padding: var(--space-12);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.error {
+  border-color: var(--color-red-ink);
+}
+
+.icon {
+  flex-shrink: 0;
+  color: var(--color-blue-ink);
+}
+
+.file {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  font: var(--font-label);
+  color: var(--color-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.errorText {
+  color: var(--color-red-ink);
+}
+
+.action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-blue-ink);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.progress {
+  width: 100%;
+  height: 4px;
+  margin-top: var(--space-4);
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-round);
+  background: var(--color-disabled);
+  overflow: hidden;
+}
+
+.progress::-webkit-progress-bar {
+  background: var(--color-disabled);
+}
+
+.progress::-webkit-progress-value {
+  background: var(--color-brand);
+}
+
+.progress::-moz-progress-bar {
+  background: var(--color-brand);
+}

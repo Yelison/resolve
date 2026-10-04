@@ -1,0 +1,37 @@
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+}
+
+.icon {
+  flex-shrink: 0;
+  color: var(--color-blue-ink);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.title {
+  font: var(--font-label);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.time {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
