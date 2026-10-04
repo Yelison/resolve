@@ -96,3 +96,13 @@ The Figma frames are the visual reference. Where they conflict with the written 
 - [ ] Customers, team, reports, knowledge base and settings views
 - [ ] Spring Boot API (tickets, customers, auth) with Flyway migrations
 - [ ] Wire the views to the API with TanStack Query
+
+## License
+
+The code written for this project is released under the [MIT License](LICENSE), © 2026 Yelison Ortiz.
+
+Third-party software keeps its own license and attribution:
+
+- npm and Maven dependencies are distributed under their respective licenses, listed in each package.
+- The Inter typeface is bundled through [Fontsource](https://fontsource.org/fonts/inter) under the [SIL Open Font License 1.1](https://github.com/rsms/inter/blob/master/LICENSE.txt), © The Inter Project Authors.
+- The Maven Wrapper scripts (`backend/mvnw`, `backend/mvnw.cmd`) are licensed under the Apache License 2.0, as stated in their headers.

@@ -13,6 +13,12 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<name>resolve-api</name>
 	<description>API de Resolve, plataforma de soporte</description>
+	<licenses>
+		<license>
+			<name>MIT License</name>
+			<url>https://opensource.org/license/mit</url>
+		</license>
+	</licenses>
 	<properties>
 		<java.version>25</java.version>
 	</properties>
