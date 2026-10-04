@@ -17,7 +17,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({ TestcontainersConfiguration.class, TestData.class })
+@Import({ TestcontainersConfiguration.class, TestData.class, TestClockConfiguration.class })
 public abstract class ApiIntegrationTest {
 
 	@Autowired
@@ -26,9 +26,13 @@ public abstract class ApiIntegrationTest {
 	@Autowired
 	protected TestData data;
 
+	@Autowired
+	protected MutableClock clock;
+
 	@BeforeEach
 	void resetDatabase() {
 		this.data.reset();
+		this.clock.set(TestClockConfiguration.START);
 	}
 
 	/** Autentica la petición como el usuario sembrado con ese correo. */
