@@ -1,0 +1,702 @@
+openapi: 3.1.0
+info:
+  title: Resolve API
+  version: 0.1.0
+  description: |
+    Customer-support API for Resolve. Every request runs in the organization of the authenticated
+    principal; see docs/api/README.md for roles, pagination, concurrency and metrics rules.
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /api
+security:
+  - demoUser: []
+  - {}
+tags:
+  - name: Session
+    description: The authenticated member and their organization.
+  - name: Tickets
+    description: Inbox, detail, updates, metrics and activity.
+  - name: Messages
+    description: Public replies and internal notes of a ticket.
+  - name: Customers
+    description: Customer search for forms.
+  - name: Assignees
+    description: Members who can own tickets.
+
+paths:
+  /me:
+    get:
+      tags: [Session]
+      operationId: getMe
+      summary: Current user, organization and role
+      responses:
+        '200':
+          description: The authenticated member.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /tickets:
+    get:
+      tags: [Tickets]
+      operationId: listTickets
+      summary: Ticket inbox
+      description: |
+        Agents and admins see every ticket of the organization; customers only see the tickets of
+        their own customer record. Filters combine with AND; repeated values of one filter combine with OR.
+      parameters:
+        - name: view
+          in: query
+          schema: { $ref: '#/components/schemas/TicketView' }
+        - name: status
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/TicketStatus' }
+        - name: priority
+          in: query
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/TicketPriority' }
+        - name: assigneeId
+          in: query
+          description: A member id, or `none` for unassigned tickets.
+          schema:
+            type: string
+            pattern: '^(none|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'
+        - name: q
+          in: query
+          description: |
+            Case-insensitive contains match on the subject and the customer name, email and company;
+            a number, with or without `#`, matches the ticket number exactly.
+          schema: { type: string, maxLength: 120 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: sort
+          in: query
+          description: |
+            `field,direction`. `priority` and `status` sort by rank (urgent → low; open → in_progress →
+            waiting → resolved), not alphabetically. Ties are broken by `number,desc`.
+          schema:
+            type: string
+            default: updatedAt,desc
+            pattern: '^(updatedAt|createdAt|number|priority|status),(asc|desc)$'
+      responses:
+        '200':
+          description: One page of tickets.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TicketPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Tickets]
+      operationId: createTicket
+      summary: Create a ticket
+      description: |
+        `customerId` and `assigneeId` must belong to the caller's organization (the assignee must be an
+        admin or agent). Unknown and foreign ids get the same 400 field error, so other organizations'
+        data is never revealed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TicketCreate' }
+      responses:
+        '201':
+          description: The created ticket.
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL of the ticket, `/api/tickets/{number}`.
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ticket' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /tickets/metrics:
+    get:
+      tags: [Tickets]
+      operationId: getTicketMetrics
+      summary: Inbox metrics for the whole organization
+      description: Not affected by inbox filters. Days are computed in the organization time zone.
+      responses:
+        '200':
+          description: Organization-wide metrics.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TicketMetrics' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /tickets/{number}:
+    parameters:
+      - $ref: '#/components/parameters/TicketNumber'
+    get:
+      tags: [Tickets]
+      operationId: getTicket
+      summary: Ticket detail
+      responses:
+        '200':
+          description: The ticket.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ticket' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Tickets]
+      operationId: updateTicket
+      summary: Change status, priority and/or assignee
+      description: |
+        JSON Merge Patch semantics: absent fields are unchanged and `assigneeId: null` unassigns the
+        ticket. Requires `If-Match` with the current version. A patch that changes nothing returns 200
+        without a new version or activity entry. Errors are checked in this order: 401, 403, 404, 428,
+        400, 412.
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          description: A single strong validator with the current version, as returned in `ETag`.
+          schema: { type: string, pattern: '^"\d+"$', examples: ['"3"'] }
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/components/schemas/TicketPatch' }
+      responses:
+        '200':
+          description: The updated ticket.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ticket' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+
+  /tickets/{number}/messages:
+    parameters:
+      - $ref: '#/components/parameters/TicketNumber'
+    get:
+      tags: [Messages]
+      operationId: listMessages
+      summary: Conversation of a ticket, oldest first
+      description: |
+        Not paginated. Customers only receive `public` messages. The ticket `description` is part of
+        the ticket, not the first message.
+      responses:
+        '200':
+          description: Messages of the ticket.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Message' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Messages]
+      operationId: createMessage
+      summary: Reply to the customer or add an internal note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MessageCreate' }
+      responses:
+        '201':
+          description: The created message.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /tickets/{number}/activity:
+    parameters:
+      - $ref: '#/components/parameters/TicketNumber'
+    get:
+      tags: [Tickets]
+      operationId: listActivity
+      summary: Activity log of a ticket, newest first (not paginated)
+      responses:
+        '200':
+          description: Activity entries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Activity' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /customers:
+    get:
+      tags: [Customers]
+      operationId: listCustomers
+      summary: Paginated customer search
+      parameters:
+        - name: q
+          in: query
+          description: Searches the name, email and company.
+          schema: { type: string, maxLength: 120 }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: sort
+          in: query
+          description: '`field,direction`. Names compare case-insensitively; ties are broken by `id,asc`.'
+          schema:
+            type: string
+            default: name,asc
+            pattern: '^name,(asc|desc)$'
+      responses:
+        '200':
+          description: One page of customers.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /assignees:
+    get:
+      tags: [Assignees]
+      operationId: listAssignees
+      summary: Members who can be assigned to tickets (admins and agents), by name
+      responses:
+        '200':
+          description: Assignable members.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Member' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+components:
+  securitySchemes:
+    demoUser:
+      type: apiKey
+      in: header
+      name: X-Demo-User
+      description: |
+        Only in the `dev` and `test` profiles: email of a seeded user. Other profiles have no
+        authentication provider yet and answer 401.
+
+  parameters:
+    TicketNumber:
+      name: number
+      in: path
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+    Page:
+      name: page
+      in: query
+      description: Zero-based page index.
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  headers:
+    ETag:
+      description: Current ticket version, quoted, for `If-Match`.
+      schema: { type: string, examples: ['"3"'] }
+
+  responses:
+    BadRequest:
+      description: Malformed request, invalid parameter or validation error.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: No authenticated principal.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: The role does not allow the action.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: Not found in the caller's scope.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PreconditionFailed:
+      description: The ticket changed since the client read it.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    PreconditionRequired:
+      description: The update did not send `If-Match`.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    Role:
+      type: string
+      enum: [admin, agent, customer]
+    TicketStatus:
+      type: string
+      enum: [open, in_progress, waiting, resolved]
+    TicketPriority:
+      type: string
+      enum: [urgent, high, medium, low]
+    TicketChannel:
+      type: string
+      enum: [email, chat, phone, web]
+    TicketView:
+      description: |
+        `all`: every ticket. `mine`: assigned to the caller and not resolved. `unassigned`: without
+        assignee and not resolved. `resolved`: status `resolved`. Combined with the other filters by AND.
+      type: string
+      enum: [all, mine, unassigned, resolved]
+      default: all
+    MessageVisibility:
+      type: string
+      enum: [public, internal]
+
+    Organization:
+      type: object
+      additionalProperties: false
+      required: [id, name, timeZone]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        timeZone: { type: string, examples: [America/Bogota] }
+
+    Me:
+      type: object
+      additionalProperties: false
+      required: [user, organization, role, customerId]
+      properties:
+        user: { $ref: '#/components/schemas/Member' }
+        organization: { $ref: '#/components/schemas/Organization' }
+        role: { $ref: '#/components/schemas/Role' }
+        customerId:
+          description: Customer record of a `customer` member; null for admins and agents.
+          type: [string, 'null']
+          format: uuid
+
+    Member:
+      description: An admin or agent of the organization.
+      type: object
+      additionalProperties: false
+      required: [id, name, email]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+
+    MemberRef:
+      description: A member as shown inside other resources, without contact data.
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    Customer:
+      type: object
+      additionalProperties: false
+      required: [id, name, email, company]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        company: { type: [string, 'null'] }
+
+    TicketSummary:
+      type: object
+      additionalProperties: false
+      required: [id, number, subject, status, priority, channel, customer, assignee, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: integer, format: int64, minimum: 1 }
+        subject: { type: string }
+        status: { $ref: '#/components/schemas/TicketStatus' }
+        priority: { $ref: '#/components/schemas/TicketPriority' }
+        channel: { $ref: '#/components/schemas/TicketChannel' }
+        customer: { $ref: '#/components/schemas/Customer' }
+        assignee:
+          oneOf:
+            - $ref: '#/components/schemas/MemberRef'
+            - type: 'null'
+        createdAt: { type: string, format: date-time }
+        updatedAt:
+          description: Last activity, either a field change or a public message.
+          type: string
+          format: date-time
+
+    Ticket:
+      description: Ticket detail. Same fields as TicketSummary plus `description` and `version`.
+      type: object
+      additionalProperties: false
+      required:
+        [id, number, subject, status, priority, channel, customer, assignee, createdAt, updatedAt, description, version]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: integer, format: int64, minimum: 1 }
+        subject: { type: string }
+        status: { $ref: '#/components/schemas/TicketStatus' }
+        priority: { $ref: '#/components/schemas/TicketPriority' }
+        channel: { $ref: '#/components/schemas/TicketChannel' }
+        customer: { $ref: '#/components/schemas/Customer' }
+        assignee:
+          oneOf:
+            - $ref: '#/components/schemas/MemberRef'
+            - type: 'null'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        description: { type: string }
+        version: { type: integer, format: int64, minimum: 0 }
+
+    TicketCreate:
+      type: object
+      additionalProperties: false
+      required: [customerId, subject, description]
+      properties:
+        customerId: { type: string, format: uuid }
+        subject: { type: string, minLength: 1, maxLength: 160 }
+        description: { type: string, minLength: 1, maxLength: 5000 }
+        priority:
+          $ref: '#/components/schemas/TicketPriority'
+          default: medium
+        channel:
+          $ref: '#/components/schemas/TicketChannel'
+          default: web
+        assigneeId:
+          type: [string, 'null']
+          format: uuid
+
+    TicketPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        status: { $ref: '#/components/schemas/TicketStatus' }
+        priority: { $ref: '#/components/schemas/TicketPriority' }
+        assigneeId:
+          description: '`null` unassigns the ticket.'
+          type: [string, 'null']
+          format: uuid
+
+    TicketPage:
+      description: An empty page past the last one is valid (200 with no items); `totalPages` is 0 when there are no items.
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/TicketSummary' }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1, maximum: 100 }
+        totalItems: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+
+    CustomerPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Customer' }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1, maximum: 100 }
+        totalItems: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+
+    ViewCounts:
+      type: object
+      additionalProperties: false
+      required: [all, mine, unassigned, resolved]
+      properties:
+        all: { type: integer, minimum: 0 }
+        mine: { type: integer, minimum: 0 }
+        unassigned: { type: integer, minimum: 0 }
+        resolved: { type: integer, minimum: 0 }
+
+    TicketMetrics:
+      type: object
+      additionalProperties: false
+      required:
+        - open
+        - openedToday
+        - inProgress
+        - inProgressAssignedToMe
+        - resolvedToday
+        - resolvedYesterday
+        - firstResponseMinutes
+        - firstResponseTargetMinutes
+        - views
+      properties:
+        open: { type: integer, minimum: 0 }
+        openedToday:
+          description: Tickets created today (organization time zone) that are still open.
+          type: integer
+          minimum: 0
+        inProgress: { type: integer, minimum: 0 }
+        inProgressAssignedToMe: { type: integer, minimum: 0 }
+        resolvedToday:
+          description: Distinct tickets that entered `resolved` today, from the activity log.
+          type: integer
+          minimum: 0
+        resolvedYesterday: { type: integer, minimum: 0 }
+        firstResponseMinutes:
+          description: |
+            Median minutes, rounded to the nearest integer, from creation to the first public agent
+            message, over tickets created in the last 168 hours that have one; null when there are none.
+          type: [integer, 'null']
+          minimum: 0
+        firstResponseTargetMinutes: { type: integer, minimum: 1 }
+        views: { $ref: '#/components/schemas/ViewCounts' }
+
+    MessageAuthor:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        kind:
+          type: string
+          enum: [agent, customer]
+
+    Message:
+      type: object
+      additionalProperties: false
+      required: [id, body, visibility, author, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        body: { type: string }
+        visibility: { $ref: '#/components/schemas/MessageVisibility' }
+        author: { $ref: '#/components/schemas/MessageAuthor' }
+        createdAt: { type: string, format: date-time }
+
+    MessageCreate:
+      type: object
+      additionalProperties: false
+      required: [body, visibility]
+      properties:
+        body: { type: string, minLength: 1, maxLength: 5000 }
+        visibility: { $ref: '#/components/schemas/MessageVisibility' }
+
+    Activity:
+      oneOf:
+        - $ref: '#/components/schemas/TicketCreatedActivity'
+        - $ref: '#/components/schemas/StatusChangedActivity'
+        - $ref: '#/components/schemas/PriorityChangedActivity'
+        - $ref: '#/components/schemas/AssigneeChangedActivity'
+      discriminator:
+        propertyName: type
+        mapping:
+          created: '#/components/schemas/TicketCreatedActivity'
+          status_changed: '#/components/schemas/StatusChangedActivity'
+          priority_changed: '#/components/schemas/PriorityChangedActivity'
+          assignee_changed: '#/components/schemas/AssigneeChangedActivity'
+
+    TicketCreatedActivity:
+      type: object
+      additionalProperties: false
+      required: [id, type, actor, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, const: created }
+        actor: { $ref: '#/components/schemas/MemberRef' }
+        createdAt: { type: string, format: date-time }
+
+    StatusChangedActivity:
+      type: object
+      additionalProperties: false
+      required: [id, type, actor, from, to, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, const: status_changed }
+        actor: { $ref: '#/components/schemas/MemberRef' }
+        from: { $ref: '#/components/schemas/TicketStatus' }
+        to: { $ref: '#/components/schemas/TicketStatus' }
+        createdAt: { type: string, format: date-time }
+
+    PriorityChangedActivity:
+      type: object
+      additionalProperties: false
+      required: [id, type, actor, from, to, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, const: priority_changed }
+        actor: { $ref: '#/components/schemas/MemberRef' }
+        from: { $ref: '#/components/schemas/TicketPriority' }
+        to: { $ref: '#/components/schemas/TicketPriority' }
+        createdAt: { type: string, format: date-time }
+
+    AssigneeChangedActivity:
+      description: '`from` and `to` keep the member id and the name at the time of the change; null means unassigned.'
+      type: object
+      additionalProperties: false
+      required: [id, type, actor, from, to, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, const: assignee_changed }
+        actor: { $ref: '#/components/schemas/MemberRef' }
+        from:
+          oneOf:
+            - $ref: '#/components/schemas/MemberRef'
+            - type: 'null'
+        to:
+          oneOf:
+            - $ref: '#/components/schemas/MemberRef'
+            - type: 'null'
+        createdAt: { type: string, format: date-time }
+
+    Problem:
+      description: RFC 9457 Problem Details.
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        errors:
+          description: Field errors of a validation failure.
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [field, message]
+            properties:
+              field: { type: string }
+              message: { type: string }
