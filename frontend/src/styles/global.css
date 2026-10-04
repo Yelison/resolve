@@ -59,6 +59,11 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  scrollbar-gutter: stable;
+}
+
+html.scroll-locked {
+  overflow: hidden;
 }
 
 body {
