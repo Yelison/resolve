@@ -1,0 +1,114 @@
+/* Generado a partir de las variables de Figma «Resolve Kit / Claro» y «Resolve Kit / Oscuro».
+ * No editar a mano: los valores se regeneran desde el diseño. */
+
+:root {
+  color-scheme: light;
+
+  --font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-caption: 400 12px/17px var(--font-family);
+  --font-body: 400 14px/20px var(--font-family);
+  --font-label: 500 14px/20px var(--font-family);
+  --font-strong: 600 14px/20px var(--font-family);
+  --font-section: 600 17px/24px var(--font-family);
+  --font-title: 700 30px/42px var(--font-family);
+  --font-metric: 600 30px/42px var(--font-family);
+  --font-logo: 700 25px/35px var(--font-family);
+
+  --space-0: 0px;
+  --space-1: 1px;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --space-64: 64px;
+
+  --color-bg: #f5f7fb; /* light/bg */
+  --color-surface: #ffffff; /* light/surface */
+  --color-ink: #17243d; /* light/ink */
+  --color-muted: #6a778d; /* light/muted */
+  --color-line: #e4e9f1; /* light/line */
+  --color-nav: #111e35; /* light/nav */
+  --color-nav-active: #263b5d; /* light/navActive */
+  --color-nav-text: #a8b7d0; /* light/navText */
+  --color-brand: #3569f6; /* light/brand */
+  --color-blue-bg: #ebf1ff; /* light/blueBg */
+  --color-blue-ink: #2455cd; /* light/blueInk */
+  --color-green-bg: #e7f6ee; /* light/greenBg */
+  --color-green-ink: #187349; /* light/greenInk */
+  --color-amber-bg: #fff3dd; /* light/amberBg */
+  --color-amber-ink: #94600d; /* light/amberInk */
+  --color-red-bg: #fdecec; /* light/redBg */
+  --color-red-ink: #b63535; /* light/redInk */
+  --color-on-brand: #ffffff; /* light/onBrand */
+  --color-nav-ink: #ffffff; /* light/navInk */
+  --color-focus: #3569f6; /* light/focus */
+  --color-surface-hover: #edf2fa; /* light/surfaceHover */
+  --color-disabled: #d2dae7; /* light/disabled */
+  --color-overlay: #0b1220; /* light/overlay */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --color-bg: #0b1220; /* dark/bg */
+    --color-surface: #141f32; /* dark/surface */
+    --color-ink: #e7edf8; /* dark/ink */
+    --color-muted: #a0afc5; /* dark/muted */
+    --color-line: #2a3951; /* dark/line */
+    --color-nav: #0a101c; /* dark/nav */
+    --color-nav-active: #233652; /* dark/navActive */
+    --color-nav-text: #a8b7d0; /* dark/navText */
+    --color-brand: #4779ff; /* dark/brand */
+    --color-blue-bg: #1a2c4e; /* dark/blueBg */
+    --color-blue-ink: #9bbcff; /* dark/blueInk */
+    --color-green-bg: #173a30; /* dark/greenBg */
+    --color-green-ink: #8edcb5; /* dark/greenInk */
+    --color-amber-bg: #3d311b; /* dark/amberBg */
+    --color-amber-ink: #f2ce85; /* dark/amberInk */
+    --color-red-bg: #3f242b; /* dark/redBg */
+    --color-red-ink: #ffacb3; /* dark/redInk */
+    --color-on-brand: #ffffff; /* dark/onBrand */
+    --color-nav-ink: #ffffff; /* dark/navInk */
+    --color-focus: #9bbcff; /* dark/focus */
+    --color-surface-hover: #1d2b42; /* dark/surfaceHover */
+    --color-disabled: #34445c; /* dark/disabled */
+    --color-overlay: #000000; /* dark/overlay */
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #0b1220; /* dark/bg */
+  --color-surface: #141f32; /* dark/surface */
+  --color-ink: #e7edf8; /* dark/ink */
+  --color-muted: #a0afc5; /* dark/muted */
+  --color-line: #2a3951; /* dark/line */
+  --color-nav: #0a101c; /* dark/nav */
+  --color-nav-active: #233652; /* dark/navActive */
+  --color-nav-text: #a8b7d0; /* dark/navText */
+  --color-brand: #4779ff; /* dark/brand */
+  --color-blue-bg: #1a2c4e; /* dark/blueBg */
+  --color-blue-ink: #9bbcff; /* dark/blueInk */
+  --color-green-bg: #173a30; /* dark/greenBg */
+  --color-green-ink: #8edcb5; /* dark/greenInk */
+  --color-amber-bg: #3d311b; /* dark/amberBg */
+  --color-amber-ink: #f2ce85; /* dark/amberInk */
+  --color-red-bg: #3f242b; /* dark/redBg */
+  --color-red-ink: #ffacb3; /* dark/redInk */
+  --color-on-brand: #ffffff; /* dark/onBrand */
+  --color-nav-ink: #ffffff; /* dark/navInk */
+  --color-focus: #9bbcff; /* dark/focus */
+  --color-surface-hover: #1d2b42; /* dark/surfaceHover */
+  --color-disabled: #34445c; /* dark/disabled */
+  --color-overlay: #000000; /* dark/overlay */
+}
