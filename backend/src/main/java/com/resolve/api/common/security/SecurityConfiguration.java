@@ -1,0 +1,53 @@
+package com.resolve.api.common.security;
+
+import jakarta.servlet.DispatcherType;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import tools.jackson.databind.json.JsonMapper;
+
+/**
+ * Autorización por rol a nivel de URL, antes de cualquier lectura o validación: así un cliente recibe 403
+ * en una escritura sea cual sea el cuerpo o el número de ticket.
+ */
+@Configuration(proxyBeanMethods = false)
+class SecurityConfiguration {
+
+	private static final String[] STAFF = { "ADMIN", "AGENT" };
+
+	@Bean
+	SecurityFilterChain apiSecurity(HttpSecurity http, ObjectProvider<PrincipalResolver> resolver, JsonMapper jsonMapper)
+			throws Exception {
+		ProblemResponses problems = new ProblemResponses(jsonMapper);
+		http.csrf(AbstractHttpConfigurer::disable)
+			.httpBasic(AbstractHttpConfigurer::disable)
+			.formLogin(AbstractHttpConfigurer::disable)
+			.logout(AbstractHttpConfigurer::disable)
+			.requestCache(AbstractHttpConfigurer::disable)
+			.anonymous(AbstractHttpConfigurer::disable)
+			.sessionManagement((session) -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+			.exceptionHandling((exceptions) -> exceptions.authenticationEntryPoint(problems::unauthorized)
+				.accessDeniedHandler(problems::forbidden))
+			.authorizeHttpRequests((requests) -> requests.dispatcherTypeMatchers(DispatcherType.ERROR)
+				.permitAll()
+				.requestMatchers("/actuator/health", "/actuator/health/**")
+				.permitAll()
+				.requestMatchers(HttpMethod.GET, "/tickets/metrics", "/tickets/{number}/activity", "/customers",
+						"/assignees")
+				.hasAnyRole(STAFF)
+				.requestMatchers(HttpMethod.GET, "/me", "/tickets", "/tickets/{number}", "/tickets/{number}/messages")
+				.authenticated()
+				.anyRequest()
+				.hasAnyRole(STAFF));
+		resolver.ifAvailable((available) -> http.addFilterBefore(new PrincipalResolverFilter(available),
+				AuthorizationFilter.class));
+		return http.build();
+	}
+
+}

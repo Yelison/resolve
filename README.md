@@ -60,12 +60,12 @@ npm ci
 npm run dev            # http://localhost:5173 (component catalog at /catalogo)
 
 # Database and API
-docker compose up -d   # from the repository root
+docker compose up -d   # from the repository root; POSTGRES_PORT=5433 if 5432 is taken
 cd backend
-./mvnw spring-boot:run # http://localhost:8080/api, proxied by Vite at /api
+SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run   # http://localhost:8080/api, proxied by Vite at /api
 ```
 
-The API reads `DATABASE_URL`, `DATABASE_USERNAME` and `DATABASE_PASSWORD`, with defaults that match `docker-compose.yml` (development only).
+The API reads `DATABASE_URL`, `DATABASE_USERNAME` and `DATABASE_PASSWORD`, with defaults that match `docker-compose.yml` (development only). There is no authentication provider yet: the `dev` profile loads demo data and a demo login (the `X-Demo-User` header, defaulting to the demo admin), and any other profile answers `401`. See the [API contract](docs/api/README.md).
 
 ### Frontend scripts
 

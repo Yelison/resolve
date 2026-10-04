@@ -681,11 +681,11 @@ components:
         createdAt: { type: string, format: date-time }
 
     Problem:
-      description: RFC 9457 Problem Details.
+      description: RFC 9457 Problem Details. An absent `type` means `about:blank`, as the RFC defines.
       type: object
-      required: [type, title, status]
+      required: [title, status]
       properties:
-        type: { type: string }
+        type: { type: string, default: about:blank }
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
