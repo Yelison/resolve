@@ -2,9 +2,21 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Resolve, plataforma de soporte: tickets, clientes, equipo y base de conocimiento."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Resolve</title>
+    <script>
+      // Aplica el tema guardado antes del primer pintado para evitar un destello del tema contrario.
+      try {
+        var theme = localStorage.getItem('resolve-theme')
+        if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme)
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

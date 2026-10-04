@@ -13,6 +13,23 @@ if (!HTMLDialogElement.prototype.showModal) {
   }
 }
 
+// jsdom no implementa matchMedia; por defecto ninguna media query coincide.
+if (!window.matchMedia) {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList
+}
+
 afterEach(() => {
   cleanup()
+  localStorage.clear()
+  document.documentElement.removeAttribute('data-theme')
 })
