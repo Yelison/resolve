@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from 'react'
 import { cx } from '../../../lib/cx'
-import { formatTime } from '../../../lib/format'
+import { formatDateTime } from '../../../lib/format'
 import { Avatar } from '../Avatar/Avatar'
 import styles from './Message.module.css'
 
@@ -19,10 +19,12 @@ export interface MessageProps {
   children: ReactNode
   /** Canal o aviso al pie, p. ej. «Correo electrónico». Las notas internas indican que solo las ve el equipo. */
   footer?: ReactNode
+  /** Momento de referencia para «Hoy» y «Ayer»; útil en pruebas. */
+  now?: Date
   className?: string
 }
 
-export function Message({ kind, author, sentAt, children, footer, className }: MessageProps) {
+export function Message({ kind, author, sentAt, children, footer, now, className }: MessageProps) {
   const labelId = useId()
   const footerText = footer ?? (kind === 'note' ? 'Solo visible para el equipo' : undefined)
 
@@ -34,7 +36,7 @@ export function Message({ kind, author, sentAt, children, footer, className }: M
           {author} · {roleLabels[kind]}
         </p>
         <time className={styles.time} dateTime={sentAt.toISOString()}>
-          {formatTime(sentAt)}
+          {formatDateTime(sentAt, now)}
         </time>
       </header>
       <div className={styles.body}>{children}</div>

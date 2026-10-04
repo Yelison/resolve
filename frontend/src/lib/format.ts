@@ -45,3 +45,20 @@ export function formatRelative(date: Date, now: Date = new Date()): string {
   }
   return relativeFormat.format(0, 'minute')
 }
+
+const dayMonth = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short' })
+const dayMonthYear = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short', year: 'numeric' })
+
+function startOfDay(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+}
+
+/** Fecha y hora breves en la zona del navegador: «Hoy, 10:24», «Ayer, 10:24», «3 oct, 10:24». */
+export function formatDateTime(date: Date, now: Date = new Date()): string {
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000)
+  const time = formatTime(date)
+  if (days === 0) return `Hoy, ${time}`
+  if (days === 1) return `Ayer, ${time}`
+  const day = date.getFullYear() === now.getFullYear() ? dayMonth.format(date) : dayMonthYear.format(date)
+  return `${day}, ${time}`
+}

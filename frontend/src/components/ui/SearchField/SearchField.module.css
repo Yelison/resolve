@@ -1,0 +1,42 @@
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+  min-height: var(--control-height);
+  padding: 0 var(--space-12);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  color: var(--color-muted);
+}
+
+.field:focus-within {
+  border-color: var(--color-focus);
+  outline: 1px solid var(--color-focus);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  min-height: calc(var(--control-height) - 2px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: var(--font-body);
+}
+
+.input::placeholder {
+  color: var(--color-muted);
+  opacity: 1;
+}
+
+.input:focus-visible {
+  outline: none;
+}
+
+/* El botón nativo de borrar se sustituye por la tecla Escape, que funciona igual en todos los navegadores. */
+.input::-webkit-search-cancel-button {
+  appearance: none;
+}
