@@ -73,3 +73,22 @@ jobs:
           java-version: '25'
           cache: maven
       - run: ./mvnw -B verify
+
+  backend-windows:
+    name: Backend - Maven wrapper on Windows
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      # Los tests usan contenedores Linux, que los runners de Windows no ofrecen; aquí se valida
+      # que mvnw.cmd arranca Maven y compila el proyecto.
+      - run: mvnw.cmd -B -DskipTests package
