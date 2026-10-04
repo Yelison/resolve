@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Outlet, useLocation, useMatches } from 'react-router'
+import { Outlet, useLocation, useMatches, useNavigate } from 'react-router'
 import { Breadcrumb, Sidebar, Topbar, useToast } from '../../components/ui'
 import { useModalDialog } from '../../components/ui/shared/useModalDialog'
 import { useMediaQuery } from '../../lib/useMediaQuery'
-import { demoSession, mainNavigation } from '../navigation'
+import { useMe } from '../../features/session/queries'
+import { navigationFor, roleLabels } from '../navigation'
 import { useTheme } from '../theme/useTheme'
 import styles from './AppShell.module.css'
 import { useSidebarPreference } from './useSidebarPreference'
 
 export interface RouteHandle {
-  /** Nombre de la página para las migas de pan y el título del documento. */
-  crumb?: string
+  /** Nombre de la página para las migas de pan y el título del documento; puede depender de los parámetros. */
+  crumb?: string | ((params: Readonly<Record<string, string | undefined>>) => string)
 }
 
 /**
@@ -24,6 +25,10 @@ export function AppShell() {
   const theme = useTheme()
   const toast = useToast()
   const drawerId = useId()
+  const me = useMe()
+  // Mientras carga la sesión se muestran marcadores neutros; el contenido de cada página gestiona sus errores.
+  const workspaceName = me.data?.organization.name ?? 'Resolve'
+  const userName = me.data?.user.name ?? '…'
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   // El drawer solo existe en móvil; al ensanchar la ventana se cierra sin tocar la preferencia de escritorio.
@@ -32,50 +37,54 @@ export function AppShell() {
   const drawerProps = useModalDialog(drawerOpen, closeDrawer)
   const collapsed = isTabletUp && (!isDesktop || sidebar.collapsed)
 
-  const crumb = useMatches()
-    .map((match) => (match.handle as RouteHandle | undefined)?.crumb)
-    .filter(Boolean)
-    .at(-1)
+  // Cada ruta con `crumb` aporta un nivel; los anteriores enlazan a su ruta.
+  const crumbs = useMatches().flatMap((match) => {
+    const crumb = (match.handle as RouteHandle | undefined)?.crumb
+    if (!crumb) return []
+    return [{ label: typeof crumb === 'function' ? crumb(match.params) : crumb, to: match.pathname }]
+  })
+  const crumb = crumbs.at(-1)?.label
 
   useEffect(() => {
     document.title = crumb ? `${crumb} · Resolve` : 'Resolve'
   }, [crumb])
 
   // Tras navegar, el foco pasa al contenido para que el teclado y los lectores de pantalla empiecen por la página nueva.
-  const { pathname } = useLocation()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { pathname } = location
   const mainRef = useRef<HTMLElement>(null)
   const previousPath = useRef(pathname)
   useEffect(() => {
     if (previousPath.current === pathname) return
     previousPath.current = pathname
+    // Si la navegación pidió enfocar la búsqueda, la página ya movió el foco a su buscador.
+    if ((location.state as { focusSearch?: number } | null)?.focusSearch) return
     mainRef.current?.focus({ preventScroll: true })
-  }, [pathname])
+  }, [pathname, location.state])
 
-  const showPendingSearch = useCallback(
-    () =>
-      toast.show({
-        title: 'Búsqueda no disponible',
-        description: 'Se activará cuando la API de tickets esté conectada.',
-      }),
-    [toast],
-  )
+  // La búsqueda vive en la bandeja: el atajo lleva allí (conservando sus filtros) y enfoca el buscador.
+  const openSearch = useCallback(() => {
+    const search = location.pathname === '/tickets' ? location.search : ''
+    void navigate({ pathname: '/tickets', search }, { state: { focusSearch: Date.now() } })
+  }, [navigate, location.pathname, location.search])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey) && !event.repeat) {
         event.preventDefault()
-        showPendingSearch()
+        openSearch()
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [showPendingSearch])
+  }, [openSearch])
 
   const sidebarContent = {
-    items: mainNavigation,
-    sectionLabel: 'Gestión',
-    workspace: demoSession.workspace,
-    user: demoSession.user,
+    items: navigationFor(me.data?.role),
+    sectionLabel: me.data?.role === 'customer' ? 'Soporte' : 'Gestión',
+    workspace: workspaceName,
+    user: { name: userName, role: me.data ? roleLabels[me.data.role] : '' },
   }
 
   return (
@@ -117,13 +126,18 @@ export function AppShell() {
         <Topbar
           theme={theme.resolved}
           onToggleTheme={theme.toggle}
-          onSearch={showPendingSearch}
+          onSearch={openSearch}
           onNotifications={() =>
             toast.show({ title: 'Notificaciones no disponibles', description: 'Llegarán con la API de eventos.' })
           }
-          userName={demoSession.user.name}
+          userName={userName}
           breadcrumb={
-            <Breadcrumb items={[{ label: demoSession.workspace, to: '/' }, ...(crumb ? [{ label: crumb }] : [])]} />
+            <Breadcrumb
+              items={[
+                { label: workspaceName, to: '/' },
+                ...crumbs.map((item, index) => (index === crumbs.length - 1 ? { label: item.label } : item)),
+              ]}
+            />
           }
           menuButton={
             isTabletUp ? undefined : { expanded: drawerOpen, controls: drawerId, onClick: () => setDrawerOpen(true) }
