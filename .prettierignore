@@ -7,3 +7,4 @@ frontend/src/styles/tokens.css
 frontend/src/components/ui/Icon/paths.ts
 frontend/test-results
 frontend/playwright-report
+frontend/coverage

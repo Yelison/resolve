@@ -20,7 +20,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/main.tsx'],
+      // El catálogo es una página de demostración; se verifica con Playwright, no con tests unitarios.
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/main.tsx', 'src/app/catalog/**'],
+      thresholds: { statements: 80, branches: 75, functions: 75, lines: 80 },
     },
   },
 })
