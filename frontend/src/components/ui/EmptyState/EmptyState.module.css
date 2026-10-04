@@ -1,0 +1,25 @@
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-24);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  text-align: center;
+}
+
+.icon {
+  color: var(--color-blue-ink);
+}
+
+.title {
+  font: var(--font-section);
+  color: var(--color-ink);
+}
+
+.description {
+  max-width: 48ch;
+  font: var(--font-body);
+  color: var(--color-muted);
+}

@@ -1,0 +1,25 @@
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  padding: var(--space-16);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+
+.line {
+  height: 12px;
+  border-radius: var(--radius-small);
+  background: var(--color-disabled);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.line:nth-child(even) {
+  width: 72%;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}

@@ -1,0 +1,35 @@
+.alert {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-12);
+  border-radius: var(--radius-control);
+}
+
+.title {
+  font: var(--font-strong);
+}
+
+.body {
+  font: var(--font-caption);
+}
+
+.blue {
+  background: var(--color-blue-bg);
+  color: var(--color-blue-ink);
+}
+
+.green {
+  background: var(--color-green-bg);
+  color: var(--color-green-ink);
+}
+
+.amber {
+  background: var(--color-amber-bg);
+  color: var(--color-amber-ink);
+}
+
+.red {
+  background: var(--color-red-bg);
+  color: var(--color-red-ink);
+}
