@@ -1,0 +1,219 @@
+/*
+ * La disposición depende del ancho del contenedor, no del viewport:
+ * tarjetas por debajo de 560 px, columnas prioritarias hasta 880 px y tabla completa por encima.
+ */
+.table {
+  container: tickets / inline-size;
+  min-width: 0;
+}
+
+.header,
+.row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) var(--touch-target);
+  grid-template-areas:
+    'check subject actions'
+    '. meta .';
+  align-items: center;
+  column-gap: var(--space-12);
+  row-gap: var(--space-8);
+}
+
+.header {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.header .columnHeader {
+  font: var(--font-caption);
+  color: var(--color-muted);
+  text-transform: uppercase;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.row {
+  padding: var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.row:hover {
+  background: var(--color-surface-hover);
+}
+
+.selected,
+.selected:hover {
+  background: var(--color-blue-bg);
+}
+
+.check {
+  grid-area: check;
+}
+
+.subject {
+  grid-area: subject;
+  min-width: 0;
+}
+
+.subjectLink {
+  display: block;
+  overflow: hidden;
+  color: var(--color-ink);
+  font: var(--font-strong);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.number {
+  margin-right: var(--space-4);
+}
+
+.subjectLink:hover {
+  text-decoration: underline;
+}
+
+.customer {
+  display: block;
+  min-width: 0;
+  margin-top: var(--space-4);
+  overflow: hidden;
+  font: var(--font-caption);
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-16);
+  min-width: 0;
+}
+
+/* En tarjeta, las celdas de estado, prioridad, responsable y fecha se agrupan en la fila «meta». */
+.status,
+.priority,
+.assignee,
+.updated {
+  min-width: 0;
+}
+
+.priority {
+  font: var(--font-body);
+  color: var(--color-muted);
+}
+
+.urgent {
+  color: var(--color-red-ink);
+}
+
+.assignee {
+  overflow: hidden;
+  font: var(--font-caption);
+  color: var(--color-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.updated {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.actions {
+  grid-area: actions;
+  justify-self: end;
+}
+
+@container tickets (min-width: 560px) {
+  .header,
+  .row {
+    grid-template-columns: 20px minmax(0, 1fr) 120px 90px var(--touch-target);
+    grid-template-areas: 'check subject status priority actions';
+    padding: var(--space-12);
+  }
+
+  .header {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-bg);
+  }
+
+  .rows {
+    gap: 0;
+  }
+
+  .row {
+    border: 0;
+    border-bottom: 1px solid var(--color-line);
+    border-radius: 0;
+  }
+
+  .row:last-child {
+    border-bottom: 0;
+  }
+
+  .meta {
+    display: contents;
+  }
+
+  .status {
+    grid-area: status;
+  }
+
+  .priority {
+    grid-area: priority;
+  }
+
+  .assignee,
+  .updated,
+  .assigneeHeader,
+  .updatedHeader {
+    display: none;
+  }
+}
+
+@container tickets (min-width: 880px) {
+  .header,
+  .row {
+    grid-template-columns: 20px minmax(0, 1fr) 120px 90px minmax(120px, 170px) 120px var(--touch-target);
+    grid-template-areas: 'check subject status priority assignee updated actions';
+  }
+
+  .assignee,
+  .assigneeHeader {
+    display: block;
+    grid-area: assignee;
+    font: var(--font-body);
+    color: var(--color-ink);
+  }
+
+  .updated,
+  .updatedHeader {
+    display: block;
+    grid-area: updated;
+  }
+
+  .assigneeHeader,
+  .updatedHeader {
+    font: var(--font-caption);
+    color: var(--color-muted);
+  }
+}
