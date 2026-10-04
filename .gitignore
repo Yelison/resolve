@@ -1,0 +1,20 @@
+# Entorno
+.env
+.env.*
+!.env.example
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Exportación de Figma (pesada y regenerable con tools/figma-export)
+design/resolve-figma-export.json
+design/figma/
+
+# Herramientas de apoyo locales (no forman parte del producto)
+CLAUDE.md
+tools/
+design/

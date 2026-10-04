@@ -1,0 +1,7 @@
+dist
+node_modules
+design
+backend
+*.md
+frontend/src/styles/tokens.css
+frontend/src/components/ui/Icon/paths.ts
