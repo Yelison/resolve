@@ -4,6 +4,10 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+    ignore:
+      # Los tipos de Node siguen la versión de runtime fijada en .nvmrc (22).
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       frontend:
         patterns: ['*']
