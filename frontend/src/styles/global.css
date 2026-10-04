@@ -59,7 +59,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
-  scrollbar-gutter: stable;
+  background: var(--color-bg);
 }
 
 html.scroll-locked {
