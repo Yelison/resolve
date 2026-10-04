@@ -1,0 +1,86 @@
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: var(--space-12);
+}
+
+.inbox {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-16);
+  margin: 0;
+  padding: var(--space-12) var(--space-16) 0;
+  list-style: none;
+}
+
+.view {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: var(--touch-target);
+  border-radius: var(--radius-small);
+  color: var(--color-muted);
+  font: var(--font-body);
+  text-decoration: none;
+}
+
+.view:hover {
+  color: var(--color-ink);
+}
+
+.view[aria-current='true'] {
+  color: var(--color-blue-ink);
+  font: var(--font-strong);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-16);
+}
+
+.search {
+  flex: 1 1 240px;
+}
+
+.results {
+  container: inbox-results / inline-size;
+  min-width: 0;
+  padding: 0 var(--space-16) var(--space-16);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+/* Mismo umbral que la tabla: en tarjetas hay margen interior; como tabla, las filas llegan al borde del panel. */
+@container inbox-results (min-width: 560px) {
+  .resultsInner {
+    margin: 0 calc(var(--space-16) * -1) calc(var(--space-16) * -1);
+  }
+}
+
+@media (min-width: 1200px) {
+  .metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-24);
+  }
+
+  .views {
+    padding: var(--space-20) var(--space-20) 0;
+    gap: var(--space-24);
+  }
+}
