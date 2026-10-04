@@ -19,7 +19,7 @@ public class TestData {
 	/** Vacía todas las tablas de negocio entre tests. */
 	public void reset() {
 		this.jdbc.sql("""
-				TRUNCATE memberships, customers, users, organizations CASCADE
+				TRUNCATE ticket_activities, ticket_messages, tickets, memberships, customers, users, organizations CASCADE
 				""").update();
 	}
 
