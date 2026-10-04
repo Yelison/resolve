@@ -1,0 +1,86 @@
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+.skipLink {
+  position: fixed;
+  z-index: 200;
+  top: var(--space-8);
+  left: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-control);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font: var(--font-label);
+  transform: translateY(calc(-100% - var(--space-16)));
+}
+
+.skipLink:focus-visible {
+  transform: none;
+}
+
+.aside {
+  display: none;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  padding: var(--page-gutter);
+}
+
+.content:focus {
+  outline: none;
+}
+
+.drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--drawer-width);
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: var(--color-nav);
+}
+
+.drawer[open] {
+  animation: slide-in var(--duration-base) ease-out;
+}
+
+.drawer::backdrop {
+  background: color-mix(in srgb, var(--color-overlay) calc(var(--overlay-opacity) * 100%), transparent);
+}
+
+.drawerSidebar {
+  width: 100%;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@media (min-width: 768px) {
+  .shell {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .aside {
+    position: sticky;
+    top: 0;
+    display: block;
+    height: 100dvh;
+  }
+}
