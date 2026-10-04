@@ -3,18 +3,44 @@ import { AppShell, type RouteHandle } from './layout/AppShell'
 import { mainNavigation } from './navigation'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PendingPage } from './pages/PendingPage'
+import { NewTicketPage } from '../features/tickets/NewTicketPage'
+import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
+import { TicketsPage } from '../features/tickets/TicketsPage'
 
-const sectionRoutes: RouteObject[] = mainNavigation.map((item) => {
-  const handle: RouteHandle = { crumb: item.label }
-  const element = <PendingPage title={item.label} icon={item.icon} />
-  return item.to === '/' ? { index: true, element, handle } : { path: item.to.slice(1), element, handle }
-})
+/** Secciones cuya vista aún no está implementada. */
+const pendingRoutes: RouteObject[] = mainNavigation
+  .filter((item) => item.to !== '/tickets')
+  .map((item) => {
+    const handle: RouteHandle = { crumb: item.label }
+    const element = <PendingPage title={item.label} icon={item.icon} />
+    return item.to === '/' ? { index: true, element, handle } : { path: item.to.slice(1), element, handle }
+  })
+
+const ticketRoutes: RouteObject[] = [
+  {
+    path: 'tickets',
+    handle: { crumb: 'Tickets' } satisfies RouteHandle,
+    children: [
+      { index: true, element: <TicketsPage /> },
+      { path: 'nuevo', element: <NewTicketPage />, handle: { crumb: 'Nuevo ticket' } satisfies RouteHandle },
+      {
+        path: ':number',
+        element: <TicketDetailPage />,
+        handle: { crumb: (params) => `#${params.number}` } satisfies RouteHandle,
+      },
+    ],
+  },
+]
 
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <AppShell />,
-    children: [...sectionRoutes, { path: '*', element: <NotFoundPage />, handle: { crumb: 'No encontrada' } }],
+    children: [
+      ...pendingRoutes,
+      ...ticketRoutes,
+      { path: '*', element: <NotFoundPage />, handle: { crumb: 'No encontrada' } },
+    ],
   },
   {
     path: '/catalogo',
