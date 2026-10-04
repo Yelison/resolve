@@ -1,0 +1,137 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+  padding: var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  transition:
+    background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.editor:has(textarea:focus-visible) {
+  border-color: var(--color-focus);
+  outline: 1px solid var(--color-focus);
+}
+
+.note {
+  background: var(--color-amber-bg);
+}
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-12);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mode {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-small);
+  font: var(--font-body);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.mode:has(input:checked) {
+  font: var(--font-strong);
+  color: var(--color-blue-ink);
+}
+
+.note .mode:has(input:checked) {
+  color: var(--color-amber-ink);
+}
+
+.mode:has(input:focus-visible) {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.tool {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--color-muted);
+  font: var(--font-label);
+  cursor: pointer;
+}
+
+.tool:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-ink);
+}
+
+.bold {
+  font-weight: 700;
+}
+
+.italic {
+  font-style: italic;
+}
+
+.separator {
+  width: 1px;
+  height: 20px;
+  margin: 0 var(--space-4);
+  background: var(--color-line);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  font: var(--font-body);
+  resize: vertical;
+}
+
+.textarea:focus-visible {
+  outline: none;
+}
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-16);
+}
+
+.hint {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.error {
+  font: var(--font-caption);
+  color: var(--color-red-ink);
+}
+
+@media (max-width: 767.98px) {
+  .tool,
+  .mode {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+}
