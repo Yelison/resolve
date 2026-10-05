@@ -384,7 +384,7 @@ function ArticleForm({ article, reload }: ArticleFormProps) {
             <Button type="submit" loading={saving} loadingLabel="Guardando…" disabled={Boolean(article) && !dirty}>
               {article ? 'Guardar' : 'Guardar borrador'}
             </Button>
-            {textDirty && <p className={styles.draftNote}>Borrador guardado en este navegador</p>}
+            {textDirty && !offered && <p className={styles.draftNote}>Borrador guardado en este navegador</p>}
           </div>
         </form>
 
