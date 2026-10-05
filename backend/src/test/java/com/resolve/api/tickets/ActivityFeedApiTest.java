@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.JsonNode;
@@ -18,6 +20,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** El feed de actividad reciente de toda la organización, a partir de la actividad que escribe la API. */
 class ActivityFeedApiTest extends TicketsFixture {
+
+	@Autowired
+	private JdbcClient jdbc;
+
+	/** El feed ordena por fecha dentro de una organización: sin este índice recorrería toda la tabla de actividad. */
+	@Test
+	void theFeedOrderingHasItsIndex() {
+		String definition = this.jdbc.sql("""
+				SELECT indexdef FROM pg_indexes
+				WHERE tablename = 'ticket_activities' AND indexname = 'ticket_activities_feed_idx'
+				""").query(String.class).optional().orElse("");
+
+		assertThat(definition).contains("(organization_id, created_at DESC, id DESC)");
+	}
 
 	@Test
 	void recentActivityIsLimitedToTheOrganizationAndOrdered() throws Exception {
