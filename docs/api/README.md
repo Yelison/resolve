@@ -108,6 +108,8 @@ Guarantees covered by tests (real threads in `TicketConcurrencyTest`, a controll
 
 Creating a ticket and changing its status, priority or assignee writes an activity entry with the actor, the previous and the new value, **in the same transaction** as the change: if either fails, both roll back. Entries are a typed union by `type`; assignee changes keep the member id and the name at the time of the change.
 
+`GET /api/tickets/activity` is the **recent activity feed** of the whole organization: the latest `size` entries (1–50, default 10; anything else is a `400` on the field `size`) of every ticket's log, newest first (ties by id), as `{ ticketNumber, subject, activity }` where `activity` is the same union as above. It only reads the activity log, so internal notes and replies (which are messages, not activity) never appear and there is nothing to filter by role; customers get `403`. Because `activity` also matches `/tickets/{number}`, the rule that restricts it to staff sits before the one for ticket numbers (a test pins it: a customer gets `403`, not a `400` from the number parser).
+
 ## Metrics
 
 `GET /api/tickets/metrics` describes the **whole organization**, not the active filters, so the numbers stay stable while the user filters the inbox. Days are computed in the organization's time zone.
@@ -135,6 +137,7 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | `PATCH /api/tickets/{number}` | admin, agent | Change status, priority and/or assignee (`If-Match`) |
 | `GET /api/tickets/{number}/messages` | all | Conversation; customers only receive `public` messages |
 | `POST /api/tickets/{number}/messages` | admin, agent | Reply (`public`) or internal note (`internal`) |
+| `GET /api/tickets/activity` | admin, agent | Latest activity of the whole organization, each with the number and subject of its ticket (`size` 1–50, default 10) |
 | `GET /api/tickets/{number}/activity` | admin, agent | Activity log |
 | `GET /api/customers` | admin, agent | Customer list and search: `q`, `company`, `archived`, sorting and pagination |
 | `GET /api/customers/metrics` | admin, agent | Customer metrics of the whole organization |

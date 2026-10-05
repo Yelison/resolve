@@ -68,6 +68,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tickets/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Latest activity of the whole organization, newest first (not paginated)
+         * @description Staff only. The most recent entries of the activity logs of every ticket of the organization, each with
+         *     the number and subject of its ticket. Internal notes are messages, not activity, and never appear.
+         */
+        get: operations["listRecentActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tickets/{number}": {
         parameters: {
             query?: never;
@@ -821,6 +842,34 @@ export interface components {
             createdAt: string;
         };
         /**
+         * @description An activity entry of the organization together with the ticket it belongs to.
+         * @example {
+         *       "ticketNumber": 1048,
+         *       "subject": "No puedo acceder a mi cuenta",
+         *       "activity": {
+         *         "id": "4a7c1c52-3f6e-4a58-9d0b-2b2f7f9a6c10",
+         *         "type": "status_changed",
+         *         "actor": {
+         *           "id": "3f0c2f9a-6a56-4d1f-9c3e-1f4b0a7d2c11",
+         *           "name": "Laura Méndez"
+         *         },
+         *         "from": "open",
+         *         "to": "in_progress",
+         *         "createdAt": "2026-10-04T14:52:00Z"
+         *       }
+         *     }
+         */
+        ActivityFeedItem: {
+            /**
+             * Format: int64
+             * @example 1048
+             */
+            ticketNumber: number;
+            /** @example No puedo acceder a mi cuenta */
+            subject: string;
+            activity: components["schemas"]["Activity"];
+        };
+        /**
          * @example {
          *       "period": {
          *         "from": "2026-09-28T05:00:00Z",
@@ -1095,6 +1144,8 @@ export interface components {
         /** @description Zero-based page index. */
         Page: number;
         Size: number;
+        /** @description Number of entries to return. */
+        ActivityFeedSize: number;
         /** @description Length of the report period, in calendar days of the organization time zone. */
         ReportPeriod: "7d" | "30d" | "90d";
     };
@@ -1142,6 +1193,7 @@ export type TicketCreatedActivity = components['schemas']['TicketCreatedActivity
 export type StatusChangedActivity = components['schemas']['StatusChangedActivity'];
 export type PriorityChangedActivity = components['schemas']['PriorityChangedActivity'];
 export type AssigneeChangedActivity = components['schemas']['AssigneeChangedActivity'];
+export type ActivityFeedItem = components['schemas']['ActivityFeedItem'];
 export type ReportSummary = components['schemas']['ReportSummary'];
 export type ReportRange = components['schemas']['ReportRange'];
 export type ReportCount = components['schemas']['ReportCount'];
@@ -1163,6 +1215,7 @@ export type ParameterCustomerId = components['parameters']['CustomerId'];
 export type ParameterMemberUserId = components['parameters']['MemberUserId'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterSize = components['parameters']['Size'];
+export type ParameterActivityFeedSize = components['parameters']['ActivityFeedSize'];
 export type ParameterReportPeriod = components['parameters']['ReportPeriod'];
 export type HeaderETag = components['headers']['ETag'];
 export type $defs = Record<string, never>;
@@ -1282,6 +1335,32 @@ export interface operations {
                     "application/json": components["schemas"]["TicketMetrics"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listRecentActivity: {
+        parameters: {
+            query?: {
+                /** @description Number of entries to return. */
+                size?: components["parameters"]["ActivityFeedSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Activity entries, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityFeedItem"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
         };
