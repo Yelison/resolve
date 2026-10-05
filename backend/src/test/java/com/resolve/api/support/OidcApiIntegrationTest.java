@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 /**
@@ -21,9 +22,14 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
  * necesita red. {@link #signedIn(String)} deja una sesión HTTP como la que deja el inicio de sesión real (el token de
  * OpenID Connect en el contexto de seguridad de la sesión), para tests que encadenan varias peticiones.
  */
+// La URL pública se fija aquí: los tests comprueban adónde vuelve el navegador y no deben depender de que el entorno
+// (por ejemplo RESOLVE_PUBLIC_URL de un slot de Herdr) la defina. Las propiedades de test pesan más que las variables.
+@TestPropertySource(properties = "resolve.public-url=" + OidcApiIntegrationTest.PUBLIC_URL)
 @ActiveProfiles("oidc")
 @Import(OidcTestConfiguration.class)
 public abstract class OidcApiIntegrationTest extends ApiIntegrationTest {
+
+	public static final String PUBLIC_URL = "http://localhost:5173";
 
 	private static final String CSRF_TOKEN = "token-csrf-de-prueba";
 

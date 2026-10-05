@@ -6,6 +6,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
@@ -48,19 +49,22 @@ class OidcLogoutSuccessHandlerTest {
 			.isEqualTo(PUBLIC_URL);
 	}
 
+	/**
+	 * Valores inconfundibles (el id de sesión de un {@code MockHttpSession} por defecto es un contador, «1», que aparece
+	 * en cualquier URL con un puerto): se compara la URL completa y se buscan además el secreto y el id de sesión.
+	 */
 	@Test
 	void theUrlCarriesNothingOfTheClientBeyondTheIdToken() throws Exception {
 		MockHttpServletRequest request = new MockHttpServletRequest();
-		request.getSession(true);
-		String sessionId = request.getSession().getId();
+		MockHttpSession session = new MockHttpSession(null, "sesion-hostil-7f3a");
+		request.setSession(session);
 		MockHttpServletResponse response = new MockHttpServletResponse();
 
 		handler(true).onLogoutSuccess(request, response, signedIn());
 
 		String url = JSON.readTree(response.getContentAsString()).get("logoutUrl").asString();
-		assertThat(url).doesNotContain("secreto-de-prueba").doesNotContain("client_secret").doesNotContain(sessionId);
-		assertThat(UriComponentsBuilder.fromUriString(url).build().getQueryParams().keySet())
-			.isSubsetOf("id_token_hint", "post_logout_redirect_uri", "client_id");
+		assertThat(url).isEqualTo(END_SESSION + "?id_token_hint=" + ID_TOKEN + "&post_logout_redirect_uri=" + PUBLIC_URL);
+		assertThat(url).doesNotContain("secreto-de-prueba").doesNotContain("sesion-hostil-7f3a");
 	}
 
 	@Test
