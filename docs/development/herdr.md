@@ -228,7 +228,7 @@ for them). The coordinator creates a review worktree pinned to the delivered com
 requires, and the review brief from `scripts/herdr/review-brief.template.md`:
 
 ```sh
-scripts/herdr/new-review.sh --task <id> [--effort high|medium] [--points points.md] [--name rev-<id>] [--lane X]
+scripts/herdr/new-review.sh --task <id> [--effort high|medium] [--points points.md] [--name rev-<id>] [--lane X] [--slot N]
 ```
 
 It does what the coordinator used to do by hand: creates `review-<id>` with `new-task.sh --base <HEAD of the task>
@@ -236,16 +236,24 @@ It does what the coordinator used to do by hand: creates `review-<id>` with `new
 points of `--points` under "Extra points from the coordinator", and starts the reviewer with `start-agent.sh`. The
 brief gets, from the implementer's `brief.md`: the title (its first `# ` heading), the plan reference (its `- Id:`
 line), the lane (the one in `ENTREGA <lane>: LISTA`, unless `--lane`) and the commands (the first code block under
-`## Comandos`, with a first line that spells out the review slot's ports and Compose project, because auto mode may
-refuse to read `.env.herdr`); without that block it falls back to `git log`/`git diff --stat` and says so. The
-reviewed commit is the task's `HEAD`, its base is the task's `base_sha`, and the report goes to
+`## Comandos`, after a first line that spells out the review slot's ports and Compose project, because auto mode may
+refuse to read `.env.herdr`). That block was filled with the **implementer's** slot, so every one of its five ports
+and its Compose project are rewritten to the review's, and the script stops if any of the implementer's values
+survives (a review must never run Playwright against, or `compose up/down` on, another task's servers). Without the
+block it falls back to `git log`/`git diff --stat` and says so. The title, the plan reference and the points file are
+checked before anything is created: marker-shaped text (`{{NAME}}`) in them is refused, naming the file, so a failed
+fill cannot leave a half-created review. `--slot N` picks the review's port slot (default: the first free one, as in
+`new-task.sh`; use it when a port of that slot is busy). The reviewed commit is what the task's branch points at
+(`refs/heads/<branch>`), which is the worktree's `HEAD` while it is on that branch, its base is the task's `base_sha`, and the report goes to
 `tasks/review-<id>/review.md`. The review id must be a valid task id, so the task id has at most 33 characters.
 The manual equivalent is `new-task.sh --id review-<id> --branch review/<id>-<sha7> --base <sha> --effort high
 --advisor none --effort-reason "…"` followed by `start-agent.sh`.
 
 **Next rounds.** The implementer does not touch the reviewed commit while the review runs; fixes go on new commits in
-the task worktree. For the next round run `new-review.sh --task <id> --round N [--points …]` (N ≥ 2). It refuses while
-the reviewer is `working` or `blocked`, while the review worktree has changes, or if the task did not move. Then it
+the task worktree. For the next round run `new-review.sh --task <id> --round N [--points …]`, with N greater than the
+review's current round (`review.round` in its `task.json`; an existing `brief-ronda-N.md` is never overwritten). It
+refuses while the reviewer is `working` or `blocked`, while the review worktree has changes, or if the task did not
+move. Then it
 moves the review worktree to the task's new `HEAD`: `git merge --ff-only` when the old commit is an ancestor, and,
 if the history was rewritten (rebase, amend), a new branch `review/<id>-<sha7>` at the new commit (no `reset --hard`;
 the old branch stays until you delete it). It writes `tasks/review-<id>/brief-ronda-N.md` (previous and new commit,
