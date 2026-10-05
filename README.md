@@ -104,6 +104,20 @@ The API reads `DATABASE_URL`, `DATABASE_USERNAME` and `DATABASE_PASSWORD`, with 
 
 To try other roles in development, call `setDemoUser` from the browser console, for example for the customer María Pérez: `setDemoUser('maria.perez@cliente.example')` (agents: `laura.mendez@acme.example`; `setDemoUser(null)` goes back to the admin). It replaces setting `resolve-demo-user` in `localStorage` by hand and also empties the query cache so data from the previous user never shows; reload the page to load the new session.
 
+### Sign in locally
+
+`docker compose up -d` also starts a local [Keycloak](https://www.keycloak.org/) (image `quay.io/keycloak/keycloak:26.7.5`, pinned to the last patch of the 26.7 series when this was written; never `latest`) that imports the realm in [`deploy/keycloak/resolve-realm.json`](deploy/keycloak/resolve-realm.json). It is the identity provider the backend will use with the `oidc` profile and it is for local development only.
+
+```sh
+docker compose up -d keycloak   # KEYCLOAK_PORT=8182 if 8180 is taken
+curl http://localhost:8180/realms/resolve/.well-known/openid-configuration
+```
+
+- **Port.** `KEYCLOAK_PORT` (default `8180`) is the host port; the admin console is at `http://localhost:8180` with `admin` / `admin`.
+- **Demo users.** The realm has `yelisson.ortiz@acme.example` (admin), `laura.mendez@acme.example` (agent), `maria.perez@cliente.example` (customer) and `jordi.puig@northwind.example` (agent of the second organization), all with the password `demo` and a verified email, the same emails as the demo data.
+- **Development values, not secrets.** The `demo` passwords and the client secret of `resolve-api` (`resolve-dev-secret`) only exist in this local realm. Override the secret with `RESOLVE_OIDC_CLIENT_SECRET` before the first start; the realm is imported once, so run `docker compose down --volumes` to import it again after changing the file or the variable.
+- **Redirect URIs.** Keycloak only accepts a wildcard at the end of a redirect URI, so the client lists the local ports one by one: `8080`-`8089` (API) and `5173`/`4173` (Vite). Another port needs its `http://localhost:<port>/api/login/oauth2/code/resolve` entry in the realm file.
+
 ### Frontend scripts
 
 | Script | Purpose |
