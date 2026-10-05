@@ -118,6 +118,44 @@ class CustomerEditApiTest extends CustomersFixture {
 		assertThat(listAs(NORTHWIND_AGENT, "?q=intruso").path("totalItems").asInt()).isZero();
 	}
 
+	@Test
+	void rejectsNonTextScalarsInTheBodyLikeThePatchDoes() throws Exception {
+		this.mvc.perform(post("/customers").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"name": 123, "email": "num@example.com", "company": true, "notes": 7}"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("createCustomer"))
+			.andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("name", "company", "notes")))
+			.andExpect(jsonPath("$.errors[0].message").value("Debe ser un texto."));
+		this.mvc.perform(post("/customers").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"name": "Ok", "email": ["a@b.co"]}"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("email"));
+		// Nada se creó: «true» no aparece como empresa.
+		this.mvc.perform(get("/customers/companies").with(as(LAURA)))
+			.andExpect(jsonPath("$", org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("true"))));
+	}
+
+	@Test
+	void rejectsControlCharactersInTheirOwnField() throws Exception {
+		// PostgreSQL no admite el byte 0: antes se notificaba como «correo duplicado».
+		this.mvc.perform(post("/customers").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"name": "Nu\\u0000lo", "email": "nul@example.com", "company": "A\\u0007B"}"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("createCustomer"))
+			.andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("name", "company")))
+			.andExpect(jsonPath("$.errors[0].message").value("No admite caracteres de control."));
+		this.mvc.perform(patch("/customers/" + this.carlosCustomer).with(as(LAURA))
+			.header("If-Match", "\"0\"")
+			.contentType("application/merge-patch+json")
+			.content("{\"notes\": \"a\\u0000b\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("updateCustomer"))
+			.andExpect(jsonPath("$.errors[0].field").value("notes"));
+		// Los saltos de línea sí son válidos en las notas.
+		MvcResult multiline = patchCustomer(LAURA, this.carlosCustomer, "0", "{\"notes\": \"Línea 1\\nLínea 2\"}");
+		assertThat(multiline.getResponse().getStatus()).isEqualTo(200);
+	}
+
 	// --- Leer --------------------------------------------------------------------------------------------------
 
 	@Test

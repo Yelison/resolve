@@ -19,6 +19,7 @@ import com.resolve.api.customers.CustomerDtos.CustomerMetricsDto;
 import com.resolve.api.customers.CustomerDtos.CustomerSummaryDto;
 import com.resolve.api.customers.CustomerRequestParser.CustomerChanges;
 import com.resolve.api.customers.CustomerRequestParser.NewCustomer;
+import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 class CustomerService {
+
+	private static final String EMAIL_CONSTRAINT = "customers_organization_email_key";
 
 	private static final String DUPLICATE_EMAIL = "Ya existe un cliente con este correo.";
 
@@ -128,15 +131,30 @@ class CustomerService {
 		return detail(member, id);
 	}
 
-	/** El único error de integridad posible al escribir un cliente es el correo repetido por una carrera. */
+	/**
+	 * Traduce a error del campo {@code email} solo la violación del índice único del correo (dos escrituras
+	 * simultáneas pasaron la comprobación y la segunda pierde); cualquier otro error de integridad se relanza.
+	 */
 	private void flushUniqueEmail() {
 		try {
 			this.customers.flush();
 		}
 		catch (DataIntegrityViolationException exception) {
-			// Dos escrituras simultáneas con el mismo correo pasaron la comprobación: la segunda pierde en el índice único.
+			if (!violatesUniqueEmail(exception)) {
+				throw exception;
+			}
 			throw new ApiValidationException("email", DUPLICATE_EMAIL);
 		}
+	}
+
+	private static boolean violatesUniqueEmail(Throwable exception) {
+		for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+			if (cause instanceof ConstraintViolationException violation
+					&& EMAIL_CONSTRAINT.equalsIgnoreCase(violation.getConstraintName())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** Carga el cliente con la fila bloqueada hasta el commit; uno ajeno o inexistente responde 404. */
