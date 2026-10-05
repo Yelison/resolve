@@ -249,6 +249,22 @@ test.describe('clientes', () => {
     expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44)
   })
 
+  for (const width of [390, 767]) {
+    test(`el «Reintentar» de empresas es una zona táctil de 44 px · ${width}px`, async ({ page }) => {
+      // La ruta registrada después prevalece sobre la del mock.
+      await page.route('**/api/customers/companies', (route) =>
+        route.fulfill({ status: 500, contentType: 'application/problem+json', body: '{"status":500,"title":"Error"}' }),
+      )
+      await page.setViewportSize({ width, height: 844 })
+      await page.goto('/clientes')
+      const retry = page.getByRole('button', { name: 'Reintentar cargar las empresas' })
+      await expect(retry).toBeVisible()
+      const box = (await retry.boundingBox())!
+      expect(box.height).toBeGreaterThanOrEqual(44)
+      expect(box.width).toBeGreaterThanOrEqual(44)
+    })
+  }
+
   test('en móvil el nombre y el correo largos envuelven sin recortarse', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 })
     await page.goto('/clientes')
