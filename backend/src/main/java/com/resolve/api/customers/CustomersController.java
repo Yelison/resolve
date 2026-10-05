@@ -15,6 +15,7 @@ import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.SortDirection;
 import com.resolve.api.common.web.SortSpec;
 import com.resolve.api.customers.CustomerDtos.CustomerDetailDto;
+import com.resolve.api.customers.CustomerDtos.CustomerMetricsDto;
 import com.resolve.api.customers.CustomerDtos.CustomerSummaryDto;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.ResponseEntity;
@@ -73,6 +74,16 @@ class CustomersController {
 			errors.addAll(exception.errors());
 			return null;
 		}
+	}
+
+	@GetMapping("/customers/metrics")
+	CustomerMetricsDto metrics(@AuthenticationPrincipal CurrentMember member) {
+		return this.service.metrics(member);
+	}
+
+	@GetMapping("/customers/companies")
+	List<String> companies(@AuthenticationPrincipal CurrentMember member) {
+		return this.service.companies(member);
 	}
 
 	@PostMapping("/customers")

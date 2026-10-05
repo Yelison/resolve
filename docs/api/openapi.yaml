@@ -328,6 +328,43 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /customers/metrics:
+    get:
+      tags: [Customers]
+      operationId: getCustomerMetrics
+      summary: Customer metrics for the whole organization
+      description: |
+        Computed over the active (non-archived) customers of the organization and not affected by list
+        filters. `newThisMonth` uses the current month in the organization time zone.
+      responses:
+        '200':
+          description: Organization-wide customer metrics.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerMetrics' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /customers/companies:
+    get:
+      tags: [Customers]
+      operationId: listCompanies
+      summary: Distinct company names of the active customers
+      description: |
+        Case-insensitive alphabetical order, at most 200 names, without empty values. Names that only differ
+        in case are listed once. Archived customers do not contribute.
+      responses:
+        '200':
+          description: Company names.
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 200
+                items: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /customers/{id}:
     parameters:
       - $ref: '#/components/parameters/CustomerId'
@@ -662,6 +699,26 @@ components:
         email: { type: string, format: email, maxLength: 254 }
         company: { type: [string, 'null'], maxLength: 120 }
         notes: { type: [string, 'null'], maxLength: 2000 }
+
+    CustomerMetrics:
+      description: Counts over the active (non-archived) customers of the organization.
+      type: object
+      additionalProperties: false
+      required: [total, companies, withOpenTickets, newThisMonth]
+      properties:
+        total: { type: integer, minimum: 0 }
+        companies:
+          description: Distinct non-empty company names, ignoring case.
+          type: integer
+          minimum: 0
+        withOpenTickets:
+          description: Customers with at least one ticket that is not `resolved`.
+          type: integer
+          minimum: 0
+        newThisMonth:
+          description: Customers created in the current month of the organization time zone.
+          type: integer
+          minimum: 0
 
     TicketSummary:
       type: object

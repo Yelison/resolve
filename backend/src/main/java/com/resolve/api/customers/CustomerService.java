@@ -1,6 +1,7 @@
 package com.resolve.api.customers;
 
 import java.time.Clock;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -14,6 +15,7 @@ import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.Preconditions;
 import com.resolve.api.customers.CustomerDtos.CustomerDetailDto;
+import com.resolve.api.customers.CustomerDtos.CustomerMetricsDto;
 import com.resolve.api.customers.CustomerDtos.CustomerSummaryDto;
 import com.resolve.api.customers.CustomerRequestParser.CustomerChanges;
 import com.resolve.api.customers.CustomerRequestParser.NewCustomer;
@@ -33,10 +35,13 @@ class CustomerService {
 
 	private final CustomerRepository customers;
 
+	private final CustomerMetricsQuery metrics;
+
 	private final Clock clock;
 
-	CustomerService(CustomerRepository customers, Clock clock) {
+	CustomerService(CustomerRepository customers, CustomerMetricsQuery metrics, Clock clock) {
 		this.customers = customers;
+		this.metrics = metrics;
 		this.clock = clock;
 	}
 
@@ -44,6 +49,16 @@ class CustomerService {
 	PageResponse<CustomerSummaryDto> list(CurrentMember member, CustomerFilters filters,
 			PageQuery<CustomerSortField> page) {
 		return this.customers.search(member.organizationId(), filters, page).map(CustomerSummaryDto::from);
+	}
+
+	@Transactional(readOnly = true)
+	CustomerMetricsDto metrics(CurrentMember member) {
+		return this.metrics.compute(member.organizationId());
+	}
+
+	@Transactional(readOnly = true)
+	List<String> companies(CurrentMember member) {
+		return this.metrics.companies(member.organizationId());
 	}
 
 	@Transactional(readOnly = true)

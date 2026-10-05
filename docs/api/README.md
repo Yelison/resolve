@@ -133,6 +133,8 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | `POST /api/tickets/{number}/messages` | admin, agent | Reply (`public`) or internal note (`internal`) |
 | `GET /api/tickets/{number}/activity` | admin, agent | Activity log |
 | `GET /api/customers` | admin, agent | Customer list and search: `q`, `company`, `archived`, sorting and pagination |
+| `GET /api/customers/metrics` | admin, agent | Customer metrics of the whole organization |
+| `GET /api/customers/companies` | admin, agent | Distinct company names, for the list filter |
 | `POST /api/customers` | admin, agent | Create a customer (`201`, `Location`, `ETag`) |
 | `GET /api/customers/{id}` | admin, agent | Customer detail (with `ETag`); archived customers can be read |
 | `PATCH /api/customers/{id}` | admin, agent | Edit contact data and notes (`If-Match`); `409` when archived |
@@ -169,6 +171,19 @@ Rules for writes:
 - `name` is required (at most 120 characters); `email` is required, must look like an email (at most 254) and is **unique per organization ignoring case, archived customers included**. A duplicate is a `400` on the field `email`, also when two requests race for the same address.
 - `company` and `notes` are optional; blank text is stored as `null`. In a `PATCH`, `null` clears them, while `name` and `email` do not accept `null`.
 - The organization is never part of the body: an `organizationId` is an unknown field and a `400`.
+
+#### Customer metrics and companies
+
+`GET /api/customers/metrics` describes the **active (non-archived) customers of the whole organization**, not the list filters. The month is the current month in the organization's time zone, so a customer created at 23:30 local time on the last day of a month belongs to that month even when it is already the next one in UTC.
+
+| Field | Definition |
+| --- | --- |
+| `total` | Customers that are not archived |
+| `companies` | Distinct non-empty company names among them, ignoring case |
+| `withOpenTickets` | Customers with at least one ticket whose status is not `resolved` |
+| `newThisMonth` | Customers created in the current month of the organization's time zone |
+
+`GET /api/customers/companies` returns those company names as a plain array: once per name ignoring case (when only the case differs, the first in binary order wins, so capitals come first), alphabetical without regard to case, at most 200, and without empty values, archived customers or other organizations' companies. It feeds the company filter of the list.
 
 #### Deletion and archiving
 
