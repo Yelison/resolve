@@ -7,11 +7,17 @@ import com.resolve.api.support.OidcApiIntegrationTest;
 import com.resolve.api.support.OidcTestConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
+import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -31,6 +37,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OidcAuthenticationTest extends OidcApiIntegrationTest {
 
 	private static final String DEACTIVATED = "Tu acceso a esta organización fue desactivado";
+
+	@Autowired
+	private FilterChainProxy filterChain;
+
+	@Autowired
+	private OAuth2AuthorizedClientRepository authorizedClients;
 
 	private UUID acme;
 
@@ -235,6 +247,27 @@ class OidcAuthenticationTest extends OidcApiIntegrationTest {
 		this.mvc.perform(get("/login/oauth2/code/resolve").param("error", "access_denied"))
 			.andExpect(status().is3xxRedirection())
 			.andExpect(header().string("Location", "http://localhost:5173/entrar?error=oidc"));
+	}
+
+	/**
+	 * Los tokens del cliente OIDC (acceso, refresco) tienen que morir con la sesión. Con el valor por defecto de Spring
+	 * Boot quedarían en un servicio en memoria, por usuario, aunque la sesión se invalidara. Como el login del
+	 * navegador no se puede reproducir sin proveedor, se comprueba el cableado: el filtro que guarda el cliente tras el
+	 * login usa el repositorio de sesión HTTP.
+	 */
+	@Test
+	void theTokensOfTheOidcClientAreKeptInTheSessionAndNotInMemory() {
+		OAuth2LoginAuthenticationFilter loginFilter = this.filterChain.getFilterChains()
+			.stream()
+			.flatMap((chain) -> chain.getFilters().stream())
+			.filter(OAuth2LoginAuthenticationFilter.class::isInstance)
+			.map(OAuth2LoginAuthenticationFilter.class::cast)
+			.findFirst()
+			.orElseThrow();
+
+		assertThat(ReflectionTestUtils.getField(loginFilter, "authorizedClientRepository"))
+			.isInstanceOf(HttpSessionOAuth2AuthorizedClientRepository.class);
+		assertThat(this.authorizedClients).isInstanceOf(HttpSessionOAuth2AuthorizedClientRepository.class);
 	}
 
 	@Test
