@@ -391,7 +391,8 @@ In order, stopping at the first problem and saying what it did and did not do:
    owner) or reuses the open one for the branch, whose title and description it leaves alone.
 4. **Smoke.** First waits until the PR shows the pushed commit as its head (`headRefOid`), so the checks of the
    previous head are never counted; then polls `gh pr checks --json` until the check named exactly `Full-stack smoke`
-   passes (the most recent run if it ran more than once). If it fails, is cancelled or skipped, it prints the checks
+   passes (the most recent run if it ran more than once; a rerun still in the queue, with no start time or Go's zero
+   time, counts as the newest, so it waits for it). If it fails, is cancelled or skipped, it prints the checks
    and stops **without scheduling the merge**; if the head or the check never shows up it gives up after
    `HERDR_SHIP_TIMEOUT_SECONDS` (default 1800). `HERDR_POLL_SECONDS` (default 20) sets the interval.
 5. `gh pr merge --auto --rebase --match-head-commit <pushed sha>` (a head that moved meanwhile is not merged), then waits for the merge (it stops if the PR is closed or another check fails), runs
