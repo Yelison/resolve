@@ -52,9 +52,11 @@ paths:
       summary: Edit the caller's own display name
       description: |
         Every role can call it; the only editable field is `name`. It changes the person (`users.name`), not
-        the customer record that staff manage, and shows up live wherever the person is shown as a `MemberRef`
-        or message author; the activity history keeps the name it had when it was recorded. A person who belongs
-        to several organizations has the same name in all of them. There is no `If-Match`: the resource has a
+        the customer record that staff manage, and shows up live wherever a staff member is shown as a
+        `MemberRef` (assignee, authors of staff messages, team, assignees, reports) and in `/me`. The activity
+        history (`/tickets/{number}/activity` and `/tickets/activity`) keeps the name it had when it was recorded.
+        For a `customer` member only `/me` changes: their tickets and messages keep showing the customer record.
+        A person who belongs to several organizations has the same name in all of them. There is no `If-Match`: the resource has a
         single owner, so there is no concurrent editor to protect.
       requestBody:
         required: true
