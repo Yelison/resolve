@@ -13,14 +13,16 @@ const percentFormat = new Intl.NumberFormat('es', { maximumFractionDigits: 0 })
 
 /**
  * Compara los resueltos de hoy con los de ayer (ambos «hoy» y «ayer» de la zona de la organización, calculados por el
- * servidor). La diferencia siempre es absoluta; el porcentaje solo existe si ayer hubo alguno, porque con ayer = 0 no
- * hay base y sería infinito o inventado.
+ * servidor). La diferencia siempre es absoluta; el porcentaje solo existe si ayer hubo alguno (con ayer = 0 no hay base) y
+ * si no redondea a 0.
  */
 export function compareResolved(today: number, yesterday: number): ResolvedComparison {
   const difference = today - yesterday
   if (difference === 0) return { text: 'Igual que ayer', arrow: null, trend: 'neutral' }
   const amount = Math.abs(difference)
-  const percent = yesterday > 0 ? ` (${percentFormat.format(Math.round((amount / yesterday) * 100))} %)` : ''
+  // Sin porcentaje si ayer fue 0 (no hay base) ni si redondea a 0 («1 más que ayer (0 %)» se leería contradictorio).
+  const rounded = yesterday > 0 ? Math.round((amount / yesterday) * 100) : 0
+  const percent = rounded > 0 ? ` (${percentFormat.format(rounded)} %)` : ''
   return difference > 0
     ? { text: `${amount} más que ayer${percent}`, arrow: '↑', trend: 'positive' }
     : { text: `${amount} menos que ayer${percent}`, arrow: '↓', trend: 'negative' }

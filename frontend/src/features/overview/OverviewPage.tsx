@@ -20,7 +20,8 @@ import { useRecentActivity, useTicketList, useTicketMetrics } from '../tickets/q
 import { compareResolved, newToday, requestPoints } from './overviewData'
 import styles from './OverviewPage.module.css'
 
-const ACTIVITY_SIZE = 10
+// La ficha dice 10; con 5 la actividad y el gráfico quedan casi a la misma altura.
+const ACTIVITY_SIZE = 5
 const ATTENTION_PAGE_SIZE = 5
 
 /**
@@ -99,7 +100,8 @@ function MetricsSection() {
       <Metric
         label="Primera respuesta"
         value={data.firstResponseMinutes === null ? 'Sin datos' : `${data.firstResponseMinutes} min`}
-        detail={`Objetivo: ${data.firstResponseTargetMinutes} min`}
+        // La ventana es la de `/tickets/metrics` (168 h móviles), no la del informe.
+        detail={`Mediana de 7 días · Objetivo: ${data.firstResponseTargetMinutes} min`}
       />
       <Metric
         label="Sin responsable"

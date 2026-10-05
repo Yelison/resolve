@@ -6,7 +6,7 @@ test.describe('resumen', () => {
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1, name: 'Resumen' })).toBeVisible()
     await expect(page.getByText('Tickets abiertos')).toBeVisible()
-    await expect(page.getByText('Objetivo: 30 min')).toBeVisible()
+    await expect(page.getByText('Mediana de 7 días · Objetivo: 30 min')).toBeVisible()
     await expect(page.getByRole('img', { name: 'Solicitudes por día' })).toBeVisible()
 
     const table = page.getByRole('table', { name: 'Tickets que necesitan atención' })
