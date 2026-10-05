@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { useId, useLayoutEffect, useState, type CSSProperties } from 'react'
 import { cx } from '../../../lib/cx'
 import styles from './BarChart.module.css'
 
@@ -48,20 +48,22 @@ const FALLBACK_WIDTH = 300 // Sin medida (render de servidor, tests): se supone 
 /** Separación entre columnas según la densidad: con muchos puntos se reduce para que las barras no desaparezcan. */
 const gapFor = (count: number) => (count <= 14 ? 8 : count <= 40 ? 2 : 1)
 
-/** Ancho del elemento observado, o `null` hasta que se mide (o si el entorno no tiene ResizeObserver). */
+/**
+ * Ancho del elemento observado, o `null` hasta que se mide (o si el entorno no tiene ResizeObserver).
+ * Usa un callback ref con estado: el elemento puede montarse después (p. ej. al llegar los datos).
+ */
 function useElementWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null)
+  const [element, setElement] = useState<T | null>(null)
   const [width, setWidth] = useState<number | null>(null)
   useLayoutEffect(() => {
-    const element = ref.current
     if (!element || typeof ResizeObserver === 'undefined') return
     const measure = () => setWidth(element.getBoundingClientRect().width || null)
     measure()
     const observer = new ResizeObserver(measure)
     observer.observe(element)
     return () => observer.disconnect()
-  }, [])
-  return [ref, width] as const
+  }, [element])
+  return [setElement, width] as const
 }
 
 /**
@@ -77,13 +79,15 @@ function useElementWidth<T extends HTMLElement>() {
  *
  * Límites: pensado para 1–2 series y hasta unos 90 puntos desde 256 px de contenedor (cada barra mide entonces
  * ~2 px, aún visible). Por encima de eso, o si cada punto debe poder leerse o señalarse, hay que agregar los
- * datos (p. ej. por semanas) antes de pasarlos. Con 2 series no se pintan cifras sobre las barras.
+ * datos (p. ej. por semanas) antes de pasarlos. Con 2 series no se pintan cifras sobre las barras y, en móvil,
+ * conviene agregar por encima de unos 30–40 puntos: con barras de ~1 px el contorno de la segunda serie las
+ * hace parecer sólidas.
  */
 export function BarChart({ label, series, points, valueFormatter = defaultFormatter, className }: BarChartProps) {
   const tableId = useId()
   const summaryId = useId()
   const [tableVisible, setTableVisible] = useState(false)
-  const [plotRef, plotWidth] = useElementWidth<HTMLDivElement>()
+  const [setPlot, plotWidth] = useElementWidth<HTMLDivElement>()
 
   if (points.length === 0) {
     return (
@@ -127,11 +131,11 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
 
   return (
     <figure className={cx(styles.chart, className)}>
-      <span id={summaryId} className="visually-hidden">
+      <span id={summaryId} hidden>
         {summary}
       </span>
       <div
-        ref={plotRef}
+        ref={setPlot}
         className={styles.plot}
         role="img"
         aria-label={label}

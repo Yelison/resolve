@@ -25,6 +25,8 @@ describe('BarChart', () => {
     const table = screen.getByRole('table', { hidden: true })
     expect(chart.getAttribute('aria-details')).toBe(table.parentElement?.id)
     expect(chart).not.toHaveAttribute('aria-describedby', table.parentElement?.id)
+    // El resumen no debe leerse además como texto suelto antes del gráfico.
+    expect(document.getElementById(chart.getAttribute('aria-describedby') ?? '')).toHaveAttribute('hidden')
   })
 
   it('el botón muestra y oculta la tabla', async () => {
@@ -152,5 +154,25 @@ describe('BarChart con muchos puntos', () => {
     const { container } = renderAtWidth(1100, 7)
     expect(axisTexts(container)).toHaveLength(7)
     expect(container.querySelectorAll('.value')).toHaveLength(7)
+  })
+
+  it('mide el ancho aunque se monte sin puntos y reciba datos después', () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 1100 } as DOMRect)
+    const { container, rerender } = render(<BarChart label="Solicitudes" series={series} points={[]} />)
+    const week = Array.from({ length: 30 }, (_, index) => ({
+      key: `k${index}`,
+      label: `Día ${index + 1}`,
+      values: { requests: 1000 + index },
+    }))
+    rerender(<BarChart label="Solicitudes" series={series} points={week} />)
+    // Con el ancho de reserva (300 px) estas cifras de 4 dígitos no cabrían; a 1100 px sí.
+    expect(container.querySelectorAll('.value')).toHaveLength(30)
   })
 })
