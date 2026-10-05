@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, toApiPage, unwrap } from '../../api/client'
 import type { MessageVisibility, Ticket, TicketPriority, TicketStatus, TicketView } from '../../domain/ticket'
 
@@ -88,10 +88,27 @@ export interface TicketChanges {
   assigneeId?: string | null
 }
 
-/** Actualiza un ticket con If-Match. Un 412 significa que otra persona lo cambió: se recarga el ticket. */
+/**
+ * Guarda el ticket devuelto por un PATCH solo si no es más antiguo que el que ya hay en caché, para que una respuesta
+ * desordenada nunca haga retroceder la versión.
+ */
+function writeTicketIfNewer(queryClient: QueryClient, ticket: Ticket) {
+  const previous = queryClient.getQueryData<Ticket>(ticketKeys.detail(ticket.number))
+  if (ticket.version >= (previous?.version ?? -1)) {
+    queryClient.setQueryData(ticketKeys.detail(ticket.number), ticket)
+  }
+}
+
+/**
+ * Actualiza un ticket con If-Match. Un 412 significa que otra persona lo cambió: se recarga el ticket.
+ * Antes del PATCH se cancela cualquier lectura del detalle en vuelo: si llegara después, pisaría la versión nueva.
+ */
 export function useUpdateTicket(number: number) {
   const queryClient = useQueryClient()
   return useMutation({
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ticketKeys.detail(number), exact: true })
+    },
     mutationFn: ({ version, changes }: { version: number; changes: TicketChanges }) =>
       unwrap(
         api.PATCH('/tickets/{number}', {
@@ -101,7 +118,7 @@ export function useUpdateTicket(number: number) {
         }),
       ),
     onSuccess: (ticket: Ticket) => {
-      queryClient.setQueryData(ticketKeys.detail(number), ticket)
+      writeTicketIfNewer(queryClient, ticket)
       void queryClient.invalidateQueries({ queryKey: ticketKeys.activity(number) })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
@@ -176,6 +193,7 @@ export function useQuickTicketUpdate() {
         queryFn: () => unwrap(api.GET('/tickets/{number}', { params: { path: { number } } })),
         staleTime: 0,
       })
+      await queryClient.cancelQueries({ queryKey: ticketKeys.detail(number), exact: true })
       return unwrap(
         api.PATCH('/tickets/{number}', {
           params: { path: { number }, header: { 'If-Match': `"${current.version}"` } },
@@ -185,7 +203,7 @@ export function useQuickTicketUpdate() {
       )
     },
     onSuccess: (ticket: Ticket) => {
-      queryClient.setQueryData(ticketKeys.detail(ticket.number), ticket)
+      writeTicketIfNewer(queryClient, ticket)
       void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.activity(ticket.number) })

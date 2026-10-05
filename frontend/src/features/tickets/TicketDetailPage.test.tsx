@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { ticket } from '../../test/ticketFixtures'
+import type { Ticket } from '../../domain/ticket'
 import { TicketDetailPage } from './TicketDetailPage'
+import { ticketKeys } from './queries'
 
 const messages = [
   {
@@ -44,7 +46,7 @@ function renderDetail(number = 1048) {
   const router = createMemoryRouter([{ path: '/tickets/:number', element: <TicketDetailPage /> }], {
     initialEntries: [`/tickets/${number}`],
   })
-  renderWithProviders(<RouterProvider router={router} />)
+  return renderWithProviders(<RouterProvider router={router} />)
 }
 
 const staffApi = (overrides = {}) =>
@@ -98,6 +100,25 @@ describe('TicketDetailPage para agentes', () => {
     await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Prioridad' }), 'high')
     expect(await screen.findByText('El ticket cambió mientras lo editabas')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Prioridad' })).toHaveValue('low'))
+  })
+
+  it('un refetch del detalle que llega después de un PATCH no sustituye la versión más nueva', async () => {
+    staffApi({
+      'GET /api/tickets/1048': async () => {
+        await new Promise((resolve) => setTimeout(resolve, 200))
+        return { body: ticket({ version: 0 }) }
+      },
+      'PATCH /api/tickets/1048': { body: ticket({ status: 'in_progress', version: 1 }) },
+    })
+    const { queryClient } = renderDetail()
+    const status = await screen.findByRole('combobox', { name: 'Estado' })
+    // Un refetch (por ejemplo, al volver el foco a la ventana) sigue en vuelo cuando se guarda el cambio.
+    void queryClient.refetchQueries({ queryKey: ticketKeys.detail(1048), exact: true })
+    await userEvent.selectOptions(status, 'in_progress')
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Estado' })).toHaveValue('in_progress'))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(screen.getByRole('combobox', { name: 'Estado' })).toHaveValue('in_progress')
+    expect(queryClient.getQueryData<Ticket>(ticketKeys.detail(1048))?.version).toBe(1)
   })
 
   it('envía una respuesta pública y vacía el borrador', async () => {
