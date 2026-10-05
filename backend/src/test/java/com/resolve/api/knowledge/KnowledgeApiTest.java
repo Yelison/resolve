@@ -244,6 +244,8 @@ class KnowledgeApiTest extends KnowledgeFixture {
 				"Debe ser un texto.");
 		assertThat(errors(postArticle(LAURA, with(valid, "categoryId", "\"no-es-un-uuid\""))))
 			.containsEntry("categoryId", "Debe ser un identificador de categoría válido.");
+		assertThat(errors(postArticle(LAURA, with(valid, "categoryId", "\"1-2-3-4-5\""))))
+			.containsEntry("categoryId", "Debe ser un identificador de categoría válido.");
 		assertThat(errors(postArticle(LAURA, with(valid, "categoryId", "5")))).containsEntry("categoryId",
 				"Debe ser un texto.");
 		assertThat(errors(postArticle(LAURA, with(valid, "allowFeedback", "\"si\"")))).containsEntry("allowFeedback",

@@ -232,4 +232,24 @@ class TicketCreationApiTest extends TicketsFixture {
 			.andExpect(jsonPath("$.errors[0].message").value("Campo no permitido."));
 	}
 
+	@Test
+	void nonCanonicalUuidsInTheBodyAreFieldErrors() throws Exception {
+		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"customerId": "1-2-3-4-5", "subject": "A", "description": "B", "assigneeId": "1-2-3-4-5"}
+				"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("createTicket"))
+			.andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("customerId", "assigneeId")))
+			.andExpect(jsonPath("$.errors[0].message").value("Debe ser un identificador válido."));
+	}
+
+	@Test
+	void anUpperCaseCanonicalUuidCreatesTheTicket() throws Exception {
+		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"customerId": "%s", "subject": "A", "description": "B", "assigneeId": "%s"}
+				""".formatted(this.mariaCustomer.toString().toUpperCase(), this.laura.toString().toUpperCase())))
+			.andExpect(status().isCreated())
+			.andExpect(matchesContract("createTicket"));
+	}
+
 }

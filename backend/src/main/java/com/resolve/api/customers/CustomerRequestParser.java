@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
+import com.resolve.api.common.web.Uuids;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
 
@@ -62,12 +63,8 @@ final class CustomerRequestParser {
 
 	/** Id de la ruta: un UUID. Uno mal formado es un 400; uno bien formado pero ajeno o inexistente, un 404. */
 	static UUID customerId(String value) {
-		try {
-			return UUID.fromString(value.trim());
-		}
-		catch (IllegalArgumentException exception) {
-			throw new ApiValidationException("id", "Debe ser un identificador de cliente válido.");
-		}
+		return Uuids.parse(value)
+			.orElseThrow(() -> new ApiValidationException("id", "Debe ser un identificador de cliente válido."));
 	}
 
 	record NewCustomer(String name, String email, @Nullable String company, @Nullable String notes) {

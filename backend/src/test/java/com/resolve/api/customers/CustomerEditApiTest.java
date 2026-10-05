@@ -483,4 +483,14 @@ class CustomerEditApiTest extends CustomersFixture {
 		}
 	}
 
+	@Test
+	void aNonCanonicalIdInThePathIsABadRequest() throws Exception {
+		this.mvc.perform(get("/customers/1-2-3-4-5").with(as(LAURA)))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("getCustomer"))
+			.andExpect(jsonPath("$.errors[0].field").value("id"));
+		this.mvc.perform(get("/customers/" + this.carlosCustomer.toString().toUpperCase()).with(as(LAURA)))
+			.andExpect(status().isOk());
+	}
+
 }
