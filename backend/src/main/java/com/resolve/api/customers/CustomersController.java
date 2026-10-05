@@ -88,8 +88,8 @@ class CustomersController {
 
 	@PostMapping("/customers")
 	ResponseEntity<CustomerDetailDto> create(@AuthenticationPrincipal CurrentMember member,
-			@RequestBody CustomerRequests.CreateCustomer request) {
-		CustomerDetailDto customer = this.service.create(member, CustomerRequestParser.newCustomer(request));
+			@RequestBody(required = false) @Nullable JsonNode body) {
+		CustomerDetailDto customer = this.service.create(member, CustomerRequestParser.newCustomer(body));
 		URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
 			.path("/customers/{id}")
 			.buildAndExpand(customer.id())

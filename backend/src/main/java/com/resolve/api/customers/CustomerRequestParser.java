@@ -24,6 +24,8 @@ final class CustomerRequestParser {
 
 	static final int MAX_NOTES_LENGTH = 2000;
 
+	private static final String CONTROL_CHARACTERS = "No admite caracteres de control.";
+
 	private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
 	private static final Set<String> PATCHABLE = Set.of("name", "email", "company", "notes");
@@ -71,12 +73,24 @@ final class CustomerRequestParser {
 	record NewCustomer(String name, String email, @Nullable String company, @Nullable String notes) {
 	}
 
-	static NewCustomer newCustomer(CustomerRequests.CreateCustomer request) {
+	/** Alta: los mismos tipos y reglas que el PATCH; {@code name} y {@code email} son obligatorios. */
+	static NewCustomer newCustomer(@Nullable JsonNode body) {
 		CustomerRequestParser parser = new CustomerRequestParser();
-		String name = parser.requiredText("name", request.name(), MAX_NAME_LENGTH);
-		String email = parser.email(request.email());
-		String company = parser.optionalText("company", request.company(), MAX_COMPANY_LENGTH);
-		String notes = parser.optionalText("notes", request.notes(), MAX_NOTES_LENGTH);
+		if (body == null || !body.isObject()) {
+			throw new ApiValidationException("body", "Envía un objeto con name y email.");
+		}
+		for (String field : body.propertyNames()) {
+			if (!PATCHABLE.contains(field)) {
+				parser.error(field, "Campo no permitido.");
+			}
+		}
+		String name = body.has("name") ? parser.requiredNode("name", body.get("name"), MAX_NAME_LENGTH)
+				: parser.invalid("name", "Es obligatorio.");
+		String email = body.has("email") ? parser.emailNode(body.get("email"))
+				: parser.invalid("email", "Es obligatorio.");
+		String company = body.has("company") ? parser.optionalNode("company", body.get("company"), MAX_COMPANY_LENGTH)
+				: null;
+		String notes = body.has("notes") ? parser.optionalNode("notes", body.get("notes"), MAX_NOTES_LENGTH) : null;
 		parser.throwIfInvalid();
 		return new NewCustomer(name, email, company, notes);
 	}
@@ -139,6 +153,9 @@ final class CustomerRequestParser {
 		if (trimmed.isEmpty()) {
 			return invalid(field, "Es obligatorio.");
 		}
+		if (hasControlCharacters(trimmed, false)) {
+			return invalid(field, CONTROL_CHARACTERS);
+		}
 		if (trimmed.length() > maxLength) {
 			return invalid(field, "Admite como máximo " + maxLength + " caracteres.");
 		}
@@ -151,6 +168,9 @@ final class CustomerRequestParser {
 		if (trimmed.isEmpty()) {
 			return null;
 		}
+		if (hasControlCharacters(trimmed, "notes".equals(field))) {
+			return invalid(field, CONTROL_CHARACTERS);
+		}
 		if (trimmed.length() > maxLength) {
 			return invalid(field, "Admite como máximo " + maxLength + " caracteres.");
 		}
@@ -162,10 +182,23 @@ final class CustomerRequestParser {
 		if (trimmed.isEmpty()) {
 			return invalid("email", "Es obligatorio.");
 		}
+		if (hasControlCharacters(trimmed, false)) {
+			return invalid("email", CONTROL_CHARACTERS);
+		}
 		if (trimmed.length() > MAX_EMAIL_LENGTH || !EMAIL.matcher(trimmed).matches()) {
 			return invalid("email", "Escribe un correo válido de hasta " + MAX_EMAIL_LENGTH + " caracteres.");
 		}
 		return trimmed;
+	}
+
+	/**
+	 * PostgreSQL rechaza el byte 0 y el resto de controles no tienen sentido en un nombre, un correo o una empresa;
+	 * las notas admiten saltos de línea y tabuladores.
+	 */
+	private static boolean hasControlCharacters(String text, boolean allowLayout) {
+		return text.chars()
+			.anyMatch((character) -> Character.isISOControl(character)
+					&& !(allowLayout && (character == '\n' || character == '\r' || character == '\t')));
 	}
 
 	private <T> @Nullable T invalid(String field, String message) {
