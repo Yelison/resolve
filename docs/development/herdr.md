@@ -380,17 +380,22 @@ In order, stopping at the first problem and saying what it did and did not do:
 2. **Push.** A new branch is pushed with `-u`; a branch already on origin at the same commit is left alone; a
    fast-forward is a normal push. If the remote tip diverged because the branch was rebased (the rebase is the
    authorisation: you ran `ship.sh` on a rebased branch), it pushes with
-   `--force-with-lease=refs/heads/<branch>:<remote sha>`, so the push fails if the remote moved after it was read. It
-   never pushes without a lease, and it stops instead of forcing when the remote tip is a commit this repository has
-   never seen (someone else's work), is ahead of the local branch, or shares no history with it.
+   `--force-with-lease=refs/heads/<branch>:<remote sha>`, so the push fails if the remote moved after it was read, and
+   **only if that remote commit appears in the local branch's reflog**, that is, it was this branch's own tip before
+   the rebase. It never pushes without a lease, and it stops instead of forcing when the remote tip was never on this
+   branch (someone else's work: fetching it does not change that, it has to be integrated into the branch first), is
+   ahead of the local branch, or shares no history with it.
 3. **Pull request.** Opens one against `main` (assigned to `HERDR_PR_ASSIGNEE` when it is set; there is no default
    owner) or reuses the open one for the branch, whose title and description it leaves alone.
-4. **Smoke.** Polls `gh pr checks --json` until the check named exactly `Full-stack smoke` passes. If it fails, is
-   cancelled or skipped, it prints the checks and stops **without scheduling the merge**; if it never shows up it gives
-   up after `HERDR_SHIP_TIMEOUT_SECONDS` (default 1800). `HERDR_POLL_SECONDS` (default 20) sets the interval.
-5. `gh pr merge --auto --rebase`, then waits for the merge (it stops if the PR is closed or another check fails), runs
+4. **Smoke.** First waits until the PR shows the pushed commit as its head (`headRefOid`), so the checks of the
+   previous head are never counted; then polls `gh pr checks --json` until the check named exactly `Full-stack smoke`
+   passes (the most recent run if it ran more than once). If it fails, is cancelled or skipped, it prints the checks
+   and stops **without scheduling the merge**; if the head or the check never shows up it gives up after
+   `HERDR_SHIP_TIMEOUT_SECONDS` (default 1800). `HERDR_POLL_SECONDS` (default 20) sets the interval.
+5. `gh pr merge --auto --rebase --match-head-commit <pushed sha>` (a head that moved meanwhile is not merged), then waits for the merge (it stops if the PR is closed or another check fails), runs
    `git fetch origin main && git merge --ff-only origin/main` in the main checkout and prints `merged <sha>`.
-6. Unless `--no-cleanup`: sends `/exit` to the agents of the task and of `review-<id>` and runs
+6. Unless `--no-cleanup`: sends `/exit` to the agents of the task and of `review-<id>` (an agent that is `working` or
+   `blocked` is not sent anything: the script says so, after the merge, and stops) and runs
    `remove-task.sh --id <id> --volumes` for each (the review first). It never passes `--force-leftovers`: if
    `remove-task.sh` finds processes or containers it stops there, after the merge, and tells you the command to rerun.
    The branches are kept (a rebase merge leaves `git branch -d` unable to see them as merged).
