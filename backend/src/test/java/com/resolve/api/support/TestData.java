@@ -101,6 +101,54 @@ public class TestData {
 		return id;
 	}
 
+	/** Ticket sin responsable ni mensajes con canal y fecha de creación explícitos; {@code status} y {@code channel} en formato de la API. */
+	public UUID ticket(UUID organizationId, UUID customerId, long number, String status, String channel,
+			Instant createdAt) {
+		UUID id = Ids.newId();
+		Timestamp at = Timestamp.from(createdAt);
+		this.jdbc.sql("""
+				INSERT INTO tickets (id, organization_id, number, subject, description, status, priority, channel,
+				                     customer_id, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'Detalle', ?, 'medium', ?, ?, ?, ?)
+				""")
+			.params(id, organizationId, number, "Ticket " + number, status, channel, customerId, at, at)
+			.update();
+		return id;
+	}
+
+	/**
+	 * Cambio de estado registrado como lo haría la API: la entrada del historial con el actor y el ticket con su
+	 * estado nuevo. Se insertan directamente, sin pasar por la API que se prueba.
+	 */
+	public void changeStatus(UUID organizationId, UUID ticketId, UUID actorUserId, String actorName, String to,
+			Instant at) {
+		String from = this.jdbc.sql("SELECT status FROM tickets WHERE id = ?").params(ticketId).query(String.class).single();
+		this.jdbc.sql("""
+				INSERT INTO ticket_activities (id, organization_id, ticket_id, type, actor_user_id, actor_name, from_value,
+				                               to_value, created_at)
+				VALUES (?, ?, ?, 'status_changed', ?, ?, ?, ?, ?)
+				""")
+			.params(Ids.newId(), organizationId, ticketId, actorUserId, actorName, from, to, Timestamp.from(at))
+			.update();
+		this.jdbc.sql("UPDATE tickets SET status = ? WHERE id = ?").params(to, ticketId).update();
+	}
+
+	/** Mensaje de un agente. Una respuesta pública también fija la primera respuesta del ticket si aún no la tenía. */
+	public void agentMessage(UUID organizationId, UUID ticketId, UUID agentUserId, String visibility, Instant at) {
+		this.jdbc.sql("""
+				INSERT INTO ticket_messages (id, organization_id, ticket_id, visibility, author_kind, author_user_id, body,
+				                             created_at)
+				VALUES (?, ?, ?, ?, 'agent', ?, 'Mensaje', ?)
+				""")
+			.params(Ids.newId(), organizationId, ticketId, visibility, agentUserId, Timestamp.from(at))
+			.update();
+		if (visibility.equals("public")) {
+			this.jdbc.sql("UPDATE tickets SET first_response_at = ? WHERE id = ? AND first_response_at IS NULL")
+				.params(Timestamp.from(at), ticketId)
+				.update();
+		}
+	}
+
 	/** Asigna un ticket a un usuario directamente en la base, sin pasar por la API. */
 	public void assignTicket(UUID ticketId, UUID userId) {
 		this.jdbc.sql("UPDATE tickets SET assignee_id = ? WHERE id = ?").params(userId, ticketId).update();

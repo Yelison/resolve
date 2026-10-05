@@ -12,13 +12,14 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 | Customers: list, search, profile, create, edit, archive, restore and portal invitation; assignee list for forms | Deleting tickets and bulk actions |
 | Inbox metrics and view counts | Authentication provider (see below) |
 | Team: list, invite, change role, remove, team metrics | Invitation emails, agent availability and profiles |
+| Reports: created, resolved, first response, resolution time, by day, channel and agent | Satisfaction and agent availability |
 
 ## Organizations, users and roles
 
 - Every request runs in the context of **one organization**, taken from the authenticated principal. The API never accepts an organization id from the client, and every query and mutation is scoped to that organization.
 - A **user** belongs to an organization through a **membership** with one role:
 
-| Role | Tickets | Messages | Activity, metrics, customers, assignees |
+| Role | Tickets | Messages | Activity, metrics, reports, customers, assignees |
 | --- | --- | --- | --- |
 | `admin` | Read all, create, update | Read all, post `public` and `internal` | Yes |
 | `agent` | Read all, create, update | Read all, post `public` and `internal` | Yes |
@@ -150,6 +151,7 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | `POST /api/members` | admin | Invite an admin or agent (`201`); `400` on the field `email` when already a member or a customer |
 | `POST /api/members/{userId}/role` | admin | Change the role (`admin` or `agent`); `409` for the last active admin or a removed member |
 | `POST /api/members/{userId}/remove` | admin | Remove from the team; `409` for yourself, the last active admin or a removed member |
+| `GET /api/reports/summary` | admin, agent | Report of a period (`7d`, `30d`, `90d`) with the previous period of the same duration |
 
 ### Ticket list filters
 
@@ -259,6 +261,37 @@ Computed per organization, independent of any list.
 | `averageLoad` | `assignedOpen / staff` with one decimal; `0` without staff |
 | `firstResponseMinutes` | The same median as the ticket metrics (last 168 hours); `null` without data |
 | `firstResponseTargetMinutes` | Organization target (30 by default) |
+
+### Reports
+
+`GET /api/reports/summary?period=7d|30d|90d` (default `7d`; admin and agent, a customer gets `403`) is computed on the server for the caller's organization, in the organization's time zone (`organizations.time_zone`, never the server's). A `period` that is none of the three values is a `400` on the field `period`; a blank one is the default.
+
+**The window.** The period covers the last `days` calendar days of the organization, today included: it starts at 00:00 of `today - (days - 1)` in the organization's zone and ends at the moment of the request (`period.from`, `period.to`, in UTC). The **previous period is the adjacent window of the same elapsed duration**, `[from - (to - from), from)`. It is measured in elapsed time, not in 24-hour days, so a period that contains a daylight-saving change still compares like with like; and since the current period ends "now", the previous one is not a longer, complete one. Bounds are inclusive at the start and, for the current period, at `to`; a ticket created after `to` counts in neither.
+
+**Days.** `byDay` has one entry for each calendar day of the window (`days` entries, oldest first, `date` as `YYYY-MM-DD`), with zeros where nothing happened. A ticket belongs to the day on which its instant falls **in the organization's zone**: one created at 23:30 in `America/Mexico_City` counts on that day, not on the next UTC day. A day with a daylight-saving change lasts 23 or 25 hours and the repeated hour belongs to the same day; the tests cover `Europe/Madrid` on 2026-10-25, `Australia/Sydney` on 2026-04-05 and `America/Mexico_City` (which has no daylight-saving time in 2026). The day series is built from dates, so the database session's zone plays no part.
+
+| Field | Definition |
+| --- | --- |
+| `created` `value` / `previous` | Tickets with `created_at` in the period / in the previous period |
+| `resolved` `value` / `previous` | **Distinct** tickets with a `status_changed` → `resolved` activity in the period / in the previous period. A ticket reopened and resolved again counts once |
+| `firstResponseMinutes` | Median minutes (rounded) from creation to the first public agent message, over the tickets **created in the period** that have one; `null` without data. `target` is the organization's target. Internal notes are not responses |
+| `resolutionHours` | Median hours (one decimal) from creation to the **first** time a ticket entered `resolved`, over the tickets created in the period that were ever resolved (also later than the period); `null` without data. Later reopenings do not move it |
+| `byDay[]` | Per day: tickets created, and distinct tickets that entered `resolved` that day |
+| `byChannel[]` | Channels with at least one ticket created in the period, most tickets first (ties by channel name); empty without data |
+| `byAgent[]` | Per member, see below |
+
+`byDay[].resolved` counts distinct tickets **per day**, while `resolved.value` counts them **per period**: a ticket resolved, reopened and resolved again on different days counts on each of those days and once in the period, so the days can add up to more than `resolved.value`. The same applies to `byAgent[].resolved`, which counts distinct tickets per person: a ticket resolved by one agent, reopened and resolved by another counts for both.
+
+**Shares.** `byChannel[].share` is a percentage with one decimal and the shares add up to **exactly 100.0** (largest-remainder rounding: every channel gets its share rounded down to a tenth and the tenths left over go to the channels with the largest remainders; on a tie, to the one listed first). Rounding each share on its own could add up to 99.9 or 100.1.
+
+**By agent.** One row per member, most resolved first, then by name and id:
+
+- every **active** admin or agent, even with zeros, and anyone else (removed, or invited again) who **resolved tickets in the period**, so the work done by someone who left does not vanish from the report and the rows keep adding up. A removed member without resolutions in the period is not listed. Customers never appear;
+- `resolved`: distinct tickets the member moved to `resolved` in the period (the actor of the activity);
+- `firstResponseMinutes`: the median of the tickets created in the period whose **first** public message is the member's; a later reply on a ticket someone else answered first does not count, nor does an internal note; `null` without data;
+- `openAssigned`: tickets assigned to the member that are not `resolved`, as of now (removing a member unassigns their open tickets, so a removed member shows `0`).
+
+Memberships are matched on the organization, so a user who belongs to two organizations only brings the work of the organization that asks.
 
 ### Partial updates
 

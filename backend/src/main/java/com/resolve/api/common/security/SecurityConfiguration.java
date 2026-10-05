@@ -45,8 +45,9 @@ class SecurityConfiguration {
 				// Invitar, cambiar el rol y retirar miembros es solo de administradores; el equipo lo lee el personal.
 				.requestMatchers(HttpMethod.POST, "/members", "/members/{userId}/role", "/members/{userId}/remove")
 				.hasRole("ADMIN")
+				// Los informes son del personal (los clientes reciben 403).
 				.requestMatchers(HttpMethod.GET, "/tickets/metrics", "/tickets/{number}/activity", "/customers",
-						"/customers/**", "/assignees", "/members", "/members/metrics")
+						"/customers/**", "/assignees", "/members", "/members/metrics", "/reports/summary")
 				.hasAnyRole(STAFF)
 				.requestMatchers(HttpMethod.GET, "/me", "/tickets", "/tickets/{number}", "/tickets/{number}/messages")
 				.authenticated()
