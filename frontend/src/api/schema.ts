@@ -397,7 +397,10 @@ export interface components {
             /** Format: int64 */
             version: number;
             /**
-             * @description `none` without a customer membership; `invited` or `active` otherwise.
+             * @description Reflects the customer membership: `none` without one, `invited` or `active` otherwise. It does not
+             *     account for archiving: while `archived` is `true` the portal access is suspended (the member gets
+             *     401) whatever `portalAccess` says. Clients should treat an archived customer as suspended. This will
+             *     be revisited with the membership states of the team phase.
              * @enum {string}
              */
             portalAccess: "none" | "invited" | "active";
