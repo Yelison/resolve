@@ -26,7 +26,7 @@ case $cmd in
     for w in "$S"/ws/*; do [ "$(jq -r .pane "$w")" = "$pane" ] && wt=$(jq -r .path "$w"); done
     lvl=$(jq -r '.modelSettings["claude-sonnet-5-5"].effortLevel // "medium"' "$wt/.claude/settings.local.json" 2>/dev/null || echo medium)
     echo "Sonnet 5.5 with $lvl effort" ;;
-  "agent prompt") name=$1; printf '%s\t%s\n' "$name" "$2" >>"$S/prompts.log"; [ "$2" = "/exit" ] && rm -f "$S/agents/$name"; echo '{}' ;;
+  "agent prompt") name=$1; printf '%s\t%s\n' "$name" "$2" >>"$S/prompts.log"; [ "$2" = "/exit" ] && { rm -f "$S/agents/$name"; echo "exit $name" >>"$S/events.log"; }; echo '{}' ;;
   "agent wait") exit 0 ;;
   "agent send-keys") exit 0 ;;
   *) echo "fake herdr: unsupported $cmd $*" >&2; exit 2 ;;
