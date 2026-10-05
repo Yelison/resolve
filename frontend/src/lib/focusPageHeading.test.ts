@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { focusPageHeadingIfFocusLost } from './focusPageHeading'
+import { focusPageHeading, focusPageHeadingIfFocusLost } from './focusPageHeading'
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5))
 
@@ -29,5 +29,14 @@ describe('focusPageHeadingIfFocusLost', () => {
     focusPageHeadingIfFocusLost()
     await tick()
     expect(document.body).toHaveFocus()
+  })
+})
+
+describe('focusPageHeading', () => {
+  it('enfoca el h1 aunque el foco esté en otro elemento', () => {
+    document.body.innerHTML = '<h1>Equipo</h1><button>Otro</button>'
+    document.querySelector('button')!.focus()
+    focusPageHeading()
+    expect(document.querySelector('h1')).toHaveFocus()
   })
 })

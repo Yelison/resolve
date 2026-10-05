@@ -39,7 +39,6 @@ export const sessionKeys = {
   me: ['session', 'me'] as const,
 }
 
-/** Usuario, organización y rol actuales. Cambia rara vez, así que no se revalida solo. */
 /**
  * Un 403 significa que el rol de la sesión ya no permite la acción (p. ej. otra persona degradó a quien la hace): la
  * sesión se lee de nuevo para que las acciones de administración desaparezcan en lugar de repetir el 403.
@@ -48,6 +47,7 @@ export function refreshSessionOnForbidden(queryClient: QueryClient, error: unkno
   if (isApiError(error, 403)) void queryClient.invalidateQueries({ queryKey: sessionKeys.me })
 }
 
+/** Usuario, organización y rol actuales. Cambia rara vez, así que no se revalida solo. */
 export function useMe() {
   const defaultRetry = useQueryClient().getDefaultOptions().queries?.retry
   return useQuery({

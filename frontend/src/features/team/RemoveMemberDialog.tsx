@@ -8,10 +8,12 @@ export interface RemoveMemberDialogProps {
   /** Miembro que se retira; `null` cierra el diálogo. */
   member: TeamMember | null
   onClose: () => void
+  /** Cierre tras retirar con éxito; si falta, se usa `onClose`. */
+  onRemoved?: () => void
 }
 
 /** Confirmación que nombra a la persona. «Miembro retirado» solo aparece tras la respuesta real de la API. */
-export function RemoveMemberDialog({ member, onClose }: RemoveMemberDialogProps) {
+export function RemoveMemberDialog({ member, onClose, onRemoved }: RemoveMemberDialogProps) {
   return (
     <Modal
       open={member !== null}
@@ -26,12 +28,20 @@ export function RemoveMemberDialog({ member, onClose }: RemoveMemberDialogProps)
         ) : undefined
       }
     >
-      {member && <RemoveForm key={member.id} member={member} onClose={onClose} />}
+      {member && <RemoveForm key={member.id} member={member} onClose={onClose} onRemoved={onRemoved ?? onClose} />}
     </Modal>
   )
 }
 
-function RemoveForm({ member, onClose }: { member: TeamMember; onClose: () => void }) {
+function RemoveForm({
+  member,
+  onClose,
+  onRemoved,
+}: {
+  member: TeamMember
+  onClose: () => void
+  onRemoved: () => void
+}) {
   const remove = useRemoveMember()
   const toast = useToast()
 
@@ -40,7 +50,7 @@ function RemoveForm({ member, onClose }: { member: TeamMember; onClose: () => vo
     remove.mutate(member.id, {
       onSuccess: () => {
         toast.show({ title: 'Miembro retirado', description: `${member.name} ya no forma parte del equipo.` })
-        onClose()
+        onRemoved()
       },
     })
   }
