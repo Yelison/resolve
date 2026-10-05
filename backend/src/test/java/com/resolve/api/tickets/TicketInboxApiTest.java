@@ -99,6 +99,11 @@ class TicketInboxApiTest extends TicketsFixture {
 				.andExpect(jsonPath("$.totalItems").value(0))
 				.andExpect(jsonPath("$.items").isEmpty());
 		}
+		// Un valor vacío equivale a no filtrar.
+		this.mvc.perform(get("/tickets").param("customerId", "").with(as(ADMIN)))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listTickets"))
+			.andExpect(jsonPath("$.totalItems").value(6));
 		this.mvc.perform(get("/tickets").param("customerId", "no-es-un-uuid").with(as(ADMIN)))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("listTickets"))
