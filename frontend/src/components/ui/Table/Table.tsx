@@ -19,8 +19,8 @@ export interface TableProps {
 
 /**
  * Tabla con semántica ARIA de tabla en cualquier ancho. La disposición depende del ancho del contenedor: tarjetas por
- * debajo de 560 px, columnas prioritarias hasta la tabla completa, que aparece desde 960 px de contenedor o, desde
- * 1200 px de viewport, desde 860 px (el contenedor mide ~894 px a 1200 px con el sidebar expandido).
+ * debajo de 560 px, columnas prioritarias de 768 a 1199 px y la tabla completa solo desde 1200 px de viewport con un
+ * contenedor de al menos 860 px (mide ~894 px a 1200 px con el sidebar expandido).
  *
  * Cada feature conserva sus columnas y declara su rejilla con custom properties en `className`:
  * `--table-areas-card`, `--table-columns-mid`, `--table-areas-mid`, `--table-columns-wide` y `--table-areas-wide`

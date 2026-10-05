@@ -116,19 +116,25 @@ export default function CatalogPage() {
         <>
           <TableHeaderCell area="name">Agente</TableHeaderCell>
           <TableHeaderCell area="role">Rol</TableHeaderCell>
+          <TableHeaderCell area="email" className={styles.demoTableEmail}>
+            Correo
+          </TableHeaderCell>
           <TableHeaderCell area="status">Estado</TableHeaderCell>
         </>
       }
     >
       {[
-        { name: 'Laura Méndez', role: 'Administradora', status: 'Activa' },
-        { name: 'Daniel Santos', role: 'Agente', status: 'Activo' },
-        { name: 'Ana Ruiz', role: 'Agente', status: 'Invitada' },
+        { name: 'Laura Méndez', email: 'laura@acme.example', role: 'Administradora', status: 'Activa' },
+        { name: 'Daniel Santos', email: 'daniel@acme.example', role: 'Agente', status: 'Activo' },
+        { name: 'Ana Ruiz', email: 'ana@acme.example', role: 'Agente', status: 'Invitada' },
       ].map((agent) => (
         <TableRow key={agent.name}>
           <TableCell kind="name">{agent.name}</TableCell>
           <span role="cell" className={styles.demoTableRole}>
             {agent.role}
+          </span>
+          <span role="cell" className={styles.demoTableEmail} title={agent.email}>
+            {agent.email}
           </span>
           <span role="cell" className={styles.demoTableStatus}>
             <Badge tone={agent.status === 'Invitada' ? 'amber' : 'green'}>{agent.status}</Badge>
@@ -472,7 +478,10 @@ export default function CatalogPage() {
       <Section title="Tablas">
         <p className={styles.demo}>
           La tabla compartida reúne lo común de las tablas de clientes y del equipo: rejilla por contenedor, tarjeta,
-          acciones y leyenda. Cada feature declara sus columnas.
+          acciones y leyenda. Cada feature declara sus columnas con las custom properties --table-areas-card,
+          --table-columns-mid, --table-areas-mid, --table-columns-wide y --table-areas-wide (opcionales:
+          --table-header-areas-mid y --table-caption-end). Tarjeta por debajo de 560 px de contenedor, columnas
+          prioritarias hasta 1199 px y tabla completa, con «Correo», desde 1200 px de viewport.
         </p>
         <div className={cx(styles.frame, styles.narrow)}>
           <p className={styles.frameLabel}>Contenedor de 380 px</p>

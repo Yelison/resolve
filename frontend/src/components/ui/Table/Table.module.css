@@ -1,8 +1,8 @@
 /*
- * La disposición depende del ancho del contenedor, no del viewport: tarjetas por debajo de 560 px, columnas
- * prioritarias hasta 960 px y todas las columnas por encima. El contenedor mide ~894 px a 1200 px con el sidebar
- * expandido (898 px a 1024 px con el de 76 px), así que la tabla completa también se activa con el breakpoint de
- * 1200 px del viewport y un suelo de contenedor de 860 px.
+ * Tarjetas en contenedores de menos de 560 px y columnas prioritarias por encima; la tabla completa solo aparece desde
+ * 1200 px de viewport (§2.1) y con un contenedor de al menos 860 px. El contenedor mide ~894 px a 1200 px con el
+ * sidebar expandido y ~898 px a 1024 px con el de 76 px, así que ningún umbral de contenedor por sí solo distingue
+ * los dos: el breakpoint de viewport decide y el suelo de 860 px protege los paneles estrechos.
  *
  * Las columnas y áreas de cada tramo las declara el feature con custom properties en la clase de la tabla; aquí solo
  * se leen, sin valores por defecto declarados en dos módulos.
@@ -109,14 +109,6 @@
 
   .caption {
     padding: 0 var(--space-12) var(--table-caption-end, 0);
-  }
-}
-
-@container table (min-width: 960px) {
-  .header,
-  .row {
-    grid-template-columns: var(--table-columns-wide);
-    grid-template-areas: var(--table-areas-wide);
   }
 }
 

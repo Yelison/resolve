@@ -1,5 +1,5 @@
 /*
- * Columnas y áreas de cada tramo de `Table` (tarjeta < 560 px, nombre/empresa/tickets/estado hasta 960 px y todas las
+ * Columnas y áreas de cada tramo de `Table` (tarjeta < 560 px, nombre/empresa/tickets/estado hasta 1199 px y todas las
  * columnas por encima); aquí solo el contenido propio de las celdas de clientes.
  */
 .table {
@@ -117,18 +117,7 @@
   }
 }
 
-/* Mismo tramo que la tabla completa de `Table`: contenedor de 960 px o, desde 1200 px de viewport, de 860 px. */
-@container table (min-width: 960px) {
-  .email {
-    display: block;
-    font: var(--font-body);
-  }
-
-  .headerEmail {
-    display: block;
-  }
-}
-
+/* Mismo tramo que la tabla completa de `Table`: desde 1200 px de viewport con un contenedor de 860 px. */
 @media (min-width: 1200px) {
   @container table (min-width: 860px) {
     .email {

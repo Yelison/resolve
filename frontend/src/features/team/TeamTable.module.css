@@ -1,5 +1,5 @@
 /*
- * Columnas y áreas de cada tramo de `Table` (tarjeta < 560 px, agente/estado/carga hasta 960 px con el rol bajo el
+ * Columnas y áreas de cada tramo de `Table` (tarjeta < 560 px, agente/estado/carga hasta 1199 px con el rol bajo el
  * nombre y todas las columnas por encima); aquí solo el contenido propio de las celdas del equipo.
  */
 .table {
@@ -85,23 +85,7 @@
   }
 }
 
-/* Mismo tramo que la tabla completa de `Table`: contenedor de 960 px o, desde 1200 px de viewport, de 860 px. */
-@container table (min-width: 960px) {
-  .headerRole {
-    position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip-path: none;
-  }
-
-  .role {
-    padding-left: 0;
-    font: var(--font-body);
-    color: var(--color-ink);
-  }
-}
-
+/* Mismo tramo que la tabla completa de `Table`: desde 1200 px de viewport con un contenedor de 860 px. */
 @media (min-width: 1200px) {
   @container table (min-width: 860px) {
     .headerRole {
