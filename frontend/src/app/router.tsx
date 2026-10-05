@@ -8,6 +8,7 @@ import { IndexRedirect, RequireRole } from './pages/RequireRole'
 import { CustomerDetailPage } from '../features/customers/CustomerDetailPage'
 import { CustomersPage } from '../features/customers/CustomersPage'
 import { NewCustomerDialog } from '../features/customers/NewCustomerDialog'
+import { OverviewPage } from '../features/overview/OverviewPage'
 import { TeamPage } from '../features/team/TeamPage'
 import { NewTicketPage } from '../features/tickets/NewTicketPage'
 import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
@@ -83,15 +84,17 @@ const settingsChildren = (item: NavigationItem): RouteObject[] => [
 
 /** Todas las secciones salen de `mainNavigation`; las que aún no tienen vista muestran «Vista en construcción». */
 const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
-  item.to === '/tickets'
-    ? sectionRoute(item, { children: ticketChildren })
-    : item.to === '/clientes'
-      ? sectionRoute(item, { children: customerChildren })
-      : item.to === '/equipo'
-        ? sectionRoute(item, { element: <TeamPage /> })
-        : item.to === '/configuracion'
-          ? sectionRoute(item, { children: settingsChildren(item) })
-          : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
+  item.to === '/'
+    ? sectionRoute(item, { element: <OverviewPage /> })
+    : item.to === '/tickets'
+      ? sectionRoute(item, { children: ticketChildren })
+      : item.to === '/clientes'
+        ? sectionRoute(item, { children: customerChildren })
+        : item.to === '/equipo'
+          ? sectionRoute(item, { element: <TeamPage /> })
+          : item.to === '/configuracion'
+            ? sectionRoute(item, { children: settingsChildren(item) })
+            : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
 )
 
 /** Rutas de la aplicación; se exportan para probar el cableado real (guardias y redirecciones) sin navegador. */
