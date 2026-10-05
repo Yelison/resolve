@@ -2,6 +2,7 @@ import { appSweepRoutes } from './app'
 import { customersSweepRoutes } from './customers'
 import { knowledgeSweepRoutes } from './knowledge'
 import { reportsSweepRoutes } from './reports'
+import { settingsSweepRoutes } from './settings'
 import { teamSweepRoutes } from './team'
 import { ticketsSweepRoutes } from './tickets'
 import type { SweepRoute } from './types'
@@ -14,4 +15,5 @@ export const sweepRoutes: SweepRoute[] = [
   ...teamSweepRoutes,
   ...knowledgeSweepRoutes,
   ...reportsSweepRoutes,
+  ...settingsSweepRoutes,
 ]
