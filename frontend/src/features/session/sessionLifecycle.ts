@@ -1,0 +1,68 @@
+import type { QueryClient } from '@tanstack/react-query'
+
+/** Inicio de sesión: el backend redirige al proveedor (OIDC) y, al volver, deja la cookie de sesión. */
+export const LOGIN_PATH = '/api/oauth2/authorization/resolve'
+
+/**
+ * Navegaciones del navegador agrupadas para poder sustituirlas en las pruebas: jsdom no deja espiar `location.assign`.
+ */
+export const navigation = {
+  /** Sale de la aplicación hacia `url` en la misma pestaña (cierre de sesión, inicio de sesión). */
+  assign: (url: string) => window.location.assign(url),
+  /**
+   * Abre `url` en otra pestaña para que la pestaña actual conserve lo que hay escrito; si el navegador bloquea la
+   * ventana, navega en la misma como último recurso.
+   */
+  openInNewTab: (url: string) => {
+    // `noopener` en la lista de características hace que open() devuelva siempre null y no permite saber si se
+    // bloqueó: se abre normal y se corta el vínculo con esta pestaña a mano.
+    const opened = window.open(url, '_blank')
+    if (opened) opened.opener = null
+    else navigation.assign(url)
+  },
+}
+
+/**
+ * Estado compartido del cierre de sesión: mientras dura, un 401 de la API es esperado (la sesión acaba de morir) y no
+ * debe avisar de que «caducó».
+ */
+export const sessionState = { ending: false }
+
+/** Prefijos de los borradores que las pantallas guardan en sessionStorage (`useDraft`): respuesta de ticket y artículo. */
+const DRAFT_PREFIXES = ['resolve-draft-', 'resolve-article-']
+
+/** Borra los borradores de la pestaña: no llevan usuario ni organización, así que no deben pasar a otra sesión. */
+export function clearDrafts() {
+  try {
+    for (const key of Object.keys(sessionStorage)) {
+      if (DRAFT_PREFIXES.some((prefix) => key.startsWith(prefix))) sessionStorage.removeItem(key)
+    }
+  } catch {
+    // Sin almacenamiento no hay borradores que borrar.
+  }
+}
+
+/**
+ * Olvida todo lo del usuario o la organización anteriores: peticiones en vuelo, caché y borradores. Se llama al cerrar
+ * sesión, al cambiar de organización y al cambiar de usuario de demostración; nunca ante un 401, donde lo escrito debe
+ * sobrevivir.
+ */
+export async function clearSessionData(queryClient: QueryClient) {
+  await queryClient.cancelQueries()
+  queryClient.clear()
+  clearDrafts()
+}
+
+/**
+ * Lleva el foco al contenido principal en cuanto la shell lo pinta (tras un cambio que desmonta quien lo tenía). La
+ * navegación a `/` puede tardar en montar la shell; se reintenta unos instantes y se abandona si el foco ya está en otro
+ * elemento.
+ */
+export function focusContentWhenReady(attempts = 40) {
+  const content = document.getElementById('contenido')
+  if (content) {
+    content.focus({ preventScroll: true })
+    return
+  }
+  if (attempts > 0) window.setTimeout(() => focusContentWhenReady(attempts - 1), 50)
+}

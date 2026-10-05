@@ -19,6 +19,7 @@ function renderShell(path = '/tickets') {
           { path: 'clientes', element: <h1>Clientes</h1>, handle: { crumb: 'Clientes' } },
         ],
       },
+      { path: '/entrar', element: <h1>Entrar</h1> },
     ],
     { initialEntries: [path] },
   )
@@ -241,12 +242,11 @@ describe('AppShell sin sesión', () => {
     expect(within(drawer).queryByText('Gestión')).not.toBeInTheDocument()
   })
 
-  it('un 401 no sugiere reintentar en unos segundos y conserva el botón', async () => {
+  it('un 401 en /me lleva a /entrar en lugar de mostrar el aviso de sesión no disponible', async () => {
     mockApi({ 'GET /api/me': { status: 401, body: { status: 401, title: 'No autenticado' } } })
-    renderShell()
-    await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })
-    expect(screen.getByText('No hay una sesión activa para esta organización.')).toBeInTheDocument()
-    expect(screen.queryByText(/unos segundos/)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
+    const router = renderShell()
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/entrar')
+    expect(screen.queryByRole('heading', { name: 'No pudimos cargar tu sesión' })).not.toBeInTheDocument()
   })
 })

@@ -3,7 +3,7 @@ import type { Me } from '../src/api/schema'
 import { customersMock } from './mocks/customers'
 import { knowledgeMock, type ArticleStore } from './mocks/knowledge'
 import { reportsMock } from './mocks/reports'
-import { sessionMock } from './mocks/session'
+import { sessionMock, type SessionOptions } from './mocks/session'
 import { settingsMock } from './mocks/settings'
 import { json, type MockFeature } from './mocks/shared'
 import { teamMock } from './mocks/team'
@@ -25,23 +25,32 @@ export { tickets } from './mocks/tickets'
 
 /**
  * `role` es el de la sesión simulada; las features que dependen de él (sesión, conocimiento) lo reciben.
- * `shared` reutiliza el estado de otra llamada (un `createArticleStore()` del test): cambiar de rol sobre la misma
- * página, como al abrir la sesión de un cliente, sigue viendo lo que el equipo acaba de publicar.
+ * `options.articleStore` reutiliza el estado de otra llamada (un `createArticleStore()` del test): cambiar de rol sobre
+ * la misma página, como al abrir la sesión de un cliente, sigue viendo lo que el equipo acaba de publicar. El resto de
+ * `options` ajusta cómo arranca la sesión (sin iniciar, varias organizaciones, nombres largos, cuenta desactivada).
  */
-export async function mockApi(page: Page, role: Me['role'] = 'admin', shared: { articleStore?: ArticleStore } = {}) {
+export async function mockApi(
+  page: Page,
+  role: Me['role'] = 'admin',
+  options: { articleStore?: ArticleStore } & SessionOptions = {},
+) {
   const customers = customersMock()
+  const settings = settingsMock(role)
   const features: MockFeature[] = [
-    // Antes que `sessionMock`: sirve `/me` con el estado que cambian los ajustes (gana el primer manejador).
-    settingsMock(role),
-    sessionMock(role),
-    knowledgeMock(role, shared.articleStore),
+    // La sesión va primero (gana el primer manejador): sirve `/me`, el cierre de sesión y la elección de organización
+    // a partir del `Me` que cambian los ajustes, que van justo después con el resto de `/me` (PATCH) y `/organization`.
+    sessionMock(role, options, settings.session),
+    settings,
+    knowledgeMock(role, options.articleStore),
     reportsMock(),
     ticketsMock(customers.customerRef),
     teamMock(),
     customers,
   ]
 
-  await page.route('**/api/**', async (route) => {
+  // En el contexto y no en la página: una ventana que abre la aplicación (el inicio de sesión en otra pestaña) también la usa.
+  // Las rutas de página de cada test siguen teniendo prioridad.
+  await page.context().route('**/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname.replace(/^\/api/, '')

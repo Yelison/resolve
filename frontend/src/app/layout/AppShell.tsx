@@ -3,7 +3,10 @@ import { Outlet, useLocation, useMatches, useNavigate } from 'react-router'
 import { Breadcrumb, Sidebar, Topbar, useToast } from '../../components/ui'
 import { useModalDialog } from '../../components/ui/shared/useModalDialog'
 import { useMediaQuery } from '../../lib/useMediaQuery'
+import { AccountMenu, AccountMenuPlaceholder } from '../../features/session/AccountMenu'
 import { useMe } from '../../features/session/queries'
+import { SessionGate } from '../../features/session/SessionGate'
+import { useSessionExpiredNotice } from '../../features/session/useSessionExpiredNotice'
 import { navigationFor, roleLabels } from '../navigation'
 import { SessionErrorPage } from '../pages/SessionErrorPage'
 import { useTheme } from '../theme/useTheme'
@@ -15,11 +18,20 @@ export interface RouteHandle {
   crumb?: string | ((params: Readonly<Record<string, string | undefined>>) => string)
 }
 
+/** Estructura de la aplicación, tras la puerta de sesión: sin sesión (401 en /me) lleva a `/entrar`. */
+export function AppShell() {
+  return (
+    <SessionGate>
+      <AppFrame />
+    </SessionGate>
+  )
+}
+
 /**
  * Estructura de la aplicación. El modo lo decide el ancho, nunca el dispositivo:
  * drawer por debajo de 768 px, menú de iconos hasta 1199 px y menú completo (colapsable) desde 1200 px.
  */
-export function AppShell() {
+function AppFrame() {
   const isTabletUp = useMediaQuery('(min-width: 768px)')
   const isDesktop = useMediaQuery('(min-width: 1200px)')
   const sidebar = useSidebarPreference()
@@ -27,6 +39,7 @@ export function AppShell() {
   const toast = useToast()
   const drawerId = useId()
   const me = useMe()
+  useSessionExpiredNotice()
   // Mientras carga la sesión se muestran marcadores neutros. Si falla, el contenido se sustituye por un aviso con
   // reintento: sin rol, las páginas no pueden decidir qué vista mostrar.
   // Al reintentar, una query sin datos vuelve a «pending» y pierde el error: el aviso se decide por los fallos
@@ -142,6 +155,10 @@ export function AppShell() {
             toast.show({ title: 'Notificaciones no disponibles', description: 'Llegarán con la API de eventos.' })
           }
           userName={userName}
+          // Sin la sesión cargada no se ofrece ninguna acción de cuenta, pero el hueco ya tiene el tamaño del botón.
+          userMenu={(avatar) =>
+            me.data ? <AccountMenu me={me.data} avatar={avatar} /> : <AccountMenuPlaceholder avatar={avatar} />
+          }
           breadcrumb={
             <Breadcrumb
               items={[

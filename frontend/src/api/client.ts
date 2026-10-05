@@ -46,9 +46,11 @@ export function setDemoUser(email: string | null) {
 /**
  * En desarrollo y en el build `smoke` de la prueba full-stack, el backend con perfil `dev` acepta X-Demo-User para
  * elegir un usuario sembrado. En cualquier otro modo (`production` y cualquier otro que se invente) no existe
- * autenticación todavía y la API responde 401. Es una puerta de seguridad con lista de permitidos: DEV y el modo se
- * sustituyen en el build, así que fuera de esos casos el minificador elimina este bloque entero (y la clave de
- * almacenamiento con él); no la cambies por una variable de entorno en runtime.
+ * autenticación de demostración. Es una puerta de seguridad con lista de permitidos: DEV y el modo se sustituyen en el
+ * build, así que fuera de esos casos el minificador elimina este bloque entero (y la clave de almacenamiento con él).
+ * La misma condición, escrita en el propio punto de uso, protege el selector de usuarios de `features/session`
+ * (`AccountMenu` y `LoginPage`): una función compartida no se evalúa en el build y dejaría la cabecera, la clave y los
+ * correos en el bundle de producción. No la cambies por una variable de entorno en runtime.
  */
 const demoUser: Middleware = {
   onRequest({ request }) {

@@ -35,6 +35,9 @@ export function retryUnlessTimeout(base: QueryObserverOptions['retry']) {
   }
 }
 
+/** Pide /me con su plazo; la usan la consulta de la sesión y la comprobación de que se volvió a entrar. */
+export const fetchMe = (signal: AbortSignal) => unwrap(api.GET('/me', { signal: withTimeout(signal, ME_TIMEOUT_MS) }))
+
 export const sessionKeys = {
   me: ['session', 'me'] as const,
 }
@@ -54,7 +57,7 @@ export function useMe() {
     queryKey: sessionKeys.me,
     // Cada intento tiene su propio plazo. Si el host no responde (p. ej. un puerto que descarta paquetes), el
     // TimeoutError cuenta como fallo y el shell muestra la página de reintento en lugar de cargar para siempre.
-    queryFn: ({ signal }) => unwrap(api.GET('/me', { signal: withTimeout(signal, ME_TIMEOUT_MS) })),
+    queryFn: ({ signal }) => fetchMe(signal),
     retry: retryUnlessTimeout(defaultRetry),
     staleTime: Infinity,
     // Sin datos la consulta siempre cuenta como obsoleta: sin esto, cada vez que la pestaña recupera el foco se

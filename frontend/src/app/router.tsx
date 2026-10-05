@@ -11,6 +11,7 @@ import { customersRoutes } from '../features/customers/routes'
 import { knowledgeRoutes } from '../features/knowledge/routes'
 import { overviewRoutes } from '../features/overview/routes'
 import { reportsRoutes } from '../features/reports/routes'
+import { sessionRoutes } from '../features/session/routes'
 import { settingsRoutes } from '../features/settings/routes'
 import { teamRoutes } from '../features/team/routes'
 import { ticketsRoutes } from '../features/tickets/routes'
@@ -106,6 +107,7 @@ export const appRoutes: RouteObject[] = [
     element: <AppShell />,
     children: [...sectionRoutes, { path: '*', element: <NotFoundPage />, handle: { crumb: 'No encontrada' } }],
   },
+  ...sessionRoutes,
   lazyRoute(async () => ({ Component: (await import('./catalog/CatalogPage')).default }), { path: '/catalogo' }),
 ]
 
