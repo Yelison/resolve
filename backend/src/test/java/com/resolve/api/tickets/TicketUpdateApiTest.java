@@ -141,4 +141,16 @@ class TicketUpdateApiTest extends TicketsFixture {
 			.content("{\"status\": \"resolved\"}")).andExpect(status().isForbidden()).andExpect(matchesContract("updateTicket"));
 	}
 
+	@Test
+	void aNonCanonicalAssigneeIdIsAFieldError() throws Exception {
+		this.mvc.perform(patch("/tickets/1").with(as(LAURA))
+			.contentType(TicketsController.MERGE_PATCH_JSON)
+			.header("If-Match", "\"0\"")
+			.content("{\"assigneeId\": \"1-2-3-4-5\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("updateTicket"))
+			.andExpect(jsonPath("$.errors[0].field").value("assigneeId"))
+			.andExpect(jsonPath("$.errors[0].message").value("Debe ser un identificador válido."));
+	}
+
 }

@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
 import com.resolve.api.common.persistence.WireEnum;
+import com.resolve.api.common.web.Uuids;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
 
@@ -217,13 +218,11 @@ final class TicketRequestParser {
 	}
 
 	private Optional<UUID> uuid(String field, String value) {
-		try {
-			return Optional.of(UUID.fromString(value.trim()));
-		}
-		catch (IllegalArgumentException exception) {
+		Optional<UUID> parsed = Uuids.parse(value);
+		if (parsed.isEmpty()) {
 			error(field, "Debe ser un identificador válido.");
-			return Optional.empty();
 		}
+		return parsed;
 	}
 
 	private @Nullable String requiredTextNode(String field, JsonNode node, int maxLength, boolean allowLayout) {

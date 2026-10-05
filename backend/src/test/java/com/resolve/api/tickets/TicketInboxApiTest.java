@@ -149,4 +149,29 @@ class TicketInboxApiTest extends TicketsFixture {
 			.andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("sort", "view", "status", "assigneeId")));
 	}
 
+	@Test
+	void nonCanonicalUuidsInTheFiltersAreBadRequests() throws Exception {
+		for (String filter : new String[] { "customerId", "assigneeId" }) {
+			for (String value : new String[] { "1-2-3-4-5", "{0192f000-0000-7000-8000-000000000001}",
+					"0192f000000070008000000000000001", "0192f000-0000-7000-8000-0000000000012",
+					"+192f000-0000-7000-8000-000000000001" }) {
+				this.mvc.perform(get("/tickets").param(filter, value).with(as(ADMIN)))
+					.andExpect(status().isBadRequest())
+					.andExpect(matchesContract("listTickets"))
+					.andExpect(jsonPath("$.errors[*].field", contains(filter)));
+			}
+		}
+	}
+
+	@Test
+	void upperCaseAndPaddedCanonicalUuidsAreStillAccepted() throws Exception {
+		this.mvc
+			.perform(get("/tickets").param("customerId", " " + this.carlosCustomer.toString().toUpperCase() + " ")
+				.param("assigneeId", this.laura.toString().toUpperCase())
+				.with(as(ADMIN)))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listTickets"));
+		this.mvc.perform(get("/tickets").param("assigneeId", "none").with(as(ADMIN))).andExpect(status().isOk());
+	}
+
 }

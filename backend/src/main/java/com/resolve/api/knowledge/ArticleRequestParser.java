@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
 import com.resolve.api.common.persistence.WireEnum;
+import com.resolve.api.common.web.Uuids;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
 
@@ -171,12 +172,8 @@ final class ArticleRequestParser {
 		if (!node.isString()) {
 			return invalid("categoryId", node.isNull() ? NULL_NOT_ALLOWED : TEXT_EXPECTED);
 		}
-		try {
-			return UUID.fromString(node.asString().trim());
-		}
-		catch (IllegalArgumentException exception) {
-			return invalid("categoryId", "Debe ser un identificador de categoría válido.");
-		}
+		return Uuids.parse(node.asString())
+			.orElseGet(() -> invalid("categoryId", "Debe ser un identificador de categoría válido."));
 	}
 
 	private @Nullable ArticleVisibility visibility(JsonNode node) {
