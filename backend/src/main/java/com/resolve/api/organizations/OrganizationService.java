@@ -35,9 +35,12 @@ class OrganizationService {
 	 */
 	@Transactional
 	OrganizationSettingsDto update(CurrentMember member, @Nullable String ifMatch, @Nullable JsonNode body) {
-		Organization organization = this.organizations.lockById(member.organizationId()).orElseThrow();
+		// Todo lo que no necesita la fila va antes del bloqueo, incluida la consulta de la zona a la base de datos: así
+		// la fila no está bloqueada (y la creación de tickets no espera) mientras se valida. El orden de errores no
+		// cambia: 428, 400 y 412.
 		long expectedVersion = Preconditions.requireVersion(ifMatch, "ajuste de la organización");
 		OrganizationChanges changes = OrganizationRequestParser.changes(body, this::databaseKnowsZone);
+		Organization organization = this.organizations.lockById(member.organizationId()).orElseThrow();
 		if (organization.getVersion() != expectedVersion) {
 			throw new PreconditionFailedException(
 					"Los ajustes cambiaron desde que los abriste. Vuelve a cargarlos para ver los cambios.");
