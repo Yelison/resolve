@@ -100,7 +100,12 @@ A new Claude Code session knows nothing about this conversation, so the brief mu
 3. Files it may change; shared files it must not touch without asking; dependencies on other tasks.
 4. Contracts that apply (OpenAPI, data model, permissions, error format…).
 5. Acceptance criteria and the exact validation commands.
-6. Delivery format: summary, files, commits, tests and results, limitations, open decisions, `git status`.
+6. Delivery format: the agent copies `scripts/herdr/delivery.template.md` to the delivery path (the common footer
+   cites it): Resumen; Commits; Pruebas con cifras base y final; Los tests nuevos fallan sin su cambio;
+   Autocomprobación; Desviaciones y decisiones; Limitaciones; Esfuerzo usado; `git status --short`; and a last line,
+   `ENTREGA <lane>: LISTA` or `BLOQUEO <lane>: <reason>`. Fixed titles and order make deliveries comparable and let
+   the coordinator check them mechanically. A base commit that predates the template falls back to those same sections
+   in the footer's wording.
 7. What it must report instead of working around: a reserved file, a failing test on the base commit, a new
    dependency, a permission prompt it cannot answer, an ambiguity.
 8. Repository rules it inherits: Conventional Commits in English with the `Co-Authored-By` trailer, every commit
