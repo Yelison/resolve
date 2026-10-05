@@ -6,6 +6,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -130,6 +131,29 @@ public final class OpenApiContract {
 			}
 		}));
 		return ids;
+	}
+
+	/** Una operación del contrato: su id, el método HTTP y la ruta tal como se declara, sin el prefijo del servidor. */
+	public record Operation(String operationId, String method, String path) {
+	}
+
+	/** Todas las operaciones del contrato con su método y ruta. */
+	public static List<Operation> operations() {
+		List<Operation> operations = new ArrayList<>();
+		SPEC.path("paths").properties().forEach((path) -> path.getValue().properties().forEach((method) -> {
+			if (method.getValue().has("operationId")) {
+				operations.add(new Operation(method.getValue().path("operationId").asString(),
+						method.getKey().toUpperCase(Locale.ROOT), path.getKey()));
+			}
+		}));
+		return operations;
+	}
+
+	/** URL del único servidor que declara el contrato: el prefijo con el que se publican todas sus rutas. */
+	public static String serverUrl() {
+		JsonNode servers = SPEC.path("servers");
+		assertThat(servers.size()).as("el contrato declara un único servidor").isEqualTo(1);
+		return servers.get(0).path("url").asString();
 	}
 
 	/** Operaciones cuya respuesta ha validado algún test de esta ejecución. */

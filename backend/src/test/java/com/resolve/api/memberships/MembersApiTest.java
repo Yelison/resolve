@@ -28,7 +28,7 @@ class MembersApiTest extends TeamFixture {
 		this.data.assignTicket(this.data.ticket(this.acme, this.mariaCustomer, 3, "resolved"), this.laura);
 		this.data.assignTicket(this.data.ticket(this.acme, this.mariaCustomer, 4, "waiting"), this.daniel);
 
-		MvcResult result = this.mvc.perform(get("/members").with(as(LAURA)))
+		MvcResult result = this.mvc.perform(get(API + "/members").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listMembers"))
 			// Por nombre sin distinguir mayúsculas; los invitados y retirados aparecen, la clienta no.
@@ -72,7 +72,7 @@ class MembersApiTest extends TeamFixture {
 		this.data.ticket(this.northwind, this.data.customer(this.northwind, "Marta", "marta@soler.example", null), 1, "open");
 
 		// staff = admin + 2 agentes activos (ni la invitada ni el retirado); 2 asignados / 3 = 0,67 → 0,7.
-		this.mvc.perform(get("/members/metrics").with(as(DANIEL)))
+		this.mvc.perform(get(API + "/members/metrics").with(as(DANIEL)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getTeamMetrics"))
 			.andExpect(jsonPath("$.staff").value(3))
@@ -82,14 +82,14 @@ class MembersApiTest extends TeamFixture {
 			.andExpect(jsonPath("$.firstResponseMinutes").value(15))
 			.andExpect(jsonPath("$.firstResponseTargetMinutes").value(30));
 		// La primera respuesta es la misma cifra que las métricas de tickets.
-		this.mvc.perform(get("/tickets/metrics").with(as(DANIEL)))
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(DANIEL)))
 			.andExpect(jsonPath("$.firstResponseMinutes").value(15))
 			.andExpect(jsonPath("$.firstResponseTargetMinutes").value(30));
 	}
 
 	@Test
 	void teamMetricsWithoutDataAreZeroAndNull() throws Exception {
-		this.mvc.perform(get("/members/metrics").with(as(NORTHWIND_ADMIN)))
+		this.mvc.perform(get(API + "/members/metrics").with(as(NORTHWIND_ADMIN)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getTeamMetrics"))
 			.andExpect(jsonPath("$.staff").value(2))
@@ -107,7 +107,7 @@ class MembersApiTest extends TeamFixture {
 				{"email": "sofia.rios@acme.example", "name": "Sofía Ríos", "role": "agent"}
 				""");
 		assertThat(result.getResponse().getStatus()).isEqualTo(201);
-		this.mvc.perform(post("/members").with(as(ADMIN))
+		this.mvc.perform(post(API + "/members").with(as(ADMIN))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"email\": \"otra@acme.example\", \"role\": \"admin\"}"))
 			.andExpect(status().isCreated())
@@ -125,7 +125,7 @@ class MembersApiTest extends TeamFixture {
 		UUID userId = UUID.fromString(member.path("id").asString());
 		assertThat(this.data.membershipStatus(this.acme, userId)).isEqualTo("invited");
 		// Sin cambios hasta que entre: no es asignable ni cuenta como equipo activo.
-		this.mvc.perform(get("/assignees").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/assignees").with(as(ADMIN)))
 			.andExpect(jsonPath("$[*].email").value(org.hamcrest.Matchers.not(
 					org.hamcrest.Matchers.hasItem("sofia.rios@acme.example"))));
 	}
@@ -135,7 +135,7 @@ class MembersApiTest extends TeamFixture {
 		JsonNode member = body(invite(ADMIN, "{\"email\": \"nueva@acme.example\", \"role\": \"agent\"}"));
 		UUID userId = UUID.fromString(member.path("id").asString());
 
-		this.mvc.perform(get("/me").with(as("NUEVA@acme.example")))
+		this.mvc.perform(get(API + "/me").with(as("NUEVA@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.role").value("agent"))
 			.andExpect(jsonPath("$.organization.id").value(this.acme.toString()));
@@ -148,7 +148,7 @@ class MembersApiTest extends TeamFixture {
 		UUID membership = this.data.membershipId(this.acme, this.removed);
 		MvcResult result = invite(ADMIN, "{\"email\": \"RETIRADO@acme.example\", \"role\": \"admin\"}");
 		assertThat(result.getResponse().getStatus()).isEqualTo(201);
-		this.mvc.perform(post("/members").with(as(ADMIN))
+		this.mvc.perform(post(API + "/members").with(as(ADMIN))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"email\": \"retirado@acme.example\", \"role\": \"agent\"}"))
 			.andExpect(status().isBadRequest());
@@ -161,7 +161,7 @@ class MembersApiTest extends TeamFixture {
 		assertThat(member.path("name").asString()).isEqualTo("Raúl Retirado");
 		assertThat(this.data.membershipId(this.acme, this.removed)).isEqualTo(membership);
 		assertThat(this.data.membershipStatus(this.acme, this.removed)).isEqualTo("invited");
-		this.mvc.perform(get("/me").with(as(REMOVED)))
+		this.mvc.perform(get(API + "/me").with(as(REMOVED)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.role").value("admin"));
 	}
@@ -188,7 +188,7 @@ class MembersApiTest extends TeamFixture {
 				{ MARIA, "Este correo pertenece a un cliente." },
 				{ "archivado@cliente.example", "Este correo pertenece a un cliente." },
 				{ "SINACCESO@cliente.example", "Este correo pertenece a un cliente." } }) {
-			this.mvc.perform(post("/members").with(as(ADMIN))
+			this.mvc.perform(post(API + "/members").with(as(ADMIN))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"email\": \"%s\", \"role\": \"agent\"}".formatted(rejected[0])))
 				.andExpect(status().isBadRequest())
@@ -208,12 +208,12 @@ class MembersApiTest extends TeamFixture {
 				{ "{\"email\": \"a@b.example\", \"role\": \"agent\", \"name\": \"\"}", "name" },
 				{ "{\"email\": \"a@b.example\", \"role\": \"agent\", \"organizationId\": \"x\"}", "organizationId" },
 				{ "{\"email\": null, \"role\": \"agent\"}", "email" } }) {
-			this.mvc.perform(post("/members").with(as(ADMIN)).contentType(MediaType.APPLICATION_JSON).content(invalid[0]))
+			this.mvc.perform(post(API + "/members").with(as(ADMIN)).contentType(MediaType.APPLICATION_JSON).content(invalid[0]))
 				.andExpect(status().isBadRequest())
 				.andExpect(matchesContract("inviteMember"))
 				.andExpect(jsonPath("$.errors[*].field").value(org.hamcrest.Matchers.hasItem(invalid[1])));
 		}
-		this.mvc.perform(post("/members").with(as(ADMIN)).contentType(MediaType.APPLICATION_JSON).content("[]"))
+		this.mvc.perform(post(API + "/members").with(as(ADMIN)).contentType(MediaType.APPLICATION_JSON).content("[]"))
 			.andExpect(status().isBadRequest());
 		assertThat(listMembers(ADMIN)).hasSize(5);
 	}
@@ -222,14 +222,14 @@ class MembersApiTest extends TeamFixture {
 
 	@Test
 	void changesTheRoleOfActiveAndInvitedMembers() throws Exception {
-		this.mvc.perform(post("/members/" + this.laura + "/role").with(as(ADMIN))
+		this.mvc.perform(post(API + "/members/" + this.laura + "/role").with(as(ADMIN))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"role\": \"admin\"}"))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("changeMemberRole"))
 			.andExpect(jsonPath("$.role").value("admin"))
 			.andExpect(jsonPath("$.status").value("active"));
-		this.mvc.perform(get("/me").with(as(LAURA))).andExpect(jsonPath("$.role").value("admin"));
+		this.mvc.perform(get(API + "/me").with(as(LAURA))).andExpect(jsonPath("$.role").value("admin"));
 		assertThat(body(changeRole(ADMIN, this.invited, "admin")).path("role").asString()).isEqualTo("admin");
 		// Mismo rol: no hace nada y responde 200.
 		assertThat(changeRole(ADMIN, this.daniel, "agent").getResponse().getStatus()).isEqualTo(200);
@@ -239,7 +239,7 @@ class MembersApiTest extends TeamFixture {
 	@Test
 	void changeRoleHidesUnknownForeignAndCustomerUsersAndValidates() throws Exception {
 		for (UUID notATeamMember : new UUID[] { UUID.randomUUID(), this.northwindAdmin, this.mariaUser }) {
-			this.mvc.perform(post("/members/" + notATeamMember + "/role").with(as(ADMIN))
+			this.mvc.perform(post(API + "/members/" + notATeamMember + "/role").with(as(ADMIN))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("{\"role\": \"agent\"}"))
 				.andExpect(status().isNotFound())
@@ -247,23 +247,23 @@ class MembersApiTest extends TeamFixture {
 		}
 		assertThat(this.data.membershipStatus(this.northwind, this.northwindAdmin)).isEqualTo("active");
 		// 404 antes que 400: el cuerpo inválido no se mira si el miembro no existe.
-		this.mvc.perform(post("/members/" + UUID.randomUUID() + "/role").with(as(ADMIN))
+		this.mvc.perform(post(API + "/members/" + UUID.randomUUID() + "/role").with(as(ADMIN))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"role\": \"customer\"}")).andExpect(status().isNotFound());
 		for (String invalid : new String[] { "{\"role\": \"customer\"}", "{}", "{\"role\": \"agent\", \"x\": 1}" }) {
-			this.mvc.perform(post("/members/" + this.laura + "/role").with(as(ADMIN))
+			this.mvc.perform(post(API + "/members/" + this.laura + "/role").with(as(ADMIN))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(invalid))
 				.andExpect(status().isBadRequest())
 				.andExpect(matchesContract("changeMemberRole"));
 		}
-		this.mvc.perform(post("/members/no-es-un-uuid/role").with(as(ADMIN))
+		this.mvc.perform(post(API + "/members/no-es-un-uuid/role").with(as(ADMIN))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"role\": \"agent\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("userId"));
 		// Un miembro retirado es un estado que no admite cambios: 409.
-		this.mvc.perform(post("/members/" + this.removed + "/role").with(as(ADMIN))
+		this.mvc.perform(post(API + "/members/" + this.removed + "/role").with(as(ADMIN))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"role\": \"admin\"}"))
 			.andExpect(status().isConflict())
@@ -275,24 +275,24 @@ class MembersApiTest extends TeamFixture {
 
 	@Test
 	void anAgentCannotInviteChangeRolesOrRemove() throws Exception {
-		this.mvc.perform(get("/members").with(as(LAURA))).andExpect(status().isOk());
-		this.mvc.perform(get("/members/metrics").with(as(LAURA))).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/members").with(as(LAURA))).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/members/metrics").with(as(LAURA))).andExpect(status().isOk());
 
-		this.mvc.perform(post("/members").with(as(LAURA))
+		this.mvc.perform(post(API + "/members").with(as(LAURA))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"email\": \"x@acme.example\", \"role\": \"agent\"}"))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("inviteMember"));
-		this.mvc.perform(post("/members/" + this.daniel + "/role").with(as(LAURA))
+		this.mvc.perform(post(API + "/members/" + this.daniel + "/role").with(as(LAURA))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"role\": \"admin\"}"))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("changeMemberRole"));
-		this.mvc.perform(post("/members/" + this.daniel + "/remove").with(as(LAURA)))
+		this.mvc.perform(post(API + "/members/" + this.daniel + "/remove").with(as(LAURA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("removeMember"));
 		// 403 también con el cuerpo inválido o un miembro inexistente: la URL decide antes que nada.
-		this.mvc.perform(post("/members/" + UUID.randomUUID() + "/role").with(as(LAURA))
+		this.mvc.perform(post(API + "/members/" + UUID.randomUUID() + "/role").with(as(LAURA))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{}")).andExpect(status().isForbidden());
 		assertThat(this.data.membershipStatus(this.acme, this.daniel)).isEqualTo("active");
@@ -301,15 +301,15 @@ class MembersApiTest extends TeamFixture {
 
 	@Test
 	void aCustomerCannotReadOrChangeTheTeam() throws Exception {
-		this.mvc.perform(get("/members").with(as(MARIA)))
+		this.mvc.perform(get(API + "/members").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("listMembers"));
-		this.mvc.perform(get("/members/metrics").with(as(MARIA)))
+		this.mvc.perform(get(API + "/members/metrics").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("getTeamMetrics"));
-		this.mvc.perform(post("/members/" + this.laura + "/remove").with(as(MARIA)))
+		this.mvc.perform(post(API + "/members/" + this.laura + "/remove").with(as(MARIA)))
 			.andExpect(status().isForbidden());
-		this.mvc.perform(get("/members")).andExpect(status().isUnauthorized()).andExpect(matchesContract("listMembers"));
+		this.mvc.perform(get(API + "/members")).andExpect(status().isUnauthorized()).andExpect(matchesContract("listMembers"));
 	}
 
 	@Test
@@ -325,7 +325,7 @@ class MembersApiTest extends TeamFixture {
 		MvcResult unknown = remove(NORTHWIND_ADMIN, UUID.randomUUID());
 		assertThat(body(removal).path("detail")).isEqualTo(body(unknown).path("detail"));
 		assertThat(this.data.membershipStatus(this.acme, this.laura)).isEqualTo("active");
-		this.mvc.perform(post("/members/" + this.laura + "/remove").with(as(NORTHWIND_ADMIN)))
+		this.mvc.perform(post(API + "/members/" + this.laura + "/remove").with(as(NORTHWIND_ADMIN)))
 			.andExpect(matchesContract("removeMember"));
 	}
 

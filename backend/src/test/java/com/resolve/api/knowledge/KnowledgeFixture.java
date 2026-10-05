@@ -105,7 +105,7 @@ abstract class KnowledgeFixture extends ApiIntegrationTest {
 
 	MvcResult postArticle(String user, String json) throws Exception {
 		return this.mvc
-			.perform(post("/knowledge/articles").with(as(user)).contentType(MediaType.APPLICATION_JSON).content(json))
+			.perform(post(API + "/knowledge/articles").with(as(user)).contentType(MediaType.APPLICATION_JSON).content(json))
 			.andReturn();
 	}
 
@@ -115,12 +115,12 @@ abstract class KnowledgeFixture extends ApiIntegrationTest {
 	}
 
 	MvcResult getArticle(String user, String slug) throws Exception {
-		return this.mvc.perform(get("/knowledge/articles/" + slug).with(as(user))).andReturn();
+		return this.mvc.perform(get(API + "/knowledge/articles/" + slug).with(as(user))).andReturn();
 	}
 
 	MvcResult patchArticle(String user, String slug, String version, String json) throws Exception {
 		return this.mvc
-			.perform(patch("/knowledge/articles/" + slug).with(as(user))
+			.perform(patch(API + "/knowledge/articles/" + slug).with(as(user))
 				.header("If-Match", "\"" + version + "\"")
 				.contentType("application/merge-patch+json")
 				.content(json))
@@ -128,19 +128,19 @@ abstract class KnowledgeFixture extends ApiIntegrationTest {
 	}
 
 	MvcResult publish(String user, String slug) throws Exception {
-		return this.mvc.perform(post("/knowledge/articles/" + slug + "/publish").with(as(user))).andReturn();
+		return this.mvc.perform(post(API + "/knowledge/articles/" + slug + "/publish").with(as(user))).andReturn();
 	}
 
 	MvcResult unpublish(String user, String slug) throws Exception {
-		return this.mvc.perform(post("/knowledge/articles/" + slug + "/unpublish").with(as(user))).andReturn();
+		return this.mvc.perform(post(API + "/knowledge/articles/" + slug + "/unpublish").with(as(user))).andReturn();
 	}
 
 	JsonNode listArticles(String user, String query) throws Exception {
-		return body(this.mvc.perform(get("/knowledge/articles" + query).with(as(user))).andReturn());
+		return body(this.mvc.perform(get(API + "/knowledge/articles" + query).with(as(user))).andReturn());
 	}
 
 	JsonNode listCategories(String user) throws Exception {
-		return body(this.mvc.perform(get("/knowledge/categories").with(as(user))).andReturn());
+		return body(this.mvc.perform(get(API + "/knowledge/categories").with(as(user))).andReturn());
 	}
 
 	/** Slugs de una página de la lista, en el orden recibido. */

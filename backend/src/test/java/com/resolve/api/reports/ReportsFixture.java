@@ -107,8 +107,8 @@ abstract class ReportsFixture extends ApiIntegrationTest {
 	/** Pide el informe, comprueba el contrato y devuelve el cuerpo. {@code period} nulo usa el valor por defecto. */
 	JsonNode summary(String email, String period) throws Exception {
 		MvcResult result = this.mvc
-			.perform((period != null) ? get("/reports/summary").queryParam("period", period).with(as(email))
-					: get("/reports/summary").with(as(email)))
+			.perform((period != null) ? get(API + "/reports/summary").queryParam("period", period).with(as(email))
+					: get(API + "/reports/summary").with(as(email)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getReportSummary"))
 			.andReturn();

@@ -37,7 +37,7 @@ class CsrfTest extends OidcApiIntegrationTest {
 
 	@Test
 	void theFirstGetSetsAReadableCsrfCookieForTheWholeSite() throws Exception {
-		MvcResult result = this.mvc.perform(get("/me").session(signedIn("laura@acme.example"))).andReturn();
+		MvcResult result = this.mvc.perform(get(API + "/me").session(signedIn("laura@acme.example"))).andReturn();
 
 		// MockMvc no escribe SameSite en la cabecera, pero sí lo deja como atributo de la cookie que Tomcat serializa.
 		Cookie csrf = result.getResponse().getCookie("XSRF-TOKEN");
@@ -60,10 +60,10 @@ class CsrfTest extends OidcApiIntegrationTest {
 	@Test
 	void everyUnsafeMethodNeedsTheToken() throws Exception {
 		MockHttpSession session = signedIn("laura@acme.example");
-		this.mvc.perform(post("/tickets").session(session).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		this.mvc.perform(post(API + "/tickets").session(session).contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isForbidden());
-		this.mvc.perform(delete("/tickets/1").session(session)).andExpect(status().isForbidden());
-		this.mvc.perform(post("/session/organization").session(session)
+		this.mvc.perform(delete(API + "/tickets/1").session(session)).andExpect(status().isForbidden());
+		this.mvc.perform(post(API + "/session/organization").session(session)
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{}")).andExpect(status().isForbidden());
 	}
@@ -100,7 +100,7 @@ class CsrfTest extends OidcApiIntegrationTest {
 	void anExpiredSessionWithAValidTokenIsA401NotA403() throws Exception {
 		String token = "token-de-un-navegador-sin-sesion";
 
-		this.mvc.perform(patch("/me").contentType(MediaType.APPLICATION_JSON)
+		this.mvc.perform(patch(API + "/me").contentType(MediaType.APPLICATION_JSON)
 			.content(RENAME)
 			.cookie(new Cookie("XSRF-TOKEN", token))
 			.header("X-XSRF-TOKEN", token))
@@ -112,20 +112,20 @@ class CsrfTest extends OidcApiIntegrationTest {
 	void logoutNeedsTheCsrfHeaderLikeEveryUnsafeRequest() throws Exception {
 		MockHttpSession session = signedIn("laura@acme.example");
 
-		this.mvc.perform(post("/logout").session(session))
+		this.mvc.perform(post(API + "/logout").session(session))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("logout"));
 
 		assertThat(session.isInvalid()).isFalse();
-		this.mvc.perform(get("/me").session(session)).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/me").session(session)).andExpect(status().isOk());
 	}
 
 	@Test
 	void logoutEndsTheSessionDeletesItsCookieAndGivesTheProviderLogoutUrl() throws Exception {
 		MockHttpSession session = signedIn("laura@acme.example");
-		this.mvc.perform(get("/me").session(session)).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/me").session(session)).andExpect(status().isOk());
 
-		MvcResult result = this.mvc.perform(post("/api/logout").contextPath("/api").session(session).with(csrfToken()))
+		MvcResult result = this.mvc.perform(post(API + "/logout").session(session).with(csrfToken()))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("logout"))
 			.andExpect(jsonPath("$.logoutUrl").value(
@@ -133,24 +133,24 @@ class CsrfTest extends OidcApiIntegrationTest {
 			.andReturn();
 
 		assertThat(session.isInvalid()).isTrue();
-		// El navegador conserva JSESSIONID hasta que se le ordena borrarla; el Path es el del contexto, como al crearla.
+		// El navegador conserva JSESSIONID hasta que se le ordena borrarla; el Path es el de la creación (/api).
 		Cookie deleted = result.getResponse().getCookie("JSESSIONID");
 		assertThat(deleted).isNotNull();
 		assertThat(deleted.getMaxAge()).isZero();
 		assertThat(deleted.getPath()).isEqualTo("/api");
-		this.mvc.perform(get("/me").session(session)).andExpect(status().isUnauthorized());
+		this.mvc.perform(get(API + "/me").session(session)).andExpect(status().isUnauthorized());
 	}
 
 	@Test
 	void logoutWithoutASessionIsIdempotentAndSendsTheClientBackToTheApplication() throws Exception {
-		this.mvc.perform(post("/logout").with(csrfToken()))
+		this.mvc.perform(post(API + "/logout").with(csrfToken()))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("logout"))
 			.andExpect(jsonPath("$.logoutUrl").value("http://localhost:5173"));
 	}
 
 	private String csrfCookie(MockHttpSession session) throws Exception {
-		MvcResult result = this.mvc.perform(get("/me").session(session)).andReturn();
+		MvcResult result = this.mvc.perform(get(API + "/me").session(session)).andReturn();
 		return result.getResponse()
 			.getHeaders("Set-Cookie")
 			.stream()
@@ -161,7 +161,7 @@ class CsrfTest extends OidcApiIntegrationTest {
 	}
 
 	private static MockHttpServletRequestBuilder rename(MockHttpSession session) {
-		return patch("/me").session(session).contentType(MediaType.APPLICATION_JSON).content(RENAME);
+		return patch(API + "/me").session(session).contentType(MediaType.APPLICATION_JSON).content(RENAME);
 	}
 
 }

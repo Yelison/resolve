@@ -29,12 +29,12 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void createsTheTicketWithDefaultsLocationAndEtag() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "%s", "subject": "  No puedo acceder a mi cuenta ", "description": "El enlace venció."}
 				""".formatted(this.mariaCustomer)))
 			.andExpect(status().isCreated())
 			.andExpect(matchesContract("createTicket"))
-			.andExpect(header().string("Location", "http://localhost/tickets/1"))
+			.andExpect(header().string("Location", "http://localhost/api/tickets/1"))
 			.andExpect(header().string("ETag", "\"0\""))
 			.andExpect(jsonPath("$.number").value(1))
 			.andExpect(jsonPath("$.subject").value("No puedo acceder a mi cuenta"))
@@ -49,7 +49,7 @@ class TicketCreationApiTest extends TicketsFixture {
 	@Test
 	void recordsCreationAndInitialAssignmentInTheHistory() throws Exception {
 		JsonNode ticket = createTicket(ADMIN, this.mariaCustomer, "Error de pago", "high", this.laura);
-		this.mvc.perform(get("/tickets/{number}/activity", ticket.get("number").asLong()).with(as(ADMIN)))
+		this.mvc.perform(get(API + "/tickets/{number}/activity", ticket.get("number").asLong()).with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listActivity"))
 			.andExpect(jsonPath("$[*].type", containsInAnyOrder("created", "assignee_changed")))
@@ -63,7 +63,7 @@ class TicketCreationApiTest extends TicketsFixture {
 		createTicket(LAURA, this.carlosCustomer, "Dos", "low", null);
 		JsonNode first = createTicket(NORTHWIND_AGENT, this.northwindCustomer, "Primero de Northwind", "low", null);
 		assertThat(first.get("number").asLong()).isEqualTo(1);
-		this.mvc.perform(get("/tickets").with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets").with(as(LAURA)))
 			.andExpect(jsonPath("$.items[*].number", containsInAnyOrder(1, 2)));
 	}
 
@@ -95,7 +95,7 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void reportsEveryInvalidField() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "no-es-un-id", "subject": " ", "description": "%s", "priority": "critica", "channel": "fax"}
 				""".formatted("x".repeat(5001))))
 			.andExpect(status().isBadRequest())
@@ -107,7 +107,7 @@ class TicketCreationApiTest extends TicketsFixture {
 	@Test
 	void unknownAndForeignReferencesGetTheSameError() throws Exception {
 		String unknown = this.mvc
-			.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+			.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 					{"customerId": "0192f000-0000-7000-8000-00000000dead", "subject": "A", "description": "B"}
 					"""))
 			.andExpect(status().isBadRequest())
@@ -116,7 +116,7 @@ class TicketCreationApiTest extends TicketsFixture {
 			.getResponse()
 			.getContentAsString();
 		String foreign = this.mvc
-			.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+			.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 					{"customerId": "%s", "subject": "A", "description": "B"}
 					""".formatted(this.northwindCustomer)))
 			.andExpect(status().isBadRequest())
@@ -128,7 +128,7 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void theAssigneeMustBeStaffOfTheSameOrganization() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "%s", "subject": "A", "description": "B", "assigneeId": "%s"}
 				""".formatted(this.mariaCustomer, this.northwindAgent)))
 			.andExpect(status().isBadRequest())
@@ -140,7 +140,7 @@ class TicketCreationApiTest extends TicketsFixture {
 		UUID invited = this.data.staff(this.acme, "agent", "Inés Invitada", "invitada@acme.example", "invited");
 		UUID removed = this.data.staff(this.acme, "agent", "Raúl Retirado", "retirado@acme.example", "removed");
 		for (UUID assignee : new UUID[] { invited, removed }) {
-			this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+			this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 					{"customerId": "%s", "subject": "A", "description": "B", "assigneeId": "%s"}
 					""".formatted(this.mariaCustomer, assignee)))
 				.andExpect(status().isBadRequest())
@@ -150,7 +150,7 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void ignoresNoOrganizationSentByTheClient() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "%s", "subject": "A", "description": "B", "organizationId": "%s"}
 				""".formatted(this.mariaCustomer, this.northwind)))
 			.andExpect(status().isBadRequest())
@@ -159,14 +159,14 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void customersCannotCreateTicketsEvenWithAnInvalidBody() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(MARIA)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		this.mvc.perform(post(API + "/tickets").with(as(MARIA)).contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("createTicket"));
 	}
 
 	@Test
 	void nonTextScalarsInTextFieldsAreRejectedPerField() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": 1, "subject": 123, "description": true, "priority": 5, "channel": [], "assigneeId": 7}
 				"""))
 			.andExpect(status().isBadRequest())
@@ -179,25 +179,25 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void aNumericSubjectIsNotStoredAsText() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "%s", "subject": 123, "description": "B"}
 				""".formatted(this.mariaCustomer)))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("subject"))
 			.andExpect(jsonPath("$.errors[0].message").value("Debe ser un texto."));
-		this.mvc.perform(get("/tickets/1").with(as(LAURA))).andExpect(status().isNotFound());
+		this.mvc.perform(get(API + "/tickets/1").with(as(LAURA))).andExpect(status().isNotFound());
 	}
 
 	@Test
 	void controlCharactersAreRejectedInTheSubjectButLayoutIsKeptInTheDescription() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "%s", "subject": "a\\u0000b", "description": "c\\u0000d"}
 				""".formatted(this.mariaCustomer)))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("createTicket"))
 			.andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("subject", "description")))
 			.andExpect(jsonPath("$.errors[0].message").value("No admite caracteres de control."));
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "%s", "subject": "Asunto", "description": "Línea 1\\n\\tLínea 2"}
 				""".formatted(this.mariaCustomer)))
 			.andExpect(status().isCreated())
@@ -206,7 +206,7 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void nullIsOnlyAcceptedWhereTheContractAllowsIt() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "%s", "subject": null, "description": "B", "priority": null, "assigneeId": null}
 				""".formatted(this.mariaCustomer)))
 			.andExpect(status().isBadRequest())
@@ -216,7 +216,7 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void aBodyThatIsNotAnObjectIsRejected() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("[]"))
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("[]"))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("createTicket"))
 			.andExpect(jsonPath("$.errors[0].field").value("body"));
@@ -224,7 +224,7 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void unknownFieldsAreReportedByName() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "%s", "subject": "A", "description": "B", "organizationId": "%s"}
 				""".formatted(this.mariaCustomer, this.northwind)))
 			.andExpect(status().isBadRequest())
@@ -234,7 +234,7 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void nonCanonicalUuidsInTheBodyAreFieldErrors() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "1-2-3-4-5", "subject": "A", "description": "B", "assigneeId": "1-2-3-4-5"}
 				"""))
 			.andExpect(status().isBadRequest())
@@ -245,7 +245,7 @@ class TicketCreationApiTest extends TicketsFixture {
 
 	@Test
 	void anUpperCaseCanonicalUuidCreatesTheTicket() throws Exception {
-		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+		this.mvc.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
 				{"customerId": "%s", "subject": "A", "description": "B", "assigneeId": "%s"}
 				""".formatted(this.mariaCustomer.toString().toUpperCase(), this.laura.toString().toUpperCase())))
 			.andExpect(status().isCreated())

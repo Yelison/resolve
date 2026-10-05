@@ -39,7 +39,7 @@ class TicketActivityOrderTest extends TicketsFixture {
 	}
 
 	private List<String> history(int number) throws Exception {
-		String body = this.mvc.perform(get("/tickets/" + number + "/activity").with(as(LAURA)))
+		String body = this.mvc.perform(get(API + "/tickets/" + number + "/activity").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andReturn()
 			.getResponse()

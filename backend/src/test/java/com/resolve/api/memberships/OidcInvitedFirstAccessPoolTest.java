@@ -40,7 +40,7 @@ class OidcInvitedFirstAccessPoolTest extends OidcApiIntegrationTest {
 			invited.put(email, this.data.staff(acme, "agent", "Invitada " + i, email, "invited"));
 		}
 		// Calienta Hibernate y el pool: con 2 s de espera, la primera petición fría no debe agotarla por sí sola.
-		this.mvc.perform(get("/me").session(signedIn("admin@acme.example"))).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/me").session(signedIn("admin@acme.example"))).andExpect(status().isOk());
 
 		CountDownLatch start = new CountDownLatch(1);
 		ExecutorService executor = Executors.newFixedThreadPool(INVITED);
@@ -49,7 +49,7 @@ class OidcInvitedFirstAccessPoolTest extends OidcApiIntegrationTest {
 			for (String email : invited.keySet()) {
 				calls.add(executor.submit(() -> {
 					start.await();
-					return this.mvc.perform(get("/me").session(signedIn(email))).andReturn();
+					return this.mvc.perform(get(API + "/me").session(signedIn(email))).andReturn();
 				}));
 			}
 			start.countDown();

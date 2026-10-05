@@ -77,7 +77,7 @@ class ArticleSlugRaceTest extends KnowledgeFixture {
 				"guia-de-envios", "Guía de envíos", "Texto", "draft", "internal", this.lauraId,
 				Instant.parse("2026-10-05T00:00:00Z"))).join());
 
-		this.mvc.perform(post("/knowledge/articles").with(as(LAURA))
+		this.mvc.perform(post(API + "/knowledge/articles").with(as(LAURA))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(article("Guía de envíos")))
 			.andExpect(status().isConflict())

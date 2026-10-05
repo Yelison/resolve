@@ -39,7 +39,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 
 	@Test
 	void listsTheCategoriesByNameWithTheirArticleCounts() throws Exception {
-		this.mvc.perform(get("/knowledge/categories").with(as(LAURA)))
+		this.mvc.perform(get(API + "/knowledge/categories").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listCategories"))
 			.andExpect(jsonPath("$[0].name").value("Cuenta y acceso"))
@@ -52,7 +52,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 
 	@Test
 	void anAdminCreatesACategoryWithASlugFromItsName() throws Exception {
-		this.mvc.perform(post("/knowledge/categories").with(as(ADMIN))
+		this.mvc.perform(post(API + "/knowledge/categories").with(as(ADMIN))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"name\": \"  Envíos y devoluciones \", \"description\": \" Todo sobre pedidos \"}"))
 			.andExpect(status().isCreated())
@@ -115,7 +115,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 
 	@Test
 	void createsADraftAndReturnsLocationAndEtag() throws Exception {
-		this.mvc.perform(post("/knowledge/articles").with(as(LAURA))
+		this.mvc.perform(post(API + "/knowledge/articles").with(as(LAURA))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(articleJson("  Cómo cambiar la contraseña ", "## Pasos\n\n1. Entra en **Ajustes**.\n",
 					this.accountCategory, "public")))
@@ -123,7 +123,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 			.andExpect(matchesContract("createArticle"))
 			.andExpect(header().string("ETag", "\"0\""))
 			.andExpect(header().string("Location",
-					"http://localhost/knowledge/articles/como-cambiar-la-contrasena"))
+					"http://localhost/api/knowledge/articles/como-cambiar-la-contrasena"))
 			.andExpect(jsonPath("$.title").value("Cómo cambiar la contraseña"))
 			.andExpect(jsonPath("$.slug").value("como-cambiar-la-contrasena"))
 			.andExpect(jsonPath("$.body").value("## Pasos\n\n1. Entra en **Ajustes**.\n"))
@@ -209,7 +209,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 		assertThat(errors(foreign)).containsEntry("categoryId", "No existe la categoría.");
 		// Una categoría ajena responde igual que una inexistente.
 		assertThat(errors(unknown)).isEqualTo(errors(foreign));
-		this.mvc.perform(post("/knowledge/articles").with(as(LAURA))
+		this.mvc.perform(post(API + "/knowledge/articles").with(as(LAURA))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content(articleJson("Ajeno", "Texto", this.northwindCategory, "internal")))
 			.andExpect(status().isBadRequest())
@@ -255,7 +255,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 		assertThat(errors(postArticle(LAURA, with(valid, "organizationId", "\"" + this.northwind + "\""))))
 			.containsEntry("organizationId", "Campo no permitido.");
 		assertThat(errors(postArticle(LAURA, "[]"))).containsKey("body");
-		this.mvc.perform(post("/knowledge/articles").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON))
+		this.mvc.perform(post(API + "/knowledge/articles").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("createArticle"));
 		assertThat(listArticles(LAURA, "").path("totalItems").asInt()).isEqualTo(5);
@@ -282,7 +282,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 
 	@Test
 	void staffReadADraftWithItsVersion() throws Exception {
-		this.mvc.perform(get("/knowledge/articles/" + ESCALATION).with(as(LAURA)))
+		this.mvc.perform(get(API + "/knowledge/articles/" + ESCALATION).with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getArticle"))
 			.andExpect(header().string("ETag", "\"0\""))
@@ -290,14 +290,14 @@ class KnowledgeApiTest extends KnowledgeFixture {
 			.andExpect(jsonPath("$.visibility").value("internal"))
 			.andExpect(jsonPath("$.category.name").value("Procesos internos"))
 			.andExpect(jsonPath("$.body").value("Escala a nivel dos tras cuatro horas sin respuesta."));
-		this.mvc.perform(get("/knowledge/articles/no-existe").with(as(LAURA)))
+		this.mvc.perform(get(API + "/knowledge/articles/no-existe").with(as(LAURA)))
 			.andExpect(status().isNotFound())
 			.andExpect(matchesContract("getArticle"));
 	}
 
 	@Test
 	void listsByLastUpdateNewestFirstWithoutTheBody() throws Exception {
-		this.mvc.perform(get("/knowledge/articles").with(as(LAURA)))
+		this.mvc.perform(get(API + "/knowledge/articles").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listArticles"))
 			.andExpect(jsonPath("$.totalItems").value(5))
@@ -395,15 +395,15 @@ class KnowledgeApiTest extends KnowledgeFixture {
 		// 61 emojis son 61 caracteres (122 unidades UTF-16): caben en el máximo de 120.
 		String sixtyOne = "😀".repeat(61);
 		for (String parameter : List.of("q", "category")) {
-			assertThat(this.mvc.perform(get("/knowledge/articles").param(parameter, sixtyOne).with(as(LAURA)))
+			assertThat(this.mvc.perform(get(API + "/knowledge/articles").param(parameter, sixtyOne).with(as(LAURA)))
 				.andReturn()
 				.getResponse()
 				.getStatus()).as(parameter + " con 61 emojis").isEqualTo(200);
-			assertThat(this.mvc.perform(get("/knowledge/articles").param(parameter, "😀".repeat(120)).with(as(LAURA)))
+			assertThat(this.mvc.perform(get(API + "/knowledge/articles").param(parameter, "😀".repeat(120)).with(as(LAURA)))
 				.andReturn()
 				.getResponse()
 				.getStatus()).as(parameter + " con 120 emojis").isEqualTo(200);
-			assertThat(this.mvc.perform(get("/knowledge/articles").param(parameter, "😀".repeat(121)).with(as(LAURA)))
+			assertThat(this.mvc.perform(get(API + "/knowledge/articles").param(parameter, "😀".repeat(121)).with(as(LAURA)))
 				.andReturn()
 				.getResponse()
 				.getStatus()).as(parameter + " con 121 caracteres").isEqualTo(400);
@@ -414,11 +414,11 @@ class KnowledgeApiTest extends KnowledgeFixture {
 	void rejectsInvalidListParametersWithFieldErrors() throws Exception {
 		for (String query : List.of("?page=-1", "?size=0", "?size=101", "?sort=slug,asc", "?sort=title",
 				"?status=archived", "?q=" + "x".repeat(121), "?category=" + "x".repeat(121))) {
-			this.mvc.perform(get("/knowledge/articles" + query).with(as(LAURA)))
+			this.mvc.perform(get(API + "/knowledge/articles" + query).with(as(LAURA)))
 				.andExpect(status().isBadRequest())
 				.andExpect(matchesContract("listArticles"));
 		}
-		assertThat(errors(this.mvc.perform(get("/knowledge/articles?status=archived&sort=x,y&size=0").with(as(LAURA)))
+		assertThat(errors(this.mvc.perform(get(API + "/knowledge/articles?status=archived&sort=x,y&size=0").with(as(LAURA)))
 			.andReturn())).containsOnlyKeys("status", "sort", "size");
 	}
 
@@ -427,17 +427,17 @@ class KnowledgeApiTest extends KnowledgeFixture {
 	@Test
 	void patchRequiresIfMatchAndBumpsVersion() throws Exception {
 		// Sin If-Match: 428; con uno mal formado: 400; con una versión vieja: 412.
-		this.mvc.perform(patch("/knowledge/articles/" + RECOVER).with(as(LAURA))
+		this.mvc.perform(patch(API + "/knowledge/articles/" + RECOVER).with(as(LAURA))
 			.contentType("application/merge-patch+json")
 			.content("{\"title\": \"Nuevo\"}"))
 			.andExpect(status().isPreconditionRequired())
 			.andExpect(matchesContract("updateArticle"));
-		this.mvc.perform(patch("/knowledge/articles/" + RECOVER).with(as(LAURA))
+		this.mvc.perform(patch(API + "/knowledge/articles/" + RECOVER).with(as(LAURA))
 			.header("If-Match", "W/\"0\"")
 			.contentType("application/merge-patch+json")
 			.content("{\"title\": \"Nuevo\"}"))
 			.andExpect(status().isBadRequest());
-		this.mvc.perform(patch("/knowledge/articles/" + RECOVER).with(as(LAURA))
+		this.mvc.perform(patch(API + "/knowledge/articles/" + RECOVER).with(as(LAURA))
 			.header("If-Match", "\"7\"")
 			.contentType("application/merge-patch+json")
 			.content("{\"title\": \"Nuevo\"}"))
@@ -447,7 +447,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 			.isEqualTo("Cómo recuperar el acceso a tu cuenta");
 
 		this.clock.set(LATER);
-		this.mvc.perform(patch("/knowledge/articles/" + RECOVER).with(as(ADMIN))
+		this.mvc.perform(patch(API + "/knowledge/articles/" + RECOVER).with(as(ADMIN))
 			.header("If-Match", "\"0\"")
 			.contentType("application/merge-patch+json")
 			.content("{\"title\": \"Nuevo título\", \"body\": \"Nuevo cuerpo\"}"))
@@ -472,11 +472,11 @@ class KnowledgeApiTest extends KnowledgeFixture {
 	void patchChecksErrorsInTheDocumentedOrder() throws Exception {
 		String invalid = "{\"title\": 7}";
 		// 404 antes que 428: un slug inexistente sin If-Match es un 404.
-		assertThat(this.mvc.perform(patch("/knowledge/articles/no-existe").with(as(LAURA))
+		assertThat(this.mvc.perform(patch(API + "/knowledge/articles/no-existe").with(as(LAURA))
 			.contentType("application/merge-patch+json")
 			.content(invalid)).andReturn().getResponse().getStatus()).isEqualTo(404);
 		// 428 antes que 400: sin If-Match y con un cuerpo inválido.
-		assertThat(this.mvc.perform(patch("/knowledge/articles/" + RECOVER).with(as(LAURA))
+		assertThat(this.mvc.perform(patch(API + "/knowledge/articles/" + RECOVER).with(as(LAURA))
 			.contentType("application/merge-patch+json")
 			.content(invalid)).andReturn().getResponse().getStatus()).isEqualTo(428);
 		// 400 antes que 412: versión vieja y cuerpo inválido.
@@ -537,7 +537,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 			.containsEntry("categoryId", "No existe la categoría.");
 		assertThat(errors(patchArticle(LAURA, RECOVER, "0", "{\"categoryId\": \"nope\"}")))
 			.containsEntry("categoryId", "Debe ser un identificador de categoría válido.");
-		this.mvc.perform(patch("/knowledge/articles/" + RECOVER).with(as(LAURA))
+		this.mvc.perform(patch(API + "/knowledge/articles/" + RECOVER).with(as(LAURA))
 			.header("If-Match", "\"0\"")
 			.contentType("application/merge-patch+json")
 			.content("{\"title\": 7}"))
@@ -562,7 +562,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 	@Test
 	void publishingTwiceIsAConflict() throws Exception {
 		this.clock.set(LATER);
-		this.mvc.perform(post("/knowledge/articles/" + CHANGE_PLAN + "/publish").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + CHANGE_PLAN + "/publish").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("publishArticle"))
 			.andExpect(header().string("ETag", "\"1\""))
@@ -572,29 +572,29 @@ class KnowledgeApiTest extends KnowledgeFixture {
 			.andExpect(jsonPath("$.updatedBy.name").value("Yelisson Ortiz"))
 			.andExpect(jsonPath("$.version").value(1));
 
-		this.mvc.perform(post("/knowledge/articles/" + CHANGE_PLAN + "/publish").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + CHANGE_PLAN + "/publish").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("publishArticle"));
-		this.mvc.perform(post("/knowledge/articles/" + RECOVER + "/publish").with(as(LAURA)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + RECOVER + "/publish").with(as(LAURA)))
 			.andExpect(status().isConflict());
 		assertThat(body(getArticle(LAURA, CHANGE_PLAN)).path("version").asInt()).isEqualTo(1);
 	}
 
 	@Test
 	void unpublishingADraftOrTwiceIsAConflictAndClearsThePublicationDate() throws Exception {
-		this.mvc.perform(post("/knowledge/articles/" + CHANGE_PLAN + "/unpublish").with(as(LAURA)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + CHANGE_PLAN + "/unpublish").with(as(LAURA)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("unpublishArticle"));
 
 		this.clock.set(LATER);
-		this.mvc.perform(post("/knowledge/articles/" + RECOVER + "/unpublish").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + RECOVER + "/unpublish").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andExpect(header().string("ETag", "\"1\""))
 			.andExpect(jsonPath("$.status").value("draft"))
 			.andExpect(jsonPath("$.publishedAt").isEmpty())
 			.andExpect(jsonPath("$.updatedAt").value(LATER.toString()))
 			.andExpect(jsonPath("$.updatedBy.name").value("Yelisson Ortiz"));
-		this.mvc.perform(post("/knowledge/articles/" + RECOVER + "/unpublish").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + RECOVER + "/unpublish").with(as(ADMIN)))
 			.andExpect(status().isConflict());
 
 		// Publicarlo de nuevo fija una fecha nueva y la versión sigue creciendo.
@@ -606,10 +606,10 @@ class KnowledgeApiTest extends KnowledgeFixture {
 
 	@Test
 	void publishAndUnpublishOfAnUnknownSlugAreNotFound() throws Exception {
-		this.mvc.perform(post("/knowledge/articles/no-existe/publish").with(as(LAURA)))
+		this.mvc.perform(post(API + "/knowledge/articles/no-existe/publish").with(as(LAURA)))
 			.andExpect(status().isNotFound())
 			.andExpect(matchesContract("publishArticle"));
-		this.mvc.perform(post("/knowledge/articles/no-existe/unpublish").with(as(LAURA)))
+		this.mvc.perform(post(API + "/knowledge/articles/no-existe/unpublish").with(as(LAURA)))
 			.andExpect(status().isNotFound())
 			.andExpect(matchesContract("unpublishArticle"));
 	}
@@ -629,12 +629,12 @@ class KnowledgeApiTest extends KnowledgeFixture {
 
 	/** Slugs que devuelve la búsqueda del personal con un texto en crudo, sin codificar a mano. */
 	private List<String> searchSlugs(String text) throws Exception {
-		return slugs(body(this.mvc.perform(get("/knowledge/articles").param("q", text).with(as(LAURA))).andReturn()));
+		return slugs(body(this.mvc.perform(get(API + "/knowledge/articles").param("q", text).with(as(LAURA))).andReturn()));
 	}
 
 	private MvcResult postCategory(String user, String json) throws Exception {
 		return this.mvc
-			.perform(post("/knowledge/categories").with(as(user)).contentType(MediaType.APPLICATION_JSON).content(json))
+			.perform(post(API + "/knowledge/categories").with(as(user)).contentType(MediaType.APPLICATION_JSON).content(json))
 			.andReturn();
 	}
 
@@ -694,7 +694,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 	void controlCharactersInTheArticleFiltersAreFieldErrors() throws Exception {
 		for (String filter : new String[] { "q", "category" }) {
 			for (String value : new String[] { "a\u0000b", "a\u0000", "\u0000", "a\tb" }) {
-				this.mvc.perform(get("/knowledge/articles").param(filter, value).with(as(LAURA)))
+				this.mvc.perform(get(API + "/knowledge/articles").param(filter, value).with(as(LAURA)))
 					.andExpect(status().isBadRequest())
 					.andExpect(matchesContract("listArticles"))
 					.andExpect(jsonPath("$.errors[*].field", org.hamcrest.Matchers.contains(filter)))
@@ -705,7 +705,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 
 	@Test
 	void aNulInTheSlugOfTheRouteIsNotAServerError() throws Exception {
-		this.mvc.perform(get("/knowledge/articles/a%00b").with(as(LAURA)))
+		this.mvc.perform(get(API + "/knowledge/articles/a%00b").with(as(LAURA)))
 			.andExpect(status().is4xxClientError());
 	}
 

@@ -69,7 +69,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 	@Test
 	void getsAndPatchesTheOrganizationWithIfMatch() throws Exception {
-		this.mvc.perform(get("/organization").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/organization").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getOrganization"))
 			.andExpect(header().string("ETag", "\"0\""))
@@ -93,16 +93,16 @@ class OrganizationApiTest extends ApiIntegrationTest {
 			.andExpect(jsonPath("$.version").value(1));
 
 		// Lo escrito se lee igual, también por /me, y la organización ajena no cambió.
-		this.mvc.perform(get("/organization").with(as(LAURA)))
+		this.mvc.perform(get(API + "/organization").with(as(LAURA)))
 			.andExpect(matchesContract("getOrganization"))
 			.andExpect(header().string("ETag", "\"1\""))
 			.andExpect(jsonPath("$.name").value("Acme Soporte"));
-		this.mvc.perform(get("/me").with(as(MARIA)))
+		this.mvc.perform(get(API + "/me").with(as(MARIA)))
 			.andExpect(matchesContract("getMe"))
 			.andExpect(jsonPath("$.organization.name").value("Acme Soporte"))
 			.andExpect(jsonPath("$.organization.supportEmail").value("ayuda@acme.example"))
 			.andExpect(jsonPath("$.organization.timeZone").value("America/Mexico_City"));
-		this.mvc.perform(get("/organization").with(as(NORTHWIND_ADMIN)))
+		this.mvc.perform(get(API + "/organization").with(as(NORTHWIND_ADMIN)))
 			.andExpect(jsonPath("$.name").value("Northwind Soporte"))
 			.andExpect(jsonPath("$.timeZone").value("Europe/Madrid"))
 			.andExpect(jsonPath("$.version").value(0));
@@ -111,7 +111,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 	@Test
 	void aPatchOnlyChangesTheFieldsItSends() throws Exception {
 		patchOk(ADMIN, "\"0\"", "{\"firstResponseTargetMinutes\": 15}");
-		this.mvc.perform(get("/organization").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/organization").with(as(ADMIN)))
 			.andExpect(jsonPath("$.name").value("Acme Studio"))
 			.andExpect(jsonPath("$.timeZone").value("America/Bogota"))
 			.andExpect(jsonPath("$.firstResponseTargetMinutes").value(15));
@@ -144,7 +144,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 	@Test
 	void theTicketCounterDoesNotChangeTheVersion() throws Exception {
-		MvcResult read = this.mvc.perform(get("/organization").with(as(ADMIN))).andReturn();
+		MvcResult read = this.mvc.perform(get(API + "/organization").with(as(ADMIN))).andReturn();
 		String etag = read.getResponse().getHeader("ETag");
 		assertThat(etag).isEqualTo("\"0\"");
 
@@ -163,7 +163,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 	@Test
 	void requiresIfMatchAndRejectsAStaleVersion() throws Exception {
-		this.mvc.perform(patch("/organization").with(as(ADMIN)).contentType(MERGE_PATCH).content("{\"name\": \"X\"}"))
+		this.mvc.perform(patch(API + "/organization").with(as(ADMIN)).contentType(MERGE_PATCH).content("{\"name\": \"X\"}"))
 			.andExpect(status().isPreconditionRequired())
 			.andExpect(matchesContract("updateOrganization"));
 		patchOk(ADMIN, "\"0\"", "{\"name\": \"Primera\"}");
@@ -174,7 +174,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("updateOrganization"))
 			.andExpect(jsonPath("$.errors[0].field").value("If-Match"));
-		this.mvc.perform(get("/organization").with(as(ADMIN))).andExpect(jsonPath("$.name").value("Primera"));
+		this.mvc.perform(get(API + "/organization").with(as(ADMIN))).andExpect(jsonPath("$.name").value("Primera"));
 	}
 
 	@Test
@@ -208,7 +208,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 		assertThat(statuses).containsOnly(200, 412);
 		assertThat(losers).hasSize(7).allSatisfy((detail) -> assertThat(detail).startsWith("Los ajustes cambiaron"));
 		assertThat(statuses.stream().filter((status) -> status == 200).count()).isEqualTo(1);
-		this.mvc.perform(get("/organization").with(as(ADMIN))).andExpect(jsonPath("$.version").value(1));
+		this.mvc.perform(get(API + "/organization").with(as(ADMIN))).andExpect(jsonPath("$.version").value(1));
 	}
 
 	// --- Validación ----------------------------------------------------------------------------------------------
@@ -230,7 +230,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.errors[0].field").value("timeZone"));
 		}
-		this.mvc.perform(get("/organization").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/organization").with(as(ADMIN)))
 			.andExpect(jsonPath("$.timeZone").value("America/Bogota"))
 			.andExpect(jsonPath("$.version").value(0));
 	}
@@ -238,7 +238,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 	@Test
 	void acceptsRegionsThatBothJavaAndPostgreSqlKnow() throws Exception {
 		for (String zone : new String[] { "UTC", "Europe/Madrid", "Pacific/Kiritimati" }) {
-			String version = this.mvc.perform(get("/organization").with(as(ADMIN)))
+			String version = this.mvc.perform(get(API + "/organization").with(as(ADMIN)))
 				.andReturn()
 				.getResponse()
 				.getHeader("ETag");
@@ -287,7 +287,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 				{"name": "Intruso", "id": "%s", "version": 9, "nextTicketNumber": 500}""".formatted(this.northwind)))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("id", "version", "nextTicketNumber")));
-		this.mvc.perform(get("/organization").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/organization").with(as(ADMIN)))
 			.andExpect(jsonPath("$.name").value("Acme Studio"))
 			.andExpect(jsonPath("$.version").value(0));
 	}
@@ -296,23 +296,23 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 	@Test
 	void anAgentCanReadButNotPatchTheOrganization() throws Exception {
-		this.mvc.perform(get("/organization").with(as(LAURA)))
+		this.mvc.perform(get(API + "/organization").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getOrganization"));
 		// El 403 llega antes de leer la versión o el cuerpo: sin If-Match y con un cuerpo inválido sigue siendo 403.
-		this.mvc.perform(patch("/organization").with(as(LAURA)).contentType(MERGE_PATCH).content("{}"))
+		this.mvc.perform(patch(API + "/organization").with(as(LAURA)).contentType(MERGE_PATCH).content("{}"))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("updateOrganization"));
 		this.mvc.perform(patchOrganization(LAURA, "\"0\"", "{\"name\": \"Hackeada\"}"))
 			.andExpect(status().isForbidden());
-		this.mvc.perform(get("/organization").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/organization").with(as(ADMIN)))
 			.andExpect(jsonPath("$.name").value("Acme Studio"))
 			.andExpect(jsonPath("$.version").value(0));
 	}
 
 	@Test
 	void aCustomerCannotReadNorPatchTheOrganization() throws Exception {
-		this.mvc.perform(get("/organization").with(as(MARIA)))
+		this.mvc.perform(get(API + "/organization").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("getOrganization"));
 		this.mvc.perform(patchOrganization(MARIA, "\"0\"", "{\"name\": \"Hackeada\"}"))
@@ -321,8 +321,8 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 	@Test
 	void withoutAPrincipalTheOrganizationIs401() throws Exception {
-		this.mvc.perform(get("/organization")).andExpect(status().isUnauthorized()).andExpect(matchesContract("getOrganization"));
-		this.mvc.perform(patch("/organization").contentType(MERGE_PATCH).content("{\"name\": \"X\"}"))
+		this.mvc.perform(get(API + "/organization")).andExpect(status().isUnauthorized()).andExpect(matchesContract("getOrganization"));
+		this.mvc.perform(patch(API + "/organization").contentType(MERGE_PATCH).content("{\"name\": \"X\"}"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("updateOrganization"));
 	}
@@ -330,7 +330,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 	@Test
 	void anAdminOnlyChangesTheirOwnOrganization() throws Exception {
 		patchOk(NORTHWIND_ADMIN, "\"0\"", "{\"name\": \"Northwind Renombrada\", \"firstResponseTargetMinutes\": 5}");
-		this.mvc.perform(get("/organization").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/organization").with(as(ADMIN)))
 			.andExpect(jsonPath("$.name").value("Acme Studio"))
 			.andExpect(jsonPath("$.firstResponseTargetMinutes").value(30))
 			.andExpect(jsonPath("$.version").value(0));
@@ -340,25 +340,25 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 	@Test
 	void changingTheTargetChangesTicketMetrics() throws Exception {
-		this.mvc.perform(get("/tickets/metrics").with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
 			.andExpect(matchesContract("getTicketMetrics"))
 			.andExpect(jsonPath("$.firstResponseTargetMinutes").value(30));
 		patchOk(ADMIN, "\"0\"", "{\"firstResponseTargetMinutes\": 12}");
-		this.mvc.perform(get("/tickets/metrics").with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
 			.andExpect(matchesContract("getTicketMetrics"))
 			.andExpect(jsonPath("$.firstResponseTargetMinutes").value(12));
-		this.mvc.perform(get("/members/metrics").with(as(LAURA)))
+		this.mvc.perform(get(API + "/members/metrics").with(as(LAURA)))
 			.andExpect(matchesContract("getTeamMetrics"))
 			.andExpect(jsonPath("$.firstResponseTargetMinutes").value(12));
 	}
 
 	@Test
 	void changingTheTargetChangesTheReportTarget() throws Exception {
-		this.mvc.perform(get("/reports/summary").with(as(LAURA)))
+		this.mvc.perform(get(API + "/reports/summary").with(as(LAURA)))
 			.andExpect(matchesContract("getReportSummary"))
 			.andExpect(jsonPath("$.firstResponseMinutes.target").value(30));
 		patchOk(ADMIN, "\"0\"", "{\"firstResponseTargetMinutes\": 90}");
-		this.mvc.perform(get("/reports/summary").with(as(LAURA)))
+		this.mvc.perform(get(API + "/reports/summary").with(as(LAURA)))
 			.andExpect(matchesContract("getReportSummary"))
 			.andExpect(jsonPath("$.firstResponseMinutes.target").value(90));
 	}
@@ -368,7 +368,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 		// El reloj de los tests está en 2026-10-04T15:00Z: en Bogotá es el 4, en Kiritimati (UTC+14) ya es el 5.
 		this.data.ticket(this.acme, this.mariaCustomer, 1, "open", "web", java.time.Instant.parse("2026-10-04T15:00:00Z"));
 
-		MvcResult before = this.mvc.perform(get("/reports/summary").with(as(LAURA)))
+		MvcResult before = this.mvc.perform(get(API + "/reports/summary").with(as(LAURA)))
 			.andExpect(matchesContract("getReportSummary"))
 			.andReturn();
 		JsonNode bogota = JSON.readTree(before.getResponse().getContentAsString());
@@ -379,7 +379,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 		patchOk(ADMIN, "\"0\"", "{\"timeZone\": \"Pacific/Kiritimati\"}");
 
-		MvcResult after = this.mvc.perform(get("/reports/summary").with(as(LAURA)))
+		MvcResult after = this.mvc.perform(get(API + "/reports/summary").with(as(LAURA)))
 			.andExpect(matchesContract("getReportSummary"))
 			.andReturn();
 		JsonNode kiritimati = JSON.readTree(after.getResponse().getContentAsString());
@@ -394,7 +394,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 	// --- Ayudas --------------------------------------------------------------------------------------------------
 
 	private static MockHttpServletRequestBuilder patchOrganization(String user, String ifMatch, String body) {
-		return patch("/organization").with(as(user)).contentType(MERGE_PATCH).header("If-Match", ifMatch).content(body);
+		return patch(API + "/organization").with(as(user)).contentType(MERGE_PATCH).header("If-Match", ifMatch).content(body);
 	}
 
 	/** Lanza {@code attempts} llamadas a la vez (todas esperan la misma señal de salida) y devuelve sus estados. */
@@ -427,7 +427,7 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 	private JsonNode createTicket(String user, String subject) throws Exception {
 		MvcResult result = this.mvc
-			.perform(post("/tickets").with(as(user))
+			.perform(post(API + "/tickets").with(as(user))
 				.contentType(MediaType.APPLICATION_JSON)
 				.content("""
 						{"customerId": "%s", "subject": "%s", "description": "Detalle", "priority": "low"}"""

@@ -27,12 +27,12 @@ class CustomerInvitationApiTest extends CustomersFixture {
 	private static final String CARLOS = "carlos@northstar.example";
 
 	private MvcResult invite(String user, UUID customerId) throws Exception {
-		return this.mvc.perform(post("/customers/" + customerId + "/invite").with(as(user))).andReturn();
+		return this.mvc.perform(post(API + "/customers/" + customerId + "/invite").with(as(user))).andReturn();
 	}
 
 	@Test
 	void invitesACustomerToThePortal() throws Exception {
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/invite").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/invite").with(as(ADMIN)))
 			.andExpect(status().isCreated())
 			.andExpect(matchesContract("inviteCustomer"))
 			.andExpect(jsonPath("$.name").value("Carlos Ruiz"))
@@ -42,15 +42,15 @@ class CustomerInvitationApiTest extends CustomersFixture {
 			.andExpect(jsonPath("$.openTickets").value(0))
 			.andExpect(jsonPath("$.joinedAt").isEmpty())
 			.andExpect(jsonPath("$.invitedAt").value(TestClockConfiguration.START.toString()));
-		this.mvc.perform(get("/customers/" + this.carlosCustomer).with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers/" + this.carlosCustomer).with(as(LAURA)))
 			.andExpect(jsonPath("$.portalAccess").value("invited"));
 
 		// Al entrar con ese correo queda activo y ligado a su registro de cliente.
-		this.mvc.perform(get("/me").with(as(CARLOS)))
+		this.mvc.perform(get(API + "/me").with(as(CARLOS)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.role").value("customer"))
 			.andExpect(jsonPath("$.customerId").value(this.carlosCustomer.toString()));
-		this.mvc.perform(get("/customers/" + this.carlosCustomer).with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers/" + this.carlosCustomer).with(as(LAURA)))
 			.andExpect(jsonPath("$.portalAccess").value("active"));
 	}
 
@@ -58,12 +58,12 @@ class CustomerInvitationApiTest extends CustomersFixture {
 	void invitingACustomerWithAccessIsAConflict() throws Exception {
 		assertThat(invite(ADMIN, this.carlosCustomer).getResponse().getStatus()).isEqualTo(201);
 		// Invitado y todavía sin entrar.
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/invite").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/invite").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("inviteCustomer"))
 			.andExpect(jsonPath("$.detail").value("El cliente ya tiene acceso al portal."));
 		// Activo: la clienta sembrada ya tiene acceso.
-		this.mvc.perform(post("/customers/" + this.mariaCustomer + "/invite").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.mariaCustomer + "/invite").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("inviteCustomer"));
 	}
@@ -74,25 +74,25 @@ class CustomerInvitationApiTest extends CustomersFixture {
 		UUID user = this.data.customerUser(this.acme, customer, "Cliente Retirado", "retirado@cliente.example",
 				"removed");
 		UUID membership = this.data.membershipId(this.acme, user);
-		this.mvc.perform(get("/customers/" + customer).with(as(ADMIN))).andExpect(jsonPath("$.portalAccess").value("none"));
+		this.mvc.perform(get(API + "/customers/" + customer).with(as(ADMIN))).andExpect(jsonPath("$.portalAccess").value("none"));
 
 		MvcResult result = invite(ADMIN, customer);
 		assertThat(result.getResponse().getStatus()).isEqualTo(201);
 		assertThat(body(result).path("id").asString()).isEqualTo(user.toString());
 		assertThat(this.data.membershipId(this.acme, user)).isEqualTo(membership);
 		assertThat(this.data.membershipStatus(this.acme, user)).isEqualTo("invited");
-		this.mvc.perform(get("/customers/" + customer).with(as(ADMIN)))
+		this.mvc.perform(get(API + "/customers/" + customer).with(as(ADMIN)))
 			.andExpect(jsonPath("$.portalAccess").value("invited"));
 	}
 
 	@Test
 	void anArchivedCustomerCannotBeInvited() throws Exception {
 		assertThat(archive(ADMIN, this.carlosCustomer).getResponse().getStatus()).isEqualTo(200);
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/invite").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/invite").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("inviteCustomer"))
 			.andExpect(jsonPath("$.detail").value("Restaura el cliente antes de invitarlo al portal."));
-		this.mvc.perform(get("/customers/" + this.carlosCustomer).with(as(ADMIN)))
+		this.mvc.perform(get(API + "/customers/" + this.carlosCustomer).with(as(ADMIN)))
 			.andExpect(jsonPath("$.portalAccess").value("none"));
 		// Restaurado, ya se puede invitar.
 		assertThat(restore(ADMIN, this.carlosCustomer).getResponse().getStatus()).isEqualTo(200);
@@ -102,12 +102,12 @@ class CustomerInvitationApiTest extends CustomersFixture {
 	@Test
 	void aCustomerWhoseEmailBelongsToTheTeamIsAConflict() throws Exception {
 		UUID customer = this.data.customer(this.acme, "Laura Cliente", "LAURA@acme.example", null);
-		this.mvc.perform(post("/customers/" + customer + "/invite").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + customer + "/invite").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("inviteCustomer"))
 			.andExpect(jsonPath("$.detail").value("Este correo ya pertenece al equipo."));
 		// La agente sigue siendo agente.
-		this.mvc.perform(get("/me").with(as(LAURA))).andExpect(jsonPath("$.role").value("agent"));
+		this.mvc.perform(get(API + "/me").with(as(LAURA))).andExpect(jsonPath("$.role").value("agent"));
 	}
 
 	@Test
@@ -130,7 +130,7 @@ class CustomerInvitationApiTest extends CustomersFixture {
 		UUID other = this.data.customer(this.acme, "Otra Persona", "otra@cliente.example", null);
 		this.data.customerUser(this.acme, other, "Otra Persona", "compartido@cliente.example");
 		UUID customer = this.data.customer(this.acme, "Compartido", "compartido@cliente.example", null);
-		this.mvc.perform(post("/customers/" + customer + "/invite").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + customer + "/invite").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("inviteCustomer"))
 			.andExpect(jsonPath("$.detail").value("Este correo ya da acceso al portal a otro cliente."));
@@ -160,18 +160,18 @@ class CustomerInvitationApiTest extends CustomersFixture {
 
 	@Test
 	void anAgentCannotInviteACustomerToThePortal() throws Exception {
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/invite").with(as(LAURA)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/invite").with(as(LAURA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("inviteCustomer"));
 		// 403 también con un cliente inexistente: la URL decide antes de buscarlo.
-		this.mvc.perform(post("/customers/" + UUID.randomUUID() + "/invite").with(as(LAURA)))
+		this.mvc.perform(post(API + "/customers/" + UUID.randomUUID() + "/invite").with(as(LAURA)))
 			.andExpect(status().isForbidden());
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/invite").with(as(MARIA)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/invite").with(as(MARIA)))
 			.andExpect(status().isForbidden());
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/invite"))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/invite"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("inviteCustomer"));
-		this.mvc.perform(get("/customers/" + this.carlosCustomer).with(as(ADMIN)))
+		this.mvc.perform(get(API + "/customers/" + this.carlosCustomer).with(as(ADMIN)))
 			.andExpect(jsonPath("$.portalAccess").value("none"));
 	}
 
@@ -184,12 +184,12 @@ class CustomerInvitationApiTest extends CustomersFixture {
 		assertThat(unknown.getResponse().getStatus()).isEqualTo(404);
 		JsonNode foreignBody = body(foreign);
 		assertThat(foreignBody.path("detail")).isEqualTo(body(unknown).path("detail"));
-		this.mvc.perform(post("/customers/no-es-un-uuid/invite").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/no-es-un-uuid/invite").with(as(ADMIN)))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("inviteCustomer"));
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/invite").with(as("admin@northwind.example")))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/invite").with(as("admin@northwind.example")))
 			.andExpect(matchesContract("inviteCustomer"));
-		this.mvc.perform(get("/customers/" + this.carlosCustomer).with(as(ADMIN)))
+		this.mvc.perform(get(API + "/customers/" + this.carlosCustomer).with(as(ADMIN)))
 			.andExpect(jsonPath("$.portalAccess").value("none"));
 	}
 

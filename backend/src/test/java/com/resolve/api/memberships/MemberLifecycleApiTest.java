@@ -34,7 +34,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 		assertThat(this.data.membershipStatus(this.acme, this.invited)).isEqualTo("invited");
 		assertThat(this.data.membershipJoinedAt(this.acme, this.invited)).isNull();
 
-		this.mvc.perform(get("/me").with(as(INVITED)))
+		this.mvc.perform(get(API + "/me").with(as(INVITED)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getMe"))
 			.andExpect(jsonPath("$.role").value("agent"))
@@ -47,23 +47,23 @@ class MemberLifecycleApiTest extends TeamFixture {
 
 	@Test
 	void aLaterRequestKeepsTheJoinDate() throws Exception {
-		this.mvc.perform(get("/me").with(as(INVITED))).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/me").with(as(INVITED))).andExpect(status().isOk());
 		this.clock.set(TestClockConfiguration.START.plus(Duration.ofDays(2)));
-		this.mvc.perform(get("/me").with(as(INVITED))).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/me").with(as(INVITED))).andExpect(status().isOk());
 		assertThat(this.data.membershipJoinedAt(this.acme, this.invited)).isEqualTo(TestClockConfiguration.START);
 	}
 
 	@Test
 	void anInvitedMemberCanUseTheApiRightAway() throws Exception {
-		this.mvc.perform(get("/assignees").with(as(INVITED)))
+		this.mvc.perform(get(API + "/assignees").with(as(INVITED)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$[*].email").value(org.hamcrest.Matchers.hasItem(INVITED)));
 	}
 
 	@Test
 	void aRemovedMemberGets401() throws Exception {
-		this.mvc.perform(get("/me").with(as(REMOVED))).andExpect(status().isUnauthorized()).andExpect(matchesContract("getMe"));
-		this.mvc.perform(get("/tickets").with(as(REMOVED))).andExpect(status().isUnauthorized());
+		this.mvc.perform(get(API + "/me").with(as(REMOVED))).andExpect(status().isUnauthorized()).andExpect(matchesContract("getMe"));
+		this.mvc.perform(get(API + "/tickets").with(as(REMOVED))).andExpect(status().isUnauthorized());
 		assertThat(this.data.membershipStatus(this.acme, this.removed)).isEqualTo("removed");
 	}
 
@@ -83,7 +83,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 		UUID user = this.data.user("Dos Orgs", "dos@orgs.example");
 		this.data.membership(this.acme, user, "agent", "removed");
 		this.data.membership(northwind, user, "agent", "active");
-		this.mvc.perform(get("/me").with(as("dos@orgs.example")))
+		this.mvc.perform(get(API + "/me").with(as("dos@orgs.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.organization.id").value(northwind.toString()));
 	}
@@ -96,12 +96,12 @@ class MemberLifecycleApiTest extends TeamFixture {
 		UUID removedCustomer = this.data.customer(this.acme, "Cliente Retirado", "cretirado@cliente.example", null);
 		this.data.customerUser(this.acme, removedCustomer, "Cliente Retirado", "cretirado@cliente.example", "removed");
 
-		this.mvc.perform(get("/me").with(as("cinvitado@cliente.example")))
+		this.mvc.perform(get(API + "/me").with(as("cinvitado@cliente.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.role").value("customer"))
 			.andExpect(jsonPath("$.customerId").value(invitedCustomer.toString()));
 		assertThat(this.data.membershipStatus(this.acme, invited)).isEqualTo("active");
-		this.mvc.perform(get("/me").with(as("cretirado@cliente.example"))).andExpect(status().isUnauthorized());
+		this.mvc.perform(get(API + "/me").with(as("cretirado@cliente.example"))).andExpect(status().isUnauthorized());
 	}
 
 	@Test
@@ -111,7 +111,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 				"invited");
 		this.data.archiveCustomer(customer, TestClockConfiguration.START);
 
-		this.mvc.perform(get("/me").with(as("carchivado@cliente.example"))).andExpect(status().isUnauthorized());
+		this.mvc.perform(get(API + "/me").with(as("carchivado@cliente.example"))).andExpect(status().isUnauthorized());
 		assertThat(this.data.membershipStatus(this.acme, user)).isEqualTo("invited");
 	}
 
@@ -130,7 +130,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 		this.data.assignTicket(others, this.daniel);
 		this.clock.set(TestClockConfiguration.START.plus(Duration.ofHours(3)));
 
-		this.mvc.perform(post("/members/" + this.laura + "/remove").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/members/" + this.laura + "/remove").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("removeMember"))
 			.andExpect(jsonPath("$.id").value(this.laura.toString()))
@@ -139,11 +139,11 @@ class MemberLifecycleApiTest extends TeamFixture {
 
 		assertThat(this.data.membershipStatus(this.acme, this.laura)).isEqualTo("removed");
 		for (int number : new int[] { 1, 2, 3 }) {
-			this.mvc.perform(get("/tickets/" + number).with(as(ADMIN)))
+			this.mvc.perform(get(API + "/tickets/" + number).with(as(ADMIN)))
 				.andExpect(jsonPath("$.assignee").isEmpty())
 				// La liberación sube la versión y mueve updatedAt, como un PATCH del administrador.
 				.andExpect(jsonPath("$.updatedAt").value(TestClockConfiguration.START.plus(Duration.ofHours(3)).toString()));
-			this.mvc.perform(get("/tickets/" + number + "/activity").with(as(ADMIN)))
+			this.mvc.perform(get(API + "/tickets/" + number + "/activity").with(as(ADMIN)))
 				.andExpect(matchesContract("listActivity"))
 				.andExpect(jsonPath("$[0].type").value("assignee_changed"))
 				.andExpect(jsonPath("$[0].actor.id").value(this.admin.toString()))
@@ -152,14 +152,14 @@ class MemberLifecycleApiTest extends TeamFixture {
 				.andExpect(jsonPath("$.length()").value(1));
 		}
 		// El ticket resuelto conserva a su responsable y el de otro miembro no se toca.
-		this.mvc.perform(get("/tickets/4").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Laura Méndez"));
-		this.mvc.perform(get("/tickets/5").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Daniel Santos"));
-		this.mvc.perform(get("/tickets/4/activity").with(as(ADMIN))).andExpect(jsonPath("$.length()").value(0));
+		this.mvc.perform(get(API + "/tickets/4").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Laura Méndez"));
+		this.mvc.perform(get(API + "/tickets/5").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Daniel Santos"));
+		this.mvc.perform(get(API + "/tickets/4/activity").with(as(ADMIN))).andExpect(jsonPath("$.length()").value(0));
 		// Ya no entra, no es asignable y desaparece de las métricas del equipo.
-		this.mvc.perform(get("/me").with(as(LAURA))).andExpect(status().isUnauthorized());
-		this.mvc.perform(get("/assignees").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/me").with(as(LAURA))).andExpect(status().isUnauthorized());
+		this.mvc.perform(get(API + "/assignees").with(as(ADMIN)))
 			.andExpect(jsonPath("$[*].email").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem(LAURA))));
-		this.mvc.perform(get("/members/metrics").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/members/metrics").with(as(ADMIN)))
 			.andExpect(jsonPath("$.staff").value(2))
 			.andExpect(jsonPath("$.assignedOpen").value(1))
 			.andExpect(jsonPath("$.unassignedOpen").value(3));
@@ -174,16 +174,16 @@ class MemberLifecycleApiTest extends TeamFixture {
 				Role.ADMIN, null);
 		assertThatThrownBy(() -> this.members.remove(ghost, this.laura)).isInstanceOf(DataIntegrityViolationException.class);
 		assertThat(this.data.membershipStatus(this.acme, this.laura)).isEqualTo("active");
-		this.mvc.perform(get("/tickets/1").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Laura Méndez"));
+		this.mvc.perform(get(API + "/tickets/1").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Laura Méndez"));
 	}
 
 	@Test
 	void removingAnInvitedMemberIsAllowedAndKeepsTheRowForAReinvitation() throws Exception {
 		assertThat(remove(ADMIN, this.invited).getResponse().getStatus()).isEqualTo(200);
 		assertThat(this.data.membershipStatus(this.acme, this.invited)).isEqualTo("removed");
-		this.mvc.perform(get("/me").with(as(INVITED))).andExpect(status().isUnauthorized());
+		this.mvc.perform(get(API + "/me").with(as(INVITED))).andExpect(status().isUnauthorized());
 		// Retirar dos veces es un conflicto de estado, no un 404.
-		this.mvc.perform(post("/members/" + this.invited + "/remove").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/members/" + this.invited + "/remove").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("removeMember"));
 	}
@@ -192,7 +192,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 	void removingYourselfOrTheLastAdminIsAConflict() throws Exception {
 		// Con otro administrador activo, retirarse a uno mismo sigue siendo un conflicto.
 		UUID second = this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example");
-		this.mvc.perform(post("/members/" + this.admin + "/remove").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/members/" + this.admin + "/remove").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("removeMember"))
 			.andExpect(jsonPath("$.detail").value("No puedes retirarte a ti mismo del equipo."));
@@ -212,14 +212,14 @@ class MemberLifecycleApiTest extends TeamFixture {
 
 	@Test
 	void changingTheLastAdminRoleIsAConflict() throws Exception {
-		this.mvc.perform(post("/members/" + this.admin + "/role").with(as(ADMIN))
+		this.mvc.perform(post(API + "/members/" + this.admin + "/role").with(as(ADMIN))
 			.contentType(org.springframework.http.MediaType.APPLICATION_JSON)
 			.content("{\"role\": \"agent\"}"))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("changeMemberRole"))
 			.andExpect(jsonPath("$.detail").value("La organización debe conservar al menos un administrador activo."));
 		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("active");
-		this.mvc.perform(get("/me").with(as(ADMIN))).andExpect(jsonPath("$.role").value("admin"));
+		this.mvc.perform(get(API + "/me").with(as(ADMIN))).andExpect(jsonPath("$.role").value("admin"));
 
 		// Otro administrador solo invitado no cuenta: la regla mira a los activos.
 		this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example", "invited");
@@ -237,9 +237,9 @@ class MemberLifecycleApiTest extends TeamFixture {
 		this.data.assignTicket(ticket, this.laura);
 		assertThat(remove(ADMIN, this.laura).getResponse().getStatus()).isEqualTo(200);
 		// Resuelto, conserva a su responsable retirado.
-		this.mvc.perform(get("/tickets/1").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Laura Méndez"));
+		this.mvc.perform(get(API + "/tickets/1").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Laura Méndez"));
 
-		this.mvc.perform(patch("/tickets/1").with(as(ADMIN))
+		this.mvc.perform(patch(API + "/tickets/1").with(as(ADMIN))
 			.header("If-Match", "\"0\"")
 			.contentType("application/merge-patch+json")
 			.content("{\"status\": \"open\"}"))
@@ -253,7 +253,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 		assertThat(changes.get(0).path("from").path("name").asString()).isEqualTo("Laura Méndez");
 		assertThat(changes.get(0).path("to").isNull()).isTrue();
 		assertThat(member(listMembers(ADMIN), LAURA).path("openTickets").asInt()).isZero();
-		this.mvc.perform(get("/members/metrics").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/members/metrics").with(as(ADMIN)))
 			.andExpect(jsonPath("$.assignedOpen").value(0))
 			.andExpect(jsonPath("$.unassignedOpen").value(1));
 	}
@@ -263,7 +263,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 		UUID ticket = this.data.ticket(this.acme, this.mariaCustomer, 1, "resolved");
 		this.data.assignTicket(ticket, this.laura);
 		assertThat(remove(ADMIN, this.laura).getResponse().getStatus()).isEqualTo(200);
-		this.mvc.perform(patch("/tickets/1").with(as(ADMIN))
+		this.mvc.perform(patch(API + "/tickets/1").with(as(ADMIN))
 			.header("If-Match", "\"0\"")
 			.contentType("application/merge-patch+json")
 			.content("{\"status\": \"open\", \"assigneeId\": \"%s\"}".formatted(this.daniel)))
@@ -279,7 +279,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 		this.data.assignTicket(ticket, this.laura);
 		assertThat(remove(ADMIN, this.laura).getResponse().getStatus()).isEqualTo(200);
 
-		this.mvc.perform(patch("/tickets/1").with(as(ADMIN))
+		this.mvc.perform(patch(API + "/tickets/1").with(as(ADMIN))
 			.header("If-Match", "\"0\"")
 			.contentType("application/merge-patch+json")
 			.content("{\"assigneeId\": \"%s\", \"priority\": \"high\"}".formatted(this.laura)))
@@ -304,7 +304,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 	}
 
 	private List<JsonNode> assigneeChanges(int number) throws Exception {
-		JsonNode activity = body(this.mvc.perform(get("/tickets/" + number + "/activity").with(as(ADMIN))).andReturn());
+		JsonNode activity = body(this.mvc.perform(get(API + "/tickets/" + number + "/activity").with(as(ADMIN))).andReturn());
 		List<JsonNode> changes = new ArrayList<>();
 		for (JsonNode entry : activity) {
 			if ("assignee_changed".equals(entry.path("type").asString())) {

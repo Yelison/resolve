@@ -60,32 +60,32 @@ class ProfileApiTest extends ApiIntegrationTest {
 			.andExpect(jsonPath("$.role").value("agent"))
 			.andExpect(jsonPath("$.organization.id").value(this.acme.toString()));
 
-		this.mvc.perform(get("/me").with(as(LAURA)))
+		this.mvc.perform(get(API + "/me").with(as(LAURA)))
 			.andExpect(matchesContract("getMe"))
 			.andExpect(jsonPath("$.user.name").value("Laura Méndez-Ríos"));
 		// El responsable del ticket, los mensajes, el equipo, los asignables y el informe usan el nombre vivo.
-		this.mvc.perform(get("/tickets/1").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/tickets/1").with(as(ADMIN)))
 			.andExpect(matchesContract("getTicket"))
 			.andExpect(jsonPath("$.assignee.name").value("Laura Méndez-Ríos"));
-		this.mvc.perform(get("/tickets/1/messages").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/tickets/1/messages").with(as(ADMIN)))
 			.andExpect(matchesContract("listMessages"))
 			.andExpect(jsonPath("$[0].author.name").value("Laura Méndez-Ríos"));
-		this.mvc.perform(get("/members").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/members").with(as(ADMIN)))
 			.andExpect(matchesContract("listMembers"))
 			.andExpect(jsonPath("$[*].name", containsInAnyOrder("Laura Méndez-Ríos", "Yelisson Ortiz")));
-		this.mvc.perform(get("/assignees").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/assignees").with(as(ADMIN)))
 			.andExpect(matchesContract("listAssignees"))
 			.andExpect(jsonPath("$[*].name", contains("Laura Méndez-Ríos", "Yelisson Ortiz")));
 		this.clock.set(Instant.parse("2026-10-04T15:00:00Z"));
-		this.mvc.perform(get("/reports/summary").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/reports/summary").with(as(ADMIN)))
 			.andExpect(matchesContract("getReportSummary"))
 			.andExpect(jsonPath("$.byAgent[?(@.member.name == 'Laura Méndez-Ríos')].resolved").value(contains(1)))
 			.andExpect(jsonPath("$.byAgent[?(@.member.name == 'Laura Méndez')]").isEmpty());
 		// El historial conserva el nombre de entonces (docs/plans §3.9: «history keeps the old name»).
-		this.mvc.perform(get("/tickets/1/activity").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/tickets/1/activity").with(as(ADMIN)))
 			.andExpect(matchesContract("listActivity"))
 			.andExpect(jsonPath("$[0].actor.name").value("Laura Méndez"));
-		this.mvc.perform(get("/tickets/activity").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/tickets/activity").with(as(ADMIN)))
 			.andExpect(matchesContract("listRecentActivity"))
 			.andExpect(jsonPath("$[0].activity.actor.name").value("Laura Méndez"));
 	}
@@ -99,11 +99,11 @@ class ProfileApiTest extends ApiIntegrationTest {
 			.andExpect(jsonPath("$.customerId").value(this.mariaCustomer.toString()));
 
 		// Cambió la persona que inicia sesión, no la ficha de cliente que gestiona el personal ni a nadie más.
-		this.mvc.perform(get("/customers/" + this.mariaCustomer).with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers/" + this.mariaCustomer).with(as(LAURA)))
 			.andExpect(jsonPath("$.name").value("María Pérez"))
 			.andExpect(jsonPath("$.version").value(0));
-		this.mvc.perform(get("/me").with(as(LAURA))).andExpect(jsonPath("$.user.name").value("Laura Méndez"));
-		this.mvc.perform(get("/me").with(as(ADMIN))).andExpect(jsonPath("$.user.name").value("Yelisson Ortiz"));
+		this.mvc.perform(get(API + "/me").with(as(LAURA))).andExpect(jsonPath("$.user.name").value("Laura Méndez"));
+		this.mvc.perform(get(API + "/me").with(as(ADMIN))).andExpect(jsonPath("$.user.name").value("Yelisson Ortiz"));
 
 		// Nada más que el nombre: ni correo, ni rol, ni la ficha, ni la organización.
 		rename(MARIA, """
@@ -113,7 +113,7 @@ class ProfileApiTest extends ApiIntegrationTest {
 			.andExpect(matchesContract("updateMe"))
 			.andExpect(jsonPath("$.errors[*].field",
 					containsInAnyOrder("email", "role", "customerId", "organizationId", "id")));
-		this.mvc.perform(get("/me").with(as(MARIA)))
+		this.mvc.perform(get(API + "/me").with(as(MARIA)))
 			.andExpect(jsonPath("$.user.name").value("María P. Soler"))
 			.andExpect(jsonPath("$.user.email").value(MARIA))
 			.andExpect(jsonPath("$.role").value("customer"));
@@ -145,13 +145,13 @@ class ProfileApiTest extends ApiIntegrationTest {
 
 	@Test
 	void withoutAPrincipalPatchingMeIs401() throws Exception {
-		this.mvc.perform(patch("/me").contentType(MediaType.APPLICATION_JSON).content("{\"name\": \"X\"}"))
+		this.mvc.perform(patch(API + "/me").contentType(MediaType.APPLICATION_JSON).content("{\"name\": \"X\"}"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("updateMe"));
 	}
 
 	private ResultActions rename(String user, String body) throws Exception {
-		return this.mvc.perform(patch("/me").with(as(user)).contentType(MediaType.APPLICATION_JSON).content(body));
+		return this.mvc.perform(patch(API + "/me").with(as(user)).contentType(MediaType.APPLICATION_JSON).content(body));
 	}
 
 }

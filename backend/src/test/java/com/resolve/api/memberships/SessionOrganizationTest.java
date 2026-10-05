@@ -43,7 +43,7 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 
 	@Test
 	void listsTheOrganizationsWhereTheCallerCanWorkByName() throws Exception {
-		this.mvc.perform(get("/session/organizations").session(signedIn(EMAIL)))
+		this.mvc.perform(get(API + "/session/organizations").session(signedIn(EMAIL)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listSessionOrganizations"))
 			.andExpect(jsonPath("$.length()").value(2))
@@ -63,14 +63,14 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 		this.data.archiveCustomer(customer, Instant.parse("2026-10-01T10:00:00Z"));
 		this.data.organization("Ajena");
 
-		this.mvc.perform(get("/session/organizations").session(signedIn(EMAIL)))
+		this.mvc.perform(get(API + "/session/organizations").session(signedIn(EMAIL)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.length()").value(2));
 	}
 
 	@Test
 	void meListsTheSameOrganizationsSoTheClientCanOfferTheSwitch() throws Exception {
-		this.mvc.perform(get("/me").session(signedIn(EMAIL)))
+		this.mvc.perform(get(API + "/me").session(signedIn(EMAIL)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getMe"))
 			.andExpect(jsonPath("$.organizations.length()").value(2))
@@ -80,7 +80,7 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 	@Test
 	void switchingToAnOwnOrganizationChangesWhatMeReturnsInTheSameSession() throws Exception {
 		MockHttpSession session = signedIn(EMAIL);
-		this.mvc.perform(get("/me").session(session))
+		this.mvc.perform(get(API + "/me").session(session))
 			.andExpect(jsonPath("$.organization.id").value(this.acme.toString()))
 			.andExpect(jsonPath("$.role").value("admin"));
 
@@ -90,12 +90,12 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 			.andExpect(jsonPath("$.organization.id").value(this.northwind.toString()))
 			.andExpect(jsonPath("$.role").value("agent"));
 
-		this.mvc.perform(get("/me").session(session))
+		this.mvc.perform(get(API + "/me").session(session))
 			.andExpect(jsonPath("$.organization.id").value(this.northwind.toString()))
 			.andExpect(jsonPath("$.organization.name").value("Northwind"))
 			.andExpect(jsonPath("$.role").value("agent"));
 		// El rol y el alcance también cambian: un agente de Northwind ya no administra el equipo.
-		this.mvc.perform(post("/members").session(session)
+		this.mvc.perform(post(API + "/members").session(session)
 			.with(csrfToken())
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"email\":\"nueva@northwind.example\",\"role\":\"agent\"}")).andExpect(status().isForbidden());
@@ -111,7 +111,7 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("selectSessionOrganization"));
 
-		this.mvc.perform(get("/me").session(session))
+		this.mvc.perform(get(API + "/me").session(session))
 			.andExpect(jsonPath("$.organization.id").value(this.acme.toString()));
 	}
 
@@ -150,21 +150,21 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 
 		for (String body : new String[] { "{\"organizationId\":\"no-es-un-uuid\"}", "{}", "{\"organizationId\":null}",
 				"{\"organizationId\":\"" + this.northwind + "\",\"extra\":1}", "[]" }) {
-			this.mvc.perform(post("/session/organization").session(session)
+			this.mvc.perform(post(API + "/session/organization").session(session)
 				.with(csrfToken())
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(body))
 				.andExpect(status().isBadRequest())
 				.andExpect(matchesContract("selectSessionOrganization"));
 		}
-		this.mvc.perform(post("/session/organization").session(session).with(csrfToken()))
+		this.mvc.perform(post(API + "/session/organization").session(session).with(csrfToken()))
 			.andExpect(status().isBadRequest());
 	}
 
 	@Test
 	void anUnauthenticatedCallIsA401() throws Exception {
-		this.mvc.perform(get("/session/organizations")).andExpect(status().isUnauthorized());
-		this.mvc.perform(post("/session/organization").with(csrfToken())
+		this.mvc.perform(get(API + "/session/organizations")).andExpect(status().isUnauthorized());
+		this.mvc.perform(post(API + "/session/organization").with(csrfToken())
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"organizationId\":\"" + this.acme + "\"}")).andExpect(status().isUnauthorized());
 	}
@@ -177,7 +177,7 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 		this.data.customerMembership(this.northwind, maria, otherCustomer);
 		MockHttpSession session = signedIn("maria@cliente.example");
 
-		this.mvc.perform(get("/session/organizations").session(session))
+		this.mvc.perform(get(API + "/session/organizations").session(session))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.length()").value(2));
 		this.mvc.perform(select(session, this.northwind))
@@ -191,7 +191,7 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 		MockHttpSession first = signedIn(EMAIL);
 		this.mvc.perform(select(first, this.northwind)).andExpect(status().isOk());
 
-		this.mvc.perform(get("/me").session(signedIn(EMAIL)))
+		this.mvc.perform(get(API + "/me").session(signedIn(EMAIL)))
 			.andExpect(jsonPath("$.organization.id").value(this.acme.toString()));
 	}
 
@@ -202,7 +202,7 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 
 		this.data.setMembershipStatus(this.northwind, this.sofia, "removed");
 
-		this.mvc.perform(get("/me").session(session))
+		this.mvc.perform(get(API + "/me").session(session))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.organization.id").value(this.acme.toString()));
 	}
@@ -220,7 +220,7 @@ class SessionOrganizationTest extends OidcApiIntegrationTest {
 	}
 
 	private static MockHttpServletRequestBuilder select(MockHttpSession session, UUID organizationId) {
-		return post("/session/organization").session(session)
+		return post(API + "/session/organization").session(session)
 			.with(csrfToken())
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"organizationId\":\"" + organizationId + "\"}");

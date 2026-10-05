@@ -41,7 +41,7 @@ class CustomersApiTest extends ApiIntegrationTest {
 
 	@Test
 	void listsOnlyTheOrganizationCustomersSortedByNameCaseInsensitively() throws Exception {
-		this.mvc.perform(get("/customers").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listCustomers"))
 			.andExpect(jsonPath("$.items[*].name",
@@ -53,37 +53,37 @@ class CustomersApiTest extends ApiIntegrationTest {
 
 	@Test
 	void searchesNameEmailAndCompany() throws Exception {
-		this.mvc.perform(get("/customers").param("q", "NORTHSTAR").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("q", "NORTHSTAR").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[*].name", contains("Carlos Ruiz", "Elena Díaz")));
 	}
 
 	@Test
 	void treatsWildcardsLiterally() throws Exception {
-		this.mvc.perform(get("/customers").param("q", "100%").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("q", "100%").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[*].name", contains("Promo 100% Real")));
-		this.mvc.perform(get("/customers").param("q", "_").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("q", "_").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalItems").value(0));
 	}
 
 	@Test
 	void paginatesWithAStableOrderAndAcceptsPagesPastTheEnd() throws Exception {
-		this.mvc.perform(get("/customers").param("size", "2").param("page", "1").param("sort", "name,desc")
+		this.mvc.perform(get(API + "/customers").param("size", "2").param("page", "1").param("sort", "name,desc")
 			.with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listCustomers"))
 			.andExpect(jsonPath("$.items[*].name", contains("Elena Díaz", "Carlos Ruiz")))
 			.andExpect(jsonPath("$.totalPages").value(3));
-		this.mvc.perform(get("/customers").param("page", "9").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("page", "9").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items").isEmpty());
 	}
 
 	@Test
 	void rejectsInvalidPaginationAndSorting() throws Exception {
-		this.mvc.perform(get("/customers").param("size", "101").param("page", "-1").param("sort", "email,asc")
+		this.mvc.perform(get(API + "/customers").param("size", "101").param("page", "-1").param("sort", "email,asc")
 			.with(as("laura@acme.example")))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("listCustomers"))
@@ -92,7 +92,7 @@ class CustomersApiTest extends ApiIntegrationTest {
 
 	@Test
 	void rejectsPagesWhoseOffsetWouldOverflow() throws Exception {
-		this.mvc.perform(get("/customers").param("page", "2147483647").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("page", "2147483647").with(as("laura@acme.example")))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("listCustomers"))
 			.andExpect(jsonPath("$.errors[0].field").value("page"));
@@ -100,17 +100,17 @@ class CustomersApiTest extends ApiIntegrationTest {
 
 	@Test
 	void customersCannotSearchCustomers() throws Exception {
-		this.mvc.perform(get("/customers").with(as("elena@northstar.example")))
+		this.mvc.perform(get(API + "/customers").with(as("elena@northstar.example")))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("listCustomers"));
 	}
 
 	@Test
 	void theSearchNeverIncludesOtherOrganizations() throws Exception {
-		this.mvc.perform(get("/customers").param("q", "ajeno").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("q", "ajeno").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalItems").value(0));
-		this.mvc.perform(get("/customers").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").with(as("laura@acme.example")))
 			.andExpect(jsonPath("$.items[*].company", hasItem("Northstar")));
 	}
 
@@ -124,7 +124,7 @@ class CustomersApiTest extends ApiIntegrationTest {
 		this.data.ticket(this.acme, archived, 4, "open");
 		this.data.archiveCustomer(archived, Instant.parse("2026-10-01T10:00:00Z"));
 
-		this.mvc.perform(get("/customers").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listCustomers"))
 			.andExpect(jsonPath("$.totalItems").value(5))
@@ -141,19 +141,19 @@ class CustomersApiTest extends ApiIntegrationTest {
 		this.data.ticket(this.acme, archived, 4, "open");
 		this.data.archiveCustomer(archived, Instant.parse("2026-10-01T10:00:00Z"));
 
-		this.mvc.perform(get("/customers").param("archived", "true").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("archived", "true").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listCustomers"))
 			.andExpect(jsonPath("$.items[*].name", contains("Zoe Archivada")))
 			.andExpect(jsonPath("$.items[0].archived").value(true))
 			.andExpect(jsonPath("$.items[0].openTickets").value(1));
-		this.mvc.perform(get("/customers").param("archived", "false").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("archived", "false").with(as("laura@acme.example")))
 			.andExpect(jsonPath("$.totalItems").value(5));
 	}
 
 	@Test
 	void rejectsAnArchivedValueThatIsNotABoolean() throws Exception {
-		this.mvc.perform(get("/customers").param("archived", "maybe").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("archived", "maybe").with(as("laura@acme.example")))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("listCustomers"))
 			.andExpect(jsonPath("$.errors[0].field").value("archived"));
@@ -161,15 +161,15 @@ class CustomersApiTest extends ApiIntegrationTest {
 
 	@Test
 	void filtersByCompanyCaseInsensitively() throws Exception {
-		this.mvc.perform(get("/customers").param("company", "nOrThStAr").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("company", "nOrThStAr").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[*].name", contains("Carlos Ruiz", "Elena Díaz")));
 		// La empresa es una igualdad, no una búsqueda: un fragmento no coincide.
-		this.mvc.perform(get("/customers").param("company", "North").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("company", "North").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalItems").value(0));
 		// Y la de otra organización no se ve aunque exista allí.
-		this.mvc.perform(get("/customers").param("company", "Northwind").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("company", "Northwind").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items").isEmpty());
 	}
@@ -186,13 +186,13 @@ class CustomersApiTest extends ApiIntegrationTest {
 		// Carlos (2) primero; Ana (1) después; los tres sin tickets abiertos empatan y salen por id ascendente.
 		List<String> tied = List.of(customerId("maria@cliente.example"), customerId("promo@example.com"),
 				customerId("elena@northstar.example")).stream().map(UUID::toString).sorted().toList();
-		this.mvc.perform(get("/customers").param("sort", "openTickets,desc").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("sort", "openTickets,desc").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listCustomers"))
 			.andExpect(jsonPath("$.items[0].name").value("Carlos Ruiz"))
 			.andExpect(jsonPath("$.items[1].name").value("Ana García"))
 			.andExpect(jsonPath("$.items[2:5].id", contains(tied.toArray())));
-		this.mvc.perform(get("/customers").param("sort", "openTickets,asc").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/customers").param("sort", "openTickets,asc").with(as("laura@acme.example")))
 			.andExpect(jsonPath("$.items[0:3].id", contains(tied.toArray())))
 			.andExpect(jsonPath("$.items[3].name").value("Ana García"))
 			.andExpect(jsonPath("$.items[4].name").value("Carlos Ruiz"));
@@ -202,11 +202,11 @@ class CustomersApiTest extends ApiIntegrationTest {
 	void sortsByCreationDate() throws Exception {
 		UUID oldest = this.data.customer(this.acme, "Zeta Antigua", "zeta@example.com", null,
 				Instant.parse("2020-01-01T00:00:00Z"));
-		this.mvc.perform(get("/customers").param("sort", "createdAt,asc").param("size", "1")
+		this.mvc.perform(get(API + "/customers").param("sort", "createdAt,asc").param("size", "1")
 			.with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.items[0].id").value(oldest.toString()));
-		this.mvc.perform(get("/customers").param("sort", "createdAt,desc").param("size", "1")
+		this.mvc.perform(get(API + "/customers").param("sort", "createdAt,desc").param("size", "1")
 			.with(as("laura@acme.example")))
 			.andExpect(jsonPath("$.items[0].id").value(not(oldest.toString())));
 	}
@@ -215,33 +215,33 @@ class CustomersApiTest extends ApiIntegrationTest {
 	void aCustomerMemberGets403OnEveryCustomerEndpoint() throws Exception {
 		UUID id = customerId("carlos@northstar.example");
 		String elena = "elena@northstar.example";
-		this.mvc.perform(get("/customers").with(as(elena)))
+		this.mvc.perform(get(API + "/customers").with(as(elena)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("listCustomers"));
-		this.mvc.perform(post("/customers").with(as(elena))
+		this.mvc.perform(post(API + "/customers").with(as(elena))
 			.contentType("application/json")
 			.content("{\"name\": \"Nuevo\", \"email\": \"nuevo@example.com\"}"))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("createCustomer"));
-		this.mvc.perform(get("/customers/" + id).with(as(elena)))
+		this.mvc.perform(get(API + "/customers/" + id).with(as(elena)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("getCustomer"));
-		this.mvc.perform(patch("/customers/" + id).with(as(elena))
+		this.mvc.perform(patch(API + "/customers/" + id).with(as(elena))
 			.header("If-Match", "\"0\"")
 			.contentType("application/merge-patch+json")
 			.content("{\"name\": \"Otro\"}"))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("updateCustomer"));
-		this.mvc.perform(post("/customers/" + id + "/archive").with(as(elena)))
+		this.mvc.perform(post(API + "/customers/" + id + "/archive").with(as(elena)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("archiveCustomer"));
-		this.mvc.perform(post("/customers/" + id + "/restore").with(as(elena)))
+		this.mvc.perform(post(API + "/customers/" + id + "/restore").with(as(elena)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("restoreCustomer"));
-		this.mvc.perform(get("/customers/metrics").with(as(elena)))
+		this.mvc.perform(get(API + "/customers/metrics").with(as(elena)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("getCustomerMetrics"));
-		this.mvc.perform(get("/customers/companies").with(as(elena)))
+		this.mvc.perform(get(API + "/customers/companies").with(as(elena)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("listCompanies"));
 	}
@@ -255,7 +255,7 @@ class CustomersApiTest extends ApiIntegrationTest {
 		for (String filter : new String[] { "q", "company" }) {
 			// En el medio, al final y solo: recortar el texto no puede esconderlos.
 			for (String value : new String[] { "a\u0000b", "a\u0000", "\u0000", "a\tb", "a\u001fb" }) {
-				this.mvc.perform(get("/customers").param(filter, value).with(as("laura@acme.example")))
+				this.mvc.perform(get(API + "/customers").param(filter, value).with(as("laura@acme.example")))
 					.andExpect(status().isBadRequest())
 					.andExpect(matchesContract("listCustomers"))
 					.andExpect(jsonPath("$.errors[*].field", contains(filter)))

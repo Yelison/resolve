@@ -31,11 +31,11 @@ class KnowledgeAccessApiTest extends KnowledgeFixture {
 		assertThat(page.path("totalItems").asInt()).isEqualTo(2);
 		// Detalle: el borrador público, el interno publicado y el borrador interno responden 404, como un slug ajeno.
 		for (String hidden : List.of(CHANGE_PLAN, REFUNDS, ESCALATION, "no-existe")) {
-			this.mvc.perform(get("/knowledge/articles/" + hidden).with(as(MARIA)))
+			this.mvc.perform(get(API + "/knowledge/articles/" + hidden).with(as(MARIA)))
 				.andExpect(status().isNotFound())
 				.andExpect(matchesContract("getArticle"));
 		}
-		this.mvc.perform(get("/knowledge/articles/" + RECOVER).with(as(MARIA)))
+		this.mvc.perform(get(API + "/knowledge/articles/" + RECOVER).with(as(MARIA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getArticle"))
 			.andExpect(jsonPath("$.slug").value(RECOVER));
@@ -76,11 +76,11 @@ class KnowledgeAccessApiTest extends KnowledgeFixture {
 
 	@Test
 	void unpublishingHidesFromCustomers() throws Exception {
-		this.mvc.perform(post("/knowledge/articles/" + RECOVER + "/unpublish").with(as(LAURA)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + RECOVER + "/unpublish").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("unpublishArticle"));
 
-		this.mvc.perform(get("/knowledge/articles/" + RECOVER).with(as(MARIA))).andExpect(status().isNotFound());
+		this.mvc.perform(get(API + "/knowledge/articles/" + RECOVER).with(as(MARIA))).andExpect(status().isNotFound());
 		assertThat(slugs(listArticles(MARIA, ""))).containsExactly(INVOICES);
 		assertThat(count(listCategories(MARIA), "facturacion")).isEqualTo(1);
 		assertThat(categorySlugs(listCategories(MARIA))).containsExactly("facturacion");
@@ -90,22 +90,22 @@ class KnowledgeAccessApiTest extends KnowledgeFixture {
 
 	@Test
 	void publishingADraftMakesItVisibleOnlyWhenItIsPublic() throws Exception {
-		this.mvc.perform(post("/knowledge/articles/" + CHANGE_PLAN + "/publish").with(as(LAURA)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + CHANGE_PLAN + "/publish").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("publishArticle"));
-		this.mvc.perform(post("/knowledge/articles/" + ESCALATION + "/publish").with(as(LAURA))).andExpect(status().isOk());
+		this.mvc.perform(post(API + "/knowledge/articles/" + ESCALATION + "/publish").with(as(LAURA))).andExpect(status().isOk());
 
 		assertThat(slugs(listArticles(MARIA, ""))).containsExactly(CHANGE_PLAN, INVOICES, RECOVER);
-		this.mvc.perform(get("/knowledge/articles/" + ESCALATION).with(as(MARIA))).andExpect(status().isNotFound());
+		this.mvc.perform(get(API + "/knowledge/articles/" + ESCALATION).with(as(MARIA))).andExpect(status().isNotFound());
 	}
 
 	@Test
 	void turningAPublishedArticleInternalHidesItFromCustomers() throws Exception {
-		this.mvc.perform(get("/knowledge/articles/" + INVOICES).with(as(MARIA))).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/knowledge/articles/" + INVOICES).with(as(MARIA))).andExpect(status().isOk());
 
 		this.patchArticle(LAURA, INVOICES, "0", "{\"visibility\": \"internal\"}");
 
-		this.mvc.perform(get("/knowledge/articles/" + INVOICES).with(as(MARIA))).andExpect(status().isNotFound());
+		this.mvc.perform(get(API + "/knowledge/articles/" + INVOICES).with(as(MARIA))).andExpect(status().isNotFound());
 		assertThat(slugs(listArticles(MARIA, ""))).containsExactly(RECOVER);
 	}
 
@@ -121,19 +121,19 @@ class KnowledgeAccessApiTest extends KnowledgeFixture {
 		String json = MediaType.APPLICATION_JSON_VALUE;
 		String mergePatch = "application/merge-patch+json";
 		return Stream.of(
-				Arguments.of("createArticle", post("/knowledge/articles").contentType(json).content(invalid)),
-				Arguments.of("createCategory", post("/knowledge/categories").contentType(json).content(invalid)),
+				Arguments.of("createArticle", post(API + "/knowledge/articles").contentType(json).content(invalid)),
+				Arguments.of("createCategory", post(API + "/knowledge/categories").contentType(json).content(invalid)),
 				Arguments.of("updateArticle",
-						patch("/knowledge/articles/" + RECOVER).contentType(mergePatch).content(invalid)),
+						patch(API + "/knowledge/articles/" + RECOVER).contentType(mergePatch).content(invalid)),
 				Arguments.of("updateArticle of a missing slug",
-						patch("/knowledge/articles/no-existe").contentType(mergePatch).content(invalid)),
-				Arguments.of("publishArticle", post("/knowledge/articles/" + RECOVER + "/publish")),
-				Arguments.of("unpublishArticle", post("/knowledge/articles/" + RECOVER + "/unpublish")));
+						patch(API + "/knowledge/articles/no-existe").contentType(mergePatch).content(invalid)),
+				Arguments.of("publishArticle", post(API + "/knowledge/articles/" + RECOVER + "/publish")),
+				Arguments.of("unpublishArticle", post(API + "/knowledge/articles/" + RECOVER + "/unpublish")));
 	}
 
 	@Test
 	void aRejectedCustomerWriteChangesNothing() throws Exception {
-		this.mvc.perform(post("/knowledge/articles/" + REFUNDS + "/unpublish").with(as(MARIA)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + REFUNDS + "/unpublish").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("unpublishArticle"));
 
@@ -142,7 +142,7 @@ class KnowledgeAccessApiTest extends KnowledgeFixture {
 
 	@Test
 	void anAgentCannotCreateCategories() throws Exception {
-		this.mvc.perform(post("/knowledge/categories").with(as(LAURA))
+		this.mvc.perform(post(API + "/knowledge/categories").with(as(LAURA))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"name\": \"Envíos\"}"))
 			.andExpect(status().isForbidden())
@@ -153,10 +153,10 @@ class KnowledgeAccessApiTest extends KnowledgeFixture {
 
 	@Test
 	void anUnknownUserIsRejectedBeforeAnythingIsRead() throws Exception {
-		this.mvc.perform(get("/knowledge/articles").with(as("nadie@acme.example")))
+		this.mvc.perform(get(API + "/knowledge/articles").with(as("nadie@acme.example")))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("listArticles"));
-		this.mvc.perform(get("/knowledge/categories").with(as("nadie@acme.example")))
+		this.mvc.perform(get(API + "/knowledge/categories").with(as("nadie@acme.example")))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("listCategories"));
 	}
@@ -164,15 +164,15 @@ class KnowledgeAccessApiTest extends KnowledgeFixture {
 	@Test
 	void anotherOrganizationSeesNoArticlesAndOwnsItsCategories() throws Exception {
 		assertThat(listArticles(NORTHWIND_AGENT, "").path("totalItems").asInt()).isZero();
-		this.mvc.perform(get("/knowledge/articles/" + RECOVER).with(as(NORTHWIND_AGENT)))
+		this.mvc.perform(get(API + "/knowledge/articles/" + RECOVER).with(as(NORTHWIND_AGENT)))
 			.andExpect(status().isNotFound());
 		JsonNode categories = listCategories(NORTHWIND_AGENT);
 		assertThat(categorySlugs(categories)).containsExactly("cuenta-y-acceso");
 		assertThat(count(categories, "cuenta-y-acceso")).isZero();
 		// Tampoco puede editar, publicar ni despublicar un artículo ajeno: responde como si no existiera.
-		this.mvc.perform(post("/knowledge/articles/" + RECOVER + "/unpublish").with(as(NORTHWIND_AGENT)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + RECOVER + "/unpublish").with(as(NORTHWIND_AGENT)))
 			.andExpect(status().isNotFound());
-		this.mvc.perform(post("/knowledge/articles/" + CHANGE_PLAN + "/publish").with(as(NORTHWIND_AGENT)))
+		this.mvc.perform(post(API + "/knowledge/articles/" + CHANGE_PLAN + "/publish").with(as(NORTHWIND_AGENT)))
 			.andExpect(status().isNotFound());
 		assertThat(patchArticle(NORTHWIND_AGENT, RECOVER, "0", "{\"title\": \"Mío\"}").getResponse().getStatus())
 			.isEqualTo(404);

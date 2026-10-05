@@ -1,5 +1,7 @@
 package com.resolve.api.common.security;
 
+import com.resolve.api.common.web.ApiPathPrefix;
+import jakarta.servlet.http.Cookie;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,6 +10,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
+import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -33,12 +36,18 @@ class OidcSecurityConfiguration {
 	/** Sesión en el servidor, CSRF por cookie y cabecera, inicio de sesión OIDC y cierre de sesión en el proveedor. */
 	@Bean
 	HttpSecurityCustomizer oidcSecurity(ClientRegistrationRepository registrations, JsonMapper jsonMapper,
-			@Value("${resolve.public-url}") String publicUrl) {
+			@Value("${resolve.public-url}") String publicUrl,
+			@Value("${server.servlet.session.cookie.path}") String sessionCookiePath) {
 		String appUrl = publicUrl.replaceAll("/+$", "");
 		// La cookie la lee JavaScript (por eso no es HttpOnly) en todo el sitio, no solo bajo /api.
 		CookieCsrfTokenRepository csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
 		csrfTokens.setCookiePath("/");
 		csrfTokens.setCookieCustomizer((cookie) -> cookie.sameSite("Lax"));
+		// Con el contexto vacío, Spring borraría JSESSIONID en «/»: no la quitaría del navegador, que la guardó con el
+		// Path de server.servlet.session.cookie.path.
+		Cookie expiredSession = new Cookie("JSESSIONID", null);
+		expiredSession.setPath(sessionCookiePath);
+		expiredSession.setMaxAge(0);
 		return (http) -> http
 			.sessionManagement((session) -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
 			// El manejador simple compara el valor tal cual está en la cookie, que es lo que la aplicación web reenvía.
@@ -47,13 +56,16 @@ class OidcSecurityConfiguration {
 			.addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
 			// PKCE lo envía Spring Security 7 por defecto, también a clientes confidenciales; el realm lo exige. El punto
 			// de entrada de la cadena sigue siendo el de Problem Details, que prevalece sobre la redirección de oauth2Login.
-			.oauth2Login((login) -> login.defaultSuccessUrl(appUrl, true)
+			.oauth2Login((login) -> login
+				.authorizationEndpoint((endpoint) -> endpoint.baseUri(ApiPathPrefix.of("/oauth2/authorization")))
+				.redirectionEndpoint((endpoint) -> endpoint.baseUri(ApiPathPrefix.of("/login/oauth2/code/*")))
+				.defaultSuccessUrl(appUrl, true)
 				.failureHandler((request, response, exception) -> response.sendRedirect(appUrl + "/entrar?error=oidc")))
-			// La cookie JSESSIONID se borra con el mismo Path con el que se creó (el contexto, /api); el 200 lleva la URL
-			// con la que el cliente cierra también la sesión del proveedor.
-			.logout((logout) -> logout.logoutUrl("/logout")
+			// La cookie JSESSIONID se borra con el mismo Path con el que se creó (/api); el 200 lleva la URL con la que
+			// el cliente cierra también la sesión del proveedor.
+			.logout((logout) -> logout.logoutUrl(ApiPathPrefix.of("/logout"))
 				.invalidateHttpSession(true)
-				.deleteCookies("JSESSIONID")
+				.addLogoutHandler(new CookieClearingLogoutHandler(expiredSession))
 				.logoutSuccessHandler(new OidcLogoutSuccessHandler(registrations, appUrl, jsonMapper)));
 	}
 

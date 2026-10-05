@@ -38,7 +38,7 @@ class CustomerMetricsApiTest extends CustomersFixture {
 		this.data.ticket(this.acme, this.mariaCustomer, 4, "resolved");
 		this.data.ticket(this.acme, october, 5, "in_progress");
 
-		this.mvc.perform(get("/customers/metrics").with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers/metrics").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getCustomerMetrics"))
 			.andExpect(jsonPath("$.total").value(5))
@@ -48,7 +48,7 @@ class CustomerMetricsApiTest extends CustomersFixture {
 
 		// Un minuto antes de la medianoche local sigue siendo octubre: el mes que viene no cuenta todavía.
 		this.clock.set(Instant.parse("2026-11-01T04:59:00Z"));
-		this.mvc.perform(get("/customers/metrics").with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers/metrics").with(as(LAURA)))
 			.andExpect(jsonPath("$.newThisMonth").value(1))
 			.andExpect(jsonPath("$.total").value(5));
 	}
@@ -61,14 +61,14 @@ class CustomerMetricsApiTest extends CustomersFixture {
 				Instant.parse("2026-10-31T23:30:00Z"));
 		this.data.ticket(this.northwind, this.northwindCustomer, 1, "waiting");
 
-		this.mvc.perform(get("/customers/metrics").with(as(NORTHWIND_AGENT)))
+		this.mvc.perform(get(API + "/customers/metrics").with(as(NORTHWIND_AGENT)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.total").value(2))
 			.andExpect(jsonPath("$.companies").value(1))
 			.andExpect(jsonPath("$.withOpenTickets").value(1))
 			.andExpect(jsonPath("$.newThisMonth").value(1));
 		// Acme no ve nada de lo anterior: sus tres clientes, sus empresas y ningún ticket.
-		this.mvc.perform(get("/customers/metrics").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/customers/metrics").with(as(ADMIN)))
 			.andExpect(jsonPath("$.total").value(3))
 			.andExpect(jsonPath("$.companies").value(3))
 			.andExpect(jsonPath("$.withOpenTickets").value(0))
@@ -79,13 +79,13 @@ class CustomerMetricsApiTest extends CustomersFixture {
 	void metricsAreZeroForAnOrganizationWithoutCustomers() throws Exception {
 		UUID empty = this.data.organization("Vacía");
 		this.data.staff(empty, "agent", "Sin Clientes", "sin@vacia.example");
-		this.mvc.perform(get("/customers/metrics").with(as("sin@vacia.example")))
+		this.mvc.perform(get(API + "/customers/metrics").with(as("sin@vacia.example")))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.total").value(0))
 			.andExpect(jsonPath("$.companies").value(0))
 			.andExpect(jsonPath("$.withOpenTickets").value(0))
 			.andExpect(jsonPath("$.newThisMonth").value(0));
-		this.mvc.perform(get("/customers/companies").with(as("sin@vacia.example")))
+		this.mvc.perform(get(API + "/customers/companies").with(as("sin@vacia.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listCompanies"))
 			.andExpect(jsonPath("$").isEmpty());
@@ -104,7 +104,7 @@ class CustomerMetricsApiTest extends CustomersFixture {
 		this.data.customer(this.northwind, "Ocho", "ocho@example.com", "Ajena");
 
 		// Sin distinguir mayúsculas («banana» antes que «Cherry»), una vez por nombre y sin vacíos, archivados ni ajenas.
-		this.mvc.perform(get("/customers/companies").with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers/companies").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listCompanies"))
 			.andExpect(jsonPath("$", contains("Acme Studio", "banana", "Cherry", "Northstar", "Orbit Labs")));
@@ -115,7 +115,7 @@ class CustomerMetricsApiTest extends CustomersFixture {
 		IntStream.range(0, 205)
 			.forEach((index) -> this.data.customer(this.acme, "Cliente " + index, "c" + index + "@example.com",
 					"Empresa %03d".formatted(index)));
-		this.mvc.perform(get("/customers/companies").with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers/companies").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listCompanies"))
 			.andExpect(jsonPath("$", hasSize(200)))
@@ -124,10 +124,10 @@ class CustomerMetricsApiTest extends CustomersFixture {
 
 	@Test
 	void customersCannotReadMetricsOrCompanies() throws Exception {
-		this.mvc.perform(get("/customers/metrics").with(as(MARIA)))
+		this.mvc.perform(get(API + "/customers/metrics").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("getCustomerMetrics"));
-		this.mvc.perform(get("/customers/companies").with(as(MARIA)))
+		this.mvc.perform(get(API + "/customers/companies").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("listCompanies"));
 	}

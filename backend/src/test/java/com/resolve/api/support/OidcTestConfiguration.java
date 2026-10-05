@@ -29,7 +29,7 @@ public class OidcTestConfiguration {
 			.clientSecret("secreto-de-prueba")
 			.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
 			.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-			.redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+			.redirectUri("{baseUrl}/api/login/oauth2/code/{registrationId}")
 			.scope("openid", "profile", "email")
 			.authorizationUri(AUTHORIZATION_URI)
 			.tokenUri("https://idp.test/realms/resolve/protocol/openid-connect/token")

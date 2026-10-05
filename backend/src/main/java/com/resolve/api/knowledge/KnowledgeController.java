@@ -93,8 +93,8 @@ class KnowledgeController {
 	ResponseEntity<ArticleDto> createArticle(@AuthenticationPrincipal CurrentMember member,
 			@RequestBody(required = false) @Nullable JsonNode body) {
 		ArticleDto article = this.articles.create(member, ArticleRequestParser.newArticle(body));
-		URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
-			.path("/knowledge/articles/{slug}")
+		URI location = ServletUriComponentsBuilder.fromCurrentRequestUri()
+			.path("/{slug}")
 			.buildAndExpand(article.slug())
 			.toUri();
 		return ResponseEntity.created(location).eTag(etag(article)).body(article);
