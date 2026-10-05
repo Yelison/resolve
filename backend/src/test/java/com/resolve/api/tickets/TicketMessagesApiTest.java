@@ -87,7 +87,8 @@ class TicketMessagesApiTest extends TicketsFixture {
 			.content("{\"status\": \"in_progress\"}"))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("updateTicket"))
-			.andExpect(header().string("ETag", "\"1\""));
+			.andExpect(header().string("ETag", "\"1\""))
+			.andExpect(jsonPath("$.updatedAt").value("2026-10-04T15:18:00Z"));
 	}
 
 	@Test

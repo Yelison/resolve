@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.Repository;
@@ -29,6 +31,26 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 			where t.organizationId = :organizationId and t.number = :number and c.id = :customerId
 			""")
 	Optional<Ticket> findForCustomer(UUID organizationId, UUID customerId, long number);
+
+	/**
+	 * Como {@link #findInOrganization} pero con {@code SELECT … FOR UPDATE}: la fila queda bloqueada hasta el final de
+	 * la transacción. Sin {@code join fetch}: PostgreSQL no admite {@code FOR UPDATE} sobre el lado nullable de un
+	 * outer join; cliente y responsable se cargan después, de forma perezosa, dentro de la transacción.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select t from Ticket t
+			where t.organizationId = :organizationId and t.number = :number
+			""")
+	Optional<Ticket> lockInOrganization(UUID organizationId, long number);
+
+	/** Versión con bloqueo de {@link #findForCustomer}; filtra por la clave foránea, sin join. */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select t from Ticket t
+			where t.organizationId = :organizationId and t.number = :number and t.customer.id = :customerId
+			""")
+	Optional<Ticket> lockForCustomer(UUID organizationId, UUID customerId, long number);
 
 	/** Reserva el siguiente número de la organización; la fila queda bloqueada hasta el final de la transacción. */
 	@Query(value = """

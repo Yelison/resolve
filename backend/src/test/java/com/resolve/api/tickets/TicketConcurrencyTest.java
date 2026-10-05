@@ -1,6 +1,7 @@
 package com.resolve.api.tickets;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -17,13 +18,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.JsonNode;
+
+import com.resolve.api.support.TestClockConfiguration;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -124,9 +129,79 @@ class TicketConcurrencyTest extends TicketsFixture {
 			.getResponse()
 			.getContentAsString());
 		assertThat(ticket.get("version").asLong()).isEqualTo(1);
+		MvcResult winner = statusWon ? statusResult : priorityResult;
+		assertThat(JSON.readTree(winner.getResponse().getContentAsString()).get("updatedAt"))
+			.isEqualTo(ticket.get("updatedAt"));
 		assertThat(ticket.get("status").asString()).isEqualTo(statusWon ? "in_progress" : "open");
 		assertThat(ticket.get("priority").asString()).isEqualTo(statusWon ? "urgent" : "low");
 		assertThat(activityCount()).isEqualTo(activityBefore + 1);
+	}
+
+	@Test
+	void aPatchCommittedAfterALaterReplyKeepsTheLaterUpdatedAt() throws Exception {
+		createTicket(LAURA, this.mariaCustomer, "No puedo acceder a mi cuenta", "urgent", this.laura);
+		Instant later = TestClockConfiguration.START.plus(Duration.ofMinutes(60));
+		this.clock.set(later);
+		postReply(DANIEL, "Ya te envié un nuevo enlace de acceso.").andExpect(status().isCreated());
+
+		// El reloj del PATCH va un minuto por detrás del de la respuesta ya confirmada.
+		this.clock.set(later.minus(Duration.ofMinutes(1)));
+		JsonNode patched = patchTicket(LAURA, 1, 0, "{\"status\": \"in_progress\"}");
+
+		JsonNode stored = JSON.readTree(this.mvc.perform(get("/tickets/1").with(as(ADMIN)))
+			.andExpect(status().isOk())
+			.andReturn()
+			.getResponse()
+			.getContentAsString());
+		assertThat(stored.get("status").asString()).isEqualTo("in_progress");
+		assertThat(stored.get("updatedAt").asString()).isEqualTo(later.toString());
+		assertThat(patched.get("updatedAt").asString()).isEqualTo(stored.get("updatedAt").asString());
+	}
+
+	@Test
+	@Timeout(30)
+	void aReplyThatArrivesWhileAPatchHoldsTheRowWaitsAndKeepsTheLatestUpdatedAt() throws Exception {
+		createTicket(LAURA, this.mariaCustomer, "No puedo acceder a mi cuenta", "urgent", this.laura);
+		Instant patchClock = TestClockConfiguration.START.plus(Duration.ofMinutes(10));
+		Instant replyClock = TestClockConfiguration.START.plus(Duration.ofMinutes(20));
+		this.clock.set(patchClock);
+		this.barrier.arm();
+
+		// A lee el reloj (10 min) y queda aparcado con la fila cargada, antes de escribir.
+		Future<MvcResult> patch = this.executor
+			.submit(() -> patchWithVersion(LAURA, 0, "{\"status\": \"in_progress\"}"));
+		assertThat(this.barrier.awaitReached(WAIT_SECONDS)).as("el PATCH llegó al gancho").isTrue();
+
+		// B responde con un reloj posterior. Con la fila bloqueada no puede terminar mientras A siga aparcado.
+		this.clock.set(replyClock);
+		Future<MvcResult> reply = this.executor
+			.submit(() -> postReply(DANIEL, "Ya te envié un nuevo enlace de acceso.").andReturn());
+		awaitOtherBlockedOrDone(reply, reply);
+		assertThat(reply.isDone()).as("la respuesta espera a que el PATCH suelte la fila").isFalse();
+		this.barrier.release();
+
+		MvcResult patchResult = patch.get(WAIT_SECONDS, TimeUnit.SECONDS);
+		MvcResult replyResult = reply.get(WAIT_SECONDS, TimeUnit.SECONDS);
+		status().isOk().match(patchResult);
+		matchesContract("updateTicket").match(patchResult);
+		status().isCreated().match(replyResult);
+		matchesContract("createMessage").match(replyResult);
+		// El cuerpo del PATCH refleja la fila en el momento de su commit; la respuesta llega después y la adelanta.
+		JsonNode patched = JSON.readTree(patchResult.getResponse().getContentAsString());
+		assertThat(patched.get("updatedAt").asString()).isEqualTo(patchClock.toString());
+		assertThat(patched.get("version").asLong()).isEqualTo(1);
+
+		this.mvc.perform(get("/tickets/1").with(as(ADMIN)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.updatedAt").value(replyClock.toString()))
+			.andExpect(jsonPath("$.version").value(1))
+			.andExpect(jsonPath("$.status").value("in_progress"));
+	}
+
+	private ResultActions postReply(String user, String body) throws Exception {
+		return this.mvc.perform(post("/tickets/1/messages").with(as(user))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"body\": \"%s\", \"visibility\": \"public\"}".formatted(body)));
 	}
 
 	private MvcResult patchWithVersion(String user, long version, String body) throws Exception {

@@ -117,7 +117,9 @@ class TicketService {
 	@Transactional
 	TicketDto update(CurrentMember member, long number, @Nullable String ifMatch,
 			Supplier<TicketChanges> body) {
-		Ticket ticket = find(member, number);
+		// La fila queda bloqueada hasta el commit: la versión que se comprueba es la última confirmada y nada puede
+		// cambiar updated_at entre esta lectura y el flush, así que el máximo calculado en memoria es el guardado.
+		Ticket ticket = find(member, number, true);
 		if (ifMatch == null || ifMatch.isBlank()) {
 			throw new PreconditionRequiredException("Envía If-Match con la versión del ticket que estás editando.");
 		}
@@ -195,8 +197,20 @@ class TicketService {
 
 	/** Busca el ticket en el alcance del miembro. Un ticket ajeno responde igual que uno inexistente (404). */
 	private Ticket find(CurrentMember member, long number) {
-		Optional<Ticket> ticket = member.isStaff() ? this.tickets.findInOrganization(member.organizationId(), number)
-				: this.tickets.findForCustomer(member.organizationId(), member.customerId(), number);
+		return find(member, number, false);
+	}
+
+	private Ticket find(CurrentMember member, long number, boolean forUpdate) {
+		Optional<Ticket> ticket;
+		if (member.isStaff()) {
+			ticket = forUpdate ? this.tickets.lockInOrganization(member.organizationId(), number)
+					: this.tickets.findInOrganization(member.organizationId(), number);
+		}
+		else {
+			ticket = forUpdate
+					? this.tickets.lockForCustomer(member.organizationId(), member.customerId(), number)
+					: this.tickets.findForCustomer(member.organizationId(), member.customerId(), number);
+		}
 		return ticket.orElseThrow(() -> new ResourceNotFoundException("No existe el ticket #" + number + "."));
 	}
 
