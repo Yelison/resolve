@@ -125,7 +125,7 @@ class MemberService {
 			membership.reinvite(request.role(), now);
 		}
 		this.memberships.flush();
-		return TeamMemberDto.from(membership, 0);
+		return withLoad(organizationId, membership);
 	}
 
 	/**
@@ -175,7 +175,7 @@ class MemberService {
 		target.remove(now);
 		this.memberships.flush();
 		this.tickets.releaseOpenTickets(member, userId, now);
-		return TeamMemberDto.from(target, 0);
+		return withLoad(organizationId, target);
 	}
 
 	/**
