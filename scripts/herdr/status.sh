@@ -7,9 +7,9 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 require_herdr
 agents=$(herdr agent list)
-fmt='%-26s %-30s %-4s %-5s %-7s %-24s %s\n'
+fmt='%-26s %-30s %-4s %-5s %-7s %-24s %-14s %s\n'
 # shellcheck disable=SC2059
-printf "$fmt" TASK BRANCH SLOT WS PANE AGENT GIT
+printf "$fmt" TASK BRANCH SLOT WS PANE AGENT EFFORT GIT
 for id in $(active_task_ids); do
   load_task "$id"
   agent=$(jq -r --arg p "$TASK_PANE" '.result.agents[]? | select(.pane_id == $p) | "\(.name // .agent):\(.agent_status)"' <<<"$agents" | head -n 1)
@@ -20,6 +20,7 @@ for id in $(active_task_ids); do
   else
     gitinfo="worktree missing"
   fi
+  effort=$(jq -r 'if .effort then "\(.effort.level)/\(.effort.max)\(if .effort.verified then " ✓" else "" end)" else "-" end' "$(task_json "$id")")
   # shellcheck disable=SC2059
-  printf "$fmt" "$id" "$TASK_BRANCH" "$TASK_SLOT" "$TASK_WORKSPACE" "$TASK_PANE" "${agent:--}" "$gitinfo"
+  printf "$fmt" "$id" "$TASK_BRANCH" "$TASK_SLOT" "$TASK_WORKSPACE" "$TASK_PANE" "${agent:--}" "$effort" "$gitinfo"
 done
