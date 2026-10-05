@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -29,6 +30,8 @@ import com.resolve.api.tickets.TicketChannel;
 import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Informe de toda la organización en un periodo, calculado en la base de datos y en la zona horaria de la organización.
@@ -174,10 +177,12 @@ class ReportSummaryQuery {
 		this.clock = clock;
 	}
 
+	/** Una sola instantánea: las cinco consultas ven el mismo estado aunque se cree un ticket entre ellas. */
+	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	ReportSummaryDto compute(UUID organizationId, ReportPeriod period) {
 		Organization organization = this.organizations.findById(organizationId).orElseThrow();
 		ZoneId zone = organization.zone();
-		Instant to = this.clock.instant();
+		Instant to = wholeSecond(this.clock.instant());
 		LocalDate firstDay = LocalDate.ofInstant(to, zone).minusDays(period.days() - 1L);
 		Instant from = firstDay.atStartOfDay(zone).toInstant();
 		Instant previousFrom = from.minus(Duration.between(from, to));
@@ -263,6 +268,16 @@ class ReportSummaryQuery {
 			channels.add(new Channel(counts.get(i).channel(), counts.get(i).created(), BigDecimal.valueOf(units[i], 1)));
 		}
 		return channels;
+	}
+
+	/**
+	 * El final del periodo en segundos enteros, redondeado hacia arriba: la salida es estable y todo lo creado hasta
+	 * este instante (también hace una fracción de segundo) queda dentro. El inicio ya es una medianoche local y el
+	 * periodo anterior se calcula con ambos, así que también son segundos enteros.
+	 */
+	private static Instant wholeSecond(Instant instant) {
+		Instant truncated = instant.truncatedTo(ChronoUnit.SECONDS);
+		return truncated.equals(instant) ? instant : truncated.plusSeconds(1);
 	}
 
 	private static @Nullable Integer integer(@Nullable BigDecimal value) {
