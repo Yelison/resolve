@@ -164,6 +164,33 @@ describe('AppShell sin sesión', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
+    it('tras un reintento pedido fallido, un refetch automático lento no vuelve a poner role="alert"', async () => {
+      let calls = 0
+      const fetchSpy = mockApi({
+        'GET /api/me': async () => {
+          calls += 1
+          if (calls > 1) await new Promise((resolve) => setTimeout(resolve, 150))
+          return { status: 500, body: { status: 500, title: 'Error interno' } }
+        },
+      })
+      renderShell()
+      await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })
+      await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+      const alert = await screen.findByRole('alert')
+
+      const roles: (string | null)[] = []
+      const observer = new MutationObserver(() => roles.push(alert.getAttribute('role')))
+      observer.observe(alert, { attributes: true, attributeFilter: ['role'] })
+      act(() => onlineManager.setOnline(false))
+      act(() => onlineManager.setOnline(true))
+      await waitFor(() => expect(meCalls(fetchSpy)).toBe(3))
+      await new Promise((resolve) => setTimeout(resolve, 300))
+      observer.disconnect()
+
+      expect(roles).not.toContain('alert')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
     it('un reintento automático al volver la conexión no se anuncia como pedido por el usuario', async () => {
       const fetchSpy = mockApi({ 'GET /api/me': { status: 500, body: { status: 500, title: 'Error interno' } } })
       renderShell()

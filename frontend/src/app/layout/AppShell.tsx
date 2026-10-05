@@ -34,7 +34,8 @@ export function AppShell() {
   const sessionFailed = !me.data && me.errorUpdateCount > 0
   const [sessionError, setSessionError] = useState<unknown>(null)
   if (me.error && me.error !== sessionError) setSessionError(me.error)
-  // Solo se anuncia el fallo de un reintento que pidió el usuario; los automáticos (p. ej. al volver la conexión) no.
+  // Solo se anuncia el fallo del reintento que pidió el usuario (un fallo más que al pulsar); los automáticos, p. ej.
+  // al volver la conexión, no.
   const [requestedAt, setRequestedAt] = useState<number | null>(null)
   const workspaceName = me.data?.organization.name ?? 'Resolve'
   const userName = me.data?.user.name ?? '…'
@@ -163,7 +164,7 @@ export function AppShell() {
               }}
               retrying={me.fetchStatus !== 'idle'}
               waiting={me.fetchStatus === 'paused'}
-              retryFailed={me.fetchStatus === 'idle' && requestedAt !== null && me.errorUpdateCount > requestedAt}
+              retryFailed={me.fetchStatus === 'idle' && requestedAt !== null && me.errorUpdateCount === requestedAt + 1}
             />
           ) : (
             <Outlet />
