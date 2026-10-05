@@ -63,8 +63,14 @@ jq '.agent_status="idle"' "$T/state/agents/rev-impl-a" >"$T/x" && mv "$T/x" "$T/
 touch "$R/stray"; out=$("$HERDR/new-review.sh" --task impl-a --round 4 2>&1); check "dirty review worktree: refused" test $? -ne 0; rm -f "$R/stray"
 rm -f "$T/state/agents/rev-impl-a"; out=$("$HERDR/new-review.sh" --task impl-a --round 4 2>&1)
 check "no live reviewer: started again with --continue" grep -q 'start rev-impl-a .*-- --continue' "$T/state/calls.log"
-echo "== the reviewed commit is the branch ref, not whatever the worktree shows"
+echo "== the reviewed commit is the branch ref, not whatever the worktree shows (T3)"
+# The branch gets a new commit while the task worktree sits detached on the previous one: HEAD of the worktree is
+# the commit already reviewed, the branch ref is the new one.
+git -C "$W" commit -q --allow-empty -m "fix: five"; tip=$(git -C "$W" rev-parse HEAD)
 git -C "$W" checkout -q --detach HEAD~1
 out=$("$HERDR/new-review.sh" --task impl-a --round 5 2>&1); rc=$?
-check "detached worktree: reviews the branch tip" test "$(git -C "$R" rev-parse HEAD)" = "$(git -C "$T/repo" rev-parse refs/heads/feat/impl-a)"
+check "detached worktree: rc 0" test $rc -eq 0
+check "detached worktree: reviews the branch tip" test "$(git -C "$R" rev-parse HEAD)" = "$tip"
+check "detached worktree: the tip is what refs/heads says" test "$tip" = "$(git -C "$T/repo" rev-parse refs/heads/feat/impl-a)"
+check "detached worktree: review.sha recorded" test "$(jq -r .review.sha "$RB/task.json")" = "$tip"
 finish
