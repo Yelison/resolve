@@ -55,9 +55,9 @@ describe('compareCount', () => {
 })
 
 describe('resolvedShare', () => {
-  it('redondea resueltos entre creados y puede pasar de 100 %', () => {
-    expect(resolvedShare(300, 361)).toBe('83 % de las creadas')
-    expect(resolvedShare(30, 20)).toBe('150 % de las creadas')
+  it('es un cociente por cada 100 creados y puede pasar de 100 sin sugerir un subconjunto', () => {
+    expect(resolvedShare(300, 361)).toBe('83 resueltos por cada 100 creados')
+    expect(resolvedShare(30, 20)).toBe('150 resueltos por cada 100 creados')
   })
 
   it('no hay porcentaje si no se creó ningún ticket', () => {
@@ -71,6 +71,7 @@ describe('formatos de medianas', () => {
     expect(formatHours(null)).toBe('Sin datos')
     expect(formatMinutes(18)).toBe('18 min')
     expect(formatHours(6.5)).toBe('6,5 h')
+    expect(formatMinutes(12000)).toBe('12.000 min')
   })
 
   it('el valor de un canal lleva porcentaje y recuento', () => {

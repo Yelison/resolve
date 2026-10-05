@@ -7,7 +7,7 @@ test.describe('reportes', () => {
     await page.goto('/reportes')
     await expect(page.getByRole('heading', { level: 1, name: 'Reportes' })).toBeVisible()
     await expect(page.getByText('61 más (20 %) frente a los 7 días anteriores')).toBeVisible()
-    await expect(page.getByText('83 % de las creadas')).toBeVisible()
+    await expect(page.getByText('83 resueltos por cada 100 creados')).toBeVisible()
     await expect(page.getByRole('progressbar', { name: 'Correo' })).toBeVisible()
 
     // La alternativa tabular del gráfico se alcanza con el teclado.

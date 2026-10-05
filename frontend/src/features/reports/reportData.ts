@@ -47,14 +47,16 @@ export function compareCount(value: number, previous: number, days: number): Cou
 }
 
 /**
- * «N % de las creadas»: resueltos entre creados del periodo, o `null` si no se creó ninguno. Puede pasar de 100 %:
- * entre los resueltos hay tickets creados antes del periodo.
+ * «N resueltos por cada 100 creados»: cociente entre los resueltos y los creados del periodo, o `null` si no se creó
+ * ninguno. Puede pasar de 100: entre los resueltos hay tickets creados antes del periodo, así que no es un subconjunto
+ * de los creados y no se redacta como «% de las creadas».
  */
 export function resolvedShare(resolved: number, created: number): string | null {
-  return created > 0 ? `${integer.format(Math.round((resolved / created) * 100))} % de las creadas` : null
+  return created > 0 ? `${integer.format(Math.round((resolved / created) * 100))} resueltos por cada 100 creados` : null
 }
 
-export const formatMinutes = (minutes: number | null) => (minutes === null ? 'Sin datos' : `${minutes} min`)
+export const formatMinutes = (minutes: number | null) =>
+  minutes === null ? 'Sin datos' : `${integer.format(minutes)} min`
 export const formatHours = (hours: number | null) => (hours === null ? 'Sin datos' : `${decimal.format(hours)} h`)
 
 /** Valor y porcentaje de un canal: «71,4 % · 30 tickets». */

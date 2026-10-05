@@ -1,6 +1,6 @@
 import { Avatar, Badge, Table, TableCell, TableHeaderCell, TableRow, type BadgeTone } from '../../components/ui'
 import type { MemberStatus, ReportAgent } from '../../api/schema'
-import { agentStatusLabel, formatMinutes } from './reportData'
+import { agentStatusLabel, formatMinutes, integer } from './reportData'
 import styles from './AgentsTable.module.css'
 
 export interface AgentsTableProps {
@@ -54,7 +54,7 @@ function AgentRow({ agent }: { agent: ReportAgent }) {
           <span className={styles.cellLabel} aria-hidden="true">
             Resueltos
           </span>
-          {agent.resolved}
+          {integer.format(agent.resolved)}
         </span>
         <span role="cell" className={styles.response}>
           <span className={styles.cellLabel} aria-hidden="true">
@@ -66,7 +66,7 @@ function AgentRow({ agent }: { agent: ReportAgent }) {
           <span className={styles.cellLabel} aria-hidden="true">
             Asignados abiertos
           </span>
-          {agent.openAssigned}
+          {integer.format(agent.openAssigned)}
         </span>
       </span>
       {/* Sin acciones: la celda existe solo para que cada fila tenga tantas celdas como columnas la cabecera. */}

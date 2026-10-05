@@ -65,7 +65,7 @@ describe('ReportsPage', () => {
     expect(within(card).getByText('361')).toBeInTheDocument()
     expect(within(card).getByText(/61 más \(20 %\) frente a los 7 días anteriores/)).toBeInTheDocument()
     expect(within(metricCard('Resueltos')).getByText('300')).toBeInTheDocument()
-    expect(within(metricCard('Resueltos')).getByText('83 % de las creadas')).toBeInTheDocument()
+    expect(within(metricCard('Resueltos')).getByText('83 resueltos por cada 100 creados')).toBeInTheDocument()
     expect(within(metricCard('Primera respuesta')).getByText('18 min')).toBeInTheDocument()
     expect(within(metricCard('Primera respuesta')).getByText('Dentro del objetivo de 30 min')).toBeInTheDocument()
     expect(within(metricCard('Resolución')).getByText('6,5 h')).toBeInTheDocument()
@@ -94,7 +94,7 @@ describe('ReportsPage', () => {
     expect(card.textContent).not.toContain('%')
   })
 
-  it('sin creados no hay «% de las creadas» y los valores nulos muestran «Sin datos»', async () => {
+  it('sin creados no hay «resueltos por cada 100 creados» y los valores nulos muestran «Sin datos»', async () => {
     mockApi({
       ...baseRoutes,
       'GET /api/reports/summary': byPeriod({
@@ -109,7 +109,7 @@ describe('ReportsPage', () => {
     expect(within(card).getByText('Sin datos')).toBeInTheDocument()
     expect(within(card).getByText('Objetivo: 30 min')).toBeInTheDocument()
     expect(within(metricCard('Resolución')).getByText('Sin datos')).toBeInTheDocument()
-    expect(metricCard('Resueltos').textContent).not.toContain('de las creadas')
+    expect(metricCard('Resueltos').textContent).not.toContain('por cada 100 creados')
   })
 
   it('dibuja el gráfico con su tabla alternativa y un ProgressBar por canal con su etiqueta en español', async () => {
