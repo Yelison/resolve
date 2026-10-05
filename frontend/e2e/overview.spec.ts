@@ -20,10 +20,30 @@ test.describe('resumen', () => {
   test('la tabla alternativa del gráfico se alcanza con el teclado', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/')
-    const toggle = page.getByRole('button', { name: /Ver como tabla/ })
-    await toggle.focus()
+    // El nombre cambia entre «Ver como tabla» y «Ocultar tabla»: el localizador no depende de él.
+    const toggle = page.getByRole('button', { name: /tabla$/ })
+    await expect(toggle).toBeVisible()
+    // Solo con Tab: enfocar el botón por programa no demostraría que está en el orden de tabulación.
+    let presses = 0
+    while (!(await toggle.evaluate((element) => element === document.activeElement))) {
+      expect(++presses, 'el botón no recibe el foco con Tab').toBeLessThanOrEqual(40)
+      await page.keyboard.press('Tab')
+    }
+    // La tabla siempre está en el DOM (los lectores de pantalla la leen); «Ver como tabla» la muestra a todos.
+    const table = page.getByRole('table', { name: 'Solicitudes por día' })
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    // El contenedor que lo oculta es el que enlaza `aria-controls`: cerrado mide 1 px, abierto toda la tabla.
+    const wrap = page.locator(`[id="${await toggle.getAttribute('aria-controls')}"]`)
+    expect((await wrap.boundingBox())!.height).toBeLessThanOrEqual(1)
     await page.keyboard.press('Enter')
-    await expect(page.getByRole('table', { name: 'Solicitudes por día' })).toBeVisible()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await expect(toggle).toHaveText('Ocultar tabla')
+    await expect(toggle).toBeFocused()
+    expect((await wrap.boundingBox())!.height).toBeGreaterThan(100)
+    await expect(table.getByRole('row')).toHaveCount(8) // encabezado + 7 días
+    await page.keyboard.press('Space')
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect((await wrap.boundingBox())!.height).toBeLessThanOrEqual(1)
   })
 
   test('en móvil la tabla usa tarjetas', async ({ page }) => {
