@@ -343,7 +343,7 @@ The `description` belongs to the ticket and is shown above the conversation; it 
 
 ## Demo data
 
-Demo organizations, users, customers and tickets live in a Flyway location (`db/demo`) that only the `dev` profile loads, with its own version range, so they never reach other environments. The demo knowledge base of Acme Studio (three categories, four articles) mixes statuses and visibilities on purpose: the demo customer María Pérez can read two of them, and the category «Primeros pasos» only holds a draft, so it does not appear for her.
+Demo organizations, users, customers and tickets live in a Flyway location (`db/demo`) that only the `dev` profile loads, with its own version range, so they never reach other environments. The demo knowledge base of Acme Studio (three categories, four articles, taken from the design) has one draft, «Configurar notificaciones»: the demo customer María Pérez can read the other three, and the team reads all four.
 
 ## Contract modelling notes
 
