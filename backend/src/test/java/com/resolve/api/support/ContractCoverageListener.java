@@ -1,11 +1,13 @@
 package com.resolve.api.support;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,14 +28,15 @@ import org.springframework.core.type.filter.AssignableTypeFilter;
 
 /**
  * Hace fallar la ejecución si alguna operación de docs/api/openapi.yaml no pasó por
- * {@link OpenApiContract#matchesContract(String)}. Solo actúa cuando la sesión ejecutó todas las clases concretas
- * que heredan de {@link ApiIntegrationTest}: una ejecución parcial ({@code -Dtest=...}) no comprueba la cobertura y lo
- * indica en la consola.
+ * {@link OpenApiContract#matchesContract(String)}. La cobertura solo se comprueba cuando la sesión ejecutó todas las
+ * clases concretas que heredan de {@link ApiIntegrationTest}: una ejecución parcial ({@code -Dtest=...}) no la
+ * comprueba y lo indica en la consola, pero sí falla por las clases no ejecutables del párrafo siguiente.
  *
  * <p>
  * Una clase de API que la suite no puede ejecutar dejaría la comprobación inactiva para siempre, así que la sesión
- * también falla cuando alguna no declara métodos de test de Jupiter o su nombre no encaja con los includes por
- * defecto de Surefire ({@code Test*}, {@code *Test}, {@code *Tests}, {@code *TestCase}, sin clases anidadas). Si se
+ * también falla cuando alguna no declara métodos de test que Jupiter ejecute (no {@code private}, {@code static} ni
+ * {@code abstract}; {@code void} salvo {@code @TestFactory}) o su nombre no encaja con los includes por defecto de
+ * Surefire ({@code Test*}, {@code *Test}, {@code *Tests}, {@code *TestCase}, sin clases anidadas). Si se
  * configuran otros includes en el {@code pom.xml}, hay que reflejarlos aquí.
  *
  * <p>
@@ -130,26 +133,42 @@ public class ContractCoverageListener implements LauncherSessionListener {
 		}
 		Class<?> testClass = ReflectionSupport.tryToLoadClass(className)
 			.getOrThrow((cause) -> new IllegalStateException("No se pudo cargar " + className, cause));
-		if (!hasTests(testClass)) {
-			reasons.add("no declara métodos de test de Jupiter");
+		if (testMethods(testClass, ContractCoverageListener::isRunnableTestMethod).isEmpty()) {
+			List<String> ignored = testMethods(testClass, ContractCoverageListener::isAnnotatedTestMethod).stream()
+				.map((method) -> method.getName() + "()")
+				.toList();
+			reasons.add(ignored.isEmpty() ? "no declara métodos de test de Jupiter" : "Jupiter no ejecuta sus métodos de test "
+					+ ignored + ": no pueden ser private, static ni abstract, y deben ser void salvo @TestFactory");
 		}
 		return reasons.isEmpty() ? "" : name + " (" + String.join("; ", reasons) + ")";
 	}
 
-	private static boolean hasTests(Class<?> testClass) {
-		boolean hasTestMethods = !ReflectionSupport
-			.findMethods(testClass, ContractCoverageListener::isTestMethod, HierarchyTraversalMode.TOP_DOWN)
-			.isEmpty();
-		return hasTestMethods || ReflectionSupport
-			.findNestedClasses(testClass, (nested) -> AnnotationSupport.isAnnotated(nested, Nested.class))
-			.stream()
-			.anyMatch(ContractCoverageListener::hasTests);
+	/** Métodos de la clase, de sus superclases y de sus clases {@code @Nested} que cumplen el predicado. */
+	private static List<Method> testMethods(Class<?> testClass, Predicate<Method> predicate) {
+		List<Method> methods = new ArrayList<>(
+				ReflectionSupport.findMethods(testClass, predicate, HierarchyTraversalMode.TOP_DOWN));
+		for (Class<?> nested : ReflectionSupport.findNestedClasses(testClass,
+				(candidate) -> AnnotationSupport.isAnnotated(candidate, Nested.class))) {
+			methods.addAll(testMethods(nested, predicate));
+		}
+		return methods;
 	}
 
-	private static boolean isTestMethod(Method method) {
+	private static boolean isAnnotatedTestMethod(Method method) {
 		return AnnotationSupport.isAnnotated(method, Test.class)
 				|| AnnotationSupport.isAnnotated(method, TestTemplate.class)
 				|| AnnotationSupport.isAnnotated(method, TestFactory.class);
+	}
+
+	/** Replica los predicados con los que Jupiter descarta métodos anotados que no puede ejecutar. */
+	private static boolean isRunnableTestMethod(Method method) {
+		int modifiers = method.getModifiers();
+		if (!isAnnotatedTestMethod(method) || Modifier.isPrivate(modifiers) || Modifier.isStatic(modifiers)
+				|| Modifier.isAbstract(modifiers)) {
+			return false;
+		}
+		boolean returnsVoid = method.getReturnType() == void.class;
+		return AnnotationSupport.isAnnotated(method, TestFactory.class) ? !returnsVoid : returnsVoid;
 	}
 
 	private static String simpleName(String className) {
