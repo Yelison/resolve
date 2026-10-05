@@ -3,7 +3,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../test/api'
 import { renderWithProviders } from '../test/render'
-import { page, summary, ticket } from '../test/ticketFixtures'
+import { metrics, page, summary, ticket } from '../test/ticketFixtures'
 import { mainNavigation } from './navigation'
 import { appRoutes } from './router'
 
@@ -28,9 +28,17 @@ describe('rutas de la aplicación', () => {
   })
 
   it('no redirige al personal desde /', async () => {
-    mockApi({ 'GET /api/me': { body: adminMe } })
+    mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/tickets/metrics': { body: metrics },
+      'GET /api/reports/summary': { body: { byDay: [] } },
+      'GET /api/tickets/activity': { body: [] },
+      'GET /api/tickets': { body: page([]) },
+    })
     const router = renderApp('/')
-    expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Resumen' })).toBeInTheDocument()
+    expect(await screen.findByText('Nada pendiente')).toBeInTheDocument()
+    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 
