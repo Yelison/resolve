@@ -115,10 +115,10 @@ const activity: Activity[] = [
   { id: 'a-1', type: 'created', actor: { id: me.user.id, name: me.user.name }, createdAt: minutesAgo(18) },
 ]
 
-/** Tickets simulados; `customerRef` da el cliente actual para que la bandeja refleje un renombrado. */
-export function ticketsMock(customerRef: (id: string) => Customer): MockFeature {
+/** Tickets simulados; `customerOf` da el cliente actual para que la bandeja refleje un renombrado. */
+export function ticketsMock(customerOf: (id: string) => Customer): MockFeature {
   // Los tickets embeben el cliente tal como está ahora, así la bandeja refleja un renombrado.
-  const currentTickets = () => tickets.map((ticket) => ({ ...ticket, customer: customerRef(ticket.customer.id) }))
+  const currentTickets = () => tickets.map((ticket) => ({ ...ticket, customer: customerOf(ticket.customer.id) }))
   const handle: MockHandler = ({ route, url, path, method }) => {
     const ticketMatch = path.match(/^\/tickets\/(\d+)(\/messages|\/activity)?$/)
 

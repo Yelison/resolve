@@ -1,6 +1,5 @@
 import type { Customer, CustomerDetail, CustomerMetrics, CustomerSummary } from '../../src/api/schema'
-import { json, minutesAgo, problem, type MockFeature, type MockHandler } from './shared'
-import { teamMember } from './team'
+import { json, minutesAgo, problem, teamMember, type MockFeature, type MockHandler } from './shared'
 
 export const customerSummary = (
   customer: Omit<CustomerSummary, 'createdAt' | 'archived'> & Partial<CustomerSummary>,
