@@ -49,6 +49,16 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 - **Honest UI.** No fake success states: actions without a backend say they are not connected yet, and demo data is labelled as such.
 - **Tested.** 441 unit and component tests with coverage thresholds; 283 backend tests, most of them integration tests on PostgreSQL (Testcontainers), covering organization isolation, permissions, internal notes, filters, pagination, validation, update conflicts, metrics, transactional rollback and concurrency with real threads (ticket numbering, racing edits and replies), with a check that fails the build when an operation of the contract has no validated response; and 225 Playwright tests (mocked API) for the ticket, customer and team flows, table layouts at 390, 1024, 1200 and 1440 px, drawer focus, the persisted sidebar and horizontal overflow at 320–1440 px (including the 767/768 and 1199/1200 edges) in both themes, plus 3 full-stack smoke scenarios against the real API.
 
+## Forma UI
+
+Forma UI is the in-house component library in `frontend/src/components/ui` (one folder per component, with CSS Modules, design tokens, tests and JSDoc on every prop). The living catalog at `/catalogo` shows each one with demo data, and a test fails if an exported component is missing from it. The criteria for extracting it into its own package are in [ADR 0001](docs/decisions/0001-forma-ui-extraction.md).
+
+- **Actions and feedback:** Alert, Button (and IconButton), Toast, Tooltip, Modal, Menu
+- **Forms:** Input, Textarea, Select, Combobox, SearchField, Checkbox, Radio, Switch, Upload, Editor (ticket and article), Field (shared label, hint and error)
+- **Navigation:** Breadcrumb, NavItem, Pagination, Tabs, Sidebar, Topbar
+- **Data and content:** Avatar, Badge, Attachment, BarChart, EmptyState, FilterChip, Message, Metric, ProgressBar, Skeleton, Table, TicketRow (TicketTable), Timeline
+- **Icons:** Icon, a single family of 20–24 px icons
+
 ## Project structure
 
 ```
