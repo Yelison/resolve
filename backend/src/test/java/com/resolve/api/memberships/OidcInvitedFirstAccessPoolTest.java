@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Issue #37 con el resolvedor OIDC: la activación del primer acceso tampoco retiene dos conexiones del pool. */
 @TestPropertySource(properties = { "spring.datasource.hikari.maximum-pool-size=1",
-		"spring.datasource.hikari.connection-timeout=250" })
+		"spring.datasource.hikari.connection-timeout=2000" })
 class OidcInvitedFirstAccessPoolTest extends OidcApiIntegrationTest {
 
 	private static final int INVITED = 6;
@@ -39,7 +39,7 @@ class OidcInvitedFirstAccessPoolTest extends OidcApiIntegrationTest {
 			String email = "invitada" + i + "@acme.example";
 			invited.put(email, this.data.staff(acme, "agent", "Invitada " + i, email, "invited"));
 		}
-		// Calienta Hibernate y el pool: con 250 ms de espera, la primera petición fría no debe agotarla por sí sola.
+		// Calienta Hibernate y el pool: con 2 s de espera, la primera petición fría no debe agotarla por sí sola.
 		this.mvc.perform(get("/me").session(signedIn("admin@acme.example"))).andExpect(status().isOk());
 
 		CountDownLatch start = new CountDownLatch(1);

@@ -24,12 +24,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Issue #37: activar a un invitado en su primer acceso no puede ocupar dos conexiones del pool a la vez. Con un pool
- * de una conexión y un tiempo de espera mínimo, resolver el principal dentro de una transacción de solo lectura que
- * además abre {@code REQUIRES_NEW} falla siempre (la segunda conexión nunca llega); lanzar varios primeros accesos
- * a la vez reproduce el mismo bloqueo con pools más grandes.
+ * de una conexión, resolver el principal dentro de una transacción de solo lectura que además abre
+ * {@code REQUIRES_NEW} falla siempre: la segunda conexión nunca llega y la petición espera hasta agotar los 2 s. Esa
+ * espera es holgada a propósito: una implementación correcta usa la conexión unos milisegundos, así que una CI lenta
+ * no da un falso rojo, y una rota sigue bloqueándose hasta agotarla. Lanzar varios primeros accesos a la vez reproduce
+ * el mismo bloqueo con pools más grandes.
  */
 @TestPropertySource(properties = { "spring.datasource.hikari.maximum-pool-size=1",
-		"spring.datasource.hikari.connection-timeout=250" })
+		"spring.datasource.hikari.connection-timeout=2000" })
 class InvitedFirstAccessPoolTest extends ApiIntegrationTest {
 
 	private static final int INVITED = 6;
@@ -45,7 +47,7 @@ class InvitedFirstAccessPoolTest extends ApiIntegrationTest {
 			invited.put(email, this.data.staff(acme, "agent", "Invitada " + i, email, "invited"));
 		}
 
-		// Calienta Hibernate y el pool: con 250 ms de espera, la primera petición fría no debe agotarla por sí sola.
+		// Calienta Hibernate y el pool: con 2 s de espera, la primera petición fría no debe agotarla por sí sola.
 		this.mvc.perform(get("/me").with(as("admin@acme.example"))).andExpect(status().isOk());
 
 		CountDownLatch start = new CountDownLatch(1);
