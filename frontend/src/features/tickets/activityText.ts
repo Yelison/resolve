@@ -18,13 +18,13 @@ export function activityTitle(activity: Activity): string {
   }
 }
 
-export function toTimelineEvent(activity: Activity, now?: Date): TimelineEvent {
+export function toTimelineEvent(activity: Activity, now?: Date, timeZone?: string): TimelineEvent {
   const at = new Date(activity.createdAt)
   return {
     id: activity.id,
     kind: activity.type === 'assignee_changed' ? 'assignment' : activity.type === 'created' ? 'comment' : 'status',
     title: activityTitle(activity),
     at,
-    timeLabel: formatDateTime(at, now),
+    timeLabel: formatDateTime(at, now, timeZone),
   }
 }
