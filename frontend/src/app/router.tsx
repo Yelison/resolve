@@ -47,7 +47,8 @@ const ticketRoutes: RouteObject[] = [
   },
 ]
 
-export const router = createBrowserRouter([
+/** Rutas de la aplicación; se exportan para probar el cableado real (guardias y redirecciones) sin navegador. */
+export const appRoutes: RouteObject[] = [
   {
     path: '/',
     element: <AppShell />,
@@ -61,4 +62,6 @@ export const router = createBrowserRouter([
     path: '/catalogo',
     lazy: async () => ({ Component: (await import('./catalog/CatalogPage')).default }),
   },
-])
+]
+
+export const router = createBrowserRouter(appRoutes)
