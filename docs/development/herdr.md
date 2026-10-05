@@ -73,7 +73,8 @@ preview (4181-4189) ports of the slots, with 5173 and 4173, as return URLs after
 ## Machine load limit
 
 `new-task.sh` and `start-agent.sh` (and so `new-review.sh`) refuse to start while the 1-minute load average
-(`/proc/loadavg`) is above `HERDR_MAX_LOAD`, by default `1.5 × nproc` (18 on the 12-core development machine), with a
+(`/proc/loadavg`) is above `HERDR_MAX_LOAD`, by default `1.5 × nproc --all` (18 on the 12-core development machine;
+`nproc --all`, because plain `nproc` obeys `OMP_NUM_THREADS`), with a
 message that says the load and the limit. The machine is shared by three or four agents; a new session or a new
 worktree on a saturated one only makes everybody's tests flaky. Wait for the other agents' runs to finish, or pass
 `--ignore-load` once you have decided that this one cannot wait. `HERDR_MAX_LOAD` must be a number (it can be
@@ -410,10 +411,13 @@ scripts/herdr/remove-task.sh --id t0-1-tickets-follow-ups --force-leftovers   # 
 
 Before anything else the script lists **leftovers**: processes listening on the slot's five ports (PID, command
 line and working directory; a listener whose PID `ss` cannot show, such as `docker-proxy`, is listed as such, never
-taken for a free port) and containers, in any state, of the task's Compose project. If there are any it stops and
+taken for a free port) and containers, in any state, of the task's Compose project (if `docker ps` itself fails, for
+instance because the daemon is stopped, that is reported as a leftover too: it cannot be said that there are none).
+If there are any it stops and
 removes nothing, and never kills a process itself: stop them yourself, or rerun with `--force-leftovers` to retire the
 task anyway (the processes stay; only the Compose project is stopped, as below). Then it stops the task's Compose
-project, runs `herdr worktree remove` (which also closes the workspace) and marks the task as removed. It refuses while the checkout has uncommitted changes or a live agent, warns about
+project (with `--volumes`, `docker compose -p <project> down --volumes` always runs, even when no container is left
+and Compose lists no project, so the database volume is not orphaned), runs `herdr worktree remove` (which also closes the workspace) and marks the task as removed. It refuses while the checkout has uncommitted changes or a live agent, warns about
 commits that are not pushed, and only deletes the branch when `git branch -d` agrees that it is merged. Logs stay in
 `logs/<id>/`.
 

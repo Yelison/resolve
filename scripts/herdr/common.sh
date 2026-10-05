@@ -97,9 +97,10 @@ utc_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 # to 1.5 x the number of cores: the machine is shared by several agents and a new session on a saturated one only
 # makes every test flaky.
 check_load() {
-  local ignore=${1:-0} max load cores
+  local ignore=${1:-0} max load cores limit_note
   [ "$ignore" = 1 ] && return 0
-  cores=$(nproc 2>/dev/null || echo 1)
+  # nproc --all: plain nproc follows OMP_NUM_THREADS and would shrink the limit for no reason.
+  cores=$(nproc --all 2>/dev/null || echo 1)
   max=${HERDR_MAX_LOAD:-$(awk -v c="$cores" 'BEGIN { printf "%.2f", 1.5 * c }')}
   [[ $max =~ ^[0-9]+([.][0-9]+)?$ ]] || die "HERDR_MAX_LOAD must be a number, got '$max'"
   if ! read -r load _ </proc/loadavg 2>/dev/null; then
@@ -107,7 +108,12 @@ check_load() {
     return 0
   fi
   if awk -v l="$load" -v m="$max" 'BEGIN { exit !(l > m) }'; then
-    die "the 1-minute load average is $load, above the limit $max (HERDR_MAX_LOAD, default 1.5 x $cores cores): wait for the other agents' tests to finish, or pass --ignore-load to start anyway"
+    if [ -n "${HERDR_MAX_LOAD:-}" ]; then
+      limit_note="HERDR_MAX_LOAD"
+    else
+      limit_note="default 1.5 x $cores cores"
+    fi
+    die "the 1-minute load average is $load, above the limit $max ($limit_note): wait for the other agents' tests to finish, or pass --ignore-load to start anyway"
   fi
 }
 
