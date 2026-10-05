@@ -164,4 +164,72 @@ class TicketCreationApiTest extends TicketsFixture {
 			.andExpect(matchesContract("createTicket"));
 	}
 
+	@Test
+	void nonTextScalarsInTextFieldsAreRejectedPerField() throws Exception {
+		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"customerId": 1, "subject": 123, "description": true, "priority": 5, "channel": [], "assigneeId": 7}
+				"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("createTicket"))
+			.andExpect(jsonPath("$.errors[*].field",
+					containsInAnyOrder("customerId", "subject", "description", "priority", "channel", "assigneeId")))
+			.andExpect(jsonPath("$.errors[?(@.field == 'subject')].message", contains("Debe ser un texto.")))
+			.andExpect(jsonPath("$.errors[?(@.field == 'description')].message", contains("Debe ser un texto.")));
+	}
+
+	@Test
+	void aNumericSubjectIsNotStoredAsText() throws Exception {
+		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"customerId": "%s", "subject": 123, "description": "B"}
+				""".formatted(this.mariaCustomer)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("subject"))
+			.andExpect(jsonPath("$.errors[0].message").value("Debe ser un texto."));
+		this.mvc.perform(get("/tickets/1").with(as(LAURA))).andExpect(status().isNotFound());
+	}
+
+	@Test
+	void controlCharactersAreRejectedInTheSubjectButLayoutIsKeptInTheDescription() throws Exception {
+		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"customerId": "%s", "subject": "a\\u0000b", "description": "c\\u0000d"}
+				""".formatted(this.mariaCustomer)))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("createTicket"))
+			.andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("subject", "description")))
+			.andExpect(jsonPath("$.errors[0].message").value("No admite caracteres de control."));
+		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"customerId": "%s", "subject": "Asunto", "description": "Línea 1\\n\\tLínea 2"}
+				""".formatted(this.mariaCustomer)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.description").value("Línea 1\n\tLínea 2"));
+	}
+
+	@Test
+	void nullIsOnlyAcceptedWhereTheContractAllowsIt() throws Exception {
+		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"customerId": "%s", "subject": null, "description": "B", "priority": null, "assigneeId": null}
+				""".formatted(this.mariaCustomer)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("subject", "priority")))
+			.andExpect(jsonPath("$.errors[?(@.field == 'subject')].message", contains("No admite null.")));
+	}
+
+	@Test
+	void aBodyThatIsNotAnObjectIsRejected() throws Exception {
+		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("[]"))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("createTicket"))
+			.andExpect(jsonPath("$.errors[0].field").value("body"));
+	}
+
+	@Test
+	void unknownFieldsAreReportedByName() throws Exception {
+		this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+				{"customerId": "%s", "subject": "A", "description": "B", "organizationId": "%s"}
+				""".formatted(this.mariaCustomer, this.northwind)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("organizationId"))
+			.andExpect(jsonPath("$.errors[0].message").value("Campo no permitido."));
+	}
+
 }

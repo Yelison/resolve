@@ -344,6 +344,15 @@ The list returns `ArticleSummary` (no body). `Article` adds `body`, `allowFeedba
 
 `PATCH` uses JSON Merge Patch semantics (`application/merge-patch+json`): a field that is **absent** is left unchanged, and `"assigneeId": null` **unassigns** the ticket. `status` and `priority` cannot be `null`.
 
+### Ticket and message bodies
+
+`POST /api/tickets` and `POST /api/tickets/{number}/messages` check the type of every field on the parsed JSON, like the customers and knowledge APIs, instead of letting the deserializer convert it: `{"subject": 123}` is a `400` on `subject` ("Debe ser un texto."), never a ticket titled `"123"`. Rules:
+
+- The body must be a JSON object, and unknown fields (an `organizationId`, an `authorId`) are a `400` that names the field ("Campo no permitido.").
+- Text fields must be JSON strings. `null` is only accepted for `assigneeId` (as the schema says); in `subject`, `description`, `body`, `priority`, `channel` and `visibility` it is a `400` ("No admite null."). Omit `priority` and `channel` to get `medium` and `web`.
+- A `subject` admits no control character; `description` and message `body` admit line breaks and tabs but no other control character, which includes the NUL that PostgreSQL cannot store. All of them are a `400` on the field ("No admite caracteres de control.").
+- Every invalid field is reported in one response.
+
 ### Ticket description
 
 The `description` belongs to the ticket and is shown above the conversation; it is not returned as a message.

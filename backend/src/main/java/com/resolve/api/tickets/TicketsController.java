@@ -103,7 +103,7 @@ class TicketsController {
 
 	@PostMapping
 	ResponseEntity<TicketDto> create(@AuthenticationPrincipal CurrentMember member,
-			@RequestBody TicketRequests.CreateTicket request) {
+			@RequestBody(required = false) @Nullable JsonNode request) {
 		TicketDto ticket = this.service.create(member, TicketRequestParser.newTicket(request));
 		URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
 			.path("/tickets/{number}")
@@ -136,7 +136,7 @@ class TicketsController {
 	@PostMapping("/{number}/messages")
 	@ResponseStatus(HttpStatus.CREATED)
 	MessageDto addMessage(@AuthenticationPrincipal CurrentMember member, @PathVariable String number,
-			@RequestBody TicketRequests.CreateMessage request) {
+			@RequestBody(required = false) @Nullable JsonNode request) {
 		long ticketNumber = TicketRequestParser.ticketNumber(number);
 		return this.service.addMessage(member, ticketNumber, TicketRequestParser.newMessage(request));
 	}

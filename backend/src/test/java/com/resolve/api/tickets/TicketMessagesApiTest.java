@@ -141,4 +141,39 @@ class TicketMessagesApiTest extends TicketsFixture {
 		reply(MARIA, "Gracias", "public").andExpect(status().isForbidden()).andExpect(matchesContract("createMessage"));
 	}
 
+	@Test
+	void nonTextScalarsAreRejectedPerField() throws Exception {
+		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"body\": 123, \"visibility\": true}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("createMessage"))
+			.andExpect(jsonPath("$.errors[*].field", contains("body", "visibility")))
+			.andExpect(jsonPath("$.errors[0].message").value("Debe ser un texto."));
+	}
+
+	@Test
+	void controlCharactersAreRejectedButLineBreaksAreKept() throws Exception {
+		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"body\": \"a\\u0000b\", \"visibility\": \"public\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("body"))
+			.andExpect(jsonPath("$.errors[0].message").value("No admite caracteres de control."));
+		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"body\": \"uno\\ndos\", \"visibility\": \"internal\"}"))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.body").value("uno\ndos"));
+	}
+
+	@Test
+	void unknownFieldsAndNonObjectBodiesAreRejected() throws Exception {
+		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"body\": \"x\", \"visibility\": \"public\", \"authorId\": \"1\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("authorId"));
+		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+			.content("\"texto\""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.errors[0].field").value("body"));
+	}
+
 }
