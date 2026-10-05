@@ -18,6 +18,15 @@ for (const width of widths) {
         .locator('svg')
         .evaluateAll((svgs) => svgs.map((svg) => svg.getBoundingClientRect().width))
       expect(Math.min(...widthsOfBars), 'cada barra debe ser visible').toBeGreaterThanOrEqual(1)
+      const valueBoxes = await figure
+        .locator('[class*="value"]')
+        .evaluateAll((els) =>
+          els.map((el) => el.getBoundingClientRect()).map((r) => ({ left: r.left, right: r.right })),
+        )
+      valueBoxes.sort((a, b) => a.left - b.left)
+      valueBoxes.slice(1).forEach((box, index) => {
+        expect(box.left, 'las cifras vecinas no deben cruzarse').toBeGreaterThanOrEqual(valueBoxes[index]!.right - 0.5)
+      })
       const labels = await figure
         .locator('[class*="axis"]')
         .evaluateAll((els) => els.map((el) => el.scrollWidth - el.clientWidth))
