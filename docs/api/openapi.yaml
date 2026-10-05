@@ -46,6 +46,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Session]
+      operationId: updateMe
+      summary: Edit the caller's own display name
+      description: |
+        Every role can call it; the only editable field is `name`. It changes the person (`users.name`), not
+        the customer record that staff manage, and shows up live wherever the person is shown as a `MemberRef`
+        or message author; the activity history keeps the name it had when it was recorded. A person who belongs
+        to several organizations has the same name in all of them. There is no `If-Match`: the resource has a
+        single owner, so there is no concurrent editor to protect.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfilePatch' }
+      responses:
+        '200':
+          description: The caller with the new name.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /organization:
     get:
@@ -1102,6 +1125,13 @@ components:
         supportEmail: { type: [string, 'null'], format: email, maxLength: 254 }
         timeZone: { type: string, examples: [America/Bogota] }
         firstResponseTargetMinutes: { type: integer, minimum: 1, maximum: 1440 }
+
+    ProfilePatch:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
 
     Me:
       type: object

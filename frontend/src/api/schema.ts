@@ -18,7 +18,15 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Edit the caller's own display name
+         * @description Every role can call it; the only editable field is `name`. It changes the person (`users.name`), not
+         *     the customer record that staff manage, and shows up live wherever the person is shown as a `MemberRef`
+         *     or message author; the activity history keeps the name it had when it was recorded. A person who belongs
+         *     to several organizations has the same name in all of them. There is no `If-Match`: the resource has a
+         *     single owner, so there is no concurrent editor to protect.
+         */
+        patch: operations["updateMe"];
         trace?: never;
     };
     "/organization": {
@@ -693,6 +701,9 @@ export interface components {
             /** @example America/Bogota */
             timeZone?: string;
             firstResponseTargetMinutes?: number;
+        };
+        ProfilePatch: {
+            name: string;
         };
         Me: {
             user: components["schemas"]["Member"];
@@ -1466,6 +1477,7 @@ export type MessageVisibility = components['schemas']['MessageVisibility'];
 export type Organization = components['schemas']['Organization'];
 export type OrganizationSettings = components['schemas']['OrganizationSettings'];
 export type OrganizationPatch = components['schemas']['OrganizationPatch'];
+export type ProfilePatch = components['schemas']['ProfilePatch'];
 export type Me = components['schemas']['Me'];
 export type Member = components['schemas']['Member'];
 export type MemberRef = components['schemas']['MemberRef'];
@@ -1552,6 +1564,32 @@ export interface operations {
                     "application/json": components["schemas"]["Me"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfilePatch"];
+            };
+        };
+        responses: {
+            /** @description The caller with the new name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
         };
     };

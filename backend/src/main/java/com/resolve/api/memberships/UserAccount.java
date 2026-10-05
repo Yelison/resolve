@@ -24,6 +24,11 @@ public class UserAccount {
 	protected UserAccount() {
 	}
 
+	/** Cambia el nombre que se muestra; el correo identifica a la persona y no se edita. */
+	void rename(String name) {
+		this.name = name;
+	}
+
 	public UUID getId() {
 		return this.id;
 	}
