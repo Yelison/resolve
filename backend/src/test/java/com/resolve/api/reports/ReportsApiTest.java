@@ -1,13 +1,16 @@
 package com.resolve.api.reports;
 
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.transaction.annotation.Isolation;
-import org.springframework.transaction.annotation.Transactional;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.JsonNode;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
@@ -18,6 +21,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Acme está en America/Bogota (UTC−5, sin horario de verano): el día local empieza a las 05:00 UTC. */
 class ReportsApiTest extends ReportsFixture {
+
+	@MockitoSpyBean
+	private JdbcClient jdbc;
 
 	// --- Días en la zona de la organización (foco de revisión 4) ---
 
@@ -173,9 +179,54 @@ class ReportsApiTest extends ReportsFixture {
 		JsonNode summary = summary(santiago.email(), "7d");
 
 		assertThat(summary.at("/period/from").asString()).isEqualTo("2026-09-06T04:00:00Z"); // 01:00−03:00
-		assertThat(dates(summary).get(0)).isEqualTo("2026-09-06");
+		assertThat(dates(summary)).containsExactly("2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09",
+				"2026-09-10", "2026-09-11", "2026-09-12");
 		assertThat(day(summary, "2026-09-06").path("created").asInt()).isEqualTo(2);
 		assertThat(summary.at("/created/value").asInt()).isEqualTo(2);
+		assertThat(summary.at("/created/previous").asInt()).isEqualTo(1);
+	}
+
+	/** Nueva York retrocede una hora el 1 de noviembre de 2026 a las 02:00 (−04:00 → −05:00): día de 25 horas. */
+	@Test
+	void summaryCountsDaysAcrossTheNovemberDaylightSavingChangeInNewYork() throws Exception {
+		Seeded newYork = organizationIn("Nuevayork", "America/New_York");
+		this.clock.set(at("2026-11-02T12:00:00-05:00"));
+
+		newYork.ticket(this, "web", "2026-10-31T23:30:00-04:00"); // día 31
+		newYork.ticket(this, "web", "2026-11-01T00:30:00-04:00"); // primera hora del día 1
+		newYork.ticket(this, "web", "2026-11-01T01:30:00-04:00"); // 01:30 ocurre dos veces…
+		newYork.ticket(this, "web", "2026-11-01T01:30:00-05:00"); // …y las dos son del día 1
+		newYork.ticket(this, "web", "2026-11-01T23:30:00-05:00"); // última hora del día 1
+		newYork.ticket(this, "web", "2026-11-02T00:10:00-05:00"); // día 2
+
+		JsonNode summary = summary(newYork.email(), "7d");
+
+		assertThat(summary.at("/period/from").asString()).isEqualTo("2026-10-27T04:00:00Z"); // 00:00−04:00 del 27
+		assertThat(dates(summary)).containsExactly("2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30",
+				"2026-10-31", "2026-11-01", "2026-11-02");
+		assertThat(day(summary, "2026-10-31").path("created").asInt()).isEqualTo(1);
+		assertThat(day(summary, "2026-11-01").path("created").asInt()).isEqualTo(4);
+		assertThat(day(summary, "2026-11-02").path("created").asInt()).isEqualTo(1);
+		assertThat(summary.at("/created/value").asInt()).isEqualTo(6);
+	}
+
+	/** Noventa días de Madrid cruzan el cambio de octubre sin huecos ni fechas repetidas. */
+	@Test
+	void aNinetyDaySeriesAcrossMadridsChangesHasNoGapsOrDuplicates() throws Exception {
+		Seeded madrid = organizationIn("Madrid", "Europe/Madrid");
+		this.clock.set(at("2026-11-15T12:00:00+01:00"));
+		madrid.ticket(this, "email", "2026-08-18T00:00:00+02:00"); // primer instante del periodo
+		madrid.ticket(this, "email", "2026-08-17T23:59:59+02:00"); // un segundo antes: periodo anterior
+
+		JsonNode summary = summary(madrid.email(), "90d");
+
+		List<String> dates = dates(summary);
+		assertThat(dates).hasSize(90).doesNotHaveDuplicates();
+		assertThat(dates.get(0)).isEqualTo("2026-08-18");
+		assertThat(dates.get(89)).isEqualTo("2026-11-15");
+		assertThat(dates).isSorted();
+		assertThat(day(summary, "2026-08-18").path("created").asInt()).isEqualTo(1);
+		assertThat(summary.at("/created/value").asInt()).isEqualTo(1);
 		assertThat(summary.at("/created/previous").asInt()).isEqualTo(1);
 	}
 
@@ -256,16 +307,21 @@ class ReportsApiTest extends ReportsFixture {
 		assertThat(summary.at("/created/value").asInt()).isEqualTo(1);
 	}
 
-	/** Las cinco consultas deben ver el mismo estado: una transacción de solo lectura con instantánea. */
+	/** Las cinco consultas del informe se ejecutan en una transacción de solo lectura con aislamiento REPEATABLE READ. */
 	@Test
 	void allTheFiguresComeFromOneSnapshot() throws Exception {
-		Method compute = ReportSummaryQuery.class.getDeclaredMethod("compute", UUID.class, ReportPeriod.class);
+		List<String> observed = new CopyOnWriteArrayList<>();
+		Mockito.doAnswer((invocation) -> {
+			observed.add(TransactionSynchronizationManager.isActualTransactionActive() + "/"
+					+ TransactionSynchronizationManager.isCurrentTransactionReadOnly() + "/"
+					+ TransactionSynchronizationManager.getCurrentTransactionIsolationLevel());
+			return invocation.callRealMethod();
+		}).when(this.jdbc).sql(ArgumentMatchers.anyString());
 
-		Transactional transaction = compute.getAnnotation(Transactional.class);
+		summary(LAURA, "7d");
 
-		assertThat(transaction).isNotNull();
-		assertThat(transaction.readOnly()).isTrue();
-		assertThat(transaction.isolation()).isEqualTo(Isolation.REPEATABLE_READ);
+		// Ticket, resueltos, días, canales y agentes: todas con transacción activa, de solo lectura y nivel 4.
+		assertThat(observed).containsExactly("true/true/4", "true/true/4", "true/true/4", "true/true/4", "true/true/4");
 	}
 
 	// --- Medianas ---
