@@ -30,6 +30,19 @@ describe('AgentsTable', () => {
     for (const row of rows.slice(1)) expect(within(row).getAllByRole('cell')).toHaveLength(5)
   })
 
+  it('agrupa los miles en todas las cifras de la fila', () => {
+    render(
+      <AgentsTable
+        caption=""
+        agents={[reportAgent({ resolved: 12000, firstResponseMinutes: 12000, openAssigned: 15000 })]}
+      />,
+    )
+    const row = screen.getAllByRole('row')[1]!
+    expect(within(row).getByText('12.000')).toBeInTheDocument()
+    expect(within(row).getByText('12.000 min')).toBeInTheDocument()
+    expect(within(row).getByText('15.000')).toBeInTheDocument()
+  })
+
   it('marca a quien ya no está en el equipo activo y no al resto', () => {
     render(
       <AgentsTable
