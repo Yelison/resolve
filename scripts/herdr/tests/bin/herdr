@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Stateful fake of the herdr CLI for testing scripts/herdr (never the real one).
+set -euo pipefail
+S=${FAKE_STATE:?}; mkdir -p "$S/ws" "$S/agents"
+cmd="$1 ${2:-}"; shift 2 || true
+opt() { local k=$1; shift; while [ $# -gt 0 ]; do [ "$1" = "$k" ] && { printf '%s' "$2"; return; }; shift; done; }
+case $cmd in
+  "worktree create")
+    repo=$(opt --cwd "$@"); br=$(opt --branch "$@"); base=$(opt --base "$@"); path=$(opt --path "$@")
+    n=$(( $(ls "$S/ws" | wc -l) + 1 + $(cat "$S/counter" 2>/dev/null || echo 0) )); echo "$n" >"$S/counter"
+    git -C "$repo" worktree add -q -b "$br" "$path" "$base" >&2
+    jq -n --arg p "$path" --arg r "$repo" --arg b "$br" --arg pane "p$n" '{path:$p,repo:$r,branch:$b,pane:$pane}' >"$S/ws/w$n"
+    jq -n --arg w "w$n" --arg t "t$n" --arg p "p$n" '{result:{workspace:{workspace_id:$w},tab:{tab_id:$t},root_pane:{pane_id:$p}}}' ;;
+  "worktree remove")
+    ws=$(opt --workspace "$@"); f="$S/ws/$ws"; [ -f "$f" ] || { echo "no workspace" >&2; exit 1; }
+    git -C "$(jq -r .repo "$f")" worktree remove "$(jq -r .path "$f")" >&2; rm -f "$f"; echo '{}' ;;
+  "workspace get") [ -f "$S/ws/$1" ] || exit 1; echo '{}' ;;
+  "pane get") for f in "$S"/ws/*; do [ -f "$f" ] && [ "$(jq -r .pane "$f")" = "$1" ] && { echo '{}'; exit 0; }; done; exit 1 ;;
+  "agent list") if ls "$S"/agents/* >/dev/null 2>&1; then jq -s '{result:{agents:.}}' "$S"/agents/*; else echo '{"result":{"agents":[]}}'; fi ;;
+  "agent get") f="$S/agents/$1"; [ -f "$f" ] || exit 1; jq '{result:{agent:.}}' "$f" ;;
+  "agent start") name=$1; shift; pane=$(opt --pane "$@")
+    jq -n --arg n "$name" --arg p "$pane" --arg st "${FAKE_AGENT_STATE:-idle}" '{name:$n,pane_id:$p,agent:"claude",agent_status:$st}' >"$S/agents/$name"
+    echo "start $name $*" >>"$S/calls.log"; echo '{}' ;;
+  "agent read") f="$S/agents/$1"; [ -f "$f" ] || exit 1
+    pane=$(jq -r .pane_id "$f")
+    for w in "$S"/ws/*; do [ "$(jq -r .pane "$w")" = "$pane" ] && wt=$(jq -r .path "$w"); done
+    lvl=$(jq -r '.modelSettings["claude-sonnet-5-5"].effortLevel // "medium"' "$wt/.claude/settings.local.json" 2>/dev/null || echo medium)
+    echo "Sonnet 5.5 with $lvl effort" ;;
+  "agent prompt") name=$1; printf '%s\t%s\n' "$name" "$2" >>"$S/prompts.log"; [ "$2" = "/exit" ] && rm -f "$S/agents/$name"; echo '{}' ;;
+  "agent wait") exit 0 ;;
+  "agent send-keys") exit 0 ;;
+  *) echo "fake herdr: unsupported $cmd $*" >&2; exit 2 ;;
+esac

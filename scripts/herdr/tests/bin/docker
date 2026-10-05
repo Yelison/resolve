@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Fake docker for the scripts/herdr tests; it never talks to a daemon. Containers come from $FAKE_STATE/containers (one
+# "id name (status)" line each), the projects `compose ls` shows from $FAKE_STATE/compose-projects, every call is
+# logged to $FAKE_STATE/docker.log, and FAKE_DOCKER_FAIL=1 makes `ps` fail like a stopped daemon.
+S=${FAKE_STATE:?}
+echo "docker $*" >>"$S/docker.log"
+case "$1 ${2:-}" in
+  "compose ls") if [ -f "$S/compose-projects" ]; then jq -R '{Name:.}' "$S/compose-projects" | jq -s .; else echo '[]'; fi ;;
+  "ps -a" | "ps ") [ "${FAKE_DOCKER_FAIL:-0}" = 1 ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
+    [ -f "$S/containers" ] && cat "$S/containers"; exit 0 ;;
+  *) exit 0 ;;
+esac

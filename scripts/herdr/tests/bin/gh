@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Fake gh for the scripts/herdr/ship.sh tests; it never talks to GitHub. State lives in $FAKE_STATE/gh, $FAKE_REMOTE is
+# the bare "origin", every call is logged to calls.log. Knobs (files in $FAKE_STATE/gh):
+#   checks   pass | fail | absent | pending:N (N polls pending, then pass) | multi (an older failed run, a newer passed one)
+#   stale    N: `pr view --json headRefOid` shows an old head for the first N polls
+set -euo pipefail
+G=${FAKE_STATE:?}/gh; mkdir -p "$G"
+echo "gh $*" >>"$G/calls.log"
+cmd="$1 $2"; shift 2
+jqopt() { local a; while [ $# -gt 0 ]; do [ "$1" = "--jq" ] && { printf '%s' "$2"; return; }; shift; done; }
+emit() { local f; f=$(jqopt "$@"); if [ -n "$f" ]; then jq -r "$f"; else cat; fi; }
+has() { local w=$1; shift; for a in "$@"; do [ "$a" = "$w" ] && return 0; done; return 1; }
+case $cmd in
+  "pr list")
+    if [ -f "$G/pr.json" ] && [ "$(jq -r .state "$G/pr.json")" = OPEN ]; then jq -c '[{number:.number}]' "$G/pr.json"; else echo '[]'; fi | emit "$@" ;;
+  "pr create")
+    head=; while [ $# -gt 0 ]; do [ "$1" = "--head" ] && head=$2; shift; done
+    jq -n --arg h "$head" '{number:41,head:$h,state:"OPEN"}' >"$G/pr.json"; echo "https://github.com/example/resolve/pull/41" ;;
+  "pr checks")
+    mode=$(cat "$G/checks" 2>/dev/null || echo pass); bucket=$mode; rc=0
+    case $mode in
+      pending:*) n=${mode#pending:}; c=$(cat "$G/polls" 2>/dev/null || echo 0); echo $((c + 1)) >"$G/polls"
+        if [ "$c" -lt "$n" ]; then bucket=pending; rc=8; else bucket=pass; fi ;;
+      absent) rc=1 ;;
+      fail) rc=1 ;;
+    esac
+    if has --json "$@"; then
+      case $mode in
+        absent) echo '[{"name":"Other","bucket":"pass","startedAt":"2026-01-01T00:00:00Z"}]' ;;
+        multi) echo '[{"name":"Full-stack smoke","bucket":"fail","startedAt":"2026-01-01T00:00:00Z"},{"name":"Full-stack smoke","bucket":"pass","startedAt":"2026-01-01T01:00:00Z"}]' ;;
+        *) jq -n --arg b "$bucket" '[{name:"Full-stack smoke",bucket:$b,startedAt:"2026-01-01T00:00:00Z"},{name:"Other",bucket:"pass",startedAt:"2026-01-01T00:00:00Z"}]' ;;
+      esac
+    else printf 'Full-stack smoke\t%s\n' "$bucket"; fi
+    exit "$rc" ;;
+  "pr merge") : >"$G/auto" ;;
+  "pr view")
+    head=$(jq -r .head "$G/pr.json")
+    if has headRefOid "$@"; then
+      n=$(cat "$G/stale" 2>/dev/null || echo 0)
+      if [ "$n" -gt 0 ]; then echo $((n - 1)) >"$G/stale"; echo 0000000000000000000000000000000000000000
+      else git --git-dir "${FAKE_REMOTE:?}" rev-parse "refs/heads/$head"; fi
+    elif [ -f "$G/auto" ]; then
+      sha=$(git --git-dir "${FAKE_REMOTE:?}" rev-parse "refs/heads/$head")
+      git --git-dir "$FAKE_REMOTE" update-ref refs/heads/main "$sha"
+      jq -n --arg s "$sha" '{state:"MERGED",mergeCommit:{oid:$s}}' | emit "$@"
+    else jq -n '{state:"OPEN",mergeCommit:null}' | emit "$@"; fi ;;
+  *) echo "fake gh: unsupported $cmd" >&2; exit 2 ;;
+esac
