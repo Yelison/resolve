@@ -84,16 +84,18 @@ test.describe('tickets · métricas sin saltos de layout', () => {
 })
 
 test.describe('tickets · tarjetas', () => {
-  test('a 390 px el enlace del asunto de cada tarjeta mide al menos 44 px de alto', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/tickets')
-    const links = page.getByRole('table', { name: 'Tickets' }).getByRole('link')
-    await expect(links).toHaveCount(3)
-    for (const link of await links.all()) {
-      const box = (await link.boundingBox())!
-      expect(box.height, await link.innerText()).toBeGreaterThanOrEqual(44)
-    }
-  })
+  for (const width of [390, 700, 767]) {
+    test(`a ${width} px el enlace del asunto de cada fila mide al menos 44 px de alto`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 })
+      await page.goto('/tickets')
+      const links = page.getByRole('table', { name: 'Tickets' }).getByRole('link')
+      await expect(links).toHaveCount(3)
+      for (const link of await links.all()) {
+        const box = (await link.boundingBox())!
+        expect(box.height, await link.innerText()).toBeGreaterThanOrEqual(44)
+      }
+    })
+  }
 
   for (const long of ['', 'X'.repeat(120)]) {
     test(`a 320 px un asunto largo${long ? ' sin espacios' : ''} envuelve sin elipsis ni desbordar`, async ({

@@ -168,11 +168,6 @@
     white-space: nowrap;
   }
 
-  .subjectLink {
-    min-height: 0;
-    padding-block: 0;
-  }
-
   .customer {
     margin-top: var(--space-4);
   }
@@ -218,6 +213,16 @@
   .assigneeHeader,
   .updatedHeader {
     display: none;
+  }
+}
+
+/* Por debajo de 768 px de viewport el enlace conserva la zona táctil también en columnas prioritarias; no cambia la altura de la fila, que ya la fija el menú de acciones. */
+@media (min-width: 768px) {
+  @container tickets (min-width: 560px) {
+    .subjectLink {
+      min-height: 0;
+      padding-block: 0;
+    }
   }
 }
 
