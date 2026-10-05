@@ -39,4 +39,8 @@ public final class CustomerDtos {
 
 	}
 
+	/** Métricas de los clientes activos de la organización ({@code CustomerMetrics} en el contrato). */
+	public record CustomerMetricsDto(int total, int companies, int withOpenTickets, int newThisMonth) {
+	}
+
 }

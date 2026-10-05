@@ -238,6 +238,12 @@ class CustomersApiTest extends ApiIntegrationTest {
 		this.mvc.perform(post("/customers/" + id + "/restore").with(as(elena)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("restoreCustomer"));
+		this.mvc.perform(get("/customers/metrics").with(as(elena)))
+			.andExpect(status().isForbidden())
+			.andExpect(matchesContract("getCustomerMetrics"));
+		this.mvc.perform(get("/customers/companies").with(as(elena)))
+			.andExpect(status().isForbidden())
+			.andExpect(matchesContract("listCompanies"));
 	}
 
 	private UUID customerId(String email) {

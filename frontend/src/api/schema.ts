@@ -164,6 +164,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/customers/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Customer metrics for the whole organization
+         * @description Computed over the active (non-archived) customers of the organization and not affected by list
+         *     filters. `newThisMonth` uses the current month in the organization time zone.
+         */
+        get: operations["getCustomerMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Distinct company names of the active customers
+         * @description Case-insensitive alphabetical order, at most 200 names, without empty values. Names that only differ
+         *     in case are listed once. Archived customers do not contribute.
+         */
+        get: operations["listCompanies"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/customers/{id}": {
         parameters: {
             query?: never;
@@ -374,6 +416,16 @@ export interface components {
             email?: string;
             company?: string | null;
             notes?: string | null;
+        };
+        /** @description Counts over the active (non-archived) customers of the organization. */
+        CustomerMetrics: {
+            total: number;
+            /** @description Distinct non-empty company names, ignoring case. */
+            companies: number;
+            /** @description Customers with at least one ticket that is not `resolved`. */
+            withOpenTickets: number;
+            /** @description Customers created in the current month of the organization time zone. */
+            newThisMonth: number;
         };
         TicketSummary: {
             /** Format: uuid */
@@ -661,6 +713,7 @@ export type CustomerSummary = components['schemas']['CustomerSummary'];
 export type CustomerDetail = components['schemas']['CustomerDetail'];
 export type CustomerCreate = components['schemas']['CustomerCreate'];
 export type CustomerPatch = components['schemas']['CustomerPatch'];
+export type CustomerMetrics = components['schemas']['CustomerMetrics'];
 export type TicketSummary = components['schemas']['TicketSummary'];
 export type Ticket = components['schemas']['Ticket'];
 export type TicketCreate = components['schemas']['TicketCreate'];
@@ -1018,6 +1071,50 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getCustomerMetrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organization-wide customer metrics. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerMetrics"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listCompanies: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Company names. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
         };
