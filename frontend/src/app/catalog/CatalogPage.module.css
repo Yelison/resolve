@@ -148,6 +148,22 @@
   border-radius: var(--radius-control);
 }
 
+.demoAccount {
+  display: inline-grid;
+  place-items: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-round);
+  background: transparent;
+  cursor: pointer;
+}
+
+.demoAccount:hover {
+  background: var(--color-surface-hover);
+}
+
 .frame .demoTopbarWide {
   min-width: 640px;
 }

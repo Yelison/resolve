@@ -58,6 +58,11 @@
   margin-left: var(--space-8);
 }
 
+.account {
+  display: inline-flex;
+  margin-left: var(--space-8);
+}
+
 @media (min-width: 1200px) {
   .topbar {
     gap: var(--space-20);
