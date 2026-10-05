@@ -3,6 +3,7 @@ import type {
   Me,
   Message,
   Activity,
+  Customer,
   CustomerMetrics,
   CustomerSummary,
   Member,
@@ -71,6 +72,9 @@ export const customers: CustomerSummary[] = [
   }),
 ]
 
+/** El cliente tal como lo incrusta un ticket: `Customer`, sin los contadores de la lista. */
+const customerRef = ({ id, name, email, company }: CustomerSummary): Customer => ({ id, name, email, company })
+
 const customerMetrics: CustomerMetrics = { total: 3, companies: 3, withOpenTickets: 2, newThisMonth: 1 }
 
 export const tickets: TicketSummary[] = [
@@ -81,7 +85,7 @@ export const tickets: TicketSummary[] = [
     status: 'open',
     priority: 'urgent',
     channel: 'email',
-    customer: customers[0]!,
+    customer: customerRef(customers[0]!),
     assignee: { id: laura.id, name: laura.name },
     createdAt: minutesAgo(18),
     updatedAt: minutesAgo(5),
@@ -93,7 +97,7 @@ export const tickets: TicketSummary[] = [
     status: 'in_progress',
     priority: 'high',
     channel: 'chat',
-    customer: customers[1]!,
+    customer: customerRef(customers[1]!),
     assignee: { id: daniel.id, name: daniel.name },
     createdAt: minutesAgo(60),
     updatedAt: minutesAgo(12),
@@ -105,7 +109,7 @@ export const tickets: TicketSummary[] = [
     status: 'waiting',
     priority: 'medium',
     channel: 'web',
-    customer: customers[2]!,
+    customer: customerRef(customers[2]!),
     assignee: null,
     createdAt: minutesAgo(1500),
     updatedAt: minutesAgo(1440),

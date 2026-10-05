@@ -86,6 +86,19 @@ describe('CustomersPage', () => {
     expect(screen.queryByText(/Archivar/)).not.toBeInTheDocument()
   })
 
+  it('un agente ve «Nuevo cliente» y ninguna acción de archivar', async () => {
+    mockApi({
+      ...baseRoutes,
+      'GET /api/me': { body: { ...adminMe, role: 'agent' } },
+      'GET /api/customers': { body: page([customer()]) },
+    })
+    renderCustomers()
+    await screen.findByRole('link', { name: 'María Pérez' })
+    expect(screen.getByRole('link', { name: /Nuevo cliente/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Archivar|Restaurar/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument()
+  })
+
   it('sin clientes ofrece crear el primero', async () => {
     mockApi({ ...baseRoutes, 'GET /api/customers': { body: page([]) } })
     renderCustomers()
@@ -116,13 +129,62 @@ describe('CustomersPage', () => {
     mockApi({
       ...baseRoutes,
       'GET /api/customers': (request) => ({
-        body: new URL(request.url).searchParams.get('page') === '4' ? { ...page([]), page: 4 } : page([customer()]),
+        body: new URL(request.url).searchParams.get('page') === '4' ? { ...page([], 3), page: 4 } : page([customer()]),
       }),
     })
     const router = renderCustomers('/clientes?page=5')
     await userEvent.click(await screen.findByRole('button', { name: 'Ir a la primera página' }))
     expect(await screen.findByRole('link', { name: 'María Pérez' })).toBeInTheDocument()
     expect(router.state.location.search).toBe('')
+  })
+
+  it('una página fuera de rango con filtros conserva los filtros al volver a la primera', async () => {
+    const fetchSpy = mockApi({
+      ...baseRoutes,
+      'GET /api/customers': (request) => ({
+        body: new URL(request.url).searchParams.get('page') === '4' ? { ...page([], 3), page: 4 } : page([customer()]),
+      }),
+    })
+    const router = renderCustomers('/clientes?q=ana&page=5')
+    expect(await screen.findByText('Esta página ya no existe')).toBeInTheDocument()
+    expect(screen.queryByText('No encontramos clientes')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Ir a la primera página' }))
+    expect(await screen.findByRole('link', { name: 'María Pérez' })).toBeInTheDocument()
+    expect(router.state.location.search).toBe('?q=ana')
+    expect(requestsTo(fetchSpy, '/api/customers').at(-1)?.searchParams.get('q')).toBe('ana')
+  })
+
+  it('un error en las métricas lo dice y permite reintentar sin mover la lista', async () => {
+    let fail = true
+    mockApi({
+      ...baseRoutes,
+      'GET /api/customers/metrics': () =>
+        fail ? { status: 500, body: { status: 500, title: 'Error' } } : { body: metrics },
+      'GET /api/customers': { body: page([customer()]) },
+    })
+    renderCustomers()
+    expect(await screen.findByText('No pudimos cargar las métricas de clientes')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'María Pérez' })).toBeInTheDocument()
+    fail = false
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+    expect(await screen.findByText('142')).toBeInTheDocument()
+    expect(screen.queryByText('No pudimos cargar las métricas de clientes')).not.toBeInTheDocument()
+  })
+
+  it('un error en las empresas lo dice junto al filtro y permite reintentar', async () => {
+    let fail = true
+    mockApi({
+      ...baseRoutes,
+      'GET /api/customers/companies': () =>
+        fail ? { status: 500, body: { status: 500, title: 'Error' } } : { body: companies },
+      'GET /api/customers': { body: page([customer()]) },
+    })
+    renderCustomers()
+    expect(await screen.findByText(/No pudimos cargar las empresas/)).toBeInTheDocument()
+    fail = false
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+    expect(await screen.findByRole('option', { name: 'Northstar' })).toBeInTheDocument()
+    expect(screen.queryByText(/No pudimos cargar las empresas/)).not.toBeInTheDocument()
   })
 
   it('un error ofrece reintentar y recupera la lista', async () => {
@@ -189,6 +251,16 @@ describe('CustomersPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Estado' }))
     await userEvent.click(screen.getByRole('menuitem', { name: 'Archivados' }))
     await waitFor(() => expect(router.state.location.search).toBe('?archived=true'))
+  })
+
+  it('volver a Activos quita archived de la URL y de la petición', async () => {
+    const fetchSpy = mockApi({ ...baseRoutes, 'GET /api/customers': { body: page([customer()]) } })
+    const router = renderCustomers('/clientes?archived=true&page=2')
+    await screen.findByRole('link', { name: 'María Pérez' })
+    await userEvent.click(screen.getByRole('button', { name: 'Estado: Archivados' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Activos' }))
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+    await waitFor(() => expect(requestsTo(fetchSpy, '/api/customers').at(-1)?.searchParams.has('archived')).toBe(false))
   })
 
   it('pagina con los controles de la lista', async () => {

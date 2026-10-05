@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
+  Alert,
   Button,
   buttonClassName,
   EmptyState,
@@ -98,15 +99,23 @@ export function CustomersPage() {
         <div className={styles.metricsPlaceholder}>
           <Skeleton lines={2} label="Cargando métricas…" />
         </div>
+      ) : metrics.isError ? (
+        <div className={styles.metricsPlaceholder}>
+          <Alert tone="red" title="No pudimos cargar las métricas de clientes">
+            <Button variant="secondary" onClick={() => void metrics.refetch()}>
+              Reintentar
+            </Button>
+          </Alert>
+        </div>
       ) : (
-        metrics.data && <MetricsRow metrics={metrics.data} />
+        <MetricsRow metrics={metrics.data} />
       )}
 
       <section className={styles.panel} aria-label="Lista de clientes">
         <div className={styles.filters}>
           <SearchField
             label="Buscar clientes"
-            placeholder="Buscar por nombre, empresa o correo…"
+            placeholder="Nombre, empresa o correo…"
             value={searchText}
             onValueChange={setSearchText}
             fieldClassName={styles.search}
@@ -116,6 +125,16 @@ export function CustomersPage() {
             value={state.company ?? ''}
             onChange={(event) => update({ company: event.target.value || undefined })}
             fieldClassName={styles.select}
+            hint={
+              companies.isError ? (
+                <>
+                  No pudimos cargar las empresas.{' '}
+                  <button type="button" className={styles.retry} onClick={() => void companies.refetch()}>
+                    Reintentar
+                  </button>
+                </>
+              ) : undefined
+            }
           >
             <option value="">Todas</option>
             {companyOptions.map((company) => (
@@ -140,13 +159,15 @@ export function CustomersPage() {
         </div>
 
         <div className={styles.results}>
-          <Results
-            state={state}
-            list={list}
-            filtersActive={filtersActive}
-            onClearFilters={clearFilters}
-            onPageChange={(page) => setSearchParams(writeCustomerListState({ ...state, page }))}
-          />
+          <div className={styles.resultsInner}>
+            <Results
+              state={state}
+              list={list}
+              filtersActive={filtersActive}
+              onClearFilters={clearFilters}
+              onPageChange={(page) => setSearchParams(writeCustomerListState({ ...state, page }))}
+            />
+          </div>
         </div>
       </section>
     </div>
@@ -215,6 +236,20 @@ function Results({ state, list, filtersActive, onClearFilters, onPageChange }: R
   }
   const page = list.data
   if (page.items.length === 0) {
+    if (state.page > 1 && page.totalItems > 0) {
+      return (
+        <EmptyState
+          kind="noResults"
+          title="Esta página ya no existe"
+          description="Hay menos clientes que antes."
+          action={
+            <Button variant="secondary" onClick={() => onPageChange(1)}>
+              Ir a la primera página
+            </Button>
+          }
+        />
+      )
+    }
     if (filtersActive) {
       return (
         <EmptyState
@@ -228,20 +263,6 @@ function Results({ state, list, filtersActive, onClearFilters, onPageChange }: R
           action={
             <Button variant="secondary" onClick={onClearFilters}>
               Limpiar filtros
-            </Button>
-          }
-        />
-      )
-    }
-    if (state.page > 1) {
-      return (
-        <EmptyState
-          kind="noResults"
-          title="Esta página ya no existe"
-          description="Hay menos clientes que antes."
-          action={
-            <Button variant="secondary" onClick={() => onPageChange(1)}>
-              Ir a la primera página
             </Button>
           }
         />
