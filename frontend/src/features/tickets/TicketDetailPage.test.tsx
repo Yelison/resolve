@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { AppShell } from '../../app/layout/AppShell'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { ticket } from '../../test/ticketFixtures'
@@ -189,6 +190,35 @@ describe('TicketDetailPage para agentes', () => {
     renderDetail(9999)
     expect(await screen.findByRole('heading', { name: 'No existe el ticket #9999' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Volver a tickets' })).toHaveAttribute('href', '/tickets')
+  })
+})
+
+describe('TicketDetailPage con la sesión caducada (foco de revisión 5)', () => {
+  /** La página dentro de la shell real, que es quien avisa de que la sesión caducó. */
+  function renderDetailInShell() {
+    const router = createMemoryRouter(
+      [{ path: '/', element: <AppShell />, children: [{ path: 'tickets/:number', element: <TicketDetailPage /> }] }],
+      { initialEntries: ['/tickets/1048'] },
+    )
+    return renderWithProviders(<RouterProvider router={router} />)
+  }
+
+  it('un 401 al enviar una respuesta conserva el borrador y muestra el aviso', async () => {
+    const fetchSpy = staffApi({
+      'POST /api/tickets/1048/messages': { status: 401, body: { status: 401, title: 'No autenticado' } },
+    })
+    renderDetailInShell()
+    const textarea = await screen.findByRole('textbox', { name: 'Respuesta al cliente' })
+    await userEvent.type(textarea, 'Respuesta que no debe perderse')
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar respuesta' }))
+
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('Tu sesión caducó')).toBeInTheDocument()
+    expect(within(region).getByRole('button', { name: 'Volver a entrar' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Respuesta al cliente' })).toHaveValue('Respuesta que no debe perderse')
+    expect(sessionStorage.getItem('resolve-draft-1048')).toBe('Respuesta que no debe perderse')
+    const posts = fetchSpy.mock.calls.filter(([input]) => (input as Request).method === 'POST')
+    expect(posts).toHaveLength(1)
   })
 })
 

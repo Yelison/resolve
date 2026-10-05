@@ -1,5 +1,5 @@
-import type { Me } from '../../src/api/schema'
-import { json, type MockFeature } from './shared'
+import type { LogoutResponse, Me, OrganizationRef, SessionOrganizationSelection } from '../../src/api/schema'
+import { json, problem, type MockFeature } from './shared'
 
 export const me: Me = {
   user: { id: 'u-admin', name: 'Yelisson Ortiz', email: 'yelisson@acme.example' },
@@ -8,10 +8,97 @@ export const me: Me = {
   customerId: null,
 }
 
-/** Sesión simulada: el administrador, o un cliente (`c-maria`) si `role` lo pide. */
-export function sessionMock(role: Me['role']): MockFeature {
-  const session: Me = role === 'customer' ? { ...me, role, customerId: 'c-maria' } : me
+export const acme: OrganizationRef = { id: '0192f000-0000-7000-8000-000000000001', name: 'Acme Studio' }
+export const northwind: OrganizationRef = { id: '0192f000-0000-7000-8000-000000000002', name: 'Northwind' }
+
+/** Cómo arranca la sesión simulada. */
+export interface SessionOptions {
+  /** `false`: la API responde 401 hasta que el inicio de sesión simulado (`/api/oauth2/authorization/resolve`) lo cambia. */
+  signedIn?: boolean
+  /** Organizaciones de la persona; con más de una, `Me.organizations` las lista y el menú ofrece el cambio. */
+  organizations?: OrganizationRef[]
+  /** Nombres de 120 caracteres para la persona y las organizaciones. */
+  longNames?: boolean
+}
+
+/** Token que la API simulada entrega en la cookie `XSRF-TOKEN` con cada GET /me y que exige en las escrituras. */
+export const CSRF_TOKEN = 'e2e-csrf-token'
+
+const long = (name: string) =>
+  `${name} `
+    .repeat(Math.ceil(120 / (name.length + 1)))
+    .slice(0, 119)
+    .trimEnd() + 'x'
+
+/**
+ * Sesión simulada: el administrador, o un cliente (`c-maria`) si `role` lo pide. Imita el BFF con OIDC: GET /me entrega
+ * la cookie de CSRF, las escrituras sin la cabecera reciben el 403 de CSRF, `/logout` responde con `logoutUrl` y el
+ * inicio de sesión del proveedor (`/oauth2/authorization/resolve`) vuelve a la aplicación ya con sesión.
+ */
+export function sessionMock(
+  role: Me['role'],
+  options: SessionOptions = {},
+  /** El `Me` base si otra feature lo cambia (los ajustes); sin él, el de la fixture. */
+  base?: () => Me,
+): MockFeature {
+  let signedIn = options.signedIn ?? true
+  const organizations = options.organizations ?? [acme]
+  let active = organizations[0] ?? acme
+  const roleMe: Me = role === 'customer' ? { ...me, role, customerId: 'c-maria' } : me
+
+  const session = (): Me => {
+    const current = base ? base() : roleMe
+    return {
+      ...current,
+      user: options.longNames ? { ...current.user, name: long('Nombre larguísimo de una persona') } : current.user,
+      organization: {
+        ...current.organization,
+        // La organización de la fixture por defecto sigue siendo `org-1`: solo cambia al elegir otra de la lista.
+        ...(options.organizations ? { id: active.id, name: active.name } : {}),
+        ...(options.longNames ? { name: long(active.name) } : {}),
+      },
+      ...(organizations.length > 1 && {
+        organizations: organizations.map((org) => (options.longNames ? { ...org, name: long(org.name) } : org)),
+      }),
+    }
+  }
+
   return {
-    handle: ({ route, path, method }) => (method === 'GET' && path === '/me' ? json(route, session) : undefined),
+    handle: ({ route, request, url, path, method }) => {
+      if (method === 'GET' && path === '/me') {
+        if (!signedIn) return problem(route, 401, 'No autenticado')
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: { 'set-cookie': `XSRF-TOKEN=${CSRF_TOKEN}; Path=/; SameSite=Lax` },
+          body: JSON.stringify(session()),
+        })
+      }
+      if (method === 'GET' && path === '/oauth2/authorization/resolve') {
+        signedIn = true
+        return route.fulfill({ status: 302, headers: { location: `${url.origin}/` } })
+      }
+      const isWrite = method === 'POST' && (path === '/logout' || path === '/session/organization')
+      if (!isWrite) return undefined
+      if (!signedIn) return problem(route, 401, 'No autenticado')
+      if (request.headers()['x-xsrf-token'] !== CSRF_TOKEN) {
+        return route.fulfill({
+          status: 403,
+          contentType: 'application/problem+json',
+          body: JSON.stringify({ status: 403, title: 'Sin permiso', detail: 'Falta el token CSRF o no es válido.' }),
+        })
+      }
+      if (path === '/logout') {
+        signedIn = false
+        // El proveedor devuelve a la aplicación: sin sesión, la shell lleva a /entrar.
+        const body: LogoutResponse = { logoutUrl: `${url.origin}/entrar` }
+        return json(route, body)
+      }
+      const { organizationId } = request.postDataJSON() as SessionOrganizationSelection
+      const chosen = organizations.find((org) => org.id === organizationId)
+      if (!chosen) return problem(route, 403, 'Sin permiso')
+      active = chosen
+      return json(route, session())
+    },
   }
 }

@@ -10,7 +10,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * `sessionMock`, para que un cambio de nombre del espacio o del perfil llegue al sidebar al releer la sesión: va antes
  * que `sessionMock` en `mockApi`, porque gana el primer manejador.
  */
-export function settingsMock(role: Me['role']): MockFeature {
+export function settingsMock(role: Me['role']): MockFeature & { session: () => Me } {
   let session: Me = {
     ...me,
     role,
@@ -36,6 +36,8 @@ export function settingsMock(role: Me['role']): MockFeature {
   session = withOrganization(organization)
 
   return {
+    /** El `Me` actual, con los cambios de nombre del espacio y del perfil: lo lee `sessionMock` para servir `/me`. */
+    session: () => session,
     handle: ({ route, request, path, method }) => {
       if (path === '/me' && method === 'GET') return json(route, session)
       if (path === '/me' && method === 'PATCH') {
