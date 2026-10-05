@@ -33,6 +33,16 @@ export { Select, type SelectProps } from './Select/Select'
 export { Sidebar, type SidebarAction, type SidebarNavItem, type SidebarProps } from './Sidebar/Sidebar'
 export { Skeleton, type SkeletonProps } from './Skeleton/Skeleton'
 export { Switch, type SwitchProps } from './Switch/Switch'
+export {
+  Table,
+  TableCell,
+  TableHeaderCell,
+  TableRow,
+  type TableCellProps,
+  type TableHeaderCellProps,
+  type TableProps,
+  type TableRowProps,
+} from './Table/Table'
 export { Tabs, type TabItem, type TabsProps } from './Tabs/Tabs'
 export { Textarea, type TextareaProps } from './Textarea/Textarea'
 export {

@@ -1,6 +1,14 @@
-import { useId } from 'react'
 import { Link } from 'react-router'
-import { Badge, IconButton, Menu, type MenuItem } from '../../components/ui'
+import {
+  Badge,
+  IconButton,
+  Menu,
+  Table,
+  TableCell,
+  TableHeaderCell,
+  TableRow,
+  type MenuItem,
+} from '../../components/ui'
 import type { CustomerSummary } from '../../domain/customer'
 import { cx } from '../../lib/cx'
 import styles from './CustomersTable.module.css'
@@ -14,57 +22,43 @@ export interface CustomersTableProps {
 }
 
 /**
- * Tabla de clientes con semántica ARIA de tabla en cualquier ancho: tarjetas en contenedores estrechos
- * (< 560 px), nombre, empresa, tickets y estado hasta 960 px, y todas las columnas por encima.
+ * Tabla de clientes sobre `Table`: tarjetas en contenedores estrechos (< 560 px), nombre, empresa, tickets y estado
+ * hasta la tabla completa, que añade el correo.
  */
 export function CustomersTable({ customers, caption, actions }: CustomersTableProps) {
-  const captionId = useId()
   return (
-    <div className={styles.wrapper}>
-      <div role="table" aria-label="Clientes" aria-describedby={captionId} className={styles.table}>
-        <div role="rowgroup">
-          <div role="row" className={styles.header}>
-            <span role="columnheader" className={styles.headerName}>
-              Cliente
-            </span>
-            <span role="columnheader" className={styles.headerCompany}>
-              Empresa
-            </span>
-            <span role="columnheader" className={styles.headerEmail}>
-              Correo
-            </span>
-            <span role="columnheader" className={styles.headerTickets}>
-              Tickets
-            </span>
-            <span role="columnheader" className={styles.headerStatus}>
-              Estado
-            </span>
-            <span role="columnheader" className={styles.headerActions}>
-              <span className="visually-hidden">Acciones</span>
-            </span>
-          </div>
-        </div>
-        <div role="rowgroup" className={styles.rows}>
-          {customers.map((customer) => (
-            <CustomerRow key={customer.id} customer={customer} actions={actions?.(customer) ?? []} />
-          ))}
-        </div>
-      </div>
-      <p id={captionId} className={styles.caption}>
-        {caption}
-      </p>
-    </div>
+    <Table
+      label="Clientes"
+      caption={caption}
+      actionsLabel="Acciones"
+      className={styles.table}
+      header={
+        <>
+          <TableHeaderCell area="name">Cliente</TableHeaderCell>
+          <TableHeaderCell area="company">Empresa</TableHeaderCell>
+          <TableHeaderCell area="email" className={styles.headerEmail}>
+            Correo
+          </TableHeaderCell>
+          <TableHeaderCell area="tickets">Tickets</TableHeaderCell>
+          <TableHeaderCell area="status">Estado</TableHeaderCell>
+        </>
+      }
+    >
+      {customers.map((customer) => (
+        <CustomerRow key={customer.id} customer={customer} actions={actions?.(customer) ?? []} />
+      ))}
+    </Table>
   )
 }
 
 function CustomerRow({ customer, actions }: { customer: CustomerSummary; actions: MenuItem[] }) {
   return (
-    <div role="row" className={styles.row}>
-      <span role="cell" className={styles.name}>
+    <TableRow>
+      <TableCell kind="name">
         <Link to={`/clientes/${customer.id}`} className={styles.nameLink} title={customer.name}>
           {customer.name}
         </Link>
-      </span>
+      </TableCell>
       <span role="none" className={styles.meta}>
         <span role="cell" className={cx(styles.company, !customer.company && styles.none)}>
           {customer.company ?? (
@@ -87,13 +81,13 @@ function CustomerRow({ customer, actions }: { customer: CustomerSummary; actions
           <Badge tone={customer.archived ? 'neutral' : 'green'}>{customer.archived ? 'Archivado' : 'Activo'}</Badge>
         </span>
       </span>
-      <span role="cell" className={styles.actions}>
+      <TableCell kind="actions">
         {actions.length > 0 && (
           <Menu label={`Acciones de ${customer.name}`} items={actions}>
             {(trigger) => <IconButton icon="more" label={`Acciones de ${customer.name}`} {...trigger} />}
           </Menu>
         )}
-      </span>
-    </div>
+      </TableCell>
+    </TableRow>
   )
 }
