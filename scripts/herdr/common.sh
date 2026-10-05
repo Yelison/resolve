@@ -160,7 +160,18 @@ write_model_settings() {
 agent_model() { agent_effort "$1" | sed -E 's/^ +//; s/ with [a-z]+ effort$//'; }
 
 # Effort level the agent's session header reports ("… with medium effort"), or nothing.
+# The header may not be drawn yet right after `herdr agent start`, so read it for a few seconds; never fail,
+# because callers run under `set -euo pipefail` and an empty grep must not end the script before the brief is sent.
 agent_effort() {
-  herdr agent read "$1" --source recent-unwrapped --lines 400 2>/dev/null \
-    | grep -oE '[A-Za-z0-9. ]+ with [a-z]+ effort' | tail -n 1
+  local line attempt
+  for attempt in $(seq 1 "${HERDR_HEADER_ATTEMPTS:-20}"); do
+    line=$(herdr agent read "$1" --source recent-unwrapped --lines 400 2>/dev/null \
+      | grep -oE '[A-Za-z0-9. ]+ with [a-z]+ effort' | tail -n 1 || true)
+    if [ -n "$line" ]; then
+      printf '%s\n' "$line"
+      return 0
+    fi
+    [ "$attempt" -lt "${HERDR_HEADER_ATTEMPTS:-20}" ] && sleep 0.5
+  done
+  return 0
 }
