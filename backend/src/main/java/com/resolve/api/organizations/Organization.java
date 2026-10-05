@@ -7,10 +7,14 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import org.hibernate.annotations.DynamicUpdate;
+import org.jspecify.annotations.Nullable;
 
 /** Empresa que usa Resolve. Todos los datos de negocio cuelgan de una organización. */
 @Entity
 @Table(name = "organizations")
+@DynamicUpdate
 public class Organization {
 
 	@Id
@@ -24,6 +28,12 @@ public class Organization {
 
 	@Column(name = "first_response_target_minutes", nullable = false)
 	private int firstResponseTargetMinutes;
+
+	@Column(name = "support_email")
+	private @Nullable String supportEmail;
+
+	@Version
+	private long version;
 
 	protected Organization() {
 	}
@@ -46,6 +56,14 @@ public class Organization {
 
 	public int getFirstResponseTargetMinutes() {
 		return this.firstResponseTargetMinutes;
+	}
+
+	public @Nullable String getSupportEmail() {
+		return this.supportEmail;
+	}
+
+	public long getVersion() {
+		return this.version;
 	}
 
 }

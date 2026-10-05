@@ -25,14 +25,15 @@ class MeController {
 	MeResponse me(@AuthenticationPrincipal CurrentMember member) {
 		Organization organization = this.organizations.getReferenceById(member.organizationId());
 		return new MeResponse(new MemberDto(member.userId(), member.name(), member.email()),
-				new OrganizationDto(organization.getId(), organization.getName(), organization.getTimeZone()),
+				new OrganizationDto(organization.getId(), organization.getName(), organization.getTimeZone(),
+						organization.getSupportEmail()),
 				member.role(), member.customerId());
 	}
 
 	record MeResponse(MemberDto user, OrganizationDto organization, Role role, @Nullable UUID customerId) {
 	}
 
-	record OrganizationDto(UUID id, String name, String timeZone) {
+	record OrganizationDto(UUID id, String name, String timeZone, @Nullable String supportEmail) {
 	}
 
 }

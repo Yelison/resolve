@@ -29,7 +29,7 @@ const daniel: Member = { id: 'u-daniel', name: 'Daniel Santos', email: 'daniel@a
 
 export const me: Me = {
   user: { id: 'u-admin', name: 'Yelisson Ortiz', email: 'yelisson@acme.example' },
-  organization: { id: 'org-1', name: 'Acme Studio', timeZone: 'America/Bogota' },
+  organization: { id: 'org-1', name: 'Acme Studio', timeZone: 'America/Bogota', supportEmail: null },
   role: 'admin',
   customerId: null,
 }
