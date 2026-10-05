@@ -231,6 +231,8 @@ describe('TicketsPage para agentes', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar cargar las métricas de la bandeja' }))
     expect(await screen.findByText('Tickets abiertos')).toBeInTheDocument()
     expect(screen.queryByText('No pudimos cargar las métricas de la bandeja')).not.toBeInTheDocument()
+    // El botón desaparece: el foco pasa a las métricas, no a `body`.
+    expect(screen.getByRole('group', { name: 'Métricas de la bandeja' })).toHaveFocus()
   })
 
   it('resuelve un ticket desde su menú usando la versión actual', async () => {

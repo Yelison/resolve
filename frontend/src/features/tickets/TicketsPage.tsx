@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
 import {
   Alert,
@@ -249,7 +249,17 @@ const ghostMetrics: TicketMetrics = {
  * error, y lo de debajo no salta cuando llegan los datos.
  */
 function MetricsSection({ query }: { query: ReturnType<typeof useTicketMetrics> }) {
-  if (query.data) return <MetricsRow metrics={query.data} />
+  const rowRef = useRef<HTMLDivElement>(null)
+  const focusOnData = useRef(false)
+  // Tras un reintento con éxito, el botón desaparece: el foco pasa a las métricas recién cargadas, no a `body`.
+  useEffect(() => {
+    if (query.data && focusOnData.current) {
+      focusOnData.current = false
+      rowRef.current?.focus()
+    }
+  }, [query.data])
+
+  if (query.data) return <MetricsRow metrics={query.data} rowRef={rowRef} />
   if (!query.isError && !query.isPending) return null
   return (
     <div className={styles.metricsState}>
@@ -262,7 +272,12 @@ function MetricsSection({ query }: { query: ReturnType<typeof useTicketMetrics> 
             <Button
               variant="secondary"
               aria-label="Reintentar cargar las métricas de la bandeja"
-              onClick={() => void query.refetch()}
+              onClick={() => {
+                focusOnData.current = true
+                void query.refetch().then((result) => {
+                  if (result.isError) focusOnData.current = false
+                })
+              }}
             >
               Reintentar
             </Button>
@@ -275,14 +290,26 @@ function MetricsSection({ query }: { query: ReturnType<typeof useTicketMetrics> 
   )
 }
 
-function MetricsRow({ metrics, ghost = false }: { metrics: TicketMetrics; ghost?: boolean }) {
+function MetricsRow({
+  metrics,
+  ghost = false,
+  rowRef,
+}: {
+  metrics: TicketMetrics
+  ghost?: boolean
+  rowRef?: RefObject<HTMLDivElement | null>
+}) {
   const { resolvedToday, resolvedYesterday, firstResponseMinutes, firstResponseTargetMinutes } = metrics
   const change =
     resolvedYesterday > 0 ? Math.round(((resolvedToday - resolvedYesterday) / resolvedYesterday) * 100) : null
   // Con `ghost` las etiquetas van vacías: el esqueleto no debe duplicar ningún texto real.
   const label = (text: string) => (ghost ? '\u00a0' : text)
   return (
-    <div className={styles.metrics}>
+    <div
+      ref={rowRef}
+      className={styles.metrics}
+      {...(ghost ? {} : { role: 'group', 'aria-label': 'Métricas de la bandeja', tabIndex: -1 })}
+    >
       <Metric
         label={label('Tickets abiertos')}
         value={metrics.open}
