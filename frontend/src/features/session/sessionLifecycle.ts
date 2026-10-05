@@ -1,4 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
+import type { Me } from '../../api/schema'
 
 /** Inicio de sesión: el backend redirige al proveedor (OIDC) y, al volver, deja la cookie de sesión. */
 export const LOGIN_PATH = '/api/oauth2/authorization/resolve'
@@ -39,6 +40,31 @@ export function clearDrafts() {
     }
   } catch {
     // Sin almacenamiento no hay borradores que borrar.
+  }
+}
+
+/** Clave (sin el prefijo de los borradores, para que `clearDrafts` no la borre) con el dueño de los borradores de la pestaña. */
+const DRAFT_OWNER_KEY = 'resolve-session-owner'
+
+/**
+ * Los borradores no llevan persona ni organización en su clave: sin esto, los de una persona reaparecerían en el
+ * redactor de otra que entra después en la misma pestaña (o los de una organización, en otra con el mismo número de
+ * ticket). Anota quién es el dueño y, si el `Me` actual no coincide con el anotado, borra los borradores. La misma
+ * persona en la misma organización los conserva (un 401 y volver a entrar no pierde lo escrito).
+ *
+ * Debe llamarse en el render de quien protege las pantallas, antes de que ninguna lea su borrador: `useDraft` lo lee al
+ * montarse. Es idempotente. Sin dueño anotado (primera carga de la pestaña) solo lo adopta: no hay otra sesión de la que
+ * proteger, porque ninguna pantalla con borrador se monta antes de que `/me` cargue.
+ */
+export function reconcileDraftOwner(me: Me) {
+  const owner = `${me.user.id}:${me.organization.id}`
+  try {
+    const stored = sessionStorage.getItem(DRAFT_OWNER_KEY)
+    if (stored === owner) return
+    if (stored !== null) clearDrafts()
+    sessionStorage.setItem(DRAFT_OWNER_KEY, owner)
+  } catch {
+    // Sin almacenamiento no hay borradores que proteger.
   }
 }
 
