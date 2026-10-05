@@ -1,5 +1,15 @@
 import { test as base, type Page, type Route } from '@playwright/test'
-import type { Me, Message, Activity, Member, Ticket, TicketMetrics, TicketSummary } from '../src/api/schema'
+import type {
+  Me,
+  Message,
+  Activity,
+  CustomerMetrics,
+  CustomerSummary,
+  Member,
+  Ticket,
+  TicketMetrics,
+  TicketSummary,
+} from '../src/api/schema'
 
 /**
  * API simulada para las pruebas e2e deterministas: respuestas tipadas con el contrato (src/api/schema.ts), así que
@@ -18,11 +28,50 @@ export const me: Me = {
   customerId: null,
 }
 
-const customers = [
-  { id: 'c-maria', name: 'María Pérez', email: 'maria@cliente.example', company: 'Acme Studio' },
-  { id: 'c-carlos', name: 'Carlos Ruiz', email: 'carlos@northstar.example', company: 'Northstar' },
-  { id: 'c-ana', name: 'Ana García Fernández de la Fuente', email: 'ana@orbit.example', company: 'Orbit Labs' },
+const customerSummary = (customer: Omit<CustomerSummary, 'createdAt' | 'archived'> & Partial<CustomerSummary>) => ({
+  createdAt: minutesAgo(60 * 24 * 10),
+  archived: false,
+  ...customer,
+})
+
+/** Clientes de demostración con el contrato de lista (`CustomerSummary`); el último está archivado. */
+export const customers: CustomerSummary[] = [
+  customerSummary({
+    id: 'c-maria',
+    name: 'María Pérez',
+    email: 'maria@cliente.example',
+    company: 'Acme Studio',
+    openTickets: 2,
+    totalTickets: 9,
+  }),
+  customerSummary({
+    id: 'c-carlos',
+    name: 'Carlos Ruiz',
+    email: 'carlos@northstar.example',
+    company: 'Northstar',
+    openTickets: 0,
+    totalTickets: 4,
+  }),
+  customerSummary({
+    id: 'c-ana',
+    name: 'Ana García Fernández de la Fuente',
+    email: 'ana.garcia.fernandez.de.la.fuente@orbit-labs.example',
+    company: 'Orbit Labs',
+    openTickets: 1,
+    totalTickets: 3,
+  }),
+  customerSummary({
+    id: 'c-luis',
+    name: 'Luis Gómez',
+    email: 'luis@cliente.example',
+    company: null,
+    openTickets: 0,
+    totalTickets: 1,
+    archived: true,
+  }),
 ]
+
+const customerMetrics: CustomerMetrics = { total: 3, companies: 3, withOpenTickets: 2, newThisMonth: 1 }
 
 export const tickets: TicketSummary[] = [
   {
@@ -120,8 +169,20 @@ export async function mockApi(page: Page) {
     if (method === 'GET' && path === '/me') return json(route, me)
     if (method === 'GET' && path === '/tickets/metrics') return json(route, metrics)
     if (method === 'GET' && path === '/assignees') return json(route, [daniel, laura])
+    if (method === 'GET' && path === '/customers/metrics') return json(route, customerMetrics)
+    if (method === 'GET' && path === '/customers/companies')
+      return json(route, ['Acme Studio', 'Northstar', 'Orbit Labs'])
     if (method === 'GET' && path === '/customers') {
-      return json(route, { items: customers, page: 0, size: 20, totalItems: customers.length, totalPages: 1 })
+      const q = url.searchParams.get('q')?.toLowerCase()
+      const company = url.searchParams.get('company')
+      const archived = url.searchParams.get('archived') === 'true'
+      const items = customers.filter(
+        (customer) =>
+          customer.archived === archived &&
+          (!company || customer.company === company) &&
+          (!q || `${customer.name} ${customer.email} ${customer.company ?? ''}`.toLowerCase().includes(q)),
+      )
+      return json(route, { items, page: 0, size: 20, totalItems: items.length, totalPages: items.length ? 1 : 0 })
     }
     if (method === 'GET' && path === '/tickets') {
       const status = url.searchParams.get('status')

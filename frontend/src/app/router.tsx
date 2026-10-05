@@ -5,6 +5,7 @@ import { mainNavigation, staff, type NavigationItem } from './navigation'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PendingPage } from './pages/PendingPage'
 import { IndexRedirect, RequireRole } from './pages/RequireRole'
+import { CustomersPage } from '../features/customers/CustomersPage'
 import { NewTicketPage } from '../features/tickets/NewTicketPage'
 import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
 import { TicketsPage } from '../features/tickets/TicketsPage'
@@ -51,11 +52,23 @@ const ticketChildren: RouteObject[] = [
   },
 ]
 
+const customerChildren: RouteObject[] = [
+  { index: true, element: <CustomersPage /> },
+  {
+    path: 'nuevo',
+    // Hasta T2.4, que abrirá aquí el diálogo de alta, la ruta del botón «Nuevo cliente» muestra la vista pendiente.
+    element: <PendingPage title="Nuevo cliente" icon="clients" />,
+    handle: { crumb: 'Nuevo cliente' } satisfies RouteHandle,
+  },
+]
+
 /** Todas las secciones salen de `mainNavigation`; las que aún no tienen vista muestran «Vista en construcción». */
 const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
   item.to === '/tickets'
     ? sectionRoute(item, { children: ticketChildren })
-    : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
+    : item.to === '/clientes'
+      ? sectionRoute(item, { children: customerChildren })
+      : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
 )
 
 /** Rutas de la aplicación; se exportan para probar el cableado real (guardias y redirecciones) sin navegador. */
