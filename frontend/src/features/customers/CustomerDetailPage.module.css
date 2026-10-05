@@ -66,10 +66,20 @@
 
 .tabs {
   min-width: 0;
-  padding: var(--space-16);
+  /* Sin relleno horizontal: la tabla va de borde a borde (como en la lista) y conserva sus columnas desde 1200 px. */
+  padding: var(--space-16) 0 0;
+  overflow: hidden;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-panel);
   background: var(--color-surface);
+}
+
+.tabs [role='tablist'] {
+  margin-inline: var(--space-16);
+}
+
+.tabsPanelPadded {
+  padding-inline: var(--space-16);
 }
 
 .tabBody {
@@ -86,6 +96,7 @@
 }
 
 .notes {
+  padding: 0 var(--space-16) var(--space-16);
   display: flex;
   flex-direction: column;
   gap: var(--space-16);

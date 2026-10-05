@@ -20,7 +20,7 @@ export function CustomerTickets({ customerId, customerName }: { customerId: stri
 
   if (tickets.isPending) {
     return (
-      <div className={styles.tabBody}>
+      <div className={`${styles.tabBody} ${styles.tabsPanelPadded}`}>
         <Skeleton lines={2} label="Cargando tickets…" />
         <Skeleton lines={2} label="" />
       </div>
@@ -28,7 +28,7 @@ export function CustomerTickets({ customerId, customerName }: { customerId: stri
   }
   if (tickets.isError) {
     return (
-      <div className={styles.tabBody}>
+      <div className={`${styles.tabBody} ${styles.tabsPanelPadded}`}>
         <EmptyState
           kind="error"
           headingLevel={3}
@@ -50,7 +50,7 @@ export function CustomerTickets({ customerId, customerName }: { customerId: stri
   const { items, totalItems } = tickets.data
   if (items.length === 0) {
     return (
-      <div className={styles.tabBody}>
+      <div className={`${styles.tabBody} ${styles.tabsPanelPadded}`}>
         <EmptyState
           icon="ticket"
           headingLevel={3}
@@ -74,7 +74,7 @@ export function CustomerTickets({ customerId, customerName }: { customerId: stri
         ))}
       </TicketTable>
       {totalItems > items.length && (
-        <p className={styles.muted}>
+        <p className={`${styles.muted} ${styles.tabsPanelPadded}`}>
           Mostrando los {items.length} más recientes de {totalItems}.
         </p>
       )}
