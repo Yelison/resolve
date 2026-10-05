@@ -141,6 +141,13 @@ describe('rutas de la aplicación', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument()
   })
 
+  it('un cliente no abre /clientes/:id: ve el aviso sin acceso y la ficha no se pide', async () => {
+    const fetchSpy = mockApi({ 'GET /api/me': { body: customerMe } })
+    renderApp('/clientes/c-maria')
+    expect(await screen.findByText('No tienes acceso a esta sección')).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.map(([input]) => new URL((input as Request).url).pathname)).toEqual(['/api/me'])
+  })
+
   it('/clientes/:id abre el detalle del cliente', async () => {
     mockApi({
       'GET /api/me': { body: adminMe },
