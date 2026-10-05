@@ -4,6 +4,7 @@ import {
   Attachment,
   Avatar,
   Badge,
+  BarChart,
   Breadcrumb,
   Button,
   Checkbox,
@@ -37,7 +38,7 @@ import {
 import { iconPaths } from '../../components/ui/Icon/paths'
 import { cx } from '../../lib/cx'
 import { useTheme } from '../theme/useTheme'
-import { demoNow, demoTickets } from './catalogData'
+import { demoChartPoints, demoChartSeries, demoNow, demoTickets } from './catalogData'
 import styles from './CatalogPage.module.css'
 
 const colorTokens = [
@@ -336,6 +337,10 @@ export default function CatalogPage() {
           <Metric label="Tickets abiertos" value="24" detail="8 nuevos hoy" trend="positive" />
           <Metric label="Primera respuesta" value="18 min" detail="Objetivo: 30 min" />
           <Metric label="Satisfacción" value="96 %" detail="↓ 2 % vs. ayer" trend="negative" highlighted />
+        </div>
+        <p className={styles.demo}>Datos de demostración: no proceden de ninguna API.</p>
+        <div className={styles.grid}>
+          <BarChart label="Solicitudes por día (demostración)" series={demoChartSeries} points={demoChartPoints} />
         </div>
         <div className={styles.stack}>
           <Message kind="customer" author="María Pérez" sentAt={demoNow} footer="Correo electrónico">
