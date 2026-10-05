@@ -14,5 +14,34 @@ services:
       interval: 5s
       retries: 10
 
+  # Proveedor de identidad solo para desarrollo local (OIDC del perfil `oidc` del backend). Imagen fijada, nunca
+  # `latest`: 26.7.5 es el último parche de la serie 26.7 en el momento de fijarla.
+  # El realm vive en deploy/keycloak/resolve-realm.json; sus usuarios (contraseña `demo`) y su secreto de cliente
+  # son valores de demostración de este realm local. El secreto se sobrescribe con RESOLVE_OIDC_CLIENT_SECRET.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.5
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin # solo para desarrollo local
+      KC_HEALTH_ENABLED: "true"
+      RESOLVE_OIDC_CLIENT_SECRET: ${RESOLVE_OIDC_CLIENT_SECRET:-resolve-dev-secret}
+    ports:
+      - "${KEYCLOAK_PORT:-8180}:8080"
+    volumes:
+      - ./deploy/keycloak/resolve-realm.json:/opt/keycloak/data/import/resolve-realm.json:ro
+    healthcheck:
+      # La imagen no trae curl: se consulta el puerto de gestión (9000) con un socket de bash.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
 volumes:
   postgres-data:
