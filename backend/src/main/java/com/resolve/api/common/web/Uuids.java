@@ -2,6 +2,7 @@ package com.resolve.api.common.web;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -11,23 +12,20 @@ import java.util.regex.Pattern;
  */
 public final class Uuids {
 
-	private static final Pattern CANONICAL = Pattern
-		.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+	/** La forma canónica, con solo espacio, tabulador y saltos de línea alrededor; nada más se ignora. */
+	private static final Pattern CANONICAL = Pattern.compile("[ \\t\\r\\n]*"
+			+ "([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})" + "[ \\t\\r\\n]*");
 
 	private Uuids() {
 	}
 
-	/** El UUID del texto sin espacios alrededor, o vacío si tiene caracteres de control o no es canónico. */
+	/** El UUID del texto sin espacio, tabulador ni saltos de línea alrededor, o vacío si no es canónico. */
 	public static Optional<UUID> parse(String value) {
-		// trim() quita todo carácter <= U+0020, controles incluidos: solo se ignoran los espacios y saltos de línea.
-		if (ControlCharacters.in(value, true)) {
+		Matcher matcher = CANONICAL.matcher(value);
+		if (!matcher.matches()) {
 			return Optional.empty();
 		}
-		String trimmed = value.strip();
-		if (!CANONICAL.matcher(trimmed).matches()) {
-			return Optional.empty();
-		}
-		return Optional.of(UUID.fromString(trimmed));
+		return Optional.of(UUID.fromString(matcher.group(1)));
 	}
 
 }
