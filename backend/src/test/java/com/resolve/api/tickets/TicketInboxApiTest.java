@@ -154,7 +154,7 @@ class TicketInboxApiTest extends TicketsFixture {
 		for (String filter : new String[] { "customerId", "assigneeId" }) {
 			for (String value : new String[] { "1-2-3-4-5", "{0192f000-0000-7000-8000-000000000001}",
 					"0192f000000070008000000000000001", "0192f000-0000-7000-8000-0000000000012",
-					"+192f000-0000-7000-8000-000000000001" }) {
+					"+192f000-0000-7000-8000-000000000001", "\u0000" + UUID.randomUUID() }) {
 				this.mvc.perform(get("/tickets").param(filter, value).with(as(ADMIN)))
 					.andExpect(status().isBadRequest())
 					.andExpect(matchesContract("listTickets"))

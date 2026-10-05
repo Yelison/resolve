@@ -17,9 +17,13 @@ public final class Uuids {
 	private Uuids() {
 	}
 
-	/** El UUID del texto recortado, o vacío si no tiene la forma canónica. */
+	/** El UUID del texto sin espacios alrededor, o vacío si tiene caracteres de control o no es canónico. */
 	public static Optional<UUID> parse(String value) {
-		String trimmed = value.trim();
+		// trim() quita todo carácter <= U+0020, controles incluidos: solo se ignoran los espacios y saltos de línea.
+		if (ControlCharacters.in(value, true)) {
+			return Optional.empty();
+		}
+		String trimmed = value.strip();
 		if (!CANONICAL.matcher(trimmed).matches()) {
 			return Optional.empty();
 		}
