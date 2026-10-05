@@ -269,6 +269,7 @@ describe('TeamPage', () => {
       await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Rol' }), 'admin')
       await userEvent.click(save)
       expect(await screen.findByText('Rol actualizado')).toBeInTheDocument()
+      expect(screen.getByText('Laura Méndez ahora tiene el rol de administrador.')).toBeInTheDocument()
       expect(body).toEqual({ role: 'admin' })
     })
 
@@ -327,7 +328,7 @@ describe('TeamPage', () => {
       queryClient.setQueryData(ticketKeys.detail(1048), {})
       queryClient.setQueryData(ticketKeys.metrics(), {})
       const dialog = await openRemoveDialog()
-      await userEvent.click(within(dialog).getByRole('button', { name: 'Retirar a Laura Méndez' }))
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Retirar del equipo' }))
       expect(await screen.findByText('Miembro retirado')).toBeInTheDocument()
       const stale = (key: readonly unknown[]) => queryClient.getQueryState(key)?.isInvalidated
       expect(stale(memberKeys.assignees())).toBe(true)
@@ -344,11 +345,85 @@ describe('TeamPage', () => {
       })
       renderTeam()
       const dialog = await openRemoveDialog()
-      await userEvent.click(within(dialog).getByRole('button', { name: 'Retirar a Laura Méndez' }))
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Retirar del equipo' }))
       expect(await within(dialog).findByRole('alert')).toHaveTextContent(
         'Debe quedar al menos un administrador activo.',
       )
       expect(screen.queryByText('Miembro retirado')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('errores de permiso y de estado', () => {
+    const forbidden = {
+      status: 403,
+      body: { status: 403, title: 'Prohibido', detail: 'Tu rol no permite esta acción.' },
+    }
+
+    // Tras el 403 la sesión se relee y ahora es la de un agente: las acciones de administración desaparecen.
+    function degradedAfterForbidden(post: string) {
+      let role = adminMe
+      mockApi({
+        ...baseRoutes,
+        'GET /api/me': () => ({ body: role }),
+        [post]: () => {
+          role = agentMe as typeof adminMe
+          return forbidden
+        },
+      })
+    }
+
+    it('retirar con un 403 muestra su detalle, relee la sesión y quita las acciones', async () => {
+      degradedAfterForbidden('POST /api/members/u-laura/remove')
+      renderTeam()
+      await userEvent.click(await screen.findByRole('button', { name: 'Acciones de Laura Méndez' }))
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Retirar del equipo' }))
+      const dialog = await screen.findByRole('dialog', { name: '¿Retirar a este miembro del equipo?' })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Retirar del equipo' }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Tu rol no permite esta acción.')
+      expect(dialog).not.toHaveTextContent('Revisa tu conexión')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Invitar agente' })).not.toBeInTheDocument())
+      expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument()
+    })
+
+    it('cambiar el rol con un 403 muestra su detalle y relee la sesión', async () => {
+      degradedAfterForbidden('POST /api/members/u-laura/role')
+      const { queryClient } = renderTeam()
+      await userEvent.click(await screen.findByRole('button', { name: 'Acciones de Laura Méndez' }))
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Cambiar rol' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Cambiar rol' })
+      await userEvent.selectOptions(within(dialog).getByRole('combobox', { name: 'Rol' }), 'admin')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Guardar rol' }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Tu rol no permite esta acción.')
+      await waitFor(() => expect(queryClient.getQueryData(sessionKeys.me)).toMatchObject({ role: 'agent' }))
+    })
+
+    it('invitar con un 403 muestra su detalle y relee la sesión', async () => {
+      degradedAfterForbidden('POST /api/members')
+      renderTeam()
+      await userEvent.click(await screen.findByRole('button', { name: 'Invitar agente' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Invitar agente' })
+      await userEvent.type(within(dialog).getByRole('textbox', { name: 'Correo' }), 'ana@acme.example')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Invitar' }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Tu rol no permite esta acción.')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+      await waitFor(() => expect(screen.queryByRole('button', { name: 'Invitar agente' })).not.toBeInTheDocument())
+    })
+
+    it('un 409 relee equipo, métricas y asignables', async () => {
+      mockApi({
+        ...baseRoutes,
+        'POST /api/members/u-laura/remove': problem(409, 'El miembro ya fue retirado del equipo.'),
+      })
+      const { queryClient } = renderTeam()
+      queryClient.setQueryData(memberKeys.assignees(), [])
+      await userEvent.click(await screen.findByRole('button', { name: 'Acciones de Laura Méndez' }))
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Retirar del equipo' }))
+      const dialog = await screen.findByRole('dialog', { name: '¿Retirar a este miembro del equipo?' })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Retirar del equipo' }))
+      await within(dialog).findByRole('alert')
+      const stale = (key: readonly unknown[]) => queryClient.getQueryState(key)?.isInvalidated
+      await waitFor(() => expect(stale(memberKeys.assignees())).toBe(true))
     })
   })
 })

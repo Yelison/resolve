@@ -1,6 +1,6 @@
 import { Alert, Button, Modal, useToast } from '../../components/ui'
-import { isApiError } from '../../api/client'
 import type { TeamMember } from '../../domain/member'
+import { mutationErrorDetail } from './errorDetail'
 import { useRemoveMember } from './queries'
 import styles from './TeamDialogs.module.css'
 
@@ -18,9 +18,12 @@ export function RemoveMemberDialog({ member, onClose }: RemoveMemberDialogProps)
       onClose={onClose}
       title="¿Retirar a este miembro del equipo?"
       description={
-        member
-          ? `${member.name} dejará de poder entrar y sus tickets sin resolver quedarán sin asignar. Su historial se conserva.`
-          : undefined
+        member ? (
+          <>
+            <span className={styles.name}>{member.name}</span> dejará de poder entrar y sus tickets sin resolver
+            quedarán sin asignar. Su historial se conserva.
+          </>
+        ) : undefined
       }
     >
       {member && <RemoveForm key={member.id} member={member} onClose={onClose} />}
@@ -47,9 +50,7 @@ function RemoveForm({ member, onClose }: { member: TeamMember; onClose: () => vo
     <div className={styles.form}>
       {error && (
         <Alert tone="red" title="No se pudo retirar al miembro" live>
-          {isApiError(error, 409) || isApiError(error, 404)
-            ? (error.problem.detail ?? error.problem.title)
-            : 'Revisa tu conexión e inténtalo de nuevo.'}
+          {mutationErrorDetail(error)}
         </Alert>
       )}
       <div className={styles.actions}>
@@ -57,7 +58,7 @@ function RemoveForm({ member, onClose }: { member: TeamMember; onClose: () => vo
           Cancelar
         </Button>
         <Button variant="danger" loading={remove.isPending} loadingLabel="Retirando…" onClick={confirm}>
-          Retirar a {member.name}
+          Retirar del equipo
         </Button>
       </div>
     </div>

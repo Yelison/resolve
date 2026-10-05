@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, unwrap } from '../../api/client'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { api, isApiError, unwrap } from '../../api/client'
 import type { MemberInvite, TeamMember, TeamRole } from '../../domain/member'
 import { sessionKeys } from '../session/queries'
 import { ticketKeys } from '../tickets/queries'
@@ -36,6 +36,14 @@ export function useTeamMetrics() {
   })
 }
 
+/**
+ * Un 403 significa que el rol de la sesión ya no permite la acción (p. ej. otra persona degradó a quien la hace): la
+ * sesión se lee de nuevo para que las acciones de administración desaparezcan en lugar de repetir el 403.
+ */
+export function refreshSessionOnForbidden(queryClient: QueryClient, error: unknown) {
+  if (isApiError(error, 403)) void queryClient.invalidateQueries({ queryKey: sessionKeys.me })
+}
+
 /** Una invitación fallida (p. ej. el correo ya es de un miembro) deja la lista como estaba: no hay nada que releer. */
 export function useInviteMember() {
   const queryClient = useQueryClient()
@@ -43,10 +51,11 @@ export function useInviteMember() {
     mutationFn: (invite: MemberInvite) => unwrap(api.POST('/members', { body: invite })),
     // Un invitado aún no cuenta como personal ni como responsable asignable: solo cambia la lista.
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: memberKeys.list() }),
+    onError: (error) => refreshSessionOnForbidden(queryClient, error),
   })
 }
 
-/** Tras un 404 o un 409 otra persona ya cambió al miembro: se lee de nuevo para mostrar lo real. */
+/** Tras un 404 o un 409 otra persona ya cambió al miembro: se lee de nuevo para mostrar lo real. Un 403 relee la sesión. */
 function useMemberChange<TVariables>(
   request: (variables: TVariables) => Promise<TeamMember>,
   onSuccess: (queryClient: ReturnType<typeof useQueryClient>) => void,
@@ -55,8 +64,9 @@ function useMemberChange<TVariables>(
   return useMutation({
     mutationFn: request,
     onSuccess: () => onSuccess(queryClient),
-    onError: () => {
+    onError: (error) => {
       void queryClient.invalidateQueries({ queryKey: memberKeys.all })
+      refreshSessionOnForbidden(queryClient, error)
     },
   })
 }

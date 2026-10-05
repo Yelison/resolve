@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, toApiPage, unwrap } from '../../api/client'
 import type { CustomerCreate, CustomerDetail, CustomerPatch } from '../../domain/customer'
+import { refreshSessionOnForbidden } from '../team/queries'
 import { ticketKeys } from '../tickets/queries'
 
 export interface CustomerListParams {
@@ -194,6 +195,9 @@ export function useInviteCustomer(id: string) {
   return useMutation({
     mutationFn: () => unwrap(api.POST('/customers/{id}/invite', { params: { path: { id } } })),
     onSuccess: refresh,
-    onError: refresh,
+    onError: (error) => {
+      refresh()
+      refreshSessionOnForbidden(queryClient, error)
+    },
   })
 }
