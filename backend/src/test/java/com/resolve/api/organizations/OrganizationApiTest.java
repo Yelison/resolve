@@ -178,8 +178,11 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 	@Test
 	void rejectsAnUnknownTimeZoneWithAFieldError() throws Exception {
-		// Desconocida, offsets, alias que Java acepta y PostgreSQL interpreta distinto, y otra capitalización.
-		for (String zone : new String[] { "Mars/Olympus", "+05:00", "Z", "UTC+5", "GMT+5", "america/bogota", "EST", "" }) {
+		// Desconocida, offsets, alias que Java acepta y PostgreSQL interpreta distinto, y otra capitalización. Las
+		// capas de validación se tapan entre sí (OrganizationRequestParserTest fija la de Java por separado);
+		// «SystemV/EST5» es una región exacta para Java y solo la rechaza la consulta a pg_timezone_names.
+		for (String zone : new String[] { "Mars/Olympus", "+05:00", "Z", "UTC+5", "GMT+5", "america/bogota", "EST", "",
+				"SystemV/EST5" }) {
 			this.mvc.perform(patchOrganization(ADMIN, "\"0\"", "{\"timeZone\": \"%s\"}".formatted(zone)))
 				.andExpect(status().isBadRequest())
 				.andExpect(matchesContract("updateOrganization"))
