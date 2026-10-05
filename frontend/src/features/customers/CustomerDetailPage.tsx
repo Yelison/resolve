@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import {
   Alert,
+  Avatar,
   Badge,
   Button,
   buttonClassName,
@@ -15,11 +16,11 @@ import {
 } from '../../components/ui'
 import { isApiError } from '../../api/client'
 import type { CustomerDetail } from '../../domain/customer'
-import { formatDateTime } from '../../lib/format'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
 import { useTimeZone } from '../session/useTimeZone'
+import { customerSince } from './customerSince'
 import { ticketContext } from './ticketContext'
 import { CustomerFormDialog } from './CustomerFormDialog'
 import { CustomerTickets } from './CustomerTickets'
@@ -89,7 +90,9 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
   const access = portalAccessLabels[customer.portalAccess]
   // Un cliente archivado tiene el acceso suspendido, diga lo que diga `portalAccess` (ver el contrato).
   const portal = customer.archived ? { label: 'Acceso suspendido', tone: 'neutral' as BadgeTone } : access
-  const created = formatDateTime(new Date(customer.createdAt), undefined, timeZone)
+  const subtitle = ['Cliente', customer.company, `cliente desde ${customerSince(customer.createdAt, timeZone)}`]
+    .filter(Boolean)
+    .join(' · ')
 
   function restoreCustomer() {
     restore.mutate(undefined, {
@@ -124,11 +127,11 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
     <div className={pageStyles.page}>
       <PageHeader
         title={customer.name}
-        description={[customer.company, customer.email].filter(Boolean).join(' · ')}
+        description={subtitle}
         actions={
           <div className={styles.actions}>
             <Button variant="secondary" disabled={customer.archived} onClick={() => setEditing(true)}>
-              Editar
+              Editar cliente
             </Button>
             {isAdmin &&
               (customer.archived ? (
@@ -153,40 +156,47 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
         </Alert>
       )}
 
-      <div className={styles.layout}>
+      <div className={styles.top}>
         <aside className={styles.profile} aria-labelledby="customer-profile-title">
-          <h2 id="customer-profile-title" className={styles.profileTitle}>
+          <h2 id="customer-profile-title" className="visually-hidden">
             Perfil
           </h2>
+          <Avatar name={customer.name} size="large" decorative />
+          <dl className={styles.facts}>
+            <Fact label="Correo" value={customer.email} />
+            <Fact label="Empresa" value={customer.company ?? 'Sin empresa'} />
+          </dl>
           <div className={styles.badges}>
             {customer.archived && <Badge tone="neutral">Archivado</Badge>}
             <Badge tone={portal.tone}>{portal.label}</Badge>
           </div>
-          <dl className={styles.facts}>
-            <Fact label="Correo" value={customer.email} />
-            <Fact label="Empresa" value={customer.company ?? 'Sin empresa'} />
-            <Fact label="Cliente desde" value={created} />
-            <Fact label="Tickets" value={ticketContext(customer)} />
-          </dl>
         </aside>
 
-        <div className={styles.main}>
-          <Tabs
-            label="Información del cliente"
-            items={[
-              {
-                id: 'tickets',
-                label: 'Tickets',
-                content: <CustomerTickets customerId={customer.id} customerName={customer.name} />,
-              },
-              {
-                id: 'notes',
-                label: 'Notas',
-                content: <Notes customer={customer} draft={notesDraft} onDraftChange={setNotesDraft} />,
-              },
-            ]}
-          />
-        </div>
+        <section className={styles.context} aria-labelledby="customer-context-title">
+          <h2 id="customer-context-title" className={styles.contextTitle}>
+            Contexto de atención
+          </h2>
+          <p>{ticketContext(customer)}</p>
+          <p className={styles.contextNotes}>{customer.notes?.trim() || 'Todavía no hay notas sobre este cliente.'}</p>
+        </section>
+      </div>
+
+      <div className={styles.tabs}>
+        <Tabs
+          label="Información del cliente"
+          items={[
+            {
+              id: 'tickets',
+              label: 'Tickets',
+              content: <CustomerTickets customerId={customer.id} customerName={customer.name} />,
+            },
+            {
+              id: 'notes',
+              label: 'Notas',
+              content: <Notes customer={customer} draft={notesDraft} onDraftChange={setNotesDraft} />,
+            },
+          ]}
+        />
       </div>
 
       <CustomerFormDialog mode="edit" customer={customer} open={editing} onClose={() => setEditing(false)} />

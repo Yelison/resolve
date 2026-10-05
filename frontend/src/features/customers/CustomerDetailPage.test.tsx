@@ -71,6 +71,23 @@ describe('CustomerDetailPage', () => {
     expect(screen.getByRole('tab', { name: 'Notas' })).toBeInTheDocument()
   })
 
+  it('muestra el subtítulo con la empresa y la fecha de alta, y el avatar y el botón de la maqueta', async () => {
+    api()
+    renderDetail()
+    expect(await screen.findByText('Cliente · Acme Studio · cliente desde 1 de septiembre de 2026')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Editar cliente' })).toBeInTheDocument()
+    expect(screen.getByText('MP')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Contexto de atención' })).toHaveTextContent(
+      '4 tickets · 1 abierto · 3 resueltosPrefiere que la llamen por la mañana.',
+    )
+  })
+
+  it('sin empresa omite ese tramo del subtítulo', async () => {
+    api({ 'GET /api/customers/c-maria': { body: customerDetail({ company: null }) } })
+    renderDetail()
+    expect(await screen.findByText('Cliente · cliente desde 1 de septiembre de 2026')).toBeInTheDocument()
+  })
+
   it.each([
     ['none', 'Sin acceso'],
     ['invited', 'Invitación pendiente'],
@@ -232,7 +249,7 @@ describe('CustomerDetailPage', () => {
     it('un archivado desactiva la edición y lo explica', async () => {
       api({ 'GET /api/customers/c-maria': { body: customerDetail({ archived: true }) } })
       renderDetail()
-      expect(await screen.findByRole('button', { name: 'Editar' })).toBeDisabled()
+      expect(await screen.findByRole('button', { name: 'Editar cliente' })).toBeDisabled()
       expect(screen.getByText('Cliente archivado')).toBeInTheDocument()
       await userEvent.click(screen.getByRole('tab', { name: 'Notas' }))
       expect(screen.getByRole('textbox', { name: 'Notas internas' })).toBeDisabled()
@@ -242,7 +259,7 @@ describe('CustomerDetailPage', () => {
     it('un agente no ve «Archivar» ni «Restaurar», pero sí puede editar', async () => {
       api({ 'GET /api/me': { body: agentMe } })
       renderDetail()
-      expect(await screen.findByRole('button', { name: 'Editar' })).toBeEnabled()
+      expect(await screen.findByRole('button', { name: 'Editar cliente' })).toBeEnabled()
       expect(screen.queryByRole('button', { name: 'Archivar' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Restaurar' })).not.toBeInTheDocument()
     })
@@ -287,7 +304,7 @@ describe('CustomerDetailPage', () => {
         ticketKeys.detail(1048),
       ]
       for (const key of seeded) queryClient.setQueryData(key, {})
-      await userEvent.click(await screen.findByRole('button', { name: 'Editar' }))
+      await userEvent.click(await screen.findByRole('button', { name: 'Editar cliente' }))
       const name = screen.getByRole('textbox', { name: 'Nombre' })
       await userEvent.clear(name)
       await userEvent.type(name, 'María P. Ruiz')
