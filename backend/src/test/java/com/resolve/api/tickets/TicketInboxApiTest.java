@@ -1,6 +1,7 @@
 package com.resolve.api.tickets;
 
 import java.time.Duration;
+import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,43 @@ class TicketInboxApiTest extends TicketsFixture {
 			.andExpect(jsonPath("$.items[*].number", contains(2)));
 		this.mvc.perform(get("/tickets").param("q", "otra organización").with(as(ADMIN)))
 			.andExpect(jsonPath("$.totalItems").value(0));
+	}
+
+	@Test
+	void filtersByCustomerWithinTheOrganization() throws Exception {
+		this.mvc.perform(get("/tickets").param("customerId", this.carlosCustomer.toString()).with(as(ADMIN)))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listTickets"))
+			.andExpect(jsonPath("$.items[*].number", contains(4, 2)))
+			.andExpect(jsonPath("$.totalItems").value(2));
+		this.mvc
+			.perform(get("/tickets").param("customerId", this.carlosCustomer.toString())
+				.param("status", "resolved")
+				.with(as(ADMIN)))
+			.andExpect(jsonPath("$.items[*].number", contains(4)));
+		// Un cliente de otra organización y un id inexistente se tratan igual: página vacía, sin 400 ni 404.
+		for (UUID unreachable : new UUID[] { this.northwindCustomer, UUID.randomUUID() }) {
+			this.mvc.perform(get("/tickets").param("customerId", unreachable.toString()).with(as(ADMIN)))
+				.andExpect(status().isOk())
+				.andExpect(matchesContract("listTickets"))
+				.andExpect(jsonPath("$.totalItems").value(0))
+				.andExpect(jsonPath("$.items").isEmpty());
+		}
+		this.mvc.perform(get("/tickets").param("customerId", "no-es-un-uuid").with(as(ADMIN)))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("listTickets"))
+			.andExpect(jsonPath("$.errors[*].field", contains("customerId")));
+	}
+
+	@Test
+	void aCustomerMemberCannotWidenTheScopeWithCustomerId() throws Exception {
+		this.mvc.perform(get("/tickets").param("customerId", this.carlosCustomer.toString()).with(as(MARIA)))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listTickets"))
+			.andExpect(jsonPath("$.totalItems").value(0))
+			.andExpect(jsonPath("$.items").isEmpty());
+		this.mvc.perform(get("/tickets").param("customerId", this.mariaCustomer.toString()).with(as(MARIA)))
+			.andExpect(jsonPath("$.items[*].number", contains(6, 1)));
 	}
 
 	@Test

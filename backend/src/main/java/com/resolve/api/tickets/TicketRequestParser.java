@@ -32,7 +32,8 @@ final class TicketRequestParser {
 	private final List<FieldErrorDetail> errors = new ArrayList<>();
 
 	static TicketFilters filters(@Nullable String view, @Nullable List<String> statuses,
-			@Nullable List<String> priorities, @Nullable String assigneeId, @Nullable String q) {
+			@Nullable List<String> priorities, @Nullable String assigneeId, @Nullable String customerId,
+			@Nullable String q) {
 		TicketRequestParser parser = new TicketRequestParser();
 		TicketView parsedView = (view == null || view.isBlank()) ? TicketView.ALL
 				: parser.enumValue("view", view, TicketView.class).orElse(TicketView.ALL);
@@ -43,6 +44,8 @@ final class TicketRequestParser {
 			assignee = "none".equals(assigneeId) ? TicketFilters.AssigneeFilter.none()
 					: parser.uuid("assigneeId", assigneeId).map(TicketFilters.AssigneeFilter::new).orElse(null);
 		}
+		UUID customer = (customerId == null || customerId.isBlank()) ? null
+				: parser.uuid("customerId", customerId).orElse(null);
 		Long number = null;
 		String text = null;
 		if (q != null && !q.isBlank()) {
@@ -59,7 +62,7 @@ final class TicketRequestParser {
 			}
 		}
 		parser.throwIfInvalid();
-		return new TicketFilters(parsedView, parsedStatuses, parsedPriorities, assignee, number, text);
+		return new TicketFilters(parsedView, parsedStatuses, parsedPriorities, assignee, customer, number, text);
 	}
 
 	/** Número de ticket de la ruta: entero positivo. */

@@ -61,6 +61,11 @@ class TicketSearchImpl implements TicketSearch {
 				parameters.put("assigneeId", filters.assignee().userId());
 			}
 		}
+		if (filters.customerId() != null) {
+			// Nombre distinto del alcance (:customerId): si compartieran nombre, el filtro pisaría el alcance del cliente.
+			conditions.add("c.id = :customerFilter");
+			parameters.put("customerFilter", filters.customerId());
+		}
 		if (filters.ticketNumber() != null) {
 			conditions.add("t.number = :ticketNumber");
 			parameters.put("ticketNumber", filters.ticketNumber());

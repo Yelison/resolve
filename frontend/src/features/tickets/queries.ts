@@ -8,6 +8,8 @@ export interface TicketListParams {
   priority: TicketPriority[]
   /** Id de un miembro, `none` para sin asignar o vacío para todos. */
   assigneeId?: string
+  /** Solo los tickets de este cliente; un cliente miembro lo combina con su propio alcance. */
+  customerId?: string
   q?: string
   /** Página de la interfaz, desde 1. */
   page: number
@@ -37,6 +39,7 @@ export function useTicketList(params: TicketListParams) {
               status: params.status,
               priority: params.priority,
               assigneeId: params.assigneeId || undefined,
+              customerId: params.customerId || undefined,
               q: params.q?.trim() || undefined,
               page: toApiPage(params.page),
               size: params.pageSize,

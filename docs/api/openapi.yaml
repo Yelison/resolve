@@ -71,6 +71,12 @@ paths:
           schema:
             type: string
             pattern: '^(none|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$'
+        - name: customerId
+          in: query
+          description: |
+            Only tickets of this customer. For customer members it combines with their own scope,
+            so another id yields no results.
+          schema: { type: string, format: uuid }
         - name: q
           in: query
           description: |

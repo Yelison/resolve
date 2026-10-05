@@ -138,6 +138,7 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | `status` | One or more statuses (repeat the parameter) |
 | `priority` | One or more priorities |
 | `assigneeId` | A member id, or `none` for unassigned tickets |
+| `customerId` | Only the tickets of this customer (a uuid; an invalid value is a 400, an empty one is ignored). It combines with the caller's own scope, so a customer member asking for another customer, an id from another organization or an unknown id gets an empty page, never a 400 or 404 |
 | `q` | Case-insensitive contains match on the subject and the customer name, email and company; a number, with or without `#`, matches the ticket number exactly |
 
 Filters combine with `AND` (so `view=resolved&status=open` is empty); repeated values of one filter combine with `OR`.
