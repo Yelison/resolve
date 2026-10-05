@@ -42,6 +42,10 @@ Two independent layers, because a provider snapshot does not protect against los
 Run weekly from a machine or scheduled job that is **not** part of Fly.io or Neon, and keep the files in storage owned
 by a different account (`<external-bucket>`), with a retention of at least `<n>` weeks.
 
+Use `pg_dump` and `pg_restore` **version 17 or newer** (the same major as the server; check the Neon project's
+PostgreSQL version): `pg_dump` refuses to dump a server newer than itself. If the machine has an older client, run it from a container, for example
+`docker run --rm --network host -e PGPASSWORD postgres:17-alpine pg_dump …` (mount a volume to keep the file).
+
 ```sh
 # Use the direct (non-pooled) connection string of Neon, not the pooler endpoint.
 # The password comes from ~/.pgpass or PGPASSWORD, not from the command line.
@@ -50,6 +54,11 @@ pg_dump -Fc --no-owner --no-privileges \
   -f "resolve-$(date -u +%Y%m%dT%H%M%SZ).dump"
 pg_restore --list resolve-<timestamp>.dump > /dev/null   # the file must be readable
 ```
+
+**Keycloak data — to verify after the first deployment.** The realm export in the repository does not contain users
+created afterwards or settings changed in the admin console. Decide how Keycloak's own database is backed up
+(a separate dump, or a realm export on a schedule, unless it lives in the database covered by the dump above) and add
+it here.
 
 A backup that was never restored is not a backup: the restore in section 2 is repeated after the first real dump and
 then at least once per quarter.
@@ -62,23 +71,40 @@ Never restore over the live database.
 ### 2.1 Rehearsal on the local PostgreSQL (done)
 
 Rehearsed on 2026-10-05 with the `postgres:17-alpine` image from `docker-compose.yml`, in a disposable project on a
-random free port, with the schema (Flyway migrations V1–V8) and demo data (V1000–V1006) loaded with `psql`.
+random free port, with the schema (Flyway migrations V1–V8) and demo data (V1000–V1006) loaded with `psql`. The
+steps below were run exactly as written (only the project name differed) to produce the result table.
 
 ```sh
+# Run from the repository root.
 # 1. Disposable PostgreSQL on a free port (a project name keeps it apart from the development database)
 export POSTGRES_PORT=<free-port> P=resolve-restore-rehearsal
 docker compose -p "$P" up -d --wait
 C=$(docker compose -p "$P" ps -q postgres)
+pg() { docker exec -i -e PGPASSWORD=resolve "$C" "$@"; }   # local development credentials only
 
-# 2. Dump (custom format) from inside the container; credentials are the local development ones
-docker exec -e PGPASSWORD=resolve "$C" pg_dump -Fc -U resolve -d resolve -f /tmp/resolve.dump
+# 2. Load the schema and the demo data, in version order (sort -V: V10 goes after V9, V1000+ last)
+for dir in migration demo; do
+  for f in $(ls backend/src/main/resources/db/$dir/V*.sql | sort -V); do
+    pg psql -q -v ON_ERROR_STOP=1 -U resolve -d resolve < "$f" > /dev/null || { echo "FAILED: $f"; break 2; }
+  done
+done
 
-# 3. Empty target database, then restore
-docker exec -e PGPASSWORD=resolve "$C" createdb -U resolve resolve_restore
-docker exec -e PGPASSWORD=resolve "$C" pg_restore --exit-on-error --no-owner --no-privileges \
-  -U resolve -d resolve_restore /tmp/resolve.dump
+# 3. Dump (custom format), create an empty target database and restore
+pg pg_dump -Fc -U resolve -d resolve -f /tmp/resolve.dump
+pg createdb -U resolve resolve_restore
+pg pg_restore --exit-on-error --no-owner --no-privileges -U resolve -d resolve_restore /tmp/resolve.dump
 
-# 4. Compare row counts, indexes and constraints between resolve and resolve_restore (see below)
+# 4. Compare source and restored databases. If the tables line below is empty or "0", the schema was never loaded
+#    and the rehearsal proves nothing: stop and fix step 2.
+for db in resolve resolve_restore; do
+  echo "== $db"
+  pg psql -U resolve -d "$db" -Atc "select count(*) || ' tables' from pg_tables where schemaname = 'public'"
+  for t in $(pg psql -U resolve -d "$db" -Atc "select tablename from pg_tables where schemaname = 'public' order by 1"); do
+    echo "$t=$(pg psql -U resolve -d "$db" -Atc "select count(*) from $t")"          # rows per table
+  done
+  pg psql -U resolve -d "$db" -Atc "select count(*) || ' indexes' from pg_indexes where schemaname = 'public'"
+  pg psql -U resolve -d "$db" -Atc "select count(*) || ' constraints' from pg_constraint where connamespace = 'public'::regnamespace"
+done
 
 # 5. Remove everything (destructive: deletes the disposable database and its volume)
 docker compose -p "$P" down --volumes
@@ -98,7 +124,7 @@ Also observed:
 - Restoring a second time into the same, now non-empty database stops at the first object with
   `ERROR: relation "articles" already exists` and exit code 1 (because of `--exit-on-error`). That is why the target
   must be empty; the failure is safe, not a way to "refresh" a database.
-- The rehearsal loaded the SQL files with `psql`, so `flyway_schema_history` did not exist. A real dump includes it,
+- The rehearsal loads the SQL files with `psql`, so `flyway_schema_history` does not exist. A real dump includes it,
   and Flyway then sees the restored database as up to date: after a restore, start the API and check that it does not
   try to migrate (see section 6).
 - `--no-owner --no-privileges` are used because the restoring role is not the role that created the objects. With
@@ -124,8 +150,11 @@ leaves the new schema under the old code. So, in one release:
 - Allowed: add a nullable column or one with a default, add a table or an index, add a constraint that old code
   already satisfies.
 - Not allowed in the same release that stops using it: dropping or renaming a column or table, making a nullable
-  column `NOT NULL`, changing a type. Do it in two releases: first stop using it (expand), then remove it (contract)
-  once the previous version can no longer be needed.
+  column `NOT NULL`, changing a type. Do it in three steps, each one safe to roll back from:
+  1. **Expand** (release N): add the new column or table next to the old one, and write to both.
+  2. **Migrate** (release N+1): the code reads and writes only the new one; backfill existing rows.
+  3. **Contract** (release N+2 or later): drop the old one, once the version that still used it can no longer be a
+     rollback target.
 - A migration is never edited after it has been applied (Flyway checksum); fix forward with a new one.
 
 The pull request that adds a migration states how it was checked against the previous application version (for
@@ -138,7 +167,7 @@ The pipeline (T9.3) publishes an image tagged with the commit SHA and `latest`. 
 tag, not rebuilding.
 
 ```sh
-fly releases -a <api-app>                       # find the last good release and its image tag
+fly releases -a <api-app>                       # find the last good release (the image tag may need `--image`: to verify)
 fly deploy -a <api-app> --image ghcr.io/<owner>/<repo>:<previous-sha>
 fly status -a <api-app>                         # machines healthy
 curl -fsS https://<public-host>/api/actuator/health   # {"status":"UP"}
@@ -153,15 +182,19 @@ database (section 2) as a last resort and accept the loss of data written since.
 Applies once authentication with Keycloak exists (F8) — **to verify after the first deployment**. Rotate on a schedule
 (`<n>` months), when somebody who had access leaves, or immediately if it may have leaked.
 
-1. In the Keycloak admin console: realm `<realm>` → Clients → `<client-id>` → Credentials → **Regenerate**. Copy the new
-   value straight into the next step; do not paste it in chat, tickets or the repository.
+> **Warning.** Regenerating the secret in Keycloak invalidates the old one at once, and the API keeps using the old
+> value until step 2 finishes, so **sign-ins fail between steps 1 and 2**. Do it at a quiet time and keep the window
+> short. If your Keycloak version supports a second (rotated) secret for the client, enable it to remove the gap.
+> Restarting the API in step 2 should also **sign every user out**, because the BFF keeps sessions in memory (D-13)
+> — to verify after the first deployment.
+
+1. In the Keycloak admin console: realm `<realm>` → Clients → `<client-id>` → Credentials → **Regenerate** (destructive:
+   the old secret stops working). Copy the new value straight into the next step; do not paste it in chat, tickets or
+   the repository.
 2. `fly secrets set RESOLVE_OIDC_CLIENT_SECRET=<new-secret> -a <api-app>` (this restarts the API). Set it from a
    terminal where the value is not echoed or stored in history.
 3. Check: `GET /api/actuator/health` is `UP`, then sign in through the browser with a test account and sign out.
-4. Between steps 1 and 2 the API still holds the old secret, so sign-ins fail for that window. Do it at a quiet time
-   and keep the window short. If Keycloak's version supports a rotated (second) secret for the client, enable it to
-   remove the gap.
-5. Record the date of the rotation in `<ops log>`. The old secret is not kept anywhere.
+4. Record the date of the rotation in `<ops log>`. The old secret is not kept anywhere.
 
 ## 5. Switching the database
 
@@ -178,7 +211,9 @@ for a while.
 
 Check in this order:
 
-1. **Which component?** Open the health detail if available, or the logs: `fly logs -a <api-app>`.
+1. **Which component?** Read the logs: `fly logs -a <api-app>`. The health detail only appears if
+   `management.endpoint.health.show-details` is configured, which is not set today (T9.2/T9.3 decide it — to verify);
+   until then `health` answers just `UP` or `DOWN`.
 2. **Database.** Is Neon reachable and not paused/over its limits (Neon console)? Wrong or rotated
    `DATABASE_PASSWORD`? Connection from the Fly region blocked? Try `psql` with the direct connection string.
 3. **Migrations.** A Flyway failure at startup (checksum mismatch, a failed migration) keeps the app down. Read the
