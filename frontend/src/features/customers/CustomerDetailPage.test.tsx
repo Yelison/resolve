@@ -207,6 +207,48 @@ describe('CustomerDetailPage', () => {
     })
   })
 
+  it('al pasar de un cliente a otro, con el segundo en caché, el borrador de notas no viaja', async () => {
+    api({
+      'GET /api/customers/c-maria': { body: customerDetail() },
+      'GET /api/customers/c-luis': {
+        body: customerDetail({ id: 'c-luis', name: 'Luis Gómez', notes: 'Notas de Luis' }),
+      },
+    })
+    const router = createMemoryRouter([{ path: '/clientes/:id', element: <CustomerDetailPage /> }], {
+      initialEntries: ['/clientes/c-maria'],
+    })
+    const { queryClient } = renderWithProviders(<RouterProvider router={router} />)
+    queryClient.setQueryData(
+      customerKeys.detail('c-luis'),
+      customerDetail({ id: 'c-luis', name: 'Luis Gómez', notes: 'Notas de Luis' }),
+    )
+    await userEvent.click(await screen.findByRole('tab', { name: 'Notas' }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Notas internas' }), ' borrador de María')
+    await router.navigate('/clientes/c-luis')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Luis Gómez' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: 'Notas' }))
+    expect(screen.getByRole('textbox', { name: 'Notas internas' })).toHaveValue('Notas de Luis')
+  })
+
+  it('si el cliente pasa a archivado tras un 412, las notas muestran el aviso de archivado y no el ámbar', async () => {
+    let reads = 0
+    api({
+      'GET /api/customers/c-maria': () => {
+        reads += 1
+        return { body: customerDetail(reads === 1 ? {} : { archived: true, version: 4 }) }
+      },
+      'PATCH /api/customers/c-maria': { status: 412, body: { status: 412, title: 'El recurso cambió' } },
+    })
+    renderDetail()
+    await userEvent.click(await screen.findByRole('tab', { name: 'Notas' }))
+    await userEvent.type(screen.getByRole('textbox', { name: 'Notas internas' }), ' Extra.')
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar notas' }))
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Notas internas' })).toBeDisabled())
+    expect(screen.getAllByText('El cliente está archivado').length).toBeGreaterThan(0)
+    expect(screen.queryByText('El cliente cambió mientras editabas las notas')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardar notas' })).toBeDisabled()
+  })
+
   describe('archivar y restaurar', () => {
     it('archiva con confirmación y pasa a «Archivado» con «Restaurar»', async () => {
       const fetchSpy = api({
