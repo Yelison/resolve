@@ -1,0 +1,52 @@
+.prose {
+  max-width: 720px;
+  min-width: 0;
+  color: var(--color-ink);
+  font: var(--font-body);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.prose > * + * {
+  margin-top: var(--space-12);
+}
+
+.prose h2,
+.prose h3 {
+  margin-top: var(--space-24);
+  color: var(--color-ink);
+  /* Deja visible el encabezado bajo la barra superior fija al saltar desde el índice. */
+  scroll-margin-top: 96px;
+}
+
+.prose h2 {
+  font: var(--font-section);
+}
+
+.prose h3 {
+  font: var(--font-body);
+  font-weight: 600;
+}
+
+.prose p {
+  color: var(--color-ink);
+}
+
+.prose ul,
+.prose ol {
+  padding-left: var(--space-24);
+}
+
+.prose li + li {
+  margin-top: var(--space-4);
+}
+
+.prose a {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+
+.prose a:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

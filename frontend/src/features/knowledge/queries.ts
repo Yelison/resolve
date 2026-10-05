@@ -52,3 +52,11 @@ export function useCategories() {
     queryFn: ({ signal }) => unwrap(api.GET('/knowledge/categories', { signal })),
   })
 }
+
+/** Detalle de un artículo por su slug. Un 404 también cubre un borrador que quien llama no puede ver. */
+export function useArticle(slug: string) {
+  return useQuery({
+    queryKey: articleKeys.detail(slug),
+    queryFn: ({ signal }) => unwrap(api.GET('/knowledge/articles/{slug}', { params: { path: { slug } }, signal })),
+  })
+}

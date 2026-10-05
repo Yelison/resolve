@@ -5,7 +5,7 @@ import { adminMe, customerMe, mockApi } from '../test/api'
 import { renderWithProviders } from '../test/render'
 import { reportSummary } from '../features/reports/reportFixtures'
 import { metrics, page, summary, ticket } from '../test/ticketFixtures'
-import { articlePage, articleSummary } from '../features/knowledge/articleFixtures'
+import { article, articlePage, articleSummary } from '../features/knowledge/articleFixtures'
 import { mainNavigation } from './navigation'
 import { appRoutes } from './router'
 
@@ -270,6 +270,24 @@ describe('rutas de la aplicación', () => {
     expect(spy.mock.calls.some(([input]) => new URL((input as Request).url).pathname.startsWith('/api/reports'))).toBe(
       false,
     )
+  })
+
+  it('un cliente lee un artículo en /conocimiento/:slug, sin acciones de personal', async () => {
+    mockApi({
+      'GET /api/me': { body: customerMe },
+      'GET /api/knowledge/articles/como-recuperar-el-acceso-a-tu-cuenta': { body: article() },
+    })
+    renderApp('/conocimiento/como-recuperar-el-acceso-a-tu-cuenta')
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Cómo recuperar el acceso a tu cuenta' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Editar artículo' })).not.toBeInTheDocument()
+  })
+
+  it('un cliente no abre /conocimiento/:slug/editar: ve el aviso sin acceso', async () => {
+    mockApi({ 'GET /api/me': { body: customerMe } })
+    renderApp('/conocimiento/como-recuperar-el-acceso-a-tu-cuenta/editar')
+    expect(await screen.findByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeInTheDocument()
   })
 
   it('cubre todas las secciones de personal', () => {

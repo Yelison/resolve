@@ -1,4 +1,4 @@
-import type { ArticlePage, ArticleSummary, Category } from '../../domain/article'
+import type { Article, ArticlePage, ArticleSummary, Category } from '../../domain/article'
 
 export const category = (overrides: Partial<Category> = {}): Category => ({
   id: 'cat-acceso',
@@ -27,4 +27,30 @@ export const articlePage = (items: ArticleSummary[], totalItems = items.length):
   size: 20,
   totalItems,
   totalPages: Math.ceil(totalItems / 20),
+})
+
+export const articleBody = [
+  'Si no puedes iniciar sesión, solicita un enlace nuevo.',
+  '',
+  '## Solicita un enlace nuevo',
+  '',
+  'Selecciona **Olvidé mi contraseña**.',
+  '',
+  '### Revisa el correo',
+  '',
+  'Busca el mensaje en la carpeta de spam.',
+  '',
+  '## Recupera el acceso',
+  '',
+  'Abre el enlace antes de que venza.',
+].join('\n')
+
+export const article = (overrides: Partial<Article> = {}): Article => ({
+  ...articleSummary(),
+  body: articleBody,
+  allowFeedback: true,
+  version: 3,
+  createdBy: { id: 'u-admin', name: 'Yelisson Ortiz' },
+  updatedBy: { id: 'u-admin', name: 'Yelisson Ortiz' },
+  ...overrides,
 })
