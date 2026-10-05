@@ -1,6 +1,7 @@
 package com.resolve.api.tickets;
 
 import java.time.Duration;
+import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -93,15 +94,25 @@ class TicketMessagesApiTest extends TicketsFixture {
 
 	@Test
 	void anInternalNoteLeavesTheTicketRowUntouched() throws Exception {
-		Object before = ticketRow();
-		this.clock.advance(Duration.ofMinutes(5));
-		reply(DANIEL, "Nota para el equipo.", "internal").andExpect(status().isCreated());
+		// El #1 ya tiene una respuesta pública; el #2 no, así que first_response_at puede delatar a una nota que lo fije.
+		createTicket(LAURA, this.mariaCustomer, "Factura duplicada", "medium", this.laura);
+		Map<String, Object> before = ticketRow(2);
+		assertThat(before.get("first_response_at")).isNull();
 
-		assertThat(ticketRow()).isEqualTo(before);
+		this.clock.advance(Duration.ofMinutes(5));
+		this.mvc.perform(post("/tickets/2/messages").with(as(DANIEL))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"body\": \"Nota para el equipo.\", \"visibility\": \"internal\"}"))
+			.andExpect(status().isCreated());
+
+		Map<String, Object> after = ticketRow(2);
+		assertThat(after.get("first_response_at")).isNull();
+		assertThat(after).isEqualTo(before);
 	}
 
-	private Object ticketRow() {
-		return this.jdbc.sql("select updated_at, version, first_response_at from tickets where number = 1")
+	private Map<String, Object> ticketRow(long number) {
+		return this.jdbc.sql("select updated_at, version, first_response_at from tickets where number = ?")
+			.param(number)
 			.query()
 			.singleRow();
 	}
