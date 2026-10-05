@@ -19,6 +19,7 @@ import com.resolve.api.customers.CustomerDtos.CustomerMetricsDto;
 import com.resolve.api.customers.CustomerDtos.CustomerSummaryDto;
 import com.resolve.api.customers.CustomerRequestParser.CustomerChanges;
 import com.resolve.api.customers.CustomerRequestParser.NewCustomer;
+import com.resolve.api.memberships.MembershipRepository;
 import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -38,12 +39,16 @@ class CustomerService {
 
 	private final CustomerRepository customers;
 
+	private final MembershipRepository memberships;
+
 	private final CustomerMetricsQuery metrics;
 
 	private final Clock clock;
 
-	CustomerService(CustomerRepository customers, CustomerMetricsQuery metrics, Clock clock) {
+	CustomerService(CustomerRepository customers, MembershipRepository memberships, CustomerMetricsQuery metrics,
+			Clock clock) {
 		this.customers = customers;
+		this.memberships = memberships;
 		this.metrics = metrics;
 		this.clock = clock;
 	}
@@ -166,8 +171,7 @@ class CustomerService {
 	private CustomerDetailDto detail(CurrentMember member, UUID id) {
 		CustomerRow row = this.customers.findWithCounts(member.organizationId(), id)
 			.orElseThrow(() -> new ResourceNotFoundException("No existe el cliente."));
-		PortalAccess access = this.customers.hasPortalAccess(member.organizationId(), id) ? PortalAccess.ACTIVE
-				: PortalAccess.NONE;
+		PortalAccess access = PortalAccess.of(this.memberships.liveStatusesOfCustomer(member.organizationId(), id));
 		return CustomerDetailDto.from(row, access);
 	}
 

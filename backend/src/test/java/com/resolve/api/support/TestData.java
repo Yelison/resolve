@@ -43,12 +43,15 @@ public class TestData {
 		return id;
 	}
 
-	/** Usuario con membresía de administrador o agente. Devuelve el id del usuario. */
+	/** Usuario con membresía activa de administrador o agente. Devuelve el id del usuario. */
 	public UUID staff(UUID organizationId, String role, String name, String email) {
+		return staff(organizationId, role, name, email, "active");
+	}
+
+	/** Como {@link #staff(UUID, String, String, String)} con el estado de la membresía: invited, active o removed. */
+	public UUID staff(UUID organizationId, String role, String name, String email, String status) {
 		UUID userId = user(name, email);
-		this.jdbc.sql("INSERT INTO memberships (id, organization_id, user_id, role) VALUES (?, ?, ?, ?)")
-			.params(Ids.newId(), organizationId, userId, role)
-			.update();
+		insertMembership(organizationId, userId, role, null, status);
 		return userId;
 	}
 
@@ -98,14 +101,64 @@ public class TestData {
 		return id;
 	}
 
-	/** Usuario con acceso de cliente enlazado a un registro de cliente. Devuelve el id del usuario. */
+	/** Usuario con acceso activo de cliente enlazado a un registro de cliente. Devuelve el id del usuario. */
 	public UUID customerUser(UUID organizationId, UUID customerId, String name, String email) {
+		return customerUser(organizationId, customerId, name, email, "active");
+	}
+
+	public UUID customerUser(UUID organizationId, UUID customerId, String name, String email, String status) {
 		UUID userId = user(name, email);
-		this.jdbc
-			.sql("INSERT INTO memberships (id, organization_id, user_id, role, customer_id) VALUES (?, ?, ?, 'customer', ?)")
-			.params(Ids.newId(), organizationId, userId, customerId)
-			.update();
+		insertMembership(organizationId, userId, "customer", customerId, status);
 		return userId;
+	}
+
+	/** Cambia el estado de una membresía directamente en la base, sin pasar por la API. */
+	public void setMembershipStatus(UUID organizationId, UUID userId, String status) {
+		this.jdbc.sql("UPDATE memberships SET status = ? WHERE organization_id = ? AND user_id = ?")
+			.params(status, organizationId, userId)
+			.update();
+	}
+
+	/** Membresía ya existente de un usuario en una organización, con el estado indicado. */
+	public void membership(UUID organizationId, UUID userId, String role, String status) {
+		insertMembership(organizationId, userId, role, null, status);
+	}
+
+	public UUID membershipId(UUID organizationId, UUID userId) {
+		return this.jdbc.sql("SELECT id FROM memberships WHERE organization_id = ? AND user_id = ?")
+			.params(organizationId, userId)
+			.query(UUID.class)
+			.single();
+	}
+
+	public String membershipStatus(UUID organizationId, UUID userId) {
+		return this.jdbc.sql("SELECT status FROM memberships WHERE organization_id = ? AND user_id = ?")
+			.params(organizationId, userId)
+			.query(String.class)
+			.single();
+	}
+
+	public Instant membershipJoinedAt(UUID organizationId, UUID userId) {
+		return this.jdbc.sql("SELECT joined_at FROM memberships WHERE organization_id = ? AND user_id = ?")
+			.params(organizationId, userId)
+			.query(Timestamp.class)
+			.optional()
+			.map(Timestamp::toInstant)
+			.orElse(null);
+	}
+
+	/** Las fechas siguen el estado: las activas ya se unieron, las invitadas tienen invitación, las retiradas se unieron. */
+	private void insertMembership(UUID organizationId, UUID userId, String role, UUID customerId, String status) {
+		Timestamp now = Timestamp.from(Instant.parse("2026-09-01T09:00:00Z"));
+		boolean invited = status.equals("invited");
+		this.jdbc.sql("""
+				INSERT INTO memberships (id, organization_id, user_id, role, customer_id, status, invited_at, joined_at,
+				                         removed_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+				""")
+			.params(Ids.newId(), organizationId, userId, role, customerId, status, invited ? now : null,
+					invited ? null : now, status.equals("removed") ? now : null)
+			.update();
 	}
 
 }

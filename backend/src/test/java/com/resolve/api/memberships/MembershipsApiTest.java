@@ -60,6 +60,16 @@ class MembershipsApiTest extends ApiIntegrationTest {
 	}
 
 	@Test
+	void assigneesOnlyListActiveStaff() throws Exception {
+		this.data.staff(this.acme, "agent", "Inés Invitada", "invitada@acme.example", "invited");
+		this.data.staff(this.acme, "admin", "Raúl Retirado", "retirado@acme.example", "removed");
+		this.mvc.perform(get("/assignees").with(as("admin@acme.example")))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listAssignees"))
+			.andExpect(jsonPath("$[*].name", contains("Daniel Santos", "laura Méndez", "Yelisson Ortiz")));
+	}
+
+	@Test
 	void customersCannotListAssignees() throws Exception {
 		this.mvc.perform(get("/assignees").with(as("maria@cliente.example")))
 			.andExpect(status().isForbidden())

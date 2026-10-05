@@ -38,11 +38,4 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>, Custo
 			""")
 	boolean emailTakenByAnother(UUID organizationId, String email, UUID excludedId);
 
-	/** Hasta que existan estados de invitación (T3.1), tener una membresía de cliente es tener acceso activo. */
-	@Query("""
-			select count(m) > 0 from Membership m
-			where m.organization.id = :organizationId and m.customerId = :customerId
-			""")
-	boolean hasPortalAccess(UUID organizationId, UUID customerId);
-
 }

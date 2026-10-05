@@ -164,7 +164,7 @@ Filters combine with `AND` (so `view=resolved&status=open` is empty); repeated v
 | `archived` | `false` (default) lists active customers; `true` lists only archived ones. Any other value is a `400` |
 | `sort` | `name` (default, `asc`), `createdAt` or `openTickets`, with `asc` or `desc` |
 
-Every item carries `openTickets` (tickets whose status is not `resolved`) and `totalTickets`, so the list needs no per-row requests. `CustomerDetail` adds `notes` (at most 2 000 characters), `archivedAt`, `version` and `portalAccess` (`none` without a customer membership, `active` with one; `invited` arrives with the team invitations). `portalAccess` mirrors the membership only: **while `archived` is `true` the portal access is suspended** (the member gets `401`) whatever `portalAccess` says, so consumers should treat an archived customer as suspended. The field will be revisited with the membership states of the team phase (T3.1).
+Every item carries `openTickets` (tickets whose status is not `resolved`) and `totalTickets`, so the list needs no per-row requests. `CustomerDetail` adds `notes` (at most 2 000 characters), `archivedAt`, `version` and `portalAccess` (`none` without a customer membership or when it was removed, `invited` until the person first signs in, `active` afterwards). `portalAccess` mirrors the membership status only: **while `archived` is `true` the portal access is suspended** (the member gets `401`) whatever `portalAccess` says, so consumers should treat an archived customer as suspended.
 
 Rules for writes:
 

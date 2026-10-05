@@ -159,6 +159,25 @@ class CustomerEditApiTest extends CustomersFixture {
 	// --- Leer --------------------------------------------------------------------------------------------------
 
 	@Test
+	void portalAccessFollowsTheMembershipStatus() throws Exception {
+		UUID invited = this.data.customer(this.acme, "Cliente Invitado", "invitado@cliente.example", null);
+		this.data.customerUser(this.acme, invited, "Cliente Invitado", "invitado@cliente.example", "invited");
+		UUID removed = this.data.customer(this.acme, "Cliente Retirado", "retirado@cliente.example", null);
+		this.data.customerUser(this.acme, removed, "Cliente Retirado", "retirado@cliente.example", "removed");
+
+		this.mvc.perform(get("/customers/" + invited).with(as(LAURA)))
+			.andExpect(matchesContract("getCustomer"))
+			.andExpect(jsonPath("$.portalAccess").value("invited"));
+		this.mvc.perform(get("/customers/" + removed).with(as(LAURA)))
+			.andExpect(jsonPath("$.portalAccess").value("none"));
+		// El archivado suspende el acceso sin cambiar el campo, que sigue reflejando solo la membresía.
+		this.data.archiveCustomer(invited, TestClockConfiguration.START);
+		this.mvc.perform(get("/customers/" + invited).with(as(LAURA)))
+			.andExpect(jsonPath("$.archived").value(true))
+			.andExpect(jsonPath("$.portalAccess").value("invited"));
+	}
+
+	@Test
 	void getsACustomerOfTheOrganizationAndHidesForeignOnes() throws Exception {
 		this.data.ticket(this.acme, this.mariaCustomer, 1, "open");
 		this.data.ticket(this.acme, this.mariaCustomer, 2, "resolved");
