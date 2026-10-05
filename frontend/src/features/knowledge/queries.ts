@@ -54,9 +54,12 @@ export function useCategories() {
 }
 
 /** Detalle de un artículo por su slug. Un 404 también cubre un borrador que quien llama no puede ver. */
-export function useArticle(slug: string) {
+export function useArticle(slug: string, { refetchOnFocus = true }: { refetchOnFocus?: boolean } = {}) {
   return useQuery({
     queryKey: articleKeys.detail(slug),
+    // El editor las desactiva: ahí una versión nueva debe llegar solo por una escritura o un conflicto, no al volver a la pestaña.
+    refetchOnWindowFocus: refetchOnFocus,
+    refetchOnReconnect: refetchOnFocus,
     queryFn: ({ signal }) => unwrap(api.GET('/knowledge/articles/{slug}', { params: { path: { slug } }, signal })),
   })
 }
