@@ -179,3 +179,44 @@ test.describe('equipo', () => {
     })
   }
 })
+
+test.describe('equipo · foco al cerrar un diálogo', () => {
+  test('tras retirar a un miembro con éxito el foco va al título de la página', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/equipo')
+    await page.getByRole('button', { name: 'Acciones de Daniel Santos' }).click()
+    await page.getByRole('menuitem', { name: 'Retirar del equipo' }).click()
+    const dialog = page.getByRole('dialog', { name: '¿Retirar a este miembro del equipo?' })
+    await dialog.getByRole('button', { name: 'Retirar del equipo' }).click()
+    await expect(page.getByText('Miembro retirado')).toBeVisible()
+    // La fila sale de la lista un instante después del cierre: se espera a que ya no esté y el foco sigue en el título.
+    await expect(page.getByRole('row', { name: /Daniel Santos/ })).toHaveCount(0)
+    await expect(page.getByRole('heading', { level: 1, name: 'Equipo' })).toBeFocused()
+  })
+
+  test('tras un 403 y «Cancelar» el foco va al título de la página', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    let role: 'admin' | 'agent' = 'admin'
+    // Las rutas registradas después tienen prioridad; `fallback` deja pasar al resto de la API simulada.
+    await page.route('**/api/me', (route) =>
+      role === 'agent' ? route.fulfill({ json: { ...me, role: 'agent' } }) : route.fallback(),
+    )
+    await page.route('**/api/members/*/remove', (route) => {
+      role = 'agent'
+      return route.fulfill({
+        status: 403,
+        contentType: 'application/problem+json',
+        json: { status: 403, title: 'Prohibido', detail: 'Tu rol no permite esta acción.' },
+      })
+    })
+    await page.goto('/equipo')
+    await page.getByRole('button', { name: 'Acciones de Daniel Santos' }).click()
+    await page.getByRole('menuitem', { name: 'Retirar del equipo' }).click()
+    const dialog = page.getByRole('dialog', { name: '¿Retirar a este miembro del equipo?' })
+    await dialog.getByRole('button', { name: 'Retirar del equipo' }).click()
+    await expect(dialog.getByRole('alert')).toContainText('Tu rol no permite esta acción.')
+    await expect(page.getByRole('button', { name: /Acciones de/ })).toHaveCount(0)
+    await dialog.getByRole('button', { name: 'Cancelar' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Equipo' })).toBeFocused()
+  })
+})

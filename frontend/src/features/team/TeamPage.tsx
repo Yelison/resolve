@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Alert, Button, EmptyState, FilterChip, Menu, Metric, Skeleton, type MenuItem } from '../../components/ui'
 import { isCurrentMember, type TeamMember, type TeamMetrics } from '../../domain/member'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
-import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
+import { focusPageHeading, focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
 import { useMe } from '../session/queries'
 import { ChangeRoleDialog } from './ChangeRoleDialog'
 import { InviteMemberDialog } from './InviteMemberDialog'
@@ -37,10 +37,22 @@ export function TeamPage() {
   const isAdmin = me.data?.role === 'admin'
   const selfId = me.data?.user.id
 
-  // Si el disparador ya no existe al cerrar (un 403 ocultó las acciones o la fila desapareció), el foco no se pierde.
+  // Si el disparador ya no existe al cerrar (un 403 ocultó las acciones), el foco no se pierde en el body.
   function closeDialog(close: () => void) {
     close()
     focusPageHeadingIfFocusLost()
+  }
+
+  // Al retirar con éxito la fila sale del filtro activo, pero un instante después del cierre: el foco va al título.
+  // Se hace desde un efecto para que corra después de que el diálogo devuelva el foco a su disparador.
+  const [headingFocusRequests, setHeadingFocusRequests] = useState(0)
+  useEffect(() => {
+    if (headingFocusRequests > 0) focusPageHeading()
+  }, [headingFocusRequests])
+
+  function closeAfterRemoval() {
+    setRemoving(null)
+    setHeadingFocusRequests((count) => count + 1)
   }
 
   function actionsFor(member: TeamMember): MenuItem[] {
@@ -118,7 +130,11 @@ export function TeamPage() {
 
       <InviteMemberDialog open={inviting} onClose={() => closeDialog(() => setInviting(false))} />
       <ChangeRoleDialog member={changingRole} onClose={() => closeDialog(() => setChangingRole(null))} />
-      <RemoveMemberDialog member={removing} onClose={() => closeDialog(() => setRemoving(null))} />
+      <RemoveMemberDialog
+        member={removing}
+        onClose={() => closeDialog(() => setRemoving(null))}
+        onRemoved={closeAfterRemoval}
+      />
     </div>
   )
 }
