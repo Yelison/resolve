@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.networknt.schema.Error;
@@ -37,6 +39,9 @@ public final class OpenApiContract {
 
 	private static final Map<String, Schema> SCHEMAS = new ConcurrentHashMap<>();
 
+	/** Operaciones validadas en esta JVM; {@link ContractCoverageListener} exige que estén todas. */
+	private static final Set<String> VERIFIED = ConcurrentHashMap.newKeySet();
+
 	private OpenApiContract() {
 	}
 
@@ -49,6 +54,7 @@ public final class OpenApiContract {
 		MockHttpServletResponse response = result.getResponse();
 		String status = String.valueOf(response.getStatus());
 		JsonNode responses = operation(operationId).path("responses");
+		VERIFIED.add(operationId);
 		JsonNode declared = responses.path(status);
 		assertThat(declared.isMissingNode()).as("%s no declara la respuesta %s", operationId, status).isFalse();
 		JsonNode resolved = resolve(declared);
@@ -123,6 +129,11 @@ public final class OpenApiContract {
 			}
 		}));
 		return ids;
+	}
+
+	/** Operaciones cuya respuesta ha validado algún test de esta ejecución. */
+	public static Set<String> verifiedOperationIds() {
+		return Collections.unmodifiableSet(VERIFIED);
 	}
 
 }

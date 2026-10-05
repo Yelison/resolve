@@ -114,6 +114,12 @@
 			<artifactId>jackson-dataformat-yaml</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<!-- API del launcher para ContractCoverageListener; Surefire ya usa esta versión al ejecutar. -->
+		<dependency>
+			<groupId>org.junit.platform</groupId>
+			<artifactId>junit-platform-launcher</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
