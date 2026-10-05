@@ -34,7 +34,7 @@ class TicketLockTimeoutTest extends TicketsFixture {
 		try (RowLock lock = RowLock.hold(this.dataSource,
 				"select id from tickets where organization_id = ? and number = 1 for no key update", this.acme)) {
 			ResultActions blocked = assertTimeoutPreemptively(LIMIT, () -> this.mvc
-				.perform(patch("/tickets/1").with(as(LAURA))
+				.perform(patch(API + "/tickets/1").with(as(LAURA))
 					.contentType(TicketsController.MERGE_PATCH_JSON)
 					.header("If-Match", "\"0\"")
 					.content("{\"status\": \"in_progress\"}")));
@@ -46,13 +46,13 @@ class TicketLockTimeoutTest extends TicketsFixture {
 		}
 
 		// Nada cambió: la misma petición, con la fila libre, se aplica.
-		this.mvc.perform(patch("/tickets/1").with(as(LAURA))
+		this.mvc.perform(patch(API + "/tickets/1").with(as(LAURA))
 			.contentType(TicketsController.MERGE_PATCH_JSON)
 			.header("If-Match", "\"0\"")
 			.content("{\"status\": \"in_progress\"}"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.version").value(1));
-		this.mvc.perform(get("/tickets/1/activity").with(as(LAURA))).andExpect(jsonPath("$.length()").value(2));
+		this.mvc.perform(get(API + "/tickets/1/activity").with(as(LAURA))).andExpect(jsonPath("$.length()").value(2));
 	}
 
 }

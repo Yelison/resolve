@@ -69,7 +69,7 @@ class TicketConcurrencyTest extends TicketsFixture {
 			responses.add(this.executor.submit(() -> {
 				start.await();
 				return this.mvc
-					.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content(body))
+					.perform(post(API + "/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content(body))
 					.andReturn();
 			}));
 		}
@@ -127,7 +127,7 @@ class TicketConcurrencyTest extends TicketsFixture {
 		MvcResult loser = statusWon ? priorityResult : statusResult;
 		assertThat(JSON.readTree(loser.getResponse().getContentAsString()).get("detail").asString())
 			.isEqualTo("El ticket cambió desde que lo abriste. Vuelve a cargarlo para ver los cambios.");
-		JsonNode ticket = JSON.readTree(this.mvc.perform(get("/tickets/1").with(as(ADMIN)))
+		JsonNode ticket = JSON.readTree(this.mvc.perform(get(API + "/tickets/1").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andReturn()
 			.getResponse()
@@ -152,7 +152,7 @@ class TicketConcurrencyTest extends TicketsFixture {
 		this.clock.set(later.minus(Duration.ofMinutes(1)));
 		JsonNode patched = patchTicket(LAURA, 1, 0, "{\"status\": \"in_progress\"}");
 
-		JsonNode stored = JSON.readTree(this.mvc.perform(get("/tickets/1").with(as(ADMIN)))
+		JsonNode stored = JSON.readTree(this.mvc.perform(get(API + "/tickets/1").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andReturn()
 			.getResponse()
@@ -195,7 +195,7 @@ class TicketConcurrencyTest extends TicketsFixture {
 		assertThat(patched.get("updatedAt").asString()).isEqualTo(patchClock.toString());
 		assertThat(patched.get("version").asLong()).isEqualTo(1);
 
-		this.mvc.perform(get("/tickets/1").with(as(ADMIN)))
+		this.mvc.perform(get(API + "/tickets/1").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.updatedAt").value(replyClock.toString()))
 			.andExpect(jsonPath("$.version").value(1))
@@ -203,14 +203,14 @@ class TicketConcurrencyTest extends TicketsFixture {
 	}
 
 	private ResultActions postReply(String user, String body) throws Exception {
-		return this.mvc.perform(post("/tickets/1/messages").with(as(user))
+		return this.mvc.perform(post(API + "/tickets/1/messages").with(as(user))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"%s\", \"visibility\": \"public\"}".formatted(body)));
 	}
 
 	private MvcResult patchWithVersion(String user, long version, String body) throws Exception {
 		return this.mvc
-			.perform(patch("/tickets/1").with(as(user))
+			.perform(patch(API + "/tickets/1").with(as(user))
 				.contentType(TicketsController.MERGE_PATCH_JSON)
 				.header("If-Match", "\"" + version + "\"")
 				.content(body))

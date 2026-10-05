@@ -35,7 +35,7 @@ class CustomerLifecycleApiTest extends CustomersFixture {
 	void archivingHidesTheCustomerFromListsAndSearchButKeepsItsTickets() throws Exception {
 		JsonNode ticket = createTicketFor(this.mariaCustomer, "No puedo acceder");
 
-		this.mvc.perform(post("/customers/" + this.mariaCustomer + "/archive").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.mariaCustomer + "/archive").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("archiveCustomer"))
 			.andExpect(header().string("ETag", "\"1\""))
@@ -46,16 +46,16 @@ class CustomerLifecycleApiTest extends CustomersFixture {
 
 		assertThat(listAs(LAURA, "").path("items").findValuesAsString("name")).doesNotContain("María Pérez");
 		assertThat(listAs(LAURA, "?q=maría").path("totalItems").asInt()).isZero();
-		this.mvc.perform(get("/customers").param("archived", "true").with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers").param("archived", "true").with(as(LAURA)))
 			.andExpect(jsonPath("$.items[*].name", contains("María Pérez")));
 		// Sus tickets siguen en la bandeja, se pueden leer y se pueden editar.
-		this.mvc.perform(get("/tickets").param("customerId", this.mariaCustomer.toString()).with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets").param("customerId", this.mariaCustomer.toString()).with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.totalItems").value(1))
 			.andExpect(jsonPath("$.items[0].customer.name").value("María Pérez"));
-		this.mvc.perform(get("/tickets/" + ticket.path("number").asLong()).with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets/" + ticket.path("number").asLong()).with(as(LAURA)))
 			.andExpect(status().isOk());
-		this.mvc.perform(patch("/tickets/" + ticket.path("number").asLong()).with(as(LAURA))
+		this.mvc.perform(patch(API + "/tickets/" + ticket.path("number").asLong()).with(as(LAURA))
 			.header("If-Match", "\"0\"")
 			.contentType("application/merge-patch+json")
 			.content("{\"status\": \"in_progress\"}"))
@@ -66,36 +66,36 @@ class CustomerLifecycleApiTest extends CustomersFixture {
 	@Test
 	void archivingTwiceIsAConflict() throws Exception {
 		assertThat(archive(ADMIN, this.carlosCustomer).getResponse().getStatus()).isEqualTo(200);
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/archive").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/archive").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("archiveCustomer"))
 			.andExpect(jsonPath("$.detail").value("El cliente ya está archivado."));
-		this.mvc.perform(get("/customers/" + this.carlosCustomer).with(as(ADMIN)))
+		this.mvc.perform(get(API + "/customers/" + this.carlosCustomer).with(as(ADMIN)))
 			.andExpect(jsonPath("$.version").value(1));
 	}
 
 	@Test
 	void anAgentCannotArchiveOrRestore() throws Exception {
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/archive").with(as(LAURA)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/archive").with(as(LAURA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("archiveCustomer"));
 		this.data.archiveCustomer(this.anaCustomer, TestClockConfiguration.START);
-		this.mvc.perform(post("/customers/" + this.anaCustomer + "/restore").with(as(LAURA)))
+		this.mvc.perform(post(API + "/customers/" + this.anaCustomer + "/restore").with(as(LAURA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("restoreCustomer"));
 		// El 403 llega antes que cualquier comprobación de datos: ni siquiera con un id inexistente.
-		this.mvc.perform(post("/customers/" + UUID.randomUUID() + "/archive").with(as(LAURA)))
+		this.mvc.perform(post(API + "/customers/" + UUID.randomUUID() + "/archive").with(as(LAURA)))
 			.andExpect(status().isForbidden());
-		this.mvc.perform(get("/customers/" + this.carlosCustomer).with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers/" + this.carlosCustomer).with(as(LAURA)))
 			.andExpect(jsonPath("$.archived").value(false));
-		this.mvc.perform(get("/customers/" + this.anaCustomer).with(as(LAURA)))
+		this.mvc.perform(get(API + "/customers/" + this.anaCustomer).with(as(LAURA)))
 			.andExpect(jsonPath("$.archived").value(true));
 	}
 
 	@Test
 	void restoringBringsTheCustomerBack() throws Exception {
 		assertThat(archive(ADMIN, this.carlosCustomer).getResponse().getStatus()).isEqualTo(200);
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/restore").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/restore").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("restoreCustomer"))
 			.andExpect(header().string("ETag", "\"2\""))
@@ -104,7 +104,7 @@ class CustomerLifecycleApiTest extends CustomersFixture {
 			.andExpect(jsonPath("$.version").value(2));
 		assertThat(listAs(LAURA, "").path("items").findValuesAsString("name")).contains("Carlos Ruiz");
 		// Restaurar uno activo no tiene sentido.
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/restore").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/restore").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("restoreCustomer"))
 			.andExpect(jsonPath("$.detail").value("El cliente no está archivado."));
@@ -115,30 +115,30 @@ class CustomerLifecycleApiTest extends CustomersFixture {
 
 	@Test
 	void aForeignCustomerCannotBeArchivedOrRestored() throws Exception {
-		this.mvc.perform(post("/customers/" + this.northwindCustomer + "/archive").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.northwindCustomer + "/archive").with(as(ADMIN)))
 			.andExpect(status().isNotFound())
 			.andExpect(matchesContract("archiveCustomer"));
-		this.mvc.perform(post("/customers/" + this.northwindCustomer + "/restore").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.northwindCustomer + "/restore").with(as(ADMIN)))
 			.andExpect(status().isNotFound())
 			.andExpect(matchesContract("restoreCustomer"));
-		this.mvc.perform(get("/customers/" + this.northwindCustomer).with(as(NORTHWIND_AGENT)))
+		this.mvc.perform(get(API + "/customers/" + this.northwindCustomer).with(as(NORTHWIND_AGENT)))
 			.andExpect(jsonPath("$.archived").value(false))
 			.andExpect(jsonPath("$.version").value(0));
 	}
 
 	@Test
 	void aMemberOfAnArchivedCustomerGets401() throws Exception {
-		this.mvc.perform(get("/tickets").with(as(MARIA))).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/tickets").with(as(MARIA))).andExpect(status().isOk());
 		assertThat(archive(ADMIN, this.mariaCustomer).getResponse().getStatus()).isEqualTo(200);
-		this.mvc.perform(get("/tickets").with(as(MARIA)))
+		this.mvc.perform(get(API + "/tickets").with(as(MARIA)))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("listTickets"));
-		this.mvc.perform(get("/me").with(as(MARIA)))
+		this.mvc.perform(get(API + "/me").with(as(MARIA)))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("getMe"));
 		// Al restaurar, el acceso se reanuda.
 		assertThat(restore(ADMIN, this.mariaCustomer).getResponse().getStatus()).isEqualTo(200);
-		this.mvc.perform(get("/tickets").with(as(MARIA))).andExpect(status().isOk());
+		this.mvc.perform(get(API + "/tickets").with(as(MARIA))).andExpect(status().isOk());
 	}
 
 	@Test
@@ -164,7 +164,7 @@ class CustomerLifecycleApiTest extends CustomersFixture {
 
 	private MvcResult createTicketResult(UUID customerId, String subject) throws Exception {
 		return this.mvc
-			.perform(post("/tickets").with(as(ADMIN)).contentType(MediaType.APPLICATION_JSON).content("""
+			.perform(post(API + "/tickets").with(as(ADMIN)).contentType(MediaType.APPLICATION_JSON).content("""
 					{"customerId": "%s", "subject": "%s", "description": "Detalle"}""".formatted(customerId, subject)))
 			.andReturn();
 	}
@@ -180,7 +180,7 @@ class CustomerLifecycleApiTest extends CustomersFixture {
 		// Quien pierde la carrera lee la fila ya archivada: un 409 declarado, nunca un 412 que la acción no tiene.
 		assertThat(statuses).containsOnly(200, 409);
 		assertThat(statuses.stream().filter((status) -> status == 200).count()).isEqualTo(1);
-		this.mvc.perform(get("/customers/" + this.carlosCustomer).with(as(ADMIN)))
+		this.mvc.perform(get(API + "/customers/" + this.carlosCustomer).with(as(ADMIN)))
 			.andExpect(jsonPath("$.version").value(1));
 	}
 

@@ -72,22 +72,22 @@ abstract class TeamFixture extends ApiIntegrationTest {
 	}
 
 	MvcResult invite(String asUser, String body) throws Exception {
-		return this.mvc.perform(post("/members").with(as(asUser)).contentType(MediaType.APPLICATION_JSON).content(body))
+		return this.mvc.perform(post(API + "/members").with(as(asUser)).contentType(MediaType.APPLICATION_JSON).content(body))
 			.andReturn();
 	}
 
 	MvcResult changeRole(String asUser, UUID userId, String role) throws Exception {
-		return this.mvc.perform(post("/members/" + userId + "/role").with(as(asUser))
+		return this.mvc.perform(post(API + "/members/" + userId + "/role").with(as(asUser))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"role\": \"%s\"}".formatted(role))).andReturn();
 	}
 
 	MvcResult remove(String asUser, UUID userId) throws Exception {
-		return this.mvc.perform(post("/members/" + userId + "/remove").with(as(asUser))).andReturn();
+		return this.mvc.perform(post(API + "/members/" + userId + "/remove").with(as(asUser))).andReturn();
 	}
 
 	JsonNode listMembers(String asUser) throws Exception {
-		return body(this.mvc.perform(get("/members").with(as(asUser))).andReturn());
+		return body(this.mvc.perform(get(API + "/members").with(as(asUser))).andReturn());
 	}
 
 	static JsonNode body(MvcResult result) throws Exception {

@@ -67,7 +67,7 @@ abstract class TicketsFixture extends ApiIntegrationTest {
 	/** Crea un ticket por la API y devuelve el cuerpo de la respuesta. */
 	JsonNode createTicket(String asUser, String body) throws Exception {
 		MvcResult result = this.mvc
-			.perform(post("/tickets").with(as(asUser)).contentType(MediaType.APPLICATION_JSON).content(body))
+			.perform(post(API + "/tickets").with(as(asUser)).contentType(MediaType.APPLICATION_JSON).content(body))
 			.andExpect(status().isCreated())
 			.andReturn();
 		return JSON.readTree(result.getResponse().getContentAsString());
@@ -83,7 +83,7 @@ abstract class TicketsFixture extends ApiIntegrationTest {
 
 	JsonNode patchTicket(String asUser, long number, long version, String body) throws Exception {
 		MvcResult result = this.mvc
-			.perform(patch("/tickets/{number}", number).with(as(asUser))
+			.perform(patch(API + "/tickets/{number}", number).with(as(asUser))
 				.contentType(TicketsController.MERGE_PATCH_JSON)
 				.header("If-Match", "\"" + version + "\"")
 				.content(body))

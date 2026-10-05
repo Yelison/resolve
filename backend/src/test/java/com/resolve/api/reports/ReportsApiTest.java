@@ -652,7 +652,7 @@ class ReportsApiTest extends ReportsFixture {
 	@Test
 	void anInvalidPeriodIsRejectedWithAFieldError() throws Exception {
 		for (String period : List.of("1d", "7", "7D", "30d,90d")) {
-			this.mvc.perform(get("/reports/summary").queryParam("period", period).with(as(LAURA)))
+			this.mvc.perform(get(API + "/reports/summary").queryParam("period", period).with(as(LAURA)))
 				.andExpect(status().isBadRequest())
 				.andExpect(matchesContract("getReportSummary"))
 				.andExpect(jsonPath("$.errors[0].field").value("period"));
@@ -667,17 +667,17 @@ class ReportsApiTest extends ReportsFixture {
 
 	@Test
 	void aCustomerGets403() throws Exception {
-		this.mvc.perform(get("/reports/summary").with(as(MARIA)))
+		this.mvc.perform(get(API + "/reports/summary").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("getReportSummary"));
 		// Ni siquiera con un periodo inválido: el rol se comprueba antes que los parámetros.
-		this.mvc.perform(get("/reports/summary").queryParam("period", "x").with(as(MARIA)))
+		this.mvc.perform(get(API + "/reports/summary").queryParam("period", "x").with(as(MARIA)))
 			.andExpect(status().isForbidden());
 	}
 
 	@Test
 	void withoutAPrincipalTheReportIs401() throws Exception {
-		this.mvc.perform(get("/reports/summary"))
+		this.mvc.perform(get(API + "/reports/summary"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("getReportSummary"));
 	}

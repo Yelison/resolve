@@ -92,8 +92,8 @@ class CustomersController {
 	ResponseEntity<CustomerDetailDto> create(@AuthenticationPrincipal CurrentMember member,
 			@RequestBody(required = false) @Nullable JsonNode body) {
 		CustomerDetailDto customer = this.service.create(member, CustomerRequestParser.newCustomer(body));
-		URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
-			.path("/customers/{id}")
+		URI location = ServletUriComponentsBuilder.fromCurrentRequestUri()
+			.path("/{id}")
 			.buildAndExpand(customer.id())
 			.toUri();
 		return ResponseEntity.created(location).eTag(String.valueOf(customer.version())).body(customer);

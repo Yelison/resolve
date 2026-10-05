@@ -35,13 +35,13 @@ class TicketMessagesApiTest extends TicketsFixture {
 
 	private org.springframework.test.web.servlet.ResultActions reply(String user, String body, String visibility)
 			throws Exception {
-		return this.mvc.perform(post("/tickets/1/messages").with(as(user)).contentType(MediaType.APPLICATION_JSON)
+		return this.mvc.perform(post(API + "/tickets/1/messages").with(as(user)).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"%s\", \"visibility\": \"%s\"}".formatted(body, visibility)));
 	}
 
 	@Test
 	void staffReadThePublicConversationAndInternalNotes() throws Exception {
-		this.mvc.perform(get("/tickets/1/messages").with(as(DANIEL)))
+		this.mvc.perform(get(API + "/tickets/1/messages").with(as(DANIEL)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listMessages"))
 			.andExpect(jsonPath("$[*].visibility", contains("public", "internal")))
@@ -51,7 +51,7 @@ class TicketMessagesApiTest extends TicketsFixture {
 
 	@Test
 	void customersNeverReceiveInternalNotes() throws Exception {
-		this.mvc.perform(get("/tickets/1/messages").with(as(MARIA)))
+		this.mvc.perform(get(API + "/tickets/1/messages").with(as(MARIA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listMessages"))
 			.andExpect(jsonPath("$[*].visibility", contains("public")))
@@ -61,13 +61,13 @@ class TicketMessagesApiTest extends TicketsFixture {
 	@Test
 	void publicRepliesMoveUpdatedAtButInternalNotesDoNot() throws Exception {
 		// Creado a las 15:00, respuesta pública a las 15:12, nota interna a las 15:13.
-		this.mvc.perform(get("/tickets/1").with(as(MARIA)))
+		this.mvc.perform(get(API + "/tickets/1").with(as(MARIA)))
 			.andExpect(jsonPath("$.updatedAt").value("2026-10-04T15:12:00Z"));
 	}
 
 	@Test
 	void messagesNeverChangeTheTicketVersion() throws Exception {
-		this.mvc.perform(get("/tickets/1").with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets/1").with(as(LAURA)))
 			.andExpect(header().string("ETag", "\"0\""))
 			.andExpect(jsonPath("$.version").value(0));
 	}
@@ -78,12 +78,12 @@ class TicketMessagesApiTest extends TicketsFixture {
 		this.clock.advance(Duration.ofMinutes(5));
 		reply(DANIEL, "¿Pudiste acceder?", "public").andExpect(status().isCreated());
 
-		this.mvc.perform(get("/tickets/1").with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets/1").with(as(LAURA)))
 			.andExpect(header().string("ETag", "\"0\""))
 			.andExpect(jsonPath("$.version").value(0))
 			.andExpect(jsonPath("$.updatedAt").value("2026-10-04T15:18:00Z"));
 		// La versión que el cliente tenía antes de la respuesta sigue siendo válida.
-		this.mvc.perform(patch("/tickets/1").with(as(DANIEL)).contentType(TicketsController.MERGE_PATCH_JSON)
+		this.mvc.perform(patch(API + "/tickets/1").with(as(DANIEL)).contentType(TicketsController.MERGE_PATCH_JSON)
 			.header("If-Match", "\"0\"")
 			.content("{\"status\": \"in_progress\"}"))
 			.andExpect(status().isOk())
@@ -100,7 +100,7 @@ class TicketMessagesApiTest extends TicketsFixture {
 		assertThat(before.get("first_response_at")).isNull();
 
 		this.clock.advance(Duration.ofMinutes(5));
-		this.mvc.perform(post("/tickets/2/messages").with(as(DANIEL))
+		this.mvc.perform(post(API + "/tickets/2/messages").with(as(DANIEL))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"Nota para el equipo.\", \"visibility\": \"internal\"}"))
 			.andExpect(status().isCreated());
@@ -128,7 +128,7 @@ class TicketMessagesApiTest extends TicketsFixture {
 
 	@Test
 	void requiresBodyAndAnExplicitVisibility() throws Exception {
-		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+		this.mvc.perform(post(API + "/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"   \"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("createMessage"))
@@ -143,7 +143,7 @@ class TicketMessagesApiTest extends TicketsFixture {
 
 	@Test
 	void nonTextScalarsAreRejectedPerField() throws Exception {
-		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+		this.mvc.perform(post(API + "/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": 123, \"visibility\": true}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("createMessage"))
@@ -153,12 +153,12 @@ class TicketMessagesApiTest extends TicketsFixture {
 
 	@Test
 	void controlCharactersAreRejectedButLineBreaksAreKept() throws Exception {
-		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+		this.mvc.perform(post(API + "/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"a\\u0000b\", \"visibility\": \"public\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("body"))
 			.andExpect(jsonPath("$.errors[0].message").value("No admite caracteres de control."));
-		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+		this.mvc.perform(post(API + "/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"uno\\ndos\", \"visibility\": \"internal\"}"))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.body").value("uno\ndos"));
@@ -166,11 +166,11 @@ class TicketMessagesApiTest extends TicketsFixture {
 
 	@Test
 	void unknownFieldsAndNonObjectBodiesAreRejected() throws Exception {
-		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+		this.mvc.perform(post(API + "/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"x\", \"visibility\": \"public\", \"authorId\": \"1\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("authorId"));
-		this.mvc.perform(post("/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+		this.mvc.perform(post(API + "/tickets/1/messages").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
 			.content("\"texto\""))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("body"));

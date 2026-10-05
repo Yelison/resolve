@@ -105,8 +105,8 @@ class TicketsController {
 	ResponseEntity<TicketDto> create(@AuthenticationPrincipal CurrentMember member,
 			@RequestBody(required = false) @Nullable JsonNode request) {
 		TicketDto ticket = this.service.create(member, TicketRequestParser.newTicket(request));
-		URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
-			.path("/tickets/{number}")
+		URI location = ServletUriComponentsBuilder.fromCurrentRequestUri()
+			.path("/{number}")
 			.buildAndExpand(ticket.number())
 			.toUri();
 		return ResponseEntity.created(location).eTag(String.valueOf(ticket.version())).body(ticket);

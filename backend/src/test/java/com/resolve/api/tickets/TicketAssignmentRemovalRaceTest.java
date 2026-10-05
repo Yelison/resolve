@@ -50,7 +50,7 @@ class TicketAssignmentRemovalRaceTest extends TicketsFixture {
 		this.barrier.arm();
 
 		Future<MvcResult> assign = this.executor.submit(() -> this.mvc
-			.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/tickets/1")
+			.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(API + "/tickets/1")
 				.with(as(LAURA))
 				.header("If-Match", "\"0\"")
 				.contentType(TicketsController.MERGE_PATCH_JSON)
@@ -58,7 +58,7 @@ class TicketAssignmentRemovalRaceTest extends TicketsFixture {
 			.andReturn());
 		assertThat(this.barrier.awaitReached(WAIT_SECONDS)).as("el PATCH llegó al gancho").isTrue();
 		Future<MvcResult> removal = this.executor
-			.submit(() -> this.mvc.perform(post("/members/" + this.daniel + "/remove").with(as(ADMIN))).andReturn());
+			.submit(() -> this.mvc.perform(post(API + "/members/" + this.daniel + "/remove").with(as(ADMIN))).andReturn());
 		awaitBlockedOrDone(removal);
 		this.barrier.release();
 
@@ -77,12 +77,12 @@ class TicketAssignmentRemovalRaceTest extends TicketsFixture {
 	@Timeout(30)
 	void anAssignmentAfterTheRemovalIsRejected() throws Exception {
 		createTicket(LAURA, this.mariaCustomer, "Asignación tardía", "high", null);
-		assertThat(this.mvc.perform(post("/members/" + this.daniel + "/remove").with(as(ADMIN)))
+		assertThat(this.mvc.perform(post(API + "/members/" + this.daniel + "/remove").with(as(ADMIN)))
 			.andReturn()
 			.getResponse()
 			.getStatus()).isEqualTo(200);
 		MvcResult late = this.mvc
-			.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/tickets/1")
+			.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(API + "/tickets/1")
 				.with(as(LAURA))
 				.header("If-Match", "\"0\"")
 				.contentType(TicketsController.MERGE_PATCH_JSON)

@@ -40,7 +40,7 @@ class TicketMetricsApiTest extends TicketsFixture {
 		reply(4, "internal");
 		createNorthwindTicket();
 
-		this.mvc.perform(get("/tickets/metrics").with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getTicketMetrics"))
 			.andExpect(jsonPath("$.open").value(1))
@@ -60,13 +60,13 @@ class TicketMetricsApiTest extends TicketsFixture {
 	@Test
 	void withoutResponsesTheFirstResponseIsNull() throws Exception {
 		createTicket(LAURA, this.mariaCustomer, "Sin respuesta", "low", null);
-		this.mvc.perform(get("/tickets/metrics").with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
 			.andExpect(matchesContract("getTicketMetrics"))
 			.andExpect(jsonPath("$.firstResponseMinutes").isEmpty());
 	}
 
 	private void reply(long number, String visibility) throws Exception {
-		this.mvc.perform(post("/tickets/{number}/messages", number).with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
+		this.mvc.perform(post(API + "/tickets/{number}/messages", number).with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"Respuesta\", \"visibility\": \"%s\"}".formatted(visibility)))
 			.andExpect(status().isCreated());
 	}

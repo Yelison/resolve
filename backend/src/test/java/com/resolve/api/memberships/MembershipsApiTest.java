@@ -32,7 +32,7 @@ class MembershipsApiTest extends ApiIntegrationTest {
 
 	@Test
 	void meDescribesTheMemberAndTheirOrganization() throws Exception {
-		this.mvc.perform(get("/me").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/me").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getMe"))
 			.andExpect(jsonPath("$.user.email").value("laura@acme.example"))
@@ -44,12 +44,12 @@ class MembershipsApiTest extends ApiIntegrationTest {
 
 	@Test
 	void meExposesTheSupportEmailOrNullWhenTheOrganizationHasNone() throws Exception {
-		this.mvc.perform(get("/me").with(as("laura@acme.example")))
+		this.mvc.perform(get(API + "/me").with(as("laura@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getMe"))
 			.andExpect(jsonPath("$.organization.supportEmail").isEmpty());
 		this.data.supportEmail(this.acme, "ayuda@acme.example");
-		this.mvc.perform(get("/me").with(as("maria@cliente.example")))
+		this.mvc.perform(get(API + "/me").with(as("maria@cliente.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getMe"))
 			.andExpect(jsonPath("$.organization.supportEmail").value("ayuda@acme.example"));
@@ -57,7 +57,7 @@ class MembershipsApiTest extends ApiIntegrationTest {
 
 	@Test
 	void meLinksCustomersToTheirCustomerRecord() throws Exception {
-		this.mvc.perform(get("/me").with(as("maria@cliente.example")))
+		this.mvc.perform(get(API + "/me").with(as("maria@cliente.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getMe"))
 			.andExpect(jsonPath("$.role").value("customer"))
@@ -66,7 +66,7 @@ class MembershipsApiTest extends ApiIntegrationTest {
 
 	@Test
 	void assigneesAreTheOrganizationAdminsAndAgentsByName() throws Exception {
-		this.mvc.perform(get("/assignees").with(as("admin@acme.example")))
+		this.mvc.perform(get(API + "/assignees").with(as("admin@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listAssignees"))
 			.andExpect(jsonPath("$[*].name", contains("Daniel Santos", "laura Méndez", "Yelisson Ortiz")));
@@ -76,7 +76,7 @@ class MembershipsApiTest extends ApiIntegrationTest {
 	void assigneesOnlyListActiveStaff() throws Exception {
 		this.data.staff(this.acme, "agent", "Inés Invitada", "invitada@acme.example", "invited");
 		this.data.staff(this.acme, "admin", "Raúl Retirado", "retirado@acme.example", "removed");
-		this.mvc.perform(get("/assignees").with(as("admin@acme.example")))
+		this.mvc.perform(get(API + "/assignees").with(as("admin@acme.example")))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listAssignees"))
 			.andExpect(jsonPath("$[*].name", contains("Daniel Santos", "laura Méndez", "Yelisson Ortiz")));
@@ -84,7 +84,7 @@ class MembershipsApiTest extends ApiIntegrationTest {
 
 	@Test
 	void customersCannotListAssignees() throws Exception {
-		this.mvc.perform(get("/assignees").with(as("maria@cliente.example")))
+		this.mvc.perform(get(API + "/assignees").with(as("maria@cliente.example")))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("listAssignees"));
 	}

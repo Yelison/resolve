@@ -21,53 +21,53 @@ class TicketAccessApiTest extends TicketsFixture {
 
 	@Test
 	void agentsOnlySeeTheirOrganization() throws Exception {
-		this.mvc.perform(get("/tickets").with(as(NORTHWIND_AGENT)))
+		this.mvc.perform(get(API + "/tickets").with(as(NORTHWIND_AGENT)))
 			.andExpect(jsonPath("$.items[*].subject", contains("Ticket de Northwind")));
-		this.mvc.perform(get("/tickets/1").with(as(NORTHWIND_AGENT)))
+		this.mvc.perform(get(API + "/tickets/1").with(as(NORTHWIND_AGENT)))
 			.andExpect(jsonPath("$.subject").value("Ticket de Northwind"));
-		this.mvc.perform(get("/tickets/2").with(as(NORTHWIND_AGENT)))
+		this.mvc.perform(get(API + "/tickets/2").with(as(NORTHWIND_AGENT)))
 			.andExpect(status().isNotFound())
 			.andExpect(matchesContract("getTicket"));
-		this.mvc.perform(get("/tickets/2/messages").with(as(NORTHWIND_AGENT))).andExpect(status().isNotFound());
-		this.mvc.perform(get("/tickets/2/activity").with(as(NORTHWIND_AGENT))).andExpect(status().isNotFound());
+		this.mvc.perform(get(API + "/tickets/2/messages").with(as(NORTHWIND_AGENT))).andExpect(status().isNotFound());
+		this.mvc.perform(get(API + "/tickets/2/activity").with(as(NORTHWIND_AGENT))).andExpect(status().isNotFound());
 	}
 
 	@Test
 	void customersOnlySeeTheirOwnTickets() throws Exception {
-		this.mvc.perform(get("/tickets").with(as(MARIA)))
+		this.mvc.perform(get(API + "/tickets").with(as(MARIA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listTickets"))
 			.andExpect(jsonPath("$.items[*].subject", contains("Ticket de María")));
-		this.mvc.perform(get("/tickets/1").with(as(MARIA))).andExpect(status().isOk()).andExpect(matchesContract("getTicket"));
+		this.mvc.perform(get(API + "/tickets/1").with(as(MARIA))).andExpect(status().isOk()).andExpect(matchesContract("getTicket"));
 	}
 
 	@Test
 	void anotherCustomersTicketLooksMissing() throws Exception {
-		this.mvc.perform(get("/tickets/2").with(as(MARIA))).andExpect(status().isNotFound());
-		this.mvc.perform(get("/tickets/2/messages").with(as(MARIA))).andExpect(status().isNotFound());
+		this.mvc.perform(get(API + "/tickets/2").with(as(MARIA))).andExpect(status().isNotFound());
+		this.mvc.perform(get(API + "/tickets/2/messages").with(as(MARIA))).andExpect(status().isNotFound());
 	}
 
 	@Test
 	void customersCannotReadActivityOrMetrics() throws Exception {
-		this.mvc.perform(get("/tickets/1/activity").with(as(MARIA)))
+		this.mvc.perform(get(API + "/tickets/1/activity").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("listActivity"));
-		this.mvc.perform(get("/tickets/metrics").with(as(MARIA)))
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("getTicketMetrics"));
 	}
 
 	@Test
 	void invalidTicketNumbersAreBadRequests() throws Exception {
-		this.mvc.perform(get("/tickets/abc").with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets/abc").with(as(LAURA)))
 			.andExpect(status().isBadRequest())
 			.andExpect(matchesContract("getTicket"));
-		this.mvc.perform(get("/tickets/0").with(as(LAURA))).andExpect(status().isBadRequest());
+		this.mvc.perform(get(API + "/tickets/0").with(as(LAURA))).andExpect(status().isBadRequest());
 	}
 
 	@Test
 	void unauthenticatedCallsAreRejected() throws Exception {
-		this.mvc.perform(get("/tickets")).andExpect(status().isUnauthorized()).andExpect(matchesContract("listTickets"));
+		this.mvc.perform(get(API + "/tickets")).andExpect(status().isUnauthorized()).andExpect(matchesContract("listTickets"));
 	}
 
 }

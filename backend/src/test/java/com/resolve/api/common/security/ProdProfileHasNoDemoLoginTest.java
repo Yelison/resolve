@@ -12,6 +12,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static com.resolve.api.support.ApiIntegrationTest.API;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -47,7 +48,7 @@ class ProdProfileHasNoDemoLoginTest {
 
 	@Test
 	void theDemoHeaderOfAnExistingUserDoesNothingInProd() throws Exception {
-		this.mvc.perform(get("/me").header("X-Demo-User", "ana@acme.example"))
+		this.mvc.perform(get(API + "/me").header("X-Demo-User", "ana@acme.example"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(content().contentTypeCompatibleWith("application/problem+json"))
 			.andExpect(jsonPath("$.status").value(401));

@@ -23,12 +23,12 @@ class TicketActivityRollbackTest extends TicketsFixture {
 		doThrow(new IllegalStateException("Fallo simulado al escribir el historial")).when(this.activities)
 			.save(argThat((TicketActivity activity) -> activity.getType() == ActivityType.STATUS_CHANGED));
 
-		assertThatThrownBy(() -> this.mvc.perform(patch("/tickets/1").with(as(LAURA))
+		assertThatThrownBy(() -> this.mvc.perform(patch(API + "/tickets/1").with(as(LAURA))
 			.contentType(TicketsController.MERGE_PATCH_JSON)
 			.header("If-Match", "\"0\"")
 			.content("{\"status\": \"resolved\"}"))).hasRootCauseMessage("Fallo simulado al escribir el historial");
 
-		this.mvc.perform(get("/tickets/1").with(as(LAURA)))
+		this.mvc.perform(get(API + "/tickets/1").with(as(LAURA)))
 			.andExpect(header().string("ETag", "\"0\""))
 			.andExpect(jsonPath("$.status").value("open"));
 	}

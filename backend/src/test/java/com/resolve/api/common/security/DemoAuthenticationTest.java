@@ -11,12 +11,12 @@ class DemoAuthenticationTest extends ApiIntegrationTest {
 
 	@Test
 	void withoutHeaderTheTestProfileHasNoDefaultUser() throws Exception {
-		this.mvc.perform(get("/me")).andExpect(status().isUnauthorized()).andExpect(matchesContract("getMe"));
+		this.mvc.perform(get(API + "/me")).andExpect(status().isUnauthorized()).andExpect(matchesContract("getMe"));
 	}
 
 	@Test
 	void anUnknownUserIsNotAuthenticated() throws Exception {
-		this.mvc.perform(get("/me").with(as("nadie@example.com")))
+		this.mvc.perform(get(API + "/me").with(as("nadie@example.com")))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("getMe"));
 	}

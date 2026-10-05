@@ -28,7 +28,7 @@ class CustomerLockTimeoutTest extends CustomersFixture {
 		try (RowLock lock = RowLock.hold(this.dataSource, "select id from customers where id = ? for no key update",
 				this.carlosCustomer)) {
 			ResultActions edit = assertTimeoutPreemptively(LIMIT,
-					() -> this.mvc.perform(patch("/customers/" + this.carlosCustomer).with(as(LAURA))
+					() -> this.mvc.perform(patch(API + "/customers/" + this.carlosCustomer).with(as(LAURA))
 						.contentType("application/merge-patch+json")
 						.header("If-Match", "\"0\"")
 						.content("{\"company\": \"Otra\"}")));
@@ -36,21 +36,21 @@ class CustomerLockTimeoutTest extends CustomersFixture {
 				.andExpect(matchesContract("updateCustomer"))
 				.andExpect(header().string("Retry-After", "1"));
 			ResultActions archive = assertTimeoutPreemptively(LIMIT,
-					() -> this.mvc.perform(post("/customers/" + this.carlosCustomer + "/archive").with(as(ADMIN))));
+					() -> this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/archive").with(as(ADMIN))));
 			archive.andExpect(status().isServiceUnavailable()).andExpect(matchesContract("archiveCustomer"));
 			ResultActions restore = assertTimeoutPreemptively(LIMIT,
-					() -> this.mvc.perform(post("/customers/" + this.carlosCustomer + "/restore").with(as(ADMIN))));
+					() -> this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/restore").with(as(ADMIN))));
 			restore.andExpect(status().isServiceUnavailable())
 				.andExpect(matchesContract("restoreCustomer"))
 				.andExpect(header().string("Retry-After", "1"));
 			ResultActions invite = assertTimeoutPreemptively(LIMIT,
-					() -> this.mvc.perform(post("/customers/" + this.carlosCustomer + "/invite").with(as(ADMIN))));
+					() -> this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/invite").with(as(ADMIN))));
 			invite.andExpect(status().isServiceUnavailable())
 				.andExpect(matchesContract("inviteCustomer"))
 				.andExpect(header().string("Retry-After", "1"));
 		}
 
-		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/archive").with(as(ADMIN)))
+		this.mvc.perform(post(API + "/customers/" + this.carlosCustomer + "/archive").with(as(ADMIN)))
 			.andExpect(status().isOk());
 	}
 

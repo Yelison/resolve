@@ -99,7 +99,7 @@ class ActivityFeedApiTest extends TicketsFixture {
 	@Test
 	void anInvalidSizeIsRejectedWithAFieldError() throws Exception {
 		for (String size : List.of("0", "51", "-1", "abc", "1.5")) {
-			this.mvc.perform(get("/tickets/activity").queryParam("size", size).with(as(LAURA)))
+			this.mvc.perform(get(API + "/tickets/activity").queryParam("size", size).with(as(LAURA)))
 				.andExpect(status().isBadRequest())
 				.andExpect(matchesContract("listRecentActivity"))
 				.andExpect(jsonPath("$.errors[0].field").value("size"));
@@ -111,16 +111,16 @@ class ActivityFeedApiTest extends TicketsFixture {
 	void aCustomerGets403() throws Exception {
 		createTicket(LAURA, this.mariaCustomer, "De María", "low", null);
 
-		this.mvc.perform(get("/tickets/activity").with(as(MARIA)))
+		this.mvc.perform(get(API + "/tickets/activity").with(as(MARIA)))
 			.andExpect(status().isForbidden())
 			.andExpect(matchesContract("listRecentActivity"));
-		this.mvc.perform(get("/tickets/activity").queryParam("size", "abc").with(as(MARIA)))
+		this.mvc.perform(get(API + "/tickets/activity").queryParam("size", "abc").with(as(MARIA)))
 			.andExpect(status().isForbidden());
 	}
 
 	@Test
 	void withoutAPrincipalTheFeedIs401() throws Exception {
-		this.mvc.perform(get("/tickets/activity"))
+		this.mvc.perform(get(API + "/tickets/activity"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("listRecentActivity"));
 	}
@@ -132,8 +132,8 @@ class ActivityFeedApiTest extends TicketsFixture {
 
 	private JsonNode feed(String asUser, String size) throws Exception {
 		MvcResult result = this.mvc
-			.perform((size != null) ? get("/tickets/activity").queryParam("size", size).with(as(asUser))
-					: get("/tickets/activity").with(as(asUser)))
+			.perform((size != null) ? get(API + "/tickets/activity").queryParam("size", size).with(as(asUser))
+					: get(API + "/tickets/activity").with(as(asUser)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listRecentActivity"))
 			.andReturn();
@@ -152,7 +152,7 @@ class ActivityFeedApiTest extends TicketsFixture {
 	}
 
 	private void reply(long number, String visibility) throws Exception {
-		this.mvc.perform(post("/tickets/{number}/messages", number).with(as(LAURA))
+		this.mvc.perform(post(API + "/tickets/{number}/messages", number).with(as(LAURA))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"Mensaje\", \"visibility\": \"%s\"}".formatted(visibility)))
 			.andExpect(status().isCreated());

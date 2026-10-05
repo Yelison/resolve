@@ -20,6 +20,12 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @Import({ TestcontainersConfiguration.class, TestData.class, TestClockConfiguration.class })
 public abstract class ApiIntegrationTest {
 
+	/**
+	 * Prefijo de la API, escrito aquí a propósito y no leído de la aplicación: si alguien lo cambia allí, los tests
+	 * (y el contrato, que declara {@code servers: /api}) tienen que fallar.
+	 */
+	public static final String API = "/api";
+
 	@Autowired
 	protected MockMvc mvc;
 

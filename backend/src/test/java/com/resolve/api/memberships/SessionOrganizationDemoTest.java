@@ -38,7 +38,7 @@ class SessionOrganizationDemoTest extends ApiIntegrationTest {
 	void theDemoUserCanSwitchOrganizationAndTheSessionRemembersIt() throws Exception {
 		MockHttpSession session = new MockHttpSession();
 
-		this.mvc.perform(post("/session/organization").session(session)
+		this.mvc.perform(post(API + "/session/organization").session(session)
 			.with(as(EMAIL))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"organizationId\":\"" + this.northwind + "\"}"))
@@ -46,10 +46,10 @@ class SessionOrganizationDemoTest extends ApiIntegrationTest {
 			.andExpect(matchesContract("selectSessionOrganization"))
 			.andExpect(jsonPath("$.organization.id").value(this.northwind.toString()));
 
-		this.mvc.perform(get("/me").session(session).with(as(EMAIL)))
+		this.mvc.perform(get(API + "/me").session(session).with(as(EMAIL)))
 			.andExpect(jsonPath("$.organization.id").value(this.northwind.toString()))
 			.andExpect(jsonPath("$.role").value("agent"));
-		this.mvc.perform(get("/me").with(as(EMAIL)))
+		this.mvc.perform(get(API + "/me").with(as(EMAIL)))
 			.andExpect(jsonPath("$.organization.id").value(this.acme.toString()));
 	}
 
@@ -57,7 +57,7 @@ class SessionOrganizationDemoTest extends ApiIntegrationTest {
 	void theDemoUserCannotChooseAnOrganizationWhereTheyHaveNoMembership() throws Exception {
 		UUID foreign = this.data.organization("Ajena");
 
-		this.mvc.perform(post("/session/organization").with(as(EMAIL))
+		this.mvc.perform(post(API + "/session/organization").with(as(EMAIL))
 			.contentType(MediaType.APPLICATION_JSON)
 			.content("{\"organizationId\":\"" + foreign + "\"}"))
 			.andExpect(status().isForbidden())
@@ -66,7 +66,7 @@ class SessionOrganizationDemoTest extends ApiIntegrationTest {
 
 	@Test
 	void theDemoUserListsTheirOrganizations() throws Exception {
-		this.mvc.perform(get("/session/organizations").with(as(EMAIL)))
+		this.mvc.perform(get(API + "/session/organizations").with(as(EMAIL)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("listSessionOrganizations"))
 			.andExpect(jsonPath("$.length()").value(2));

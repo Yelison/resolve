@@ -62,25 +62,25 @@ abstract class CustomersFixture extends ApiIntegrationTest {
 	}
 
 	JsonNode listAs(String user, String query) throws Exception {
-		MvcResult result = this.mvc.perform(get("/customers" + query).with(as(user))).andReturn();
+		MvcResult result = this.mvc.perform(get(API + "/customers" + query).with(as(user))).andReturn();
 		return JSON.readTree(result.getResponse().getContentAsString());
 	}
 
 	/** Crea un cliente por la API y devuelve el cuerpo de la respuesta (debe ser un 201). */
 	JsonNode createCustomer(String user, String body) throws Exception {
 		MvcResult result = this.mvc
-			.perform(post("/customers").with(as(user)).contentType(MediaType.APPLICATION_JSON).content(body))
+			.perform(post(API + "/customers").with(as(user)).contentType(MediaType.APPLICATION_JSON).content(body))
 			.andReturn();
 		return JSON.readTree(result.getResponse().getContentAsString());
 	}
 
 	MvcResult getCustomer(String user, UUID id) throws Exception {
-		return this.mvc.perform(get("/customers/" + id).with(as(user))).andReturn();
+		return this.mvc.perform(get(API + "/customers/" + id).with(as(user))).andReturn();
 	}
 
 	MvcResult patchCustomer(String user, UUID id, String version, String body) throws Exception {
 		return this.mvc
-			.perform(patch("/customers/" + id).with(as(user))
+			.perform(patch(API + "/customers/" + id).with(as(user))
 				.header("If-Match", "\"" + version + "\"")
 				.contentType("application/merge-patch+json")
 				.content(body))
@@ -88,11 +88,11 @@ abstract class CustomersFixture extends ApiIntegrationTest {
 	}
 
 	MvcResult archive(String user, UUID id) throws Exception {
-		return this.mvc.perform(post("/customers/" + id + "/archive").with(as(user))).andReturn();
+		return this.mvc.perform(post(API + "/customers/" + id + "/archive").with(as(user))).andReturn();
 	}
 
 	MvcResult restore(String user, UUID id) throws Exception {
-		return this.mvc.perform(post("/customers/" + id + "/restore").with(as(user))).andReturn();
+		return this.mvc.perform(post(API + "/customers/" + id + "/restore").with(as(user))).andReturn();
 	}
 
 	static JsonNode body(MvcResult result) throws Exception {
