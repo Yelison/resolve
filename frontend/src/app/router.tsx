@@ -68,6 +68,19 @@ const customerChildren: RouteObject[] = [
   { path: ':id', element: <CustomerDetailPage />, handle: { crumb: 'Detalle del cliente' } satisfies RouteHandle },
 ]
 
+/**
+ * `/configuracion/permisos` es el destino del aviso «Permisos por rol» de Equipo. La página aún no existe: muestra la
+ * misma vista pendiente que las secciones sin construir. La guardia es la de `/configuracion`.
+ */
+const settingsChildren = (item: NavigationItem): RouteObject[] => [
+  { index: true, element: <PendingPage title={item.label} icon={item.icon} /> },
+  {
+    path: 'permisos',
+    element: <PendingPage title="Permisos por rol" icon={item.icon} />,
+    handle: { crumb: 'Permisos por rol' } satisfies RouteHandle,
+  },
+]
+
 /** Todas las secciones salen de `mainNavigation`; las que aún no tienen vista muestran «Vista en construcción». */
 const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
   item.to === '/tickets'
@@ -76,7 +89,9 @@ const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
       ? sectionRoute(item, { children: customerChildren })
       : item.to === '/equipo'
         ? sectionRoute(item, { element: <TeamPage /> })
-        : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
+        : item.to === '/configuracion'
+          ? sectionRoute(item, { children: settingsChildren(item) })
+          : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
 )
 
 /** Rutas de la aplicación; se exportan para probar el cableado real (guardias y redirecciones) sin navegador. */
