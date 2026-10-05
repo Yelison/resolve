@@ -92,6 +92,20 @@ test.describe('base de conocimiento', () => {
     expect(messages).toEqual([])
   })
 
+  for (const route of [`/conocimiento/como-recuperar-el-acceso-a-tu-cuenta`, '/conocimiento/nuevo']) {
+    test(`una carga directa de ${route} pinta la shell y no avisa en la consola`, async ({ page }) => {
+      const messages: string[] = []
+      page.on('console', (message) => {
+        if (message.type() === 'warning' || message.type() === 'error') messages.push(message.text())
+      })
+      page.on('pageerror', (error) => messages.push(error.message))
+      await page.goto(route)
+      await expect(page.getByRole('navigation', { name: 'Principal' })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+      expect(messages).toEqual([])
+    })
+  }
+
   test('una carga directa de /catalogo no avisa en la consola', async ({ page }) => {
     const messages: string[] = []
     page.on('console', (message) => {
@@ -220,6 +234,7 @@ test.describe('lectura de un artículo', () => {
     await mockApi(page, 'customer')
     await page.goto(`/conocimiento/${SLUG}/editar`)
     await expect(page.getByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Título' })).toHaveCount(0)
   })
 })
 

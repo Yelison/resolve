@@ -20,7 +20,30 @@
   min-height: 44px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
   cursor: pointer;
+  /* El triángulo nativo no se pinta con `display: flex`: lo sustituye el chevron. */
+  list-style: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.chevron {
+  flex: none;
+  color: var(--color-muted);
+}
+
+.details[open] .chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chevron {
+    transition: transform 150ms ease;
+  }
 }
 
 .summary:focus-visible,

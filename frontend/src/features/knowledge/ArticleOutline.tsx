@@ -1,4 +1,5 @@
 import type { MouseEvent } from 'react'
+import { Icon } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import type { OutlineEntry } from './markdown/outline'
 import styles from './ArticleOutline.module.css'
@@ -37,7 +38,10 @@ export function ArticleOutline({ entries, variant, className }: ArticleOutlinePr
   if (variant === 'details') {
     return (
       <details className={cx(styles.details, className)}>
-        <summary className={styles.summary}>En este artículo</summary>
+        <summary className={styles.summary}>
+          En este artículo
+          <Icon name="chevron" className={styles.chevron} />
+        </summary>
         <nav aria-label="En este artículo">{links}</nav>
       </details>
     )

@@ -236,6 +236,8 @@ describe('ArticleEditorPage · edición', () => {
       await provoke412(otherTabSaves)
       expect(await screen.findByText('Hay un borrador tuyo sin guardar')).toBeInTheDocument()
       expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Título de otra persona')
+      // Mientras el borrador espera, lo que se vea no se escribe en el navegador: la nota no puede prometerlo.
+      expect(screen.queryByText('Borrador guardado en este navegador')).not.toBeInTheDocument()
       expect(JSON.parse(sessionStorage.getItem(draftKey(SLUG))!)).toMatchObject({
         title: 'Cómo recuperar el acceso a tu cuenta (mío)',
         version: 3,

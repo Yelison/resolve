@@ -94,7 +94,8 @@ const customerChildren: RouteObject[] = [
 /**
  * Las vistas de conocimiento se cargan bajo demanda: así `react-markdown` queda fuera del paquete principal. `nuevo` y
  * `editar` son estáticos y el servidor reserva esos slugs, de modo que no pueden chocar con un artículo. La guardia de
- * personal envuelve al editor sin cargarlo: un cliente no descarga su paquete.
+ * personal oculta la interfaz del editor a un cliente, pero React Router resuelve `lazy` al casar la ruta: el paquete
+ * del editor se descarga igualmente y los datos los protege el servidor.
  */
 const knowledgeChildren = (): RouteObject[] => {
   const editor = (title: string, crumb: string) => ({
