@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -6,12 +6,15 @@ import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { article } from './articleFixtures'
 import { ArticlePage } from './ArticlePage'
+import { articleKeys } from './queries'
 
 const agentMe = {
   ...adminMe,
   user: { id: 'u-laura', name: 'Laura Méndez', email: 'laura@acme.example' },
   role: 'agent',
 }
+
+const SLUG = 'como-recuperar-el-acceso-a-tu-cuenta'
 
 function renderArticle(slug = 'como-recuperar-el-acceso-a-tu-cuenta') {
   const router = createMemoryRouter(
@@ -197,6 +200,36 @@ describe('ArticlePage', () => {
     api({ 'GET /api/me': { body: customerMe } })
     renderArticle()
     expect(await screen.findByText('Contacta con el equipo de soporte de tu organización.')).toBeInTheDocument()
+  })
+
+  it('un fallo al refrescar un artículo ya leído no lo sustituye por un error', async () => {
+    api()
+    const { queryClient } = renderArticle()
+    await screen.findByRole('heading', { level: 1, name: 'Cómo recuperar el acceso a tu cuenta' })
+    api({
+      'GET /api/knowledge/articles/como-recuperar-el-acceso-a-tu-cuenta': {
+        status: 500,
+        body: { status: 500, title: 'Error' },
+      },
+    })
+    await act(() => queryClient.invalidateQueries({ queryKey: articleKeys.detail(SLUG) }))
+    await waitFor(() => expect(queryClient.getQueryState(articleKeys.detail(SLUG))?.status).toBe('error'))
+    expect(screen.getByRole('heading', { level: 1, name: 'Cómo recuperar el acceso a tu cuenta' })).toBeInTheDocument()
+    expect(screen.queryByText('No pudimos cargar el artículo')).not.toBeInTheDocument()
+  })
+
+  it('un 404 al refrescar un artículo ya leído sí lo sustituye por «no encontrado»', async () => {
+    api()
+    const { queryClient } = renderArticle()
+    await screen.findByRole('heading', { level: 1, name: 'Cómo recuperar el acceso a tu cuenta' })
+    api({
+      'GET /api/knowledge/articles/como-recuperar-el-acceso-a-tu-cuenta': {
+        status: 404,
+        body: { status: 404, title: 'No encontrado' },
+      },
+    })
+    await act(() => queryClient.invalidateQueries({ queryKey: articleKeys.detail(SLUG) }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Artículo no encontrado' })).toBeInTheDocument()
   })
 
   it('un 404 a un cliente (borrador) se trata como un enlace roto', async () => {
