@@ -25,6 +25,18 @@ describe('RequireRole', () => {
     expect(screen.queryByRole('heading', { name: 'Contenido del equipo' })).not.toBeInTheDocument()
   })
 
+  it('pone el encabezado y la descripción de la página sobre el aviso', async () => {
+    mockApi({ 'GET /api/me': { body: customerMe } })
+    renderWithProviders(
+      <RequireRole roles={['admin']} title="Crear ticket" description="Solo los administradores pueden crear tickets.">
+        <h1>Contenido</h1>
+      </RequireRole>,
+    )
+    expect(await screen.findByRole('heading', { level: 1, name: 'Crear ticket' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeInTheDocument()
+    expect(screen.getByText('Solo los administradores pueden crear tickets.')).toBeInTheDocument()
+  })
+
   it('muestra el contenido a un rol permitido', async () => {
     mockApi({ 'GET /api/me': { body: adminMe } })
     renderGuard()
