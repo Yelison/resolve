@@ -130,12 +130,18 @@ level a model does not support falls back to the closest one below. The level co
 Settings files accept `low` to `xhigh` (not `max`) and a `maxEffortLevel` cap.
 
 **Mechanism.** One per task: `.claude/settings.local.json` in the task worktree, with a `modelSettings` entry for
-`claude-opus-5-5` and `claude-fable-5-1` (so the level holds whichever model the session resolves to) carrying
+`claude-sonnet-5-5`, `claude-opus-5-5` and `claude-fable-5-1` (so the level holds whichever model the session resolves to) carrying
 `effortLevel` and `maxEffortLevel`. `new-task.sh --effort <level> [--max-effort <level>] --effort-reason "…"`
 writes it, and `scripts/herdr` adds `/.claude/settings.local.json` to the shared `.git/info/exclude` so no
 worktree can commit it. It survives Herdr restarts, which the `--effort` flag does not (the automatic resume runs
 `claude --resume` without it), and it lets an agent be adjusted later, which the environment variable does not.
-The coordinator never changes the model: the agent runs the owner's default model, and the task records which one.
+**Model and advisor.** The owner decides which model each kind of agent runs; the coordinator applies that decision
+and never changes it on its own. Since 2026-10-05 new implementer agents run Sonnet 5.5 with Opus 5.5 as the advisor
+(`new-task.sh --model claude-sonnet-5-5 --advisor claude-opus-5-5`), which writes `model` and `advisorModel` to the
+same local settings file. Reviewers run the owner's default model at the effort the review needs. Full model IDs are
+used instead of aliases so a Claude Code update cannot move them. An advisor must rank at or above the main model:
+Sonnet cannot advise Opus. `start-agent.sh` records the model from the session header; the advisor shows in
+`/advisor`, which must be closed with `esc` (choosing a row saves it to the owner's settings).
 
 **Never send `/effort <level>` to an agent.** In an interactive session it saves the level as the owner's default
 for that model in `~/.claude/settings.json`, which changes every other session, the coordinator's included.
