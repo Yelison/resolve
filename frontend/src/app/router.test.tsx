@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../test/api'
 import { renderWithProviders } from '../test/render'
 import { metrics, page, summary, ticket } from '../test/ticketFixtures'
+import { articlePage, articleSummary } from '../features/knowledge/articleFixtures'
 import { mainNavigation } from './navigation'
 import { appRoutes } from './router'
 
@@ -209,11 +210,42 @@ describe('rutas de la aplicación', () => {
     expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 
-  it('deja a un cliente abrir /conocimiento, sin aviso de acceso', async () => {
-    mockApi({ 'GET /api/me': { body: customerMe } })
+  it('deja a un cliente abrir /conocimiento, sin aviso de acceso ni acciones de personal', async () => {
+    mockApi({
+      'GET /api/me': { body: customerMe },
+      'GET /api/knowledge/categories': { body: [] },
+      'GET /api/knowledge/articles': { body: articlePage([articleSummary()]) },
+    })
     renderApp('/conocimiento')
-    expect(await screen.findByRole('heading', { level: 1, name: 'Conocimiento' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Base de conocimiento' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Cómo recuperar el acceso a tu cuenta' })).toBeInTheDocument()
     expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Nuevo artículo/ })).not.toBeInTheDocument()
+  })
+
+  it.each(staffMes)('deja al personal abrir la lista de conocimiento como %s', async (_role, me) => {
+    mockApi({
+      'GET /api/me': { body: me },
+      'GET /api/knowledge/categories': { body: [] },
+      'GET /api/knowledge/articles': { body: articlePage([]) },
+    })
+    renderApp('/conocimiento')
+    expect(await screen.findByText('Todavía no hay artículos')).toBeInTheDocument()
+    expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
+  })
+
+  it('un cliente no abre /conocimiento/nuevo: ve el aviso sin acceso', async () => {
+    mockApi({ 'GET /api/me': { body: customerMe } })
+    renderApp('/conocimiento/nuevo')
+    expect(await screen.findByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeInTheDocument()
+    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
+  })
+
+  it('/conocimiento/nuevo muestra la vista pendiente al personal', async () => {
+    mockApi({ 'GET /api/me': { body: adminMe } })
+    renderApp('/conocimiento/nuevo')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Nuevo artículo' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
   })
 
   it('cubre todas las secciones de personal', () => {

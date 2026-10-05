@@ -1,5 +1,7 @@
 import { test as base, type Page, type Route } from '@playwright/test'
 import type {
+  ArticleSummary,
+  Category,
   Me,
   Message,
   Activity,
@@ -244,10 +246,79 @@ const customerDetail = (summary: CustomerSummary): CustomerDetail => ({
   portalAccess: summary.id === 'c-maria' ? 'active' : 'none',
 })
 
+const acceso = { id: 'cat-acceso', name: 'Cuenta y acceso', slug: 'cuenta-y-acceso' }
+const facturacion = { id: 'cat-facturacion', name: 'Facturación', slug: 'facturacion' }
+const primerosPasos = { id: 'cat-pasos', name: 'Primeros pasos', slug: 'primeros-pasos' }
+
+const articleSummary = (
+  article: Pick<ArticleSummary, 'id' | 'slug' | 'title' | 'category'> & Partial<ArticleSummary>,
+): ArticleSummary => ({
+  status: 'published',
+  visibility: 'public',
+  updatedAt: minutesAgo(60 * 24 * 3),
+  publishedAt: minutesAgo(60 * 24 * 3),
+  ...article,
+})
+
+/** Artículos de demostración con el contrato de lista (`ArticleSummary`): los de Figma, con «Configurar notificaciones» en borrador. */
+export const articles: ArticleSummary[] = [
+  articleSummary({
+    id: 'a-recuperar',
+    slug: 'como-recuperar-el-acceso-a-tu-cuenta',
+    title: 'Cómo recuperar el acceso a tu cuenta',
+    category: acceso,
+    updatedAt: minutesAgo(30),
+  }),
+  articleSummary({
+    id: 'a-invitar',
+    slug: 'invitar-a-tu-equipo',
+    title: 'Invitar a tu equipo',
+    category: primerosPasos,
+    updatedAt: minutesAgo(60 * 24),
+  }),
+  articleSummary({
+    id: 'a-factura',
+    slug: 'descargar-una-factura',
+    title: 'Descargar una factura',
+    category: facturacion,
+  }),
+  articleSummary({
+    id: 'a-notificaciones',
+    slug: 'configurar-notificaciones',
+    title: 'Configurar notificaciones',
+    category: primerosPasos,
+    status: 'draft',
+    publishedAt: null,
+  }),
+  articleSummary({
+    id: 'a-largo',
+    slug: 'una-guia-extraordinariamente-larga',
+    title:
+      'Una guía extraordinariamente larga sobre cómo configurar cada una de las notificaciones de tu espacio de trabajo',
+    category: primerosPasos,
+    visibility: 'internal',
+  }),
+]
+
 const problem = (route: Route, status: number, title: string, errors?: { field: string; message: string }[]) =>
   json(route, { status, title, ...(errors && { errors }) }, status)
 
-export async function mockApi(page: Page) {
+/**
+ * `role` es el de la sesión simulada. Para un cliente, `/knowledge/*` hace lo que el servidor: solo artículos
+ * publicados y públicos, y sin las categorías que se quedan vacías.
+ */
+export async function mockApi(page: Page, role: Me['role'] = 'admin') {
+  const session: Me = role === 'customer' ? { ...me, role, customerId: 'c-maria' } : me
+  const readable = (article: ArticleSummary) =>
+    role !== 'customer' || (article.status === 'published' && article.visibility === 'public')
+  const knowledgeCategories = (): Category[] =>
+    [acceso, facturacion, primerosPasos]
+      .map((ref) => ({
+        ...ref,
+        description: `Descripción de ${ref.name}`,
+        articles: articles.filter((article) => readable(article) && article.category.id === ref.id).length,
+      }))
+      .filter((entry) => role !== 'customer' || entry.articles > 0)
   // El estado es de cada test: un renombrado o un archivado no se filtra a los demás tests del mismo worker.
   const state = new Map(customers.map((customer) => [customer.id, customerDetail(customer)]))
   const summaryOf = ({
@@ -287,7 +358,21 @@ export async function mockApi(page: Page) {
     const memberMatch = path.match(/^\/members\/([^/]+)\/(role|remove)$/)
     const customerMatch = path.match(/^\/customers\/([^/]+?)(\/archive|\/restore|\/invite)?$/)
 
-    if (method === 'GET' && path === '/me') return json(route, me)
+    if (method === 'GET' && path === '/me') return json(route, session)
+    if (method === 'GET' && path === '/knowledge/categories') return json(route, knowledgeCategories())
+    if (method === 'GET' && path === '/knowledge/articles') {
+      const q = url.searchParams.get('q')?.toLowerCase()
+      const category = url.searchParams.get('category')
+      const status = url.searchParams.get('status')
+      const items = articles.filter(
+        (article) =>
+          readable(article) &&
+          (!category || article.category.slug === category) &&
+          (!status || article.status === status) &&
+          (!q || `${article.title} ${article.category.name}`.toLowerCase().includes(q)),
+      )
+      return json(route, { items, page: 0, size: 20, totalItems: items.length, totalPages: items.length ? 1 : 0 })
+    }
     if (method === 'GET' && path === '/tickets/metrics') return json(route, metrics)
     if (method === 'GET' && path === '/reports/summary') return json(route, reportSummary)
     if (method === 'GET' && path === '/tickets/activity') return json(route, recentActivity)

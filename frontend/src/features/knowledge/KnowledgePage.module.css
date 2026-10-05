@@ -1,0 +1,70 @@
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.search {
+  flex: 1 1 280px;
+}
+
+.categoriesPlaceholder {
+  min-height: 96px;
+}
+
+.categories {
+  display: grid;
+  /* Tantas columnas como quepan a 220 px; una sola en móvil estrecho. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.categories > li {
+  display: flex;
+  min-width: 0;
+}
+
+.categories > li > * {
+  flex: 1;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  /* La cabecera de la tabla llega al borde del panel: se recorta con sus esquinas redondeadas. */
+  overflow: hidden;
+}
+
+.results {
+  container: knowledge-results / inline-size;
+  min-width: 0;
+  padding: var(--space-16);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-height: 240px;
+}
+
+/* Mismo umbral que la tabla: en tarjetas hay margen interior; como tabla, las filas llegan al borde del panel. */
+@container knowledge-results (min-width: 560px) {
+  .resultsInner {
+    margin: calc(var(--space-16) * -1);
+  }
+}
+
+@media (min-width: 1200px) {
+  .categories {
+    gap: var(--space-24);
+  }
+}
