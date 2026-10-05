@@ -78,7 +78,14 @@ function ExistingArticle({ slug }: { slug: string }) {
       </div>
     )
   }
-  return <ArticleForm key={article.data.id} article={article.data} />
+  return (
+    <ArticleForm
+      key={article.data.id}
+      article={article.data}
+      reloading={article.isFetching}
+      reload={() => void article.refetch()}
+    />
+  )
 }
 
 interface Fields {
@@ -116,6 +123,10 @@ function validate(fields: Fields): FieldErrors {
 interface ArticleFormProps {
   /** Último artículo que llegó del servidor; ausente al crear. */
   article?: Article
+  /** Hay una lectura del detalle en curso. */
+  reloading?: boolean
+  /** Vuelve a leer el detalle (para reintentar tras un 412 cuya recarga falló). */
+  reload?: () => void
 }
 
 /** Un borrador esperando a que el usuario lo restaure: `changed` si el servidor cambió mientras editaba, `stale` si es de otra sesión. */
@@ -124,7 +135,7 @@ interface OfferedDraft {
   reason: 'changed' | 'stale'
 }
 
-function ArticleForm({ article }: ArticleFormProps) {
+function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
   const navigate = useNavigate()
   const toast = useToast()
   const key = draftKey(article?.slug)
@@ -155,6 +166,8 @@ function ArticleForm({ article }: ArticleFormProps) {
   })
   const [fields, setFields] = useState<Fields>(initial.fields)
   const [offered, setOffered] = useState<OfferedDraft | null>(initial.offered)
+  // Versión base sobre la que dio 412 mi último guardado. Mientras la base siga siendo esa, la recarga no ha traído nada nuevo.
+  const [conflictAt, setConflictAt] = useState<number | null>(null)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [attempt, setAttempt] = useState(0)
   const [tab, setTab] = useState('edit')
@@ -258,7 +271,8 @@ function ArticleForm({ article }: ArticleFormProps) {
         },
         // Un 412 recarga el detalle (lo hace la mutación); la versión nueva se trata abajo, igual que si llegara sola.
         onError: (error) => {
-          if (!isApiError(error, 412)) setAttempt((count) => count + 1)
+          if (isApiError(error, 412)) setConflictAt(version)
+          else setAttempt((count) => count + 1)
         },
       },
     )
@@ -360,6 +374,13 @@ function ArticleForm({ article }: ArticleFormProps) {
               Descartar
             </Button>
           </div>
+        </Alert>
+      )}
+      {conflictAt === version && !reloading && (
+        <Alert tone="red" title="Alguien guardó este artículo y no pudimos cargar su versión." live>
+          <Button variant="secondary" onClick={reload}>
+            Reintentar
+          </Button>
         </Alert>
       )}
       {slugTaken && <Alert tone="red" title="Otro artículo acaba de tomar esa dirección; vuelve a intentarlo" live />}

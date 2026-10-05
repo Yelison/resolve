@@ -353,6 +353,41 @@ describe('ArticleEditorPage · edición', () => {
       expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled()
     })
 
+    it('un 412 cuya recarga falla avisa, deja reintentar y, al llegar la versión nueva, sigue el camino normal', async () => {
+      let phase: 'initial' | 'down' | 'back' = 'initial'
+      api({
+        [`GET /api/knowledge/articles/${SLUG}`]: () =>
+          phase === 'down'
+            ? { status: 503, body: { status: 503, title: 'No disponible' } }
+            : phase === 'back'
+              ? {
+                  body: article({ title: 'Título de otra persona', body: 'Texto de otra persona', version: 4 }),
+                  headers: etag(4),
+                }
+              : { body: article(), headers: etag(3) },
+        [`PATCH /api/knowledge/articles/${SLUG}`]: () => {
+          phase = 'down'
+          return { status: 412, body: { status: 412, title: 'El recurso cambió' } }
+        },
+      })
+      renderEditor()
+      await userEvent.type(await screen.findByRole('textbox', { name: 'Título' }), ' (mío)')
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+      expect(
+        await screen.findByText('Alguien guardó este artículo y no pudimos cargar su versión.'),
+      ).toBeInTheDocument()
+      // El texto sigue en el formulario y todavía no hay nada que restaurar.
+      expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Cómo recuperar el acceso a tu cuenta (mío)')
+      expect(screen.queryByText('Hay un borrador tuyo sin guardar')).not.toBeInTheDocument()
+
+      // El servidor vuelve con una versión nueva: «Reintentar» relanza la lectura y se sigue el camino normal del 412.
+      phase = 'back'
+      await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+      expect(await screen.findByText('Hay un borrador tuyo sin guardar')).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Título de otra persona')
+      expect(screen.queryByText('Alguien guardó este artículo y no pudimos cargar su versión.')).not.toBeInTheDocument()
+    })
+
     it('publicar actualiza la versión base: el guardado siguiente va con la de la publicación', async () => {
       const spy = api({
         [`GET /api/knowledge/articles/${SLUG}`]: {
