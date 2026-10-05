@@ -252,7 +252,15 @@ the old branch stays until you delete it). It writes `tasks/review-<id>/brief-ro
 a `git range-diff` hint when rewritten, the coordinator's `fixes-<N-1>.md` if it exists, the commands, the extra
 points; the report goes to `review-ronda-N.md`) and sends it to the reviewer with `herdr agent prompt` (a reviewer
 that already exited is started again with `--continue`). The review's `task.json` keeps `review.{of,sha,base_sha,
-round}`. An implementation done at `medium` may need a `high` review when it touches permissions, data or shared
+round}`. **Reviews with only low findings.** When every finding is low (or there are none), the reviewer also writes
+`tasks/review-<id>/fixes-proposal.md` (`fixes-proposal-ronda-N.md` in later rounds) in the format of the coordinator's
+`fixes-N.md`: header, the report and verdict line, one numbered decision per finding (`corregir`, `descartar` or
+`aplazar`, with the reason) and the closing paragraph about the new commit and the delivery. The coordinator approves
+it, annotates it and copies it to `tasks/<id>/fixes-N.md`. With any medium or high finding the decisions stay with the
+coordinator. The templates also carry the machine limits (`--maxWorkers=3`, `--workers=3`, no full Playwright run on
+the base).
+
+An implementation done at `medium` may need a `high` review when it touches permissions, data or shared
 contracts. Acceptance criteria and tests are the same at every level. Retire the review worktree once the verdict is
 final.
 

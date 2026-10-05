@@ -28,9 +28,14 @@ Commands to run in your worktree:
 
 ```sh
 {{COMMANDS}}
-
-The machine is shared by three or four agents: run Vitest with `npm test -- --maxWorkers=3` and Playwright with `--workers=3`. If a test times out under load, rerun it alone before drawing conclusions.
 ```
+
+The machine (12 cores) is shared by three or four agents; without limits the load reaches 30:
+
+- Run Vitest with `npm test -- --maxWorkers=3` and Playwright always with `--workers=3`.
+- Do not run the whole Playwright suite on the base commit (`main` is green in CI); run the specs of the feature while
+  you iterate and the whole suite once, at the reviewed commit, only if the change reaches shared UI.
+- If a test times out or fails only under load, rerun it alone before drawing conclusions, and say so in the report.
 
 {{EXTRA_POINTS}}
 
@@ -44,5 +49,23 @@ section; the commands you ran and their results; the effort level of your sessio
 Rules: do not edit tracked files (restore anything you reverted and leave `git status --short` empty), no commits, no
 push, no branch switches, never run `/effort` with a level. If a command needs a busy port or a permission you should
 not grant, note it and go on.
+
+**When every finding is low** (or you have none), also write `{{FIXES_PROPOSAL}}`, in the format the coordinator
+uses for its own `fixes-N.md`, so that the coordinator only has to approve it or annotate it: one numbered decision per
+finding, using the id of your report, with what you propose to do and why in one or two sentences; a decision may be
+`corregir`, `descartar` (with the reason) or `aplazar` (with where it is tracked). Write it in Spanish:
+
+```md
+# Correcciones tras la revisión · <tarea> · ronda <N>
+
+Revisión: `{{REVIEW_FILE}}`. Veredicto: <veredicto>. Decisión propuesta:
+
+1. **B1 · corregir.** <qué cambia, dónde y con qué prueba>.
+2. **B2 · descartar.** <por qué no hace falta>.
+
+Un commit nuevo encima de `{{SHA}}`, trailer `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Añade «Ronda <N>» al final de `delivery.md` y termina con `ENTREGA {{LANE}}: LISTA` o `BLOQUEO {{LANE}}: …`.
+```
+
+If any finding is medium or high, do not write it: those decisions are the coordinator's.
 
 End your turn with a single line: `REVISIÓN {{LANE}}: <verdict>` and the path of the report.

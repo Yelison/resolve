@@ -119,7 +119,8 @@ if [ -z "$ROUND" ]; then
     "TASK_TITLE=$TITLE" "TASK_ID=$ID" "PLAN_REF=$PLAN_REF" "IMPL_BRIEF=$IMPL_BRIEF" "DELIVERY=$DELIVERY" \
     "SHA=$SHA" "BASE_SHA=$IMPL_BASE" "WORKTREE=$TASK_WORKTREE" "BRANCH=$TASK_BRANCH" \
     "COMMANDS=$(TASK_BASE_SHA=$IMPL_BASE review_commands "$TASK_SLOT" "$TASK_COMPOSE_PROJECT")" \
-    "EXTRA_POINTS=$(extra_points)" "REVIEW_FILE=$REVIEW_DIR/review.md" "LANE=$LANE" >"$REVIEW_DIR/brief.md"
+    "EXTRA_POINTS=$(extra_points)" "REVIEW_FILE=$REVIEW_DIR/review.md" "FIXES_PROPOSAL=$REVIEW_DIR/fixes-proposal.md" \
+    "LANE=$LANE" >"$REVIEW_DIR/brief.md"
   log "Review brief: $REVIEW_DIR/brief.md"
   start_args=(--id "$RID" --name "$NAME" --brief "$REVIEW_DIR/brief.md" --ignore-load)
   "$SCRIPT_DIR/start-agent.sh" "${start_args[@]}"
@@ -173,7 +174,8 @@ render_template "$SCRIPT_DIR/review-round.template.md" '{{' '}}' \
   "IMPL_BRIEF=$IMPL_BRIEF" "DELIVERY=$DELIVERY" "SHA=$SHA" "OLD_SHA=$OLD_SHA" "HISTORY_NOTE=$HISTORY_NOTE" \
   "WORKTREE=$TASK_WORKTREE" "BRANCH=$TASK_BRANCH" "FIXES=$FIXES_REF" \
   "COMMANDS=$(TASK_BASE_SHA=$IMPL_BASE review_commands "$TASK_SLOT" "$TASK_COMPOSE_PROJECT")" \
-  "EXTRA_POINTS=$(extra_points)" "REVIEW_FILE=$REVIEW_DIR/review-ronda-$ROUND.md" "LANE=$LANE" >"$ROUND_BRIEF"
+  "EXTRA_POINTS=$(extra_points)" "REVIEW_FILE=$REVIEW_DIR/review-ronda-$ROUND.md" \
+  "FIXES_PROPOSAL=$REVIEW_DIR/fixes-proposal-ronda-$ROUND.md" "LANE=$LANE" >"$ROUND_BRIEF"
 log "Round $ROUND brief: $ROUND_BRIEF (review moved from $OLD_SHA to $SHA)"
 
 if [ -n "$AGENT_NAME" ]; then
