@@ -4,6 +4,7 @@ import { customersMock } from './mocks/customers'
 import { knowledgeMock } from './mocks/knowledge'
 import { reportsMock } from './mocks/reports'
 import { sessionMock } from './mocks/session'
+import { settingsMock } from './mocks/settings'
 import { json, type MockFeature } from './mocks/shared'
 import { teamMock } from './mocks/team'
 import { ticketsMock } from './mocks/tickets'
@@ -28,6 +29,8 @@ export { tickets } from './mocks/tickets'
 export async function mockApi(page: Page, role: Me['role'] = 'admin') {
   const customers = customersMock()
   const features: MockFeature[] = [
+    // Antes que `sessionMock`: sirve `/me` con el estado que cambian los ajustes (gana el primer manejador).
+    settingsMock(role),
     sessionMock(role),
     knowledgeMock(role),
     reportsMock(),

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router'
 import { Tabs, type TabItem } from '../../components/ui'
 import { PageHeader } from '../../app/pages/PageHeader'
@@ -17,6 +17,19 @@ export function SettingsPage() {
   const { pathname } = useLocation()
   const active = pathname.split('/')[2]
   const tabsRef = useRef<HTMLDivElement>(null)
+  /** Se activó una pestaña con teclado o puntero: tras la navegación el foco debe seguir en ella. */
+  const keepTabFocus = useRef(false)
+
+  // El shell lleva el foco al contenido en cada cambio de ruta, y su efecto corre después que el nuestro dentro del
+  // mismo commit. Con las flechas el foco debe quedarse en la pestaña, así que se devuelve cuando el shell ya terminó.
+  useEffect(() => {
+    if (!keepTabFocus.current) return
+    keepTabFocus.current = false
+    const timer = window.setTimeout(() =>
+      tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus(),
+    )
+    return () => window.clearTimeout(timer)
+  }, [pathname])
   const items: TabItem[] = visibleTabs(me.data?.role).map((tab) => ({
     id: tab.id,
     label: tab.label,
@@ -32,12 +45,8 @@ export function SettingsPage() {
           items={items}
           value={active}
           onChange={(id) => {
+            keepTabFocus.current = true
             void navigate(`/configuracion/${id}`, { replace: true })
-            // El shell lleva el foco al contenido en cada cambio de ruta; con las flechas el foco debe quedarse en la
-            // pestaña. Su efecto corre después que el nuestro, así que se devuelve el foco cuando ya ha terminado.
-            window.setTimeout(() =>
-              tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus(),
-            )
           }}
         />
       </div>

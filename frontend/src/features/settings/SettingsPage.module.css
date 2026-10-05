@@ -4,3 +4,8 @@
   gap: var(--space-16);
   min-width: 0;
 }
+
+/* El panel de la pestaña arranca separado de la lista, que no trae margen propio. */
+.tabs [role='tablist'] {
+  margin-bottom: var(--space-16);
+}
