@@ -9,17 +9,18 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/herdr/set-effort.sh --id ID --level LEVEL [--max LEVEL] --reason TEXT [--restart]
+Usage: scripts/herdr/set-effort.sh --id ID --level LEVEL [--max LEVEL] --reason TEXT [--restart] [--ignore-load]
 
   --id ID         Task created by scripts/herdr/new-task.sh
   --level LEVEL   low, medium, high or xhigh
   --max LEVEL     Highest level the agent may run at (default: same as --level)
   --reason TEXT   Why the level changes; stored in the task's effort history
   --restart       If the agent is idle or done, exit it and resume its conversation so the level applies now
+  --ignore-load   With --restart, restart although the load average is above HERDR_MAX_LOAD
 USAGE
 }
 
-ID= LEVEL= MAX= REASON= RESTART=0
+ID= LEVEL= MAX= REASON= RESTART=0 IGNORE_LOAD=0
 while [ $# -gt 0 ]; do
   case $1 in
     --id) need_arg "$1" $#; ID=${2:-}; shift 2 ;;
@@ -27,6 +28,7 @@ while [ $# -gt 0 ]; do
     --max) need_arg "$1" $#; MAX=${2:-}; shift 2 ;;
     --reason) need_arg "$1" $#; REASON=${2:-}; shift 2 ;;
     --restart) RESTART=1; shift ;;
+    --ignore-load) IGNORE_LOAD=1; shift ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
   esac
@@ -71,6 +73,8 @@ if [ "$RESTART" = 0 ]; then
 fi
 
 [ -n "$name" ] || die "the agent in $TASK_PANE has no name; restart it by hand"
+# Checked before the exit: start-agent.sh would refuse a loaded machine and leave the agent stopped.
+check_load "$IGNORE_LOAD" || exit 1
 log "Exiting '$name'…"
 herdr agent prompt "$name" "/exit" >/dev/null || true
 for _ in $(seq 1 30); do
@@ -78,4 +82,4 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 [ -z "$(agent_in_pane "$TASK_PANE" || true)" ] || die "'$name' did not exit; check the pane with: herdr pane read $TASK_PANE --source visible"
-"$SCRIPT_DIR/start-agent.sh" --id "$ID" --name "$name" --continue
+"$SCRIPT_DIR/start-agent.sh" --id "$ID" --name "$name" --continue --ignore-load

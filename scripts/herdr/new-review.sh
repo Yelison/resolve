@@ -10,7 +10,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 usage() {
   cat <<'USAGE'
 Usage: scripts/herdr/new-review.sh --task ID [--effort high|medium] [--points FILE] [--name NAME] [--lane X]
-                                   [--round N]
+                                   [--round N] [--ignore-load]
 
   --task ID       The delivered task to review (its branch HEAD is the reviewed commit)
   --effort LEVEL  Reasoning effort of the reviewer: high (default) or medium
@@ -19,12 +19,13 @@ Usage: scripts/herdr/new-review.sh --task ID [--effort high|medium] [--points FI
   --lane X        Lane the report ends with (REVISIÓN X: …); default: the one in the task's brief
   --round N       The review already exists and the task advanced: move it to the new HEAD (N >= 2), write
                   brief-ronda-N.md with the points and send it to the reviewer
+  --ignore-load   Start the reviewer although the load average is above HERDR_MAX_LOAD
 
 The review is the task review-ID; it is retired with scripts/herdr/remove-task.sh like any other task.
 USAGE
 }
 
-ID= EFFORT=high POINTS= NAME= NAME_GIVEN=0 LANE= ROUND=
+ID= EFFORT=high POINTS= NAME= NAME_GIVEN=0 LANE= ROUND= IGNORE_LOAD=0
 while [ $# -gt 0 ]; do
   case $1 in
     --task) need_arg "$1" $#; ID=${2:-}; shift 2 ;;
@@ -33,6 +34,7 @@ while [ $# -gt 0 ]; do
     --name) need_arg "$1" $#; NAME=${2:-}; NAME_GIVEN=1; shift 2 ;;
     --lane) need_arg "$1" $#; LANE=${2:-}; shift 2 ;;
     --round) need_arg "$1" $#; ROUND=${2:-}; shift 2 ;;
+    --ignore-load) IGNORE_LOAD=1; shift ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
   esac
@@ -102,9 +104,11 @@ extra_points() {
 
 if [ -z "$ROUND" ]; then
   [ ! -e "$(task_json "$RID")" ] || die "the review $RID already exists; after fixes run: $0 --task $ID --round 2 (or the next number)"
+  # Checked once up front, so a loaded machine cannot leave a half-created review: the scripts below skip it.
+  check_load "$IGNORE_LOAD"
   BRANCH="review/$ID-$SHA7"
   new_args=(--id "$RID" --branch "$BRANCH" --base "$SHA" --advisor none --effort "$EFFORT"
-    --effort-reason "independent review of $ID at $SHA7" --install)
+    --effort-reason "independent review of $ID at $SHA7" --install --ignore-load)
   "$SCRIPT_DIR/new-task.sh" "${new_args[@]}" >/dev/null
   load_task "$RID"
   REVIEW_DIR=$(task_dir "$RID")
@@ -117,7 +121,7 @@ if [ -z "$ROUND" ]; then
     "COMMANDS=$(TASK_BASE_SHA=$IMPL_BASE review_commands "$TASK_SLOT" "$TASK_COMPOSE_PROJECT")" \
     "EXTRA_POINTS=$(extra_points)" "REVIEW_FILE=$REVIEW_DIR/review.md" "LANE=$LANE" >"$REVIEW_DIR/brief.md"
   log "Review brief: $REVIEW_DIR/brief.md"
-  start_args=(--id "$RID" --name "$NAME" --brief "$REVIEW_DIR/brief.md")
+  start_args=(--id "$RID" --name "$NAME" --brief "$REVIEW_DIR/brief.md" --ignore-load)
   "$SCRIPT_DIR/start-agent.sh" "${start_args[@]}"
   exit 0
 fi
@@ -135,6 +139,7 @@ if [ -n "$occupant" ]; then
   case $state in idle | done) ;; *) die "the reviewer is '$state'; wait until it is idle or done (nothing was moved)" ;; esac
   AGENT_NAME=$(jq -r '.name // empty' <<<"$occupant")
 fi
+[ -n "$occupant" ] || check_load "$IGNORE_LOAD"   # a reviewer that must be started again needs a new session
 OLD_SHA=$(git -C "$TASK_WORKTREE" rev-parse HEAD)
 OLD_BASE=$(jq -r --arg d "$IMPL_BASE" '.review.base_sha // $d' "$(task_json "$RID")")
 [ "$OLD_SHA" != "$SHA" ] || die "the task is still at $SHA, which the review already covers (nothing to do)"
@@ -180,5 +185,5 @@ if [ -n "$AGENT_NAME" ]; then
 else
   log "No reviewer is running; starting one that resumes the last conversation."
   [ "$NAME_GIVEN" = 1 ] || NAME=$(jq -r --arg d "$NAME" '.agent // $d' "$(task_json "$RID")")
-  "$SCRIPT_DIR/start-agent.sh" --id "$RID" --name "$NAME" --continue --brief "$ROUND_BRIEF"
+  "$SCRIPT_DIR/start-agent.sh" --id "$RID" --name "$NAME" --continue --brief "$ROUND_BRIEF" --ignore-load
 fi

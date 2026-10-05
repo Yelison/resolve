@@ -8,23 +8,25 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/herdr/start-agent.sh --id ID [--name NAME] [--brief FILE] [--continue] [--timeout MS]
+Usage: scripts/herdr/start-agent.sh --id ID [--name NAME] [--brief FILE] [--continue] [--timeout MS] [--ignore-load]
 
   --id ID        Task created by scripts/herdr/new-task.sh
   --name NAME    Agent name, [a-z][a-z0-9_-]{0,31}, unique among live agents (default: derived from the id)
   --brief FILE   Once the agent is ready, prompt it to read and follow this file
   --continue     Resume the most recent conversation of this worktree (claude --continue)
   --timeout MS   Startup timeout for `herdr agent start` (default 60000)
+  --ignore-load  Start although the load average is above HERDR_MAX_LOAD (default 1.5 x the number of cores)
 USAGE
 }
 
-ID= NAME= BRIEF= TIMEOUT=60000 CONTINUE=0
+ID= NAME= BRIEF= TIMEOUT=60000 CONTINUE=0 IGNORE_LOAD=0
 while [ $# -gt 0 ]; do
   case $1 in
     --id) need_arg "$1" $#; ID=${2:-}; shift 2 ;;
     --name) need_arg "$1" $#; NAME=${2:-}; shift 2 ;;
     --brief) need_arg "$1" $#; BRIEF=${2:-}; shift 2 ;;
     --continue) CONTINUE=1; shift ;;
+    --ignore-load) IGNORE_LOAD=1; shift ;;
     --timeout) need_arg "$1" $#; TIMEOUT=${2:-}; shift 2 ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
@@ -51,6 +53,7 @@ existing=$(agent_named "$NAME")
 [ -z "$existing" ] || die "an agent named '$NAME' is already live: $existing"
 occupant=$(agent_in_pane "$TASK_PANE")
 [ -z "$occupant" ] || die "pane $TASK_PANE already hosts an agent: $occupant"
+check_load "$IGNORE_LOAD"
 herdr pane get "$TASK_PANE" >/dev/null 2>&1 || die "pane $TASK_PANE no longer exists; reopen the checkout with: herdr worktree open --cwd \"$TASK_REPO\" --path \"$TASK_WORKTREE\" and update tasks/$ID/task.json"
 
 log "Starting Claude Code as '$NAME' in pane $TASK_PANE ($TASK_WORKTREE)…"

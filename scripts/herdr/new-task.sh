@@ -22,6 +22,7 @@ Usage: scripts/herdr/new-task.sh --id ID --branch BRANCH [options]
   --model ID       Model for the task's agent, e.g. claude-sonnet-5-5 (default: the owner's default model)
   --advisor ID     Advisor model, e.g. claude-opus-5-5, or none (default: the owner's advisor setting)
   --install        Run `npm ci` in frontend/ once the worktree exists
+  --ignore-load    Start although the load average is above HERDR_MAX_LOAD (default 1.5 x the number of cores)
   --no-claude-md   Do not copy the local, git-ignored CLAUDE.md into the worktree
   -h, --help       Show this help
 
@@ -29,7 +30,7 @@ HERDR_TASKS_ROOT (default ~/resolver-herdr) holds worktrees/, tasks/ and logs/.
 USAGE
 }
 
-ID= BRANCH= BASE=main SLOT= LABEL= INSTALL=0 COPY_CLAUDE_MD=1 EFFORT=medium MAX_EFFORT= EFFORT_REASON= MODEL= ADVISOR=
+ID= BRANCH= BASE=main SLOT= LABEL= INSTALL=0 IGNORE_LOAD=0 COPY_CLAUDE_MD=1 EFFORT=medium MAX_EFFORT= EFFORT_REASON= MODEL= ADVISOR=
 while [ $# -gt 0 ]; do
   case $1 in
     --id) need_arg "$1" $#; ID=${2:-}; shift 2 ;;
@@ -43,6 +44,7 @@ while [ $# -gt 0 ]; do
     --model) need_arg "$1" $#; MODEL=${2:-}; shift 2 ;;
     --advisor) need_arg "$1" $#; ADVISOR=${2:-}; shift 2 ;;
     --install) INSTALL=1; shift ;;
+    --ignore-load) IGNORE_LOAD=1; shift ;;
     --no-claude-md) COPY_CLAUDE_MD=0; shift ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
@@ -60,6 +62,7 @@ valid_effort "$EFFORT" || die "--effort must be one of: $EFFORT_LEVELS"
 valid_effort "$MAX_EFFORT" || die "--max-effort must be one of: $EFFORT_LEVELS"
 [ "$(effort_rank "$MAX_EFFORT")" -ge "$(effort_rank "$EFFORT")" ] || die "--max-effort ($MAX_EFFORT) is below --effort ($EFFORT)"
 
+check_load "$IGNORE_LOAD"
 REPO=$(repo_root_from "$SCRIPT_DIR")
 BASE_SHA=$(git -C "$REPO" rev-parse --verify --quiet "${BASE}^{commit}") || die "unknown base ref '$BASE'"
 WORKTREE="$HERDR_TASKS_ROOT/worktrees/$ID"
