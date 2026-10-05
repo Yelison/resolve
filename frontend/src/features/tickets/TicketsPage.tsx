@@ -26,6 +26,7 @@ import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
+import { useTimeZone } from '../session/useTimeZone'
 import { useAssignees } from '../team/queries'
 import {
   hasActiveFilters,
@@ -358,6 +359,7 @@ function Results({ state, list, isStaff, filtersActive, onClearFilters, onPageCh
 
 function InboxRow({ ticket, isStaff }: { ticket: TicketSummary; isStaff: boolean }) {
   const me = useMe()
+  const timeZone = useTimeZone()
   const toast = useToast()
   const quickUpdate = useQuickTicketUpdate()
 
@@ -394,7 +396,7 @@ function InboxRow({ ticket, isStaff }: { ticket: TicketSummary; isStaff: boolean
         },
       ]
     : []
-  return <TicketRow ticket={ticket} to={`/tickets/${ticket.number}`} actions={actions} />
+  return <TicketRow ticket={ticket} to={`/tickets/${ticket.number}`} actions={actions} timeZone={timeZone} />
 }
 
 interface FilterOption {

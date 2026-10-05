@@ -60,6 +60,7 @@ const staffApi = (overrides = {}) =>
   })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
   sessionStorage.clear()
 })
@@ -207,5 +208,28 @@ describe('TicketDetailPage para clientes', () => {
     const paths = fetchSpy.mock.calls.map(([input]) => new URL((input as Request).url).pathname)
     expect(paths).not.toContain('/api/tickets/1048/activity')
     expect(paths).not.toContain('/api/assignees')
+  })
+})
+
+describe('TicketDetailPage y la zona de la organización', () => {
+  it('muestra creación, mensajes e historial en la zona de la organización y no en la del navegador', async () => {
+    // El navegador de las pruebas está en UTC: ahí todo esto ocurre «hoy». En Ciudad de México son las 23:30 del día 3.
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-04T12:00:00Z') })
+    staffApi({
+      'GET /api/me': {
+        body: { ...adminMe, organization: { ...adminMe.organization, timeZone: 'America/Mexico_City' } },
+      },
+      'GET /api/tickets/1048': { body: ticket({ createdAt: '2026-10-04T05:30:00Z' }) },
+      'GET /api/tickets/1048/messages': {
+        body: [{ ...messages[0], createdAt: '2026-10-04T05:30:00Z' }],
+      },
+      'GET /api/tickets/1048/activity': { body: [{ ...activity[0], createdAt: '2026-10-04T05:30:00Z' }] },
+    })
+    renderDetail()
+    expect(await screen.findByText(/Creado ayer, 23:30/)).toBeInTheDocument()
+    const article = await screen.findByRole('article', { name: 'Laura Méndez · Agente' })
+    expect(within(article).getByText('Ayer, 23:30')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: 'Historial' }))
+    expect(await screen.findByText('Ayer, 23:30')).toBeInTheDocument()
   })
 })

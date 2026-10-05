@@ -21,10 +21,12 @@ export interface MessageProps {
   footer?: ReactNode
   /** Momento de referencia para «Hoy» y «Ayer»; útil en pruebas. */
   now?: Date
+  /** Zona IANA en la que se leen «Hoy», «Ayer» y la hora; por defecto, la del navegador. */
+  timeZone?: string
   className?: string
 }
 
-export function Message({ kind, author, sentAt, children, footer, now, className }: MessageProps) {
+export function Message({ kind, author, sentAt, children, footer, now, timeZone, className }: MessageProps) {
   const labelId = useId()
   const footerText = footer ?? (kind === 'note' ? 'Solo visible para el equipo' : undefined)
 
@@ -36,7 +38,7 @@ export function Message({ kind, author, sentAt, children, footer, now, className
           {author} · {roleLabels[kind]}
         </p>
         <time className={styles.time} dateTime={sentAt.toISOString()}>
-          {formatDateTime(sentAt, now)}
+          {formatDateTime(sentAt, now, timeZone)}
         </time>
       </header>
       <div className={styles.body}>{children}</div>

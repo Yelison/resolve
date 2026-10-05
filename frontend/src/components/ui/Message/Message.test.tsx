@@ -27,4 +27,21 @@ describe('Message', () => {
       'Solo visible para el equipo',
     )
   })
+
+  it('lee «Hoy» y «Ayer» en la zona indicada, no en la del navegador', () => {
+    const late = new Date('2026-10-04T05:30:00Z')
+    const now = new Date('2026-10-04T12:00:00Z')
+    const { rerender } = render(
+      <Message kind="agent" author="Laura Méndez" sentAt={late} now={now} timeZone="America/Mexico_City">
+        Hola
+      </Message>,
+    )
+    expect(screen.getByText('Ayer, 23:30')).toHaveAttribute('datetime', '2026-10-04T05:30:00.000Z')
+    rerender(
+      <Message kind="agent" author="Laura Méndez" sentAt={late} now={now} timeZone="Asia/Tokyo">
+        Hola
+      </Message>,
+    )
+    expect(screen.getByText('Hoy, 14:30')).toBeInTheDocument()
+  })
 })
