@@ -70,6 +70,17 @@ accepts the API ports 8080-8089 and Vite's 5173 and 4173 as login redirect targe
 preview (4181-4189) ports of the slots, with 5173 and 4173, as return URLs after signing out
 (`post.logout.redirect.uris`), so no slot needs anything else.
 
+## Machine load limit
+
+`new-task.sh` and `start-agent.sh` (and so `new-review.sh`) refuse to start while the 1-minute load average
+(`/proc/loadavg`) is above `HERDR_MAX_LOAD`, by default `1.5 × nproc` (18 on the 12-core development machine), with a
+message that says the load and the limit. The machine is shared by three or four agents; a new session or a new
+worktree on a saturated one only makes everybody's tests flaky. Wait for the other agents' runs to finish, or pass
+`--ignore-load` once you have decided that this one cannot wait. `HERDR_MAX_LOAD` must be a number (it can be
+fractional) and applies to the shell that runs the script. `set-effort.sh --restart` checks the load *before* it
+exits the agent, so a refusal leaves the agent running (`--ignore-load` forces the restart); `new-review.sh --round`
+only checks it when it has to start a reviewer again.
+
 ## Create a task
 
 ```sh
@@ -80,7 +91,7 @@ scripts/herdr/new-task.sh --id t0-1-tickets-follow-ups --branch fix/tickets-foll
 The script refuses to continue if the branch, the path, the task id or the slot already exist, or if a port of the
 slot is already listening. Otherwise it runs `herdr worktree create` (which opens the workspace), checks that the
 checkout is on the expected branch and commit, writes `.env.herdr` and `tasks/<id>/task.json`, and prints the record.
-Add `--install` to run `npm ci` in `frontend/` right away, `--slot N` to pick the slot, `--label` for the workspace
+Add `--install` to run `npm ci` in `frontend/` right away, `--ignore-load` to start despite the load limit, `--slot N` to pick the slot, `--label` for the workspace
 name, `--no-claude-md` to skip copying `CLAUDE.md`. The equivalent manual command is:
 
 ```sh
