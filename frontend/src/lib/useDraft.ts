@@ -21,3 +21,12 @@ export function useDraft(key: string) {
 
   return [draft, setDraft] as const
 }
+
+/** Borra un borrador desde fuera del hook, p. ej. antes de navegar fuera de la pantalla que lo mantenía. */
+export function clearDraft(key: string) {
+  try {
+    sessionStorage.removeItem(key)
+  } catch {
+    // Almacenamiento bloqueado: no hay nada que borrar.
+  }
+}
