@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const PORT = 4173
+// Another checkout may be serving its own preview build at the same time (see docs/development/herdr.md).
+const PORT = Number(process.env.PLAYWRIGHT_PORT || 4173)
 
 export default defineConfig({
   testDir: './e2e',
