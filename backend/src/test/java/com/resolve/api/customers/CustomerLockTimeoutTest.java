@@ -24,7 +24,7 @@ class CustomerLockTimeoutTest extends CustomersFixture {
 	private DataSource dataSource;
 
 	@Test
-	void editAndArchiveAnswer503WhileTheRowIsHeld() throws Exception {
+	void editArchiveRestoreAndInviteAnswer503WhileTheRowIsHeld() throws Exception {
 		try (RowLock lock = RowLock.hold(this.dataSource, "select id from customers where id = ? for no key update",
 				this.carlosCustomer)) {
 			ResultActions edit = assertTimeoutPreemptively(LIMIT,
@@ -38,6 +38,16 @@ class CustomerLockTimeoutTest extends CustomersFixture {
 			ResultActions archive = assertTimeoutPreemptively(LIMIT,
 					() -> this.mvc.perform(post("/customers/" + this.carlosCustomer + "/archive").with(as(ADMIN))));
 			archive.andExpect(status().isServiceUnavailable()).andExpect(matchesContract("archiveCustomer"));
+			ResultActions restore = assertTimeoutPreemptively(LIMIT,
+					() -> this.mvc.perform(post("/customers/" + this.carlosCustomer + "/restore").with(as(ADMIN))));
+			restore.andExpect(status().isServiceUnavailable())
+				.andExpect(matchesContract("restoreCustomer"))
+				.andExpect(header().string("Retry-After", "1"));
+			ResultActions invite = assertTimeoutPreemptively(LIMIT,
+					() -> this.mvc.perform(post("/customers/" + this.carlosCustomer + "/invite").with(as(ADMIN))));
+			invite.andExpect(status().isServiceUnavailable())
+				.andExpect(matchesContract("inviteCustomer"))
+				.andExpect(header().string("Retry-After", "1"));
 		}
 
 		this.mvc.perform(post("/customers/" + this.carlosCustomer + "/archive").with(as(ADMIN)))
