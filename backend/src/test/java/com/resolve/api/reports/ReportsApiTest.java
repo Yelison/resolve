@@ -1,10 +1,13 @@
 package com.resolve.api.reports;
 
+import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
@@ -221,6 +224,33 @@ class ReportsApiTest extends ReportsFixture {
 
 		assertThat(summary.at("/created/value").asInt()).isEqualTo(1);
 		assertThat(summary.at("/created/previous").asInt()).isEqualTo(2);
+	}
+
+	/** El reloj real trae nanosegundos: el informe devuelve segundos enteros y no pierde lo creado hace una fracción. */
+	@Test
+	void theEndOfThePeriodIsAWholeSecondThatKeepsEverythingAlreadyCreated() throws Exception {
+		this.clock.set(at("2026-10-04T15:00:00.400Z"));
+		ticket("email", "2026-10-04T15:00:00.300Z"); // creado hace 100 ms
+		ticket("email", "2026-10-04T15:00:01.100Z"); // en el futuro: no cuenta
+
+		JsonNode summary = summary(LAURA, "7d");
+
+		assertThat(summary.at("/period/to").asString()).isEqualTo("2026-10-04T15:00:01Z");
+		assertThat(summary.at("/period/from").asString()).isEqualTo("2026-09-28T05:00:00Z");
+		assertThat(summary.at("/created/value").asInt()).isEqualTo(1);
+		assertThat(day(summary, "2026-10-04").path("created").asInt()).isEqualTo(1);
+	}
+
+	/** Las cinco consultas deben ver el mismo estado: una transacción de solo lectura con instantánea. */
+	@Test
+	void allTheFiguresComeFromOneSnapshot() throws Exception {
+		Method compute = ReportSummaryQuery.class.getDeclaredMethod("compute", UUID.class, ReportPeriod.class);
+
+		Transactional transaction = compute.getAnnotation(Transactional.class);
+
+		assertThat(transaction).isNotNull();
+		assertThat(transaction.readOnly()).isTrue();
+		assertThat(transaction.isolation()).isEqualTo(Isolation.REPEATABLE_READ);
 	}
 
 	// --- Medianas ---
