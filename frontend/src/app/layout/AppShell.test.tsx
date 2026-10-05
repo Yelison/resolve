@@ -237,6 +237,8 @@ describe('AppShell sin sesión', () => {
     const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
     expect(within(within(drawer).getByRole('navigation', { name: 'Principal' })).queryAllByRole('link')).toHaveLength(0)
     expect(within(drawer).getByText('Espacio de trabajo')).toBeInTheDocument()
+    expect(within(drawer).getByText('Sesión no disponible')).toBeInTheDocument()
+    expect(within(drawer).queryByText('Gestión')).not.toBeInTheDocument()
   })
 
   it('un 401 no sugiere reintentar en unos segundos y conserva el botón', async () => {
