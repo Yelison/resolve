@@ -11,6 +11,7 @@ import { customersRoutes } from '../features/customers/routes'
 import { knowledgeRoutes } from '../features/knowledge/routes'
 import { overviewRoutes } from '../features/overview/routes'
 import { reportsRoutes } from '../features/reports/routes'
+import { settingsRoutes } from '../features/settings/routes'
 import { teamRoutes } from '../features/team/routes'
 import { ticketsRoutes } from '../features/tickets/routes'
 
@@ -53,19 +54,6 @@ function sectionRoute(
   return children ? { path, element: guarded, handle, children } : { path, element: guarded, handle }
 }
 
-/**
- * `/configuracion/permisos` es el destino del aviso «Permisos por rol» de Equipo. La página aún no existe: muestra la
- * misma vista pendiente que las secciones sin construir. La guardia es la de `/configuracion`.
- */
-const settingsChildren = (item: NavigationItem): RouteObject[] => [
-  { index: true, element: <PendingPage title={item.label} icon={item.icon} /> },
-  {
-    path: 'permisos',
-    element: <PendingPage title="Permisos por rol" icon={item.icon} />,
-    handle: { crumb: 'Permisos por rol' } satisfies RouteHandle,
-  },
-]
-
 /** Contenido de una sección: una vista, o rutas hijas que la guardia envuelve con un `Outlet`. */
 export type SectionContent = { element: ReactNode; children?: never } | { children: RouteObject[]; element?: never }
 
@@ -89,15 +77,14 @@ const featureRoutes: Record<string, FeatureRoutes> = {
   '/equipo': teamRoutes,
   '/conocimiento': knowledgeRoutes,
   '/reportes': reportsRoutes,
+  '/configuracion': settingsRoutes,
 }
 
 /**
- * Secciones sin feature que, aun así, declaran rutas hijas pendientes. Al construir una, se registra en
- * `featureRoutes` y se borra de aquí junto con sus rutas pendientes.
+ * Secciones sin feature que, aun así, declaran rutas hijas pendientes. Hoy no queda ninguna: al construir una sección
+ * pendiente se registra en `featureRoutes` y se borra de aquí junto con sus rutas pendientes.
  */
-const pendingRoutes: Record<string, FeatureRoutes> = {
-  '/configuracion': ({ item }) => ({ children: settingsChildren(item) }),
-}
+const pendingRoutes: Record<string, FeatureRoutes> = {}
 
 /** ¿La sección `to` ya tiene su feature? Las pruebas lo usan para saber cuáles siguen mostrando la vista pendiente. */
 export const hasFeatureRoutes = (to: string) => to in featureRoutes
