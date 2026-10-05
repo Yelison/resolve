@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: resolve
       POSTGRES_PASSWORD: resolve # solo para desarrollo local
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -17,17 +17,19 @@ services:
   # Proveedor de identidad solo para desarrollo local (OIDC del perfil `oidc` del backend). Imagen fijada, nunca
   # `latest`: 26.7.5 es el último parche de la serie 26.7 en el momento de fijarla.
   # El realm vive en deploy/keycloak/resolve-realm.json; sus usuarios (contraseña `demo`) y su secreto de cliente
-  # son valores de demostración de este realm local. El secreto se sobrescribe con RESOLVE_OIDC_CLIENT_SECRET.
+  # son valores de demostración de este realm local. El secreto se sobrescribe con RESOLVE_OIDC_CLIENT_SECRET y la
+  # contraseña de administración con KC_BOOTSTRAP_ADMIN_PASSWORD. Los puertos se publican solo en 127.0.0.1: en una red
+  # compartida nadie más llega a la consola de administración ni a la base de datos.
   keycloak:
     image: quay.io/keycloak/keycloak:26.7.5
     command: ["start-dev", "--import-realm"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
-      KC_BOOTSTRAP_ADMIN_PASSWORD: admin # solo para desarrollo local
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:-admin} # valor de desarrollo local, sobrescribible
       KC_HEALTH_ENABLED: "true"
       RESOLVE_OIDC_CLIENT_SECRET: ${RESOLVE_OIDC_CLIENT_SECRET:-resolve-dev-secret}
     ports:
-      - "${KEYCLOAK_PORT:-8180}:8080"
+      - "127.0.0.1:${KEYCLOAK_PORT:-8180}:8080"
     volumes:
       - ./deploy/keycloak/resolve-realm.json:/opt/keycloak/data/import/resolve-realm.json:ro
     healthcheck:

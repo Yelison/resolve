@@ -63,6 +63,13 @@ Slot `n` (1–9) uses:
 `API_PROXY_TARGET` points the Vite dev proxy at the task's own backend and `DATABASE_URL` at its own database; `RESOLVE_OIDC_ISSUER` and `RESOLVE_PUBLIC_URL` point an `oidc` backend at the task's own Keycloak and send sign-in and sign-out back to the task's Vite. The
 main checkout keeps the defaults (5173, 4173, 8080 and the `POSTGRES_PORT` of its compose project).
 
+**Trying the OIDC login in a slot.** The backend's `oidc` profile sends the browser back to `RESOLVE_PUBLIC_URL` after
+signing in and signing out. `.env.herdr` already carries `RESOLVE_PUBLIC_URL` and `RESOLVE_OIDC_ISSUER` for the slot, so
+loading it is enough (without it the defaults point at the main checkout's Vite and Keycloak). The Keycloak client
+accepts the API ports 8080-8089 and Vite's 5173 and 4173 as login redirect targets, and the Vite (5181-5189) and
+preview (4181-4189) ports of the slots, with 5173 and 4173, as return URLs after signing out
+(`post.logout.redirect.uris`), so no slot needs anything else.
+
 ## Create a task
 
 ```sh
