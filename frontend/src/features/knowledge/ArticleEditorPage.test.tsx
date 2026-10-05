@@ -1,10 +1,12 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { focusManager } from '@tanstack/react-query'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, mockApi, type MockRoute } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { article, category } from './articleFixtures'
+import { articleKeys } from './queries'
 import { draftKey, serializeDraft } from './articleDraft'
 import { ArticleEditorPage } from './ArticleEditorPage'
 
@@ -37,6 +39,26 @@ const requestsWith = (spy: ReturnType<typeof mockApi>, method: string, path: str
   spy.mock.calls
     .map(([input]) => input as Request)
     .filter((r) => r.method === method && new URL(r.url).pathname === path)
+
+/** Servidor simulado cuyo artículo puede cambiar entre dos peticiones, como si otra pestaña guardara antes. */
+function conflictApi() {
+  let current = article()
+  let currentEtag = 3
+  const spy = api({
+    [`GET /api/knowledge/articles/${SLUG}`]: () => ({ body: current, headers: etag(currentEtag) }),
+    [`PATCH /api/knowledge/articles/${SLUG}`]: (request) => {
+      if (request.headers.get('If-Match') === `"${currentEtag}"`) {
+        return { body: current, headers: etag(currentEtag) }
+      }
+      return { status: 412, body: { status: 412, title: 'El recurso cambió' } }
+    },
+  })
+  const otherTabSaves = () => {
+    current = article({ title: 'Título de otra persona', body: 'Texto de otra persona', version: 4 })
+    currentEtag = 4
+  }
+  return { spy, otherTabSaves }
+}
 
 beforeEach(() => sessionStorage.clear())
 afterEach(() => vi.restoreAllMocks())
@@ -203,26 +225,6 @@ describe('ArticleEditorPage · edición', () => {
   })
 
   describe('un 412', () => {
-    /** Servidor simulado cuyo artículo puede cambiar entre dos peticiones, como si otra pestaña guardara antes. */
-    function conflictApi() {
-      let current = article()
-      let currentEtag = 3
-      const spy = api({
-        [`GET /api/knowledge/articles/${SLUG}`]: () => ({ body: current, headers: etag(currentEtag) }),
-        [`PATCH /api/knowledge/articles/${SLUG}`]: (request) => {
-          if (request.headers.get('If-Match') === `"${currentEtag}"`) {
-            return { body: current, headers: etag(currentEtag) }
-          }
-          return { status: 412, body: { status: 412, title: 'El recurso cambió' } }
-        },
-      })
-      const otherTabSaves = () => {
-        current = article({ title: 'Título de otra persona', body: 'Texto de otra persona', version: 4 })
-        currentEtag = 4
-      }
-      return { spy, otherTabSaves }
-    }
-
     async function provoke412(otherTabSaves: () => void) {
       renderEditor()
       const title = await screen.findByRole('textbox', { name: 'Título' })
@@ -265,6 +267,99 @@ describe('ArticleEditorPage · edición', () => {
       expect(await screen.findByRole('textbox', { name: 'Título' })).toHaveValue('Título de otra persona')
       await userEvent.click(screen.getByRole('button', { name: 'Descartar' }))
       expect(sessionStorage.getItem(draftKey(SLUG))).toBeNull()
+    })
+  })
+
+  describe('una versión nueva que no viene de mi guardado', () => {
+    const articlePath = `/api/knowledge/articles/${SLUG}`
+
+    it('tras una invalidación con cambios sin guardar avisa antes de enviar y no pisa lo de la otra persona', async () => {
+      const { spy, otherTabSaves } = conflictApi()
+      const { queryClient } = renderEditor()
+      const body = await screen.findByRole('textbox', { name: 'Contenido' })
+      await userEvent.type(body, ' Añadido por mí.')
+      otherTabSaves()
+      await act(() => queryClient.invalidateQueries({ queryKey: articleKeys.detail(SLUG) }))
+
+      expect(await screen.findByText('Hay un borrador tuyo sin guardar')).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Título de otra persona')
+      expect(requestsWith(spy, 'PATCH', articlePath)).toHaveLength(0)
+
+      // Restaurar devuelve solo lo que yo cambié (el cuerpo): el título de la otra persona sigue.
+      await userEvent.click(screen.getByRole('button', { name: 'Restaurar mi borrador' }))
+      expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Título de otra persona')
+      expect(screen.getByRole('textbox', { name: 'Contenido' })).toHaveValue(`${article().body} Añadido por mí.`)
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+      await screen.findByText('Cambios guardados')
+      const [patch] = requestsWith(spy, 'PATCH', articlePath)
+      expect(patch!.headers.get('If-Match')).toBe('"4"')
+      expect(await patch!.clone().json()).toEqual({ body: `${article().body} Añadido por mí.` })
+    })
+
+    it('volver a la pestaña no recarga el artículo: el guardado va con la versión original y da 412', async () => {
+      const { spy, otherTabSaves } = conflictApi()
+      renderEditor()
+      const body = await screen.findByRole('textbox', { name: 'Contenido' })
+      await userEvent.type(body, ' Añadido por mí.')
+      otherTabSaves()
+      act(() => {
+        focusManager.setFocused(false)
+        focusManager.setFocused(true)
+      })
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(requestsWith(spy, 'GET', articlePath)).toHaveLength(1)
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+      expect(await screen.findByText('Hay un borrador tuyo sin guardar')).toBeInTheDocument()
+      const [patch] = requestsWith(spy, 'PATCH', articlePath)
+      expect(patch!.headers.get('If-Match')).toBe('"3"')
+      expect(await patch!.clone().json()).toEqual({ body: `${article().body} Añadido por mí.` })
+    })
+
+    it('sin cambios pendientes el formulario se actualiza en silencio y el siguiente guardado usa la versión nueva', async () => {
+      const { spy, otherTabSaves } = conflictApi()
+      const { queryClient } = renderEditor()
+      await screen.findByRole('textbox', { name: 'Título' })
+      otherTabSaves()
+      await act(() => queryClient.invalidateQueries({ queryKey: articleKeys.detail(SLUG) }))
+      await waitFor(() => expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Título de otra persona'))
+      expect(screen.queryByText('Hay un borrador tuyo sin guardar')).not.toBeInTheDocument()
+
+      await userEvent.type(screen.getByRole('textbox', { name: 'Título' }), '!')
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+      await screen.findByText('Cambios guardados')
+      expect(requestsWith(spy, 'PATCH', articlePath)[0]!.headers.get('If-Match')).toBe('"4"')
+    })
+
+    it('un 412 con solo ajustes cambiados recarga, conserva los ajustes y no ofrece restaurar texto', async () => {
+      const { otherTabSaves } = conflictApi()
+      renderEditor()
+      await screen.findByRole('textbox', { name: 'Título' })
+      await userEvent.click(screen.getByRole('radio', { name: 'Solo el equipo' }))
+      otherTabSaves()
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+      await waitFor(() => expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Título de otra persona'))
+      expect(screen.getByRole('textbox', { name: 'Contenido' })).toHaveValue('Texto de otra persona')
+      expect(screen.queryByText('Hay un borrador tuyo sin guardar')).not.toBeInTheDocument()
+      expect(screen.getByRole('radio', { name: 'Solo el equipo' })).toBeChecked()
+      expect(screen.getByRole('button', { name: 'Guardar' })).toBeEnabled()
+    })
+
+    it('publicar actualiza la versión base: el guardado siguiente va con la de la publicación', async () => {
+      const spy = api({
+        [`GET /api/knowledge/articles/${SLUG}`]: {
+          body: article({ status: 'draft', publishedAt: null, version: 5 }),
+          headers: etag(5),
+        },
+        [`POST /api/knowledge/articles/${SLUG}/publish`]: { body: article({ version: 6 }), headers: etag(6) },
+        [`PATCH /api/knowledge/articles/${SLUG}`]: { body: article({ title: 'X', version: 7 }), headers: etag(7) },
+      })
+      renderEditor()
+      await userEvent.click(await screen.findByRole('button', { name: 'Publicar' }))
+      await screen.findByText('Artículo publicado')
+      await userEvent.type(screen.getByRole('textbox', { name: 'Título' }), '!')
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+      await screen.findByText('Cambios guardados')
+      expect(requestsWith(spy, 'PATCH', articlePath)[0]!.headers.get('If-Match')).toBe('"6"')
     })
   })
 

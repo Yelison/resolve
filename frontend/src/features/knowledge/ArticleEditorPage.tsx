@@ -43,7 +43,9 @@ export function ArticleEditorPage() {
 }
 
 function ExistingArticle({ slug }: { slug: string }) {
-  const article = useArticle(slug)
+  // Sin recargas al volver a la pestaña ni al reconectar: la versión base del formulario solo cambia por escrituras
+  // propias o por un conflicto que el formulario gestiona (un refetch silencioso la haría avanzar sin avisar).
+  const article = useArticle(slug, { refetchOnFocus: false })
   if (article.isPending) {
     return (
       <div className={pageStyles.page}>
@@ -76,7 +78,7 @@ function ExistingArticle({ slug }: { slug: string }) {
       </div>
     )
   }
-  return <ArticleForm key={article.data.id} article={article.data} reload={() => article.refetch()} />
+  return <ArticleForm key={article.data.id} article={article.data} />
 }
 
 interface Fields {
@@ -112,31 +114,47 @@ function validate(fields: Fields): FieldErrors {
 }
 
 interface ArticleFormProps {
-  /** Ausente al crear. */
+  /** Último artículo que llegó del servidor; ausente al crear. */
   article?: Article
-  reload?: () => Promise<unknown>
 }
 
-function ArticleForm({ article, reload }: ArticleFormProps) {
+/** Un borrador esperando a que el usuario lo restaure: `changed` si el servidor cambió mientras editaba, `stale` si es de otra sesión. */
+interface OfferedDraft {
+  draft: ArticleDraft
+  reason: 'changed' | 'stale'
+}
+
+function ArticleForm({ article }: ArticleFormProps) {
   const navigate = useNavigate()
   const toast = useToast()
   const key = draftKey(article?.slug)
   const [rawDraft, setRawDraft] = useDraft(key)
-  const server = fieldsOf(article)
-  const version = article?.version ?? 0
+  // Versión base del formulario: la de carga o la de la respuesta de mi último guardado o cambio de estado. Es la del
+  // `If-Match`, la de los cambios que se calculan y la del borrador; `article` (la caché) puede ir por delante si otra
+  // persona guardó, y eso se gestiona más abajo en lugar de adoptarlo sin más.
+  const [base, setBase] = useState(article)
+  const server = fieldsOf(base)
+  const version = base?.version ?? 0
 
   // Un borrador del navegador se aplica si se escribió sobre esta misma versión (una recarga a mitad de edición). Si el
   // servidor ya va por otra (p. ej. tras un 412 y recargar), se enseña la del servidor y se ofrece restaurar el borrador.
   const [initial] = useState(() => {
     const stored = parseDraft(rawDraft)
-    const differs = stored !== null && (stored.title !== server.title || stored.body !== server.body)
+    const differs =
+      stored !== null &&
+      ((stored.title !== null && stored.title !== server.title) ||
+        (stored.body !== null && stored.body !== server.body))
     if (!stored || !differs) return { fields: server, offered: null }
-    if (stored.version === version)
-      return { fields: { ...server, title: stored.title, body: stored.body }, offered: null }
-    return { fields: server, offered: stored }
+    if (stored.version === version) {
+      return {
+        fields: { ...server, title: stored.title ?? server.title, body: stored.body ?? server.body },
+        offered: null,
+      }
+    }
+    return { fields: server, offered: { draft: stored, reason: 'stale' as const } }
   })
   const [fields, setFields] = useState<Fields>(initial.fields)
-  const [offered, setOffered] = useState<ArticleDraft | null>(initial.offered)
+  const [offered, setOffered] = useState<OfferedDraft | null>(initial.offered)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [attempt, setAttempt] = useState(0)
   const [tab, setTab] = useState('edit')
@@ -160,8 +178,16 @@ function ArticleForm({ article, reload }: ArticleFormProps) {
   // escribe: el guardado es el del usuario y no debe pisarse con el texto del servidor.
   useEffect(() => {
     if (offered) return
-    setRawDraft(textDirty ? serializeDraft({ title: fields.title, body: fields.body, version }) : '')
-  }, [offered, textDirty, fields.title, fields.body, version, setRawDraft])
+    setRawDraft(
+      textDirty
+        ? serializeDraft({
+            title: fields.title !== server.title ? fields.title : null,
+            body: fields.body !== server.body ? fields.body : null,
+            version,
+          })
+        : '',
+    )
+  }, [offered, textDirty, fields.title, fields.body, server.title, server.body, version, setRawDraft])
 
   // Tras un intento fallido, el foco va al primer campo con error.
   useEffect(() => {
@@ -222,36 +248,51 @@ function ArticleForm({ article, reload }: ArticleFormProps) {
     if (fields.visibility !== server.visibility) changes.visibility = fields.visibility
     if (fields.allowFeedback !== server.allowFeedback) changes.allowFeedback = fields.allowFeedback
     if (Object.keys(changes).length === 0) return
-    const mine: ArticleDraft = { title: fields.title, body: fields.body, version }
     update.mutate(
       { version, changes },
       {
         onSuccess: (saved) => {
+          setBase(saved)
           setFields(fieldsOf(saved))
           toast.show({ title: 'Cambios guardados' })
         },
+        // Un 412 recarga el detalle (lo hace la mutación); la versión nueva se trata abajo, igual que si llegara sola.
         onError: (error) => {
-          if (isApiError(error, 412)) {
-            // Se retiene el texto propio antes de recargar: el servidor manda y el borrador queda para restaurarlo.
-            setOffered(mine)
-            void reload?.()
-          } else setAttempt((count) => count + 1)
+          if (!isApiError(error, 412)) setAttempt((count) => count + 1)
         },
       },
     )
   }
 
-  // Tras un 412 llega una versión nueva: se muestra el texto del servidor y el propio sigue en `offered`. Un cambio de
-  // versión sin borrador pendiente (un guardado o una publicación propios) no toca el formulario.
-  const [seenVersion, setSeenVersion] = useState(version)
-  if (version !== seenVersion) {
-    setSeenVersion(version)
-    if (offered) setFields((current) => ({ ...current, title: server.title, body: server.body }))
+  // Llegó una versión del servidor más nueva que la base y no es de un guardado mío (un 412, una recarga, una
+  // invalidación): el servidor manda. Su texto pasa al formulario y, si yo tenía texto sin guardar distinto, queda
+  // ofrecido para restaurarlo (el borrador local ya lo guarda con la versión base). Solo se ofrece lo que yo cambié, así
+  // restaurarlo no revierte lo que la otra persona guardó en el otro campo. Los ajustes que toqué se conservan; los
+  // demás siguen al servidor. Sin cambios míos, el formulario se actualiza en silencio.
+  if (article && base && article.version > base.version) {
+    const next = fieldsOf(article)
+    setBase(article)
+    const mine: ArticleDraft = {
+      title: fields.title !== server.title ? fields.title : null,
+      body: fields.body !== server.body ? fields.body : null,
+      version,
+    }
+    if ((mine.title !== null && mine.title !== next.title) || (mine.body !== null && mine.body !== next.body)) {
+      setOffered({ draft: mine, reason: 'changed' })
+    }
+    setFields((current) => ({
+      title: next.title,
+      body: next.body,
+      categoryId: current.categoryId !== server.categoryId ? current.categoryId : next.categoryId,
+      visibility: current.visibility !== server.visibility ? current.visibility : next.visibility,
+      allowFeedback: current.allowFeedback !== server.allowFeedback ? current.allowFeedback : next.allowFeedback,
+    }))
   }
 
   function restoreDraft() {
     if (!offered) return
-    change({ title: offered.title, body: offered.body })
+    const { title, body } = offered.draft
+    change({ ...(title !== null && { title }), ...(body !== null && { body }) })
     setOffered(null)
   }
 
@@ -259,9 +300,8 @@ function ArticleForm({ article, reload }: ArticleFormProps) {
     setOffered(null)
   }
 
-  const conflict = isApiError(update.error, 412)
   const slugTaken = isApiError(create.error, 409)
-  const blockedReason = !article
+  const blockedReason = !base
     ? 'Guarda el borrador para poder publicarlo.'
     : dirty
       ? 'Guarda los cambios antes de cambiar el estado.'
@@ -271,7 +311,11 @@ function ArticleForm({ article, reload }: ArticleFormProps) {
     const mutation = action === 'publish' ? publish : unpublish
     if (mutation.isPending) return
     mutation.mutate(undefined, {
-      onSuccess: () => toast.show({ title: action === 'publish' ? 'Artículo publicado' : 'Artículo despublicado' }),
+      onSuccess: (changed) => {
+        // La respuesta es la nueva versión base: sin esto el siguiente guardado iría con un `If-Match` anterior.
+        setBase(changed)
+        toast.show({ title: action === 'publish' ? 'Artículo publicado' : 'Artículo despublicado' })
+      },
       onError: (error) => {
         if (isApiError(error, 409)) {
           toast.show({
@@ -290,7 +334,7 @@ function ArticleForm({ article, reload }: ArticleFormProps) {
   return (
     <div className={pageStyles.page}>
       <PageHeader
-        title={article ? 'Editar artículo' : 'Nuevo artículo'}
+        title={base ? 'Editar artículo' : 'Nuevo artículo'}
         description="Crea una respuesta útil y mantenla actualizada."
         actions={
           article && (
@@ -302,9 +346,9 @@ function ArticleForm({ article, reload }: ArticleFormProps) {
       />
 
       {offered && (
-        <Alert tone="amber" title="Hay un borrador tuyo sin guardar" live={conflict}>
+        <Alert tone="amber" title="Hay un borrador tuyo sin guardar" live={offered.reason === 'changed'}>
           <p>
-            {conflict
+            {offered.reason === 'changed'
               ? 'Alguien guardó este artículo mientras lo editabas. Mostramos su versión y conservamos tu texto en este navegador.'
               : 'Escribiste cambios en este navegador sobre una versión anterior del artículo. Mostramos la versión guardada.'}
           </p>
@@ -323,7 +367,7 @@ function ArticleForm({ article, reload }: ArticleFormProps) {
           Cambia el título para que la dirección del artículo sea distinta.
         </Alert>
       )}
-      {(update.error && !conflict && !isApiError(update.error, 400)) ||
+      {(update.error && !isApiError(update.error, 412) && !isApiError(update.error, 400)) ||
       (create.error && !slugTaken && !isApiError(create.error, 400)) ? (
         <Alert tone="red" title="No se pudo guardar el artículo" live>
           {mutationErrorDetail(update.error ?? create.error)}
@@ -398,7 +442,7 @@ function ArticleForm({ article, reload }: ArticleFormProps) {
           onVisibilityChange={(visibility) => change({ visibility })}
           allowFeedback={fields.allowFeedback}
           onAllowFeedbackChange={(allowFeedback) => change({ allowFeedback })}
-          status={article?.status ?? null}
+          status={base?.status ?? null}
           blockedReason={blockedReason}
           publishing={publish.isPending}
           unpublishing={unpublish.isPending}
