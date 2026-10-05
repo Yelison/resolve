@@ -95,7 +95,7 @@ public class Ticket extends AssignedIdEntity {
 		}
 		TicketStatus previous = this.status;
 		this.status = newStatus;
-		this.updatedAt = now;
+		this.updatedAt = latest(now);
 		return previous;
 	}
 
@@ -106,7 +106,7 @@ public class Ticket extends AssignedIdEntity {
 		}
 		TicketPriority previous = this.priority;
 		this.priority = newPriority;
-		this.updatedAt = now;
+		this.updatedAt = latest(now);
 		return previous;
 	}
 
@@ -118,8 +118,13 @@ public class Ticket extends AssignedIdEntity {
 			return false;
 		}
 		this.assignee = newAssignee;
-		this.updatedAt = now;
+		this.updatedAt = latest(now);
 		return true;
+	}
+
+	/** Nunca retrocede: una respuesta pública confirmada con un reloj posterior no se pierde. */
+	private Instant latest(Instant now) {
+		return now.isAfter(this.updatedAt) ? now : this.updatedAt;
 	}
 
 	public UUID getOrganizationId() {

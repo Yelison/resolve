@@ -81,10 +81,19 @@ There is no authentication provider yet. The security layer resolves the princip
 - `PATCH /api/tickets/{number}` requires `If-Match: "<version>"`, a single strong validator (weak validators, lists and `*` are rejected with `400`):
   - a different version returns `412` and the client reloads the ticket before retrying;
   - a missing header returns `428`.
-- The server compares the client's version with the stored one inside the transaction and also relies on JPA optimistic locking for races between the check and the commit.
+- `PATCH` loads the ticket with a row lock (`SELECT … FOR UPDATE`) and compares the client's version with the stored one inside the same transaction. Two simultaneous patches with the same version are serialized: the second waits for the first to commit, reads the new version and gets the explicit `412`. JPA optimistic locking (`WHERE version = ?`) stays as a safety net for any other writer.
 - A patch that changes nothing returns `200` without a new version or activity entry.
 - Errors are checked in this order: `401`, `403`, `404`, `428`, `400`, `412`.
 - Posting a message does **not** change the ticket version, so a reply never invalidates a parallel status change. A **public** message moves `updatedAt`, which means *last activity* and drives the inbox «Actualizado» column; internal notes do not, so customers cannot infer them from timestamps.
+- `updatedAt` never moves backwards: a `PATCH` stamps `max(updatedAt, now)` and a public message stamps `greatest(updatedAt, now)`. A message that arrives while a `PATCH` holds the row waits a few milliseconds for it and then applies its own stamp, so the inbox order is not corrupted by clock differences between requests. The `PATCH` response body and `ETag` match the row as that `PATCH` committed it.
+
+Guarantees covered by real-thread tests (`TicketConcurrencyTest`, `TicketMessagesApiTest`):
+
+- simultaneous creations in one organization get distinct, consecutive numbers;
+- two simultaneous `PATCH`es with the same version yield exactly one `200` and one `412`, one new activity entry and the state of the `200`;
+- a `PATCH` committed after a later reply keeps the later `updatedAt`;
+- a reply that arrives during a `PATCH` waits and its stamp prevails;
+- a public reply keeps the version and `ETag` unchanged; an internal note leaves the ticket row untouched.
 
 ## Activity
 
