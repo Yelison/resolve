@@ -193,6 +193,57 @@ test.describe('lectura de un artículo', () => {
     expect(await noHorizontalOverflow(page)).toBeLessThanOrEqual(0)
   })
 
+  test('con poca altura el lateral fijo se desplaza por dentro: el último enlace y «¿Necesitas ayuda?» se alcanzan', async ({
+    page,
+  }) => {
+    const headings = Array.from(
+      { length: 14 },
+      (_, index) => `${index + 1}. Un encabezado bastante largo sobre un paso concreto`,
+    )
+    const body = headings.flatMap((heading) => [`## ${heading}`, '', 'Texto del paso.', '']).join('\n')
+    await page.route('**/api/knowledge/articles/guia-larga', (route) =>
+      route.fulfill({
+        contentType: 'application/json',
+        headers: { ETag: '"1"' },
+        body: JSON.stringify({
+          id: 'a-guia-larga',
+          slug: 'guia-larga',
+          title: 'Una guía larga',
+          category: { id: 'cat-acceso', name: 'Cuenta y acceso', slug: 'cuenta-y-acceso' },
+          status: 'published',
+          visibility: 'public',
+          updatedAt: new Date().toISOString(),
+          publishedAt: new Date().toISOString(),
+          body,
+          allowFeedback: true,
+          version: 1,
+          createdBy: { id: 'u-admin', name: 'Yelisson Ortiz' },
+          updatedBy: { id: 'u-admin', name: 'Yelisson Ortiz' },
+        }),
+      }),
+    )
+    await page.setViewportSize({ width: 1440, height: 700 })
+    await page.goto('/conocimiento/guia-larga')
+    await expect(page.getByRole('heading', { level: 1, name: 'Una guía larga' })).toBeVisible()
+    const side = page.getByRole('complementary', { name: 'Ayuda del artículo' })
+    // Alto máximo = viewport − barra de 72 px − 2 × 24 px de margen; más contenido que eso se desplaza por dentro.
+    expect((await side.boundingBox())!.height, 'el lateral no es más alto que el viewport visible').toBeLessThanOrEqual(
+      580,
+    )
+    expect(
+      await side.evaluate((element) => element.scrollHeight > element.clientHeight),
+      'hay desbordamiento interno',
+    ).toBe(true)
+    // Con la página desplazada, el lateral queda fijo bajo la barra superior.
+    await page.evaluate(() => window.scrollTo(0, 400))
+    // Se desplaza por dentro: tras recorrerlo, el último enlace y la ayuda se ven completos.
+    await side.evaluate((element) => element.scrollTo({ top: element.scrollHeight }))
+    const last = page.getByRole('navigation', { name: 'En este artículo' }).getByRole('link').last()
+    await expect(last).toBeInViewport({ ratio: 1 })
+    await expect(page.getByRole('heading', { name: '¿Necesitas ayuda?' })).toBeInViewport({ ratio: 1 })
+    await expect(page.getByRole('link', { name: 'Crear un ticket' })).toBeInViewport({ ratio: 1 })
+  })
+
   for (const width of [390, 1024]) {
     test(`a ${width} px el índice se pliega encima del texto y no hay scroll horizontal`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })

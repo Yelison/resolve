@@ -90,5 +90,11 @@
     position: sticky;
     /* Debajo de la barra superior de 72 px. */
     top: calc(72px + var(--space-24));
+    /* Si el índice y la ayuda no caben en el alto visible, el lateral se desplaza por dentro en vez de recortarse. */
+    max-height: calc(100dvh - 72px - 2 * var(--space-24));
+    overflow-y: auto;
+    /* Deja sitio al contorno de foco de los enlaces, que `overflow` recortaría. */
+    padding: 2px;
+    margin: -2px;
   }
 }
