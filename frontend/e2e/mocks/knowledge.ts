@@ -76,15 +76,11 @@ const articleBody = (title: string) =>
     '- Sigue las instrucciones.',
   ].join('\n')
 
-/**
- * `role` es el de la sesión simulada. Para un cliente, `/knowledge/*` hace lo que el servidor: solo artículos
- * publicados y públicos, y sin las categorías que se quedan vacías.
- */
-export function knowledgeMock(role: Me['role']): MockFeature {
-  const readable = (article: ArticleSummary) =>
-    role !== 'customer' || (article.status === 'published' && article.visibility === 'public')
-  // Artículos con cuerpo, versión y ETag como el servidor; el estado es de cada test.
-  const articleStore = new Map<string, Article>(
+/** Artículos con cuerpo, versión y ETag como el servidor. Cada test crea el suyo; se comparte entre roles con `mockApi`. */
+export type ArticleStore = Map<string, Article>
+
+export function createArticleStore(): ArticleStore {
+  return new Map(
     articles.map((summary) => [
       summary.slug,
       {
@@ -97,6 +93,15 @@ export function knowledgeMock(role: Me['role']): MockFeature {
       },
     ]),
   )
+}
+
+/**
+ * `role` es el de la sesión simulada. Para un cliente, `/knowledge/*` hace lo que el servidor: solo artículos
+ * publicados y públicos, y sin las categorías que se quedan vacías.
+ */
+export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = createArticleStore()): MockFeature {
+  const readable = (article: ArticleSummary) =>
+    role !== 'customer' || (article.status === 'published' && article.visibility === 'public')
   const articleJson = (route: Route, article: Article, status = 200) =>
     route.fulfill({
       status,

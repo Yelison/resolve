@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { articles, expect, mockApi, test } from './fixtures'
+import { articles, createArticleStore, expect, mockApi, test } from './fixtures'
 
 const longTitle = articles.find((article) => article.id === 'a-largo')!.title
 
@@ -324,6 +324,65 @@ test.describe('editor de artículos', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Despublicar' }).click()
     await expect(page.getByText('Artículo despublicado')).toBeVisible()
     await expect(page.getByText('Borrador', { exact: true })).toBeVisible()
+  })
+
+  test('crea, previsualiza y publica un artículo y un cliente lo encuentra y lo lee', async ({ page }) => {
+    // El estado se comparte entre la sesión del equipo y la del cliente, como el servidor entre las dos personas.
+    const articleStore = createArticleStore()
+    await mockApi(page, 'admin', { articleStore })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/conocimiento/nuevo')
+    await page.getByRole('textbox', { name: 'Título' }).fill('Cambiar tu contraseña')
+    await page.getByRole('combobox', { name: 'Categoría' }).selectOption({ label: 'Cuenta y acceso' })
+    await page.getByRole('textbox', { name: 'Contenido' }).fill('Primero entra a tu perfil.')
+    await page.getByRole('radio', { name: 'Clientes y equipo' }).check()
+
+    await page.getByRole('tab', { name: 'Vista previa' }).click()
+    await expect(page.getByText('Primero entra a tu perfil.')).toBeVisible()
+    await page.getByRole('tab', { name: 'Escribir' }).click()
+    await page.getByRole('button', { name: 'Guardar borrador' }).click()
+    await expect(page).toHaveURL(/\/conocimiento\/cambiar-tu-contrasena\/editar$/)
+
+    // Un borrador no lo ve el cliente: la lista y el enlace directo responden como si no existiera.
+    await mockApi(page, 'customer', { articleStore })
+    await page.goto('/conocimiento')
+    await expect(page.getByRole('table', { name: 'Artículos' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Cambiar tu contraseña' })).toHaveCount(0)
+
+    await mockApi(page, 'admin', { articleStore })
+    await page.goto('/conocimiento/cambiar-tu-contrasena/editar')
+    await page.getByRole('button', { name: 'Publicar' }).click()
+    await expect(page.getByText('Artículo publicado')).toBeVisible()
+
+    await mockApi(page, 'customer', { articleStore })
+    await page.goto('/conocimiento')
+    await page.getByRole('link', { name: 'Cambiar tu contraseña' }).click()
+    await expect(page).toHaveURL(/\/conocimiento\/cambiar-tu-contrasena$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Cambiar tu contraseña' })).toBeVisible()
+    await expect(page.getByText('Primero entra a tu perfil.')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Editar artículo' })).toHaveCount(0)
+    await expect(page.getByText('Publicado', { exact: true })).toHaveCount(0)
+  })
+
+  test('un artículo publicado solo para el equipo no llega al cliente', async ({ page }) => {
+    const articleStore = createArticleStore()
+    await mockApi(page, 'admin', { articleStore })
+    await page.goto('/conocimiento/nuevo')
+    await page.getByRole('textbox', { name: 'Título' }).fill('Guía interna de escalado')
+    await page.getByRole('combobox', { name: 'Categoría' }).selectOption({ label: 'Cuenta y acceso' })
+    await page.getByRole('textbox', { name: 'Contenido' }).fill('Solo para el equipo.')
+    await page.getByRole('radio', { name: 'Solo el equipo' }).check()
+    await page.getByRole('button', { name: 'Guardar borrador' }).click()
+    await expect(page).toHaveURL(/\/guia-interna-de-escalado\/editar$/)
+    await page.getByRole('button', { name: 'Publicar' }).click()
+    await expect(page.getByText('Publicado', { exact: true })).toBeVisible()
+
+    await mockApi(page, 'customer', { articleStore })
+    await page.goto('/conocimiento')
+    await expect(page.getByRole('table', { name: 'Artículos' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Guía interna de escalado' })).toHaveCount(0)
+    await page.goto('/conocimiento/guia-interna-de-escalado')
+    await expect(page.getByRole('heading', { level: 1, name: 'Artículo no encontrado' })).toBeVisible()
   })
 
   test('«Nuevo artículo» no se abre con el texto de un borrador ya guardado', async ({ page }) => {

@@ -1,7 +1,7 @@
 import { test as base, type Page } from '@playwright/test'
 import type { Me } from '../src/api/schema'
 import { customersMock } from './mocks/customers'
-import { knowledgeMock } from './mocks/knowledge'
+import { knowledgeMock, type ArticleStore } from './mocks/knowledge'
 import { reportsMock } from './mocks/reports'
 import { sessionMock } from './mocks/session'
 import { settingsMock } from './mocks/settings'
@@ -9,7 +9,7 @@ import { json, type MockFeature } from './mocks/shared'
 import { teamMock } from './mocks/team'
 import { ticketsMock } from './mocks/tickets'
 
-export { articles } from './mocks/knowledge'
+export { articles, createArticleStore } from './mocks/knowledge'
 export { customers } from './mocks/customers'
 export { me } from './mocks/session'
 export { team } from './mocks/team'
@@ -25,14 +25,16 @@ export { tickets } from './mocks/tickets'
 
 /**
  * `role` es el de la sesión simulada; las features que dependen de él (sesión, conocimiento) lo reciben.
+ * `shared` reutiliza el estado de otra llamada (un `createArticleStore()` del test): cambiar de rol sobre la misma
+ * página, como al abrir la sesión de un cliente, sigue viendo lo que el equipo acaba de publicar.
  */
-export async function mockApi(page: Page, role: Me['role'] = 'admin') {
+export async function mockApi(page: Page, role: Me['role'] = 'admin', shared: { articleStore?: ArticleStore } = {}) {
   const customers = customersMock()
   const features: MockFeature[] = [
     // Antes que `sessionMock`: sirve `/me` con el estado que cambian los ajustes (gana el primer manejador).
     settingsMock(role),
     sessionMock(role),
-    knowledgeMock(role),
+    knowledgeMock(role, shared.articleStore),
     reportsMock(),
     ticketsMock(customers.customerRef),
     teamMock(),
