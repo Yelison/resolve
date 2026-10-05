@@ -11,6 +11,7 @@ const routes = [
   '/clientes',
   '/clientes/c-maria',
   '/clientes/nuevo',
+  '/equipo',
 ] as const
 
 for (const route of routes) {
