@@ -76,6 +76,22 @@ final class MemberRequestParser {
 		return role;
 	}
 
+	/** Perfil propio: un objeto con solo {@code name}, que es obligatorio. */
+	static String profileName(@Nullable JsonNode body) {
+		MemberRequestParser parser = new MemberRequestParser();
+		if (body == null || !body.isObject()) {
+			throw new ApiValidationException("body", "Envía un objeto con name.");
+		}
+		for (String field : body.propertyNames()) {
+			if (!"name".equals(field)) {
+				parser.error(field, "Campo no permitido.");
+			}
+		}
+		String name = body.has("name") ? parser.name(body.get("name")) : parser.invalid("name", "Es obligatorio.");
+		parser.throwIfInvalid();
+		return name;
+	}
+
 	private @Nullable Role role(JsonNode node) {
 		if (node.isString()) {
 			String value = node.asString();

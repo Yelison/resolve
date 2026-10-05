@@ -64,6 +64,9 @@ class SecurityConfiguration {
 						"/customers", "/customers/**", "/assignees", "/members", "/members/metrics",
 						"/reports/summary", "/organization")
 				.hasAnyRole(STAFF)
+				// Cada persona edita su propio nombre, sea cual sea su rol; sin esta regla la final lo limitaría al personal.
+				.requestMatchers(HttpMethod.PATCH, "/me")
+				.authenticated()
 				.requestMatchers(HttpMethod.GET, "/me", "/tickets", "/tickets/{number}", "/tickets/{number}/messages")
 				.authenticated()
 				.anyRequest()

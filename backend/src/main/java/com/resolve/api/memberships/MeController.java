@@ -9,15 +9,21 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import tools.jackson.databind.JsonNode;
 
 @RestController
 class MeController {
 
 	private final OrganizationRepository organizations;
 
-	MeController(OrganizationRepository organizations) {
+	private final UserAccountRepository users;
+
+	MeController(OrganizationRepository organizations, UserAccountRepository users) {
 		this.organizations = organizations;
+		this.users = users;
 	}
 
 	@GetMapping("/me")
@@ -25,9 +31,27 @@ class MeController {
 	MeResponse me(@AuthenticationPrincipal CurrentMember member) {
 		Organization organization = this.organizations.getReferenceById(member.organizationId());
 		return new MeResponse(new MemberDto(member.userId(), member.name(), member.email()),
-				new OrganizationDto(organization.getId(), organization.getName(), organization.getTimeZone(),
-						organization.getSupportEmail()),
-				member.role(), member.customerId());
+				organizationDto(organization), member.role(), member.customerId());
+	}
+
+	/**
+	 * Cambia el nombre de quien llama. Sin If-Match: es un recurso de un solo dueño y la última escritura gana. El
+	 * principal se resolvió antes del cambio y trae el nombre anterior, así que la respuesta lee la cuenta ya guardada.
+	 */
+	@PatchMapping("/me")
+	@Transactional
+	MeResponse rename(@AuthenticationPrincipal CurrentMember member, @RequestBody(required = false) @Nullable JsonNode body) {
+		String name = MemberRequestParser.profileName(body);
+		UserAccount user = this.users.findById(member.userId()).orElseThrow();
+		user.rename(name);
+		this.users.flush();
+		Organization organization = this.organizations.getReferenceById(member.organizationId());
+		return new MeResponse(MemberDto.from(user), organizationDto(organization), member.role(), member.customerId());
+	}
+
+	private static OrganizationDto organizationDto(Organization organization) {
+		return new OrganizationDto(organization.getId(), organization.getName(), organization.getTimeZone(),
+				organization.getSupportEmail());
 	}
 
 	record MeResponse(MemberDto user, OrganizationDto organization, Role role, @Nullable UUID customerId) {

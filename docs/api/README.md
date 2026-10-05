@@ -28,6 +28,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 
 - A `customer` membership is linked to a **customer** record of the same organization. Customers are read-only in this delivery: every write returns `403`, and so does every `/customers` endpoint.
 - The **team** (`/members`) is readable by `admin` and `agent` (`customer` gets `403`); inviting, changing a role and removing a member are **admin-only**, and the URL rule answers `403` before the member is even looked up.
+- `PATCH /api/me` is open to every role, including `customer`, and edits only the caller's own **person** (`users.name`): not the customer record that staff manage, not the email or the role, and any other field is a `400`. The name shows up live in `/me`, the assignee and message authors, the team, the assignees and the reports; the activity history keeps the name it had when it was recorded (plan §3.9). The person is global, so the new name applies to all their organizations.
 - The **organization settings** (`/organization`) are readable by `admin` and `agent` and editable only by `admin`; a `customer` gets `403` on both. Changing the first-response target changes `firstResponseTargetMinutes` in the ticket and team metrics and `firstResponseMinutes.target` in the reports; changing the time zone changes the reports' `period` and `byDay` days.
 - Archiving, restoring and inviting a customer to the portal is **admin-only**: an agent gets `403`, before the customer is even looked up.
 - The **knowledge base** is readable by every role, but a `customer` only reaches the articles that are `published` **and** `public`; any other article answers `404`, exactly like an unknown slug or one of another organization. Creating and editing articles and publishing or unpublishing them is for `admin` and `agent`; creating categories is **admin-only** (`403` for an agent). The role check runs before anything is read, so a `customer` that attempts a write gets `403` whatever the body or the slug.
@@ -135,6 +136,7 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | Method and path | Roles | Purpose |
 | --- | --- | --- |
 | `GET /api/me` | all | Current user, organization and role |
+| `PATCH /api/me` | all | Change your own display name (`name` is the only field); no `If-Match`: a resource with a single owner, last write wins |
 | `GET /api/organization` | admin, agent | Settings of the organization (name, support email, time zone, first-response target) with `ETag` |
 | `PATCH /api/organization` | admin | Edit the settings (`If-Match`); `403` for agents, before anything is read |
 | `GET /api/tickets` | all | Inbox: views, filters, search, sorting and pagination |
