@@ -19,7 +19,9 @@ import com.resolve.api.customers.CustomerDtos.CustomerMetricsDto;
 import com.resolve.api.customers.CustomerDtos.CustomerSummaryDto;
 import com.resolve.api.customers.CustomerRequestParser.CustomerChanges;
 import com.resolve.api.customers.CustomerRequestParser.NewCustomer;
+import com.resolve.api.memberships.MemberDtos.TeamMemberDto;
 import com.resolve.api.memberships.MembershipRepository;
+import com.resolve.api.memberships.PortalInvitations;
 import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -41,14 +43,17 @@ class CustomerService {
 
 	private final MembershipRepository memberships;
 
+	private final PortalInvitations invitations;
+
 	private final CustomerMetricsQuery metrics;
 
 	private final Clock clock;
 
-	CustomerService(CustomerRepository customers, MembershipRepository memberships, CustomerMetricsQuery metrics,
-			Clock clock) {
+	CustomerService(CustomerRepository customers, MembershipRepository memberships, PortalInvitations invitations,
+			CustomerMetricsQuery metrics, Clock clock) {
 		this.customers = customers;
 		this.memberships = memberships;
+		this.invitations = invitations;
 		this.metrics = metrics;
 		this.clock = clock;
 	}
@@ -134,6 +139,20 @@ class CustomerService {
 		}
 		this.customers.flush();
 		return detail(member, id);
+	}
+
+	/**
+	 * Invita al cliente al portal. Un cliente archivado no se invita (409): su acceso está suspendido y la
+	 * invitación quedaría inservible hasta restaurarlo. El registro queda bloqueado hasta el commit, así que dos
+	 * invitaciones simultáneas o una invitación y un archivado se evalúan una tras otra.
+	 */
+	@Transactional
+	TeamMemberDto invite(CurrentMember member, UUID id) {
+		Customer customer = findForUpdate(member, id);
+		if (customer.getArchivedAt() != null) {
+			throw new ConflictException("Restaura el cliente antes de invitarlo al portal.");
+		}
+		return this.invitations.inviteCustomer(member, id, customer.getName(), customer.getEmail());
 	}
 
 	/**

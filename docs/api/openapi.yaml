@@ -469,6 +469,32 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /customers/{id}/invite:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+    post:
+      tags: [Customers]
+      operationId: inviteCustomer
+      summary: Invite a customer to the portal (admin only)
+      description: |
+        Creates an `invited` `customer` membership bound to the customer's email, creating the user when the
+        email is new; no email is sent. The person gets access by signing in with that address, which activates
+        the membership on their first request. A membership of the same customer that was `removed` is invited
+        again on the same row. The customer must be active: inviting an archived customer is a 409 (restore it
+        first), and so is a customer that already has an `invited` or `active` access, whose email belongs to a
+        team member, or whose user is already linked to another customer.
+      responses:
+        '201':
+          description: The invited portal member (`role` is `customer`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamMember' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /members:
     get:
       tags: [Team]
@@ -754,7 +780,9 @@ components:
       enum: [invited, active, removed]
 
     TeamMember:
-      description: A member of the organization with their membership status.
+      description: |
+        A member of the organization with their membership status: an admin or agent in the team routes, or the
+        invited portal member (`role` `customer`) returned by `inviteCustomer`.
       type: object
       additionalProperties: false
       required: [id, name, email, role, status, openTickets, joinedAt, invitedAt]

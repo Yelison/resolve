@@ -9,7 +9,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 | Ticket inbox with views, filters, search, sorting and pagination | Tags, attachments and file storage |
 | Ticket detail: conversation, internal notes, activity | SLA targets and SLA compliance |
 | Create ticket, change status, priority and assignee | Customer notifications by email |
-| Customers: list, search, profile, create, edit, archive and restore; assignee list for forms | Deleting tickets and bulk actions |
+| Customers: list, search, profile, create, edit, archive, restore and portal invitation; assignee list for forms | Deleting tickets and bulk actions |
 | Inbox metrics and view counts | Authentication provider (see below) |
 | Team: list, invite, change role, remove, team metrics | Invitation emails, agent availability and profiles |
 
@@ -26,7 +26,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 
 - A `customer` membership is linked to a **customer** record of the same organization. Customers are read-only in this delivery: every write returns `403`, and so does every `/customers` endpoint.
 - The **team** (`/members`) is readable by `admin` and `agent` (`customer` gets `403`); inviting, changing a role and removing a member are **admin-only**, and the URL rule answers `403` before the member is even looked up.
-- Archiving and restoring a customer is **admin-only**: an agent gets `403`, before the customer is even looked up.
+- Archiving, restoring and inviting a customer to the portal is **admin-only**: an agent gets `403`, before the customer is even looked up.
 - **Internal notes never reach customers.** The filter is applied in the database query, and no field visible to customers is derived from internal notes.
 - Resources show other members as `{ id, name }` (`MemberRef`); contact data is only in `GET /api/me` and `GET /api/assignees`, which customers cannot call.
 
@@ -143,6 +143,7 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | `PATCH /api/customers/{id}` | admin, agent | Edit contact data and notes (`If-Match`); `409` when archived |
 | `POST /api/customers/{id}/archive` | admin | Archive a customer; `409` when already archived |
 | `POST /api/customers/{id}/restore` | admin | Restore a customer; `409` when not archived |
+| `POST /api/customers/{id}/invite` | admin | Invite a customer to the portal (`201`, a `TeamMember` with role `customer`); `409` when archived or already with access |
 | `GET /api/assignees` | admin, agent | Members who can be assigned (active admins and agents) |
 | `GET /api/members` | admin, agent | The team in any status (including `removed`), by name, with the open tickets of each |
 | `GET /api/members/metrics` | admin, agent | Team metrics of the whole organization |
@@ -218,6 +219,16 @@ There is no outgoing email. **Inviting** creates an `invited` membership bound t
 - an email whose membership was `removed` is invited again **on the same row**: it goes back to `invited` with the new role, `joinedAt` empty and a new `invitedAt`.
 
 `name` is optional and defaults to the part of the email before the `@`.
+
+#### Customer portal invitations
+
+`POST /api/customers/{id}/invite` (admin only) creates the user when the customer's email is new and an `invited` `customer` membership linked to that customer, and answers `201` with the same `TeamMember` shape (`role` `customer`). Like a team invitation it sends no email: the customer gets access by signing in with the address on their record, which activates the membership. Afterwards `portalAccess` of the customer reads `invited`, then `active`.
+
+- The customer must be active: inviting an archived customer is a `409` ("Restaura el cliente antes de invitarlo al portal."); restoring it first makes the invitation possible.
+- A customer that already has an `invited` or `active` access is a `409`. A customer whose access was `removed` is invited again on the same membership.
+- A `409` also when the email belongs to someone on the team ("Este correo ya pertenece al equipo.") or the user is already linked to another customer. An existing user (for example from another organization) keeps their name.
+- The customer record is locked until the end of the transaction, so two simultaneous invitations (or an invitation and an archive) are evaluated one after the other.
+- Removing a customer's portal access is not exposed yet; archiving the customer suspends it.
 
 #### Roles and removal
 

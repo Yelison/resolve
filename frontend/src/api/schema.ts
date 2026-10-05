@@ -280,6 +280,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/customers/{id}/invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite a customer to the portal (admin only)
+         * @description Creates an `invited` `customer` membership bound to the customer's email, creating the user when the
+         *     email is new; no email is sent. The person gets access by signing in with that address, which activates
+         *     the membership on their first request. A membership of the same customer that was `removed` is invited
+         *     again on the same row. The customer must be active: inviting an archived customer is a 409 (restore it
+         *     first), and so is a customer that already has an `invited` or `active` access, whose email belongs to a
+         *     team member, or whose user is already linked to another customer.
+         */
+        post: operations["inviteCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/members": {
         parameters: {
             query?: never;
@@ -459,7 +486,10 @@ export interface components {
          * @enum {string}
          */
         MemberStatus: "invited" | "active" | "removed";
-        /** @description A member of the organization with their membership status. */
+        /**
+         * @description A member of the organization with their membership status: an admin or agent in the team routes, or the
+         *     invited portal member (`role` `customer`) returned by `inviteCustomer`.
+         */
         TeamMember: {
             /**
              * Format: uuid
@@ -1401,6 +1431,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CustomerDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    inviteCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The invited portal member (`role` is `customer`). */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"];
                 };
             };
             400: components["responses"]["BadRequest"];
