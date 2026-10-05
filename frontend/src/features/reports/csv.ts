@@ -2,9 +2,12 @@ export type CsvCell = string | number | null
 
 const BOM = '﻿'
 const ROW_SEPARATOR = '\r\n'
-/** Celdas que una hoja de cálculo interpretaría como fórmula si empezaran así. */
-const FORMULA_START = /^[=+\-@\t\r]/
-
+/**
+ * Celdas que una hoja de cálculo podría interpretar como fórmula: las que empiezan por tabulador o retorno de carro, y
+ * las que, tras saltar los espacios (también los de ancho cero), empiezan por `=`, `+`, `-` o `@` o por sus formas de
+ * ancho completo (`＝`, `＋`, `－`, `＠`), que algunas hojas normalizan antes de evaluar.
+ */
+const FORMULA_START = /^(?:[\t\r]|[\s\u200B-\u200D\u2060\uFEFF]*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20])/
 /**
  * Una celda de texto: se neutraliza la inyección de fórmulas con un `'` delante y después se entrecomilla si hace
  * falta (RFC 4180). El orden importa: el prefijo va primero para que un `\r` inicial acabe prefijado *y* entrecomillado.

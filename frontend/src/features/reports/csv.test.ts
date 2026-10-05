@@ -33,6 +33,18 @@ describe('toCsv', () => {
     expect(row.replace(/^"/, '').startsWith("'")).toBe(true)
   })
 
+  it.each([' =1+1', '  +cmd', '\u00a0@x', '\u200b=1', '\ufeff-1', '＝1+1', '＋1', '－1', '＠SUMA', ' ＝1'])(
+    'protege también la celda con espacios delante o signos de ancho completo %j',
+    (cell) => {
+      const row = body(toCsv(['n'], [[cell]])).split('\r\n')[1]!
+      expect(row.startsWith("'")).toBe(true)
+    },
+  )
+
+  it.each(['|calc', 'a =1', '1+1', 'Ana =', 'x'])('no prefija la celda inofensiva %j', (cell) => {
+    expect(body(toCsv(['n'], [[cell]])).split('\r\n')[1]).toBe(cell)
+  })
+
   it('prefija y luego entrecomilla una fórmula con coma o comillas', () => {
     expect(body(toCsv(['n'], [['=HYPERLINK("http://x","y")']]))).toBe(`n\r\n"'=HYPERLINK(""http://x"",""y"")"\r\n`)
   })
