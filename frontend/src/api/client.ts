@@ -108,6 +108,39 @@ const csrf: Middleware = {
   },
 }
 
+/** Explica por qué una escritura no salió: la sesión cambió en otra pestaña mientras se comprobaba. */
+export const SESSION_CHANGED_DETAIL =
+  'Tu sesión cambió en otra pestaña (otra persona u otra organización). Lo que ibas a enviar no se envió: revisa lo que ves y repítelo.'
+
+/**
+ * Comprobación de la sesión que la aplicación puede tener en vuelo: resuelve a `true` si la persona o la organización
+ * cambiaron. La registra `features/session` (esta capa no importa de ella).
+ */
+export type WriteGuard = () => Promise<boolean>
+let writeGuard: WriteGuard | null = null
+
+/** Registra (o quita, con `null`) la comprobación que las escrituras esperan antes de salir. */
+export function setWriteGuard(guard: WriteGuard | null) {
+  writeGuard = guard
+}
+
+/**
+ * Una escritura no sale mientras la sesión se está comprobando: si al terminar la persona o la organización son otras,
+ * lo que la pantalla mostraba era de la sesión anterior y enviarlo lo escribiría en la nueva. En ese caso se cancela y
+ * la llamada recibe un 409 con el motivo (un `Response` devuelto por el middleware sustituye a la petición). Sin
+ * comprobación en vuelo no cuesta nada.
+ */
+const sessionGuard: Middleware = {
+  async onRequest({ request }) {
+    if (!UNSAFE_METHODS.has(request.method) || !writeGuard) return undefined
+    if (!(await writeGuard())) return undefined
+    return new Response(
+      JSON.stringify({ status: 409, title: 'La sesión cambió', detail: SESSION_CHANGED_DETAIL } satisfies Problem),
+      { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
+    )
+  },
+}
+
 /** Avisa de cualquier 401 para que la aplicación pida volver a entrar sin que cada pantalla lo gestione. */
 const unauthorized: Middleware = {
   onResponse({ request, response }) {
@@ -165,7 +198,7 @@ export const api = createClient<paths>({
   // Se resuelve en cada llamada (no al importar), así los tests y las herramientas pueden sustituir fetch.
   fetch: fetchWithCsrfRetry,
 })
-api.use(demoUser, csrf, unauthorized)
+api.use(sessionGuard, demoUser, csrf, unauthorized)
 
 interface FetchResult<T> {
   data?: T
