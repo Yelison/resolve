@@ -462,7 +462,7 @@ disposable environments: a temporary git repository with a local bare remote, a 
 Docker daemon or `~/resolver-herdr`. `lib.sh` refuses to run if a tool is not the fake or the tasks root is outside the
 temporary directory, and picks port slots whose ports are free on the machine (other agents use them); the leftover
 tests start one real listener on a free slot's Vite port and kill it by PID. It needs `jq`, `git`, `ss` and
-`python3`, exits non-zero on any failure and prints `ALL TESTS PASSED` otherwise. `HERDR_TEST_KEEP=1` keeps the
+`python3`, runs one copy at a time (parallel runs pick the same free slot and their listeners clash), exits non-zero on any failure and prints `ALL TESTS PASSED` otherwise. `HERDR_TEST_KEEP=1` keeps the
 temporary directory; `HERDR_SCRIPTS_SRC=<dir>` runs the tests against a modified copy of `scripts/herdr` (to check that
 a scenario fails without its fix). Run it after changing anything under `scripts/herdr/`; it is not part of CI.
 
