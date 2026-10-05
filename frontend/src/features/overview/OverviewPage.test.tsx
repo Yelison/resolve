@@ -97,7 +97,7 @@ describe('OverviewPage', () => {
     expect(within(resolved).getByText('4 más que ayer (12 %)')).toBeInTheDocument()
     const first = await metricValue('Primera respuesta')
     expect(within(first).getByText('18 min')).toBeInTheDocument()
-    expect(within(first).getByText('Objetivo: 30 min')).toBeInTheDocument()
+    expect(within(first).getByText('Mediana de 7 días · Objetivo: 30 min')).toBeInTheDocument()
     const unassigned = await metricValue('Sin responsable')
     expect(within(unassigned).getByText('6')).toBeInTheDocument()
     expect(within(unassigned).getByRole('link', { name: 'Ver sin asignar' })).toHaveAttribute(
