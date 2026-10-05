@@ -25,6 +25,19 @@ final class TicketRequestParser {
 
 	static final int MAX_TEXT_LENGTH = 5000;
 
+	private static final String CONTROL_CHARACTERS = "No admite caracteres de control.";
+
+	private static final String TEXT_EXPECTED = "Debe ser un texto.";
+
+	private static final String NULL_NOT_ALLOWED = "No admite null.";
+
+	private static final String REQUIRED = "Es obligatorio.";
+
+	private static final Set<String> NEW_TICKET_FIELDS = Set.of("customerId", "subject", "description", "priority",
+			"channel", "assigneeId");
+
+	private static final Set<String> NEW_MESSAGE_FIELDS = Set.of("body", "visibility");
+
 	private static final Pattern TICKET_NUMBER = Pattern.compile("^#?(\\d{1,18})$");
 
 	private final List<FieldErrorDetail> errors = new ArrayList<>();
@@ -81,16 +94,31 @@ final class TicketRequestParser {
 			TicketChannel channel, @Nullable UUID assigneeId) {
 	}
 
-	static NewTicket newTicket(TicketRequests.CreateTicket request) {
+	/**
+	 * Alta: los tipos se comprueban sobre el {@link JsonNode}, como en clientes y artículos, para que un escalar no
+	 * textual en un campo de texto sea un error del campo y no se convierta a texto. Solo {@code assigneeId}
+	 * admite {@code null}, igual que el contrato.
+	 */
+	static NewTicket newTicket(@Nullable JsonNode body) {
 		TicketRequestParser parser = new TicketRequestParser();
-		UUID customerId = parser.requiredUuid("customerId", request.customerId());
-		String subject = parser.requiredText("subject", request.subject(), MAX_SUBJECT_LENGTH);
-		String description = parser.requiredText("description", request.description(), MAX_TEXT_LENGTH);
-		TicketPriority priority = (request.priority() == null) ? TicketPriority.MEDIUM
-				: parser.enumValue("priority", request.priority(), TicketPriority.class).orElse(TicketPriority.MEDIUM);
-		TicketChannel channel = (request.channel() == null) ? TicketChannel.WEB
-				: parser.enumValue("channel", request.channel(), TicketChannel.class).orElse(TicketChannel.WEB);
-		UUID assigneeId = (request.assigneeId() == null) ? null : parser.uuid("assigneeId", request.assigneeId()).orElse(null);
+		if (body == null || !body.isObject()) {
+			throw new ApiValidationException("body", "Envía un objeto con customerId, subject y description.");
+		}
+		parser.rejectUnknownFields(body, NEW_TICKET_FIELDS);
+		UUID customerId = body.has("customerId") ? parser.uuidNode("customerId", body.get("customerId"))
+				: parser.invalid("customerId", REQUIRED);
+		String subject = body.has("subject")
+				? parser.requiredTextNode("subject", body.get("subject"), MAX_SUBJECT_LENGTH, false)
+				: parser.invalid("subject", REQUIRED);
+		String description = body.has("description")
+				? parser.requiredTextNode("description", body.get("description"), MAX_TEXT_LENGTH, true)
+				: parser.invalid("description", REQUIRED);
+		TicketPriority priority = body.has("priority")
+				? parser.enumNode("priority", body.get("priority"), TicketPriority.class) : TicketPriority.MEDIUM;
+		TicketChannel channel = body.has("channel")
+				? parser.enumNode("channel", body.get("channel"), TicketChannel.class) : TicketChannel.WEB;
+		UUID assigneeId = (body.has("assigneeId") && !body.get("assigneeId").isNull())
+				? parser.uuidNode("assigneeId", body.get("assigneeId")) : null;
 		parser.throwIfInvalid();
 		return new NewTicket(customerId, subject, description, priority, channel, assigneeId);
 	}
@@ -130,23 +158,34 @@ final class TicketRequestParser {
 	record NewMessage(String body, MessageVisibility visibility) {
 	}
 
-	static NewMessage newMessage(TicketRequests.CreateMessage request) {
+	static NewMessage newMessage(@Nullable JsonNode body) {
 		TicketRequestParser parser = new TicketRequestParser();
-		String body = parser.requiredText("body", request.body(), MAX_TEXT_LENGTH);
-		MessageVisibility visibility = null;
-		if (request.visibility() == null) {
+		if (body == null || !body.isObject()) {
+			throw new ApiValidationException("body", "Envía un objeto con body y visibility.");
+		}
+		parser.rejectUnknownFields(body, NEW_MESSAGE_FIELDS);
+		String text = body.has("body") ? parser.requiredTextNode("body", body.get("body"), MAX_TEXT_LENGTH, true)
+				: parser.invalid("body", REQUIRED);
+		MessageVisibility visibility = body.has("visibility")
+				? parser.enumNode("visibility", body.get("visibility"), MessageVisibility.class) : null;
+		if (!body.has("visibility")) {
 			parser.error("visibility", "Indica si es una respuesta pública (public) o una nota interna (internal).");
 		}
-		else {
-			visibility = parser.enumValue("visibility", request.visibility(), MessageVisibility.class).orElse(null);
-		}
 		parser.throwIfInvalid();
-		return new NewMessage(body, visibility);
+		return new NewMessage(text, visibility);
+	}
+
+	private void rejectUnknownFields(JsonNode body, Set<String> allowed) {
+		for (String field : body.propertyNames()) {
+			if (!allowed.contains(field)) {
+				error(field, "Campo no permitido.");
+			}
+		}
 	}
 
 	private <E extends Enum<E> & WireEnum> @Nullable E enumNode(String field, JsonNode node, Class<E> type) {
 		if (!node.isString()) {
-			return invalid(field, "Valor no válido. Usa: " + allowed(type) + ".");
+			return invalid(field, node.isNull() ? NULL_NOT_ALLOWED : "Valor no válido. Usa: " + allowed(type) + ".");
 		}
 		return enumValue(field, node.asString(), type).orElse(null);
 	}
@@ -170,11 +209,11 @@ final class TicketRequestParser {
 		return result;
 	}
 
-	private UUID requiredUuid(String field, @Nullable String value) {
-		if (value == null || value.isBlank()) {
-			return invalid(field, "Es obligatorio.");
+	private @Nullable UUID uuidNode(String field, JsonNode node) {
+		if (!node.isString()) {
+			return invalid(field, node.isNull() ? NULL_NOT_ALLOWED : TEXT_EXPECTED);
 		}
-		return uuid(field, value).orElse(null);
+		return uuid(field, node.asString()).orElse(null);
 	}
 
 	private Optional<UUID> uuid(String field, String value) {
@@ -187,15 +226,31 @@ final class TicketRequestParser {
 		}
 	}
 
-	private String requiredText(String field, @Nullable String value, int maxLength) {
-		String trimmed = (value != null) ? value.strip() : "";
+	private @Nullable String requiredTextNode(String field, JsonNode node, int maxLength, boolean allowLayout) {
+		if (!node.isString()) {
+			return invalid(field, node.isNull() ? NULL_NOT_ALLOWED : TEXT_EXPECTED);
+		}
+		String trimmed = node.asString().strip();
 		if (trimmed.isEmpty()) {
-			return invalid(field, "Es obligatorio.");
+			return invalid(field, REQUIRED);
+		}
+		if (hasControlCharacters(trimmed, allowLayout)) {
+			return invalid(field, CONTROL_CHARACTERS);
 		}
 		if (trimmed.length() > maxLength) {
 			return invalid(field, "Admite como máximo " + maxLength + " caracteres.");
 		}
 		return trimmed;
+	}
+
+	/**
+	 * PostgreSQL rechaza el byte 0 y el resto de controles no tienen sentido en un asunto; la descripción y los
+	 * mensajes admiten saltos de línea y tabuladores.
+	 */
+	static boolean hasControlCharacters(String text, boolean allowLayout) {
+		return text.chars()
+			.anyMatch((character) -> Character.isISOControl(character)
+					&& !(allowLayout && (character == '\n' || character == '\r' || character == '\t')));
 	}
 
 	private static <E extends Enum<E> & WireEnum> String allowed(Class<E> type) {
