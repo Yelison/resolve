@@ -101,18 +101,22 @@ jobs:
           DATABASE_URL: jdbc:postgresql://localhost:5432/resolve
         run: nohup java -jar target/*.jar > "$RUNNER_TEMP/backend.log" 2>&1 &
       - name: Wait for the API
-        run: curl -fsS --retry 30 --retry-delay 2 --retry-connrefused http://localhost:8080/api/actuator/health
+        timeout-minutes: 3
+        run: >-
+          curl -fsS --max-time 5 --retry 60 --retry-delay 2 --retry-connrefused --retry-all-errors
+          http://localhost:8080/api/actuator/health
       - run: npm ci
         working-directory: frontend
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - name: Smoke suite against the real API
         working-directory: frontend
+        timeout-minutes: 10
         env:
           SMOKE: '1'
         run: npx playwright test --project=smoke
       - uses: actions/upload-artifact@v7
-        if: failure()
+        if: failure() || cancelled()
         with:
           name: smoke-traces-and-api-log
           path: |
