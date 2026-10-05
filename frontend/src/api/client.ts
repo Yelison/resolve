@@ -23,7 +23,7 @@ export function isApiError(error: unknown, status?: number): error is ApiError {
   return error instanceof ApiError && (status === undefined || error.status === status)
 }
 
-/** Clave de almacenamiento del usuario de demostración (nunca en producción, ver docs/api). */
+/** Clave de almacenamiento del usuario de demostración (solo en desarrollo y en el build `smoke`, ver docs/api). */
 export const DEMO_USER_STORAGE_KEY = 'resolve-demo-user'
 
 /** Evento de `window` que avisa de un cambio de usuario de demostración. */
@@ -31,7 +31,7 @@ export const DEMO_USER_EVENT = 'resolve:demo-user'
 
 /**
  * Elige el usuario de demostración (`null` vuelve al predeterminado del backend) y avisa del cambio para que la
- * caché de consultas del usuario anterior no se mezcle con la del nuevo. Solo tiene efecto fuera de producción.
+ * caché de consultas del usuario anterior no se mezcle con la del nuevo. Solo tiene efecto en desarrollo y en el build `smoke`.
  */
 export function setDemoUser(email: string | null) {
   try {
@@ -44,14 +44,15 @@ export function setDemoUser(email: string | null) {
 }
 
 /**
- * Fuera de producción (desarrollo y el build `smoke` de la prueba full-stack), el backend con perfil `dev` acepta
- * X-Demo-User para elegir un usuario sembrado. En producción no existe autenticación todavía y la API responde
- * 401. Es una puerta de seguridad: el modo se sustituye en el build, así que en `production` el minificador elimina
- * este bloque entero (y la clave de almacenamiento con él); no la cambies por una variable de entorno en runtime.
+ * En desarrollo y en el build `smoke` de la prueba full-stack, el backend con perfil `dev` acepta X-Demo-User para
+ * elegir un usuario sembrado. En cualquier otro modo (`production` y cualquier otro que se invente) no existe
+ * autenticación todavía y la API responde 401. Es una puerta de seguridad con lista de permitidos: DEV y el modo se
+ * sustituyen en el build, así que fuera de esos casos el minificador elimina este bloque entero (y la clave de
+ * almacenamiento con él); no la cambies por una variable de entorno en runtime.
  */
 const demoUser: Middleware = {
   onRequest({ request }) {
-    if (import.meta.env.MODE === 'production') return request
+    if (!(import.meta.env.DEV || import.meta.env.MODE === 'smoke')) return request
     try {
       const email = localStorage.getItem(DEMO_USER_STORAGE_KEY)
       if (email) request.headers.set('X-Demo-User', email)
