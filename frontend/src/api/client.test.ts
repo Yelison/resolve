@@ -69,6 +69,10 @@ describe('usuario de demostración', () => {
     await expect(demoHeaderSentIn('development', true)).resolves.toBe('maria.perez@cliente.example')
   })
 
+  it('no lo envía en un modo desconocido', async () => {
+    await expect(demoHeaderSentIn('staging')).resolves.toBeNull()
+  })
+
   it('nunca lo envía en producción aunque haya un usuario guardado', async () => {
     await expect(demoHeaderSentIn('production')).resolves.toBeNull()
   })
