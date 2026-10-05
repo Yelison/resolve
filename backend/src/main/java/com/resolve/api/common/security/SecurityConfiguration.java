@@ -45,6 +45,15 @@ class SecurityConfiguration {
 				// Invitar, cambiar el rol y retirar miembros es solo de administradores; el equipo lo lee el personal.
 				.requestMatchers(HttpMethod.POST, "/members", "/members/{userId}/role", "/members/{userId}/remove")
 				.hasRole("ADMIN")
+				// Solo los administradores crean categorías de la base de conocimiento (Q-03); crear y editar artículos
+				// es del personal y lo cubre la regla final.
+				.requestMatchers(HttpMethod.POST, "/knowledge/categories")
+				.hasRole("ADMIN")
+				// Los clientes leen la base de conocimiento: el servicio les limita los artículos a los publicados y
+				// públicos y responde 404 al resto.
+				.requestMatchers(HttpMethod.GET, "/knowledge/categories", "/knowledge/articles",
+						"/knowledge/articles/{slug}")
+				.authenticated()
 				// Los informes y el feed de actividad son del personal. «/tickets/activity» tiene que estar en esta regla,
 				// que va antes de «/tickets/{number}»: ese patrón también la reconoce y dejaría pasar a un cliente.
 				.requestMatchers(HttpMethod.GET, "/tickets/metrics", "/tickets/activity", "/tickets/{number}/activity",

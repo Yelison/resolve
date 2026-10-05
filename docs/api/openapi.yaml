@@ -28,6 +28,8 @@ tags:
     description: Members of the organization, their invitations, roles and removal.
   - name: Reports
     description: Aggregated figures of the organization over a period.
+  - name: Knowledge
+    description: Categories and Markdown articles of the knowledge base, with draft/published and internal/public visibility.
 
 paths:
   /me:
@@ -674,6 +676,216 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /knowledge/categories:
+    get:
+      tags: [Knowledge]
+      operationId: listCategories
+      summary: Categories of the knowledge base with their article counts
+      description: |
+        `articles` counts what the caller can read: every article for staff, only published and public ones
+        for customers. A customer only receives the categories that have at least one such article, so an
+        internal category never shows up for them. Ordered by name, ignoring case.
+      responses:
+        '200':
+          description: The categories.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Knowledge]
+      operationId: createCategory
+      summary: Create a category (admin only)
+      description: |
+        The slug comes from the name (`Slugs.from`, lowercase ASCII with hyphens) and never changes. A name whose
+        slug already exists in the organization is a 400 field error on `name`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryCreate' }
+      responses:
+        '201':
+          description: The created category, without articles.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Category' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /knowledge/articles:
+    get:
+      tags: [Knowledge]
+      operationId: listArticles
+      summary: Paginated article list and search
+      description: |
+        Staff see every article; customers only receive the `published` and `public` ones, whatever the filters:
+        a customer who asks for `status=draft` gets an empty page. The result never includes articles of other
+        organizations. `category` is a category slug, and an unknown slug gives an empty page.
+      parameters:
+        - name: q
+          in: query
+          description: Case-insensitive contains match on the title, the body and the category name.
+          schema: { type: string, maxLength: 120 }
+        - name: category
+          in: query
+          description: Slug of a category.
+          schema: { type: string, maxLength: 120 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ArticleStatus' }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: sort
+          in: query
+          description: |
+            `field,direction` with `updatedAt` or `title`. Titles compare case-insensitively; ties are broken by
+            `id` in the same direction.
+          schema:
+            type: string
+            default: updatedAt,desc
+            pattern: '^(updatedAt|title),(asc|desc)$'
+      responses:
+        '200':
+          description: One page of articles.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ArticlePage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Knowledge]
+      operationId: createArticle
+      summary: Create an article as a draft (staff)
+      description: |
+        The article starts as a `draft`. The slug comes from the title and never changes: `Slugs.from(title)`, and
+        when it already exists in the organization the first free `-2`, `-3`… suffix. Two simultaneous creations
+        with the same title get different slugs. A category that does not exist in the organization is a 400 field
+        error on `categoryId`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ArticleCreate' }
+      responses:
+        '201':
+          description: The created article.
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL of the article, `/api/knowledge/articles/{slug}`.
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Article' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /knowledge/articles/{slug}:
+    parameters:
+      - $ref: '#/components/parameters/ArticleSlug'
+    get:
+      tags: [Knowledge]
+      operationId: getArticle
+      summary: Article detail
+      description: |
+        A customer can only read published, public articles: any other article answers 404, exactly like a slug
+        that does not exist or belongs to another organization.
+      responses:
+        '200':
+          description: The article.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Article' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Knowledge]
+      operationId: updateArticle
+      summary: Edit an article (staff)
+      description: |
+        JSON Merge Patch semantics: absent fields are unchanged and no field accepts `null`. The status is not
+        patchable (use `publish` and `unpublish`) and the slug never changes. Requires `If-Match` with the
+        current version. A patch that changes nothing returns 200 without a new version and without touching
+        `updatedAt` or `updatedBy`. Errors are checked in this order: 401, 403, 404, 428, 400, 412.
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          description: A single strong validator with the current version, as returned in `ETag`.
+          schema: { type: string, pattern: '^"\d+"$', examples: ['"3"'] }
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/components/schemas/ArticlePatch' }
+      responses:
+        '200':
+          description: The updated article.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Article' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+
+  /knowledge/articles/{slug}/publish:
+    parameters:
+      - $ref: '#/components/parameters/ArticleSlug'
+    post:
+      tags: [Knowledge]
+      operationId: publishArticle
+      summary: Publish an article (staff)
+      description: |
+        Sets `status` to `published` and `publishedAt` to now; a published article with `public` visibility
+        becomes readable by customers. Publishing a published article is a 409.
+      responses:
+        '200':
+          description: The published article.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Article' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /knowledge/articles/{slug}/unpublish:
+    parameters:
+      - $ref: '#/components/parameters/ArticleSlug'
+    post:
+      tags: [Knowledge]
+      operationId: unpublishArticle
+      summary: Take an article back to draft (staff)
+      description: |
+        Sets `status` to `draft` and clears `publishedAt`; customers stop seeing the article at once (404).
+        Unpublishing a draft is a 409.
+      responses:
+        '200':
+          description: The article as a draft.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Article' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
 components:
   securitySchemes:
     demoUser:
@@ -715,6 +927,12 @@ components:
       in: query
       description: Number of entries to return.
       schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+    ArticleSlug:
+      name: slug
+      in: path
+      description: Slug of the article; it never changes after creation.
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 120 }
     ReportPeriod:
       name: period
       in: query
@@ -1453,6 +1671,143 @@ components:
           type: integer
           minimum: 0
           examples: [4]
+
+    ArticleStatus:
+      description: '`draft` is only visible to staff; `published` follows the article visibility.'
+      type: string
+      enum: [draft, published]
+    ArticleVisibility:
+      description: '`internal`: only staff, even when published. `public`: customers too, once published.'
+      type: string
+      enum: [internal, public]
+
+    CategoryRef:
+      description: A category as shown inside an article.
+      type: object
+      additionalProperties: false
+      required: [id, name, slug]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        slug: { type: string }
+
+    Category:
+      type: object
+      additionalProperties: false
+      required: [id, name, slug, description, articles]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, maxLength: 80 }
+        slug: { type: string, maxLength: 80 }
+        description: { type: [string, 'null'], maxLength: 160 }
+        articles:
+          description: Articles of the category that the caller can read.
+          type: integer
+          minimum: 0
+
+    CategoryCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        description: { type: [string, 'null'], maxLength: 160 }
+
+    ArticleSummary:
+      description: An article in lists, without its body.
+      type: object
+      additionalProperties: false
+      required: [id, slug, title, category, status, visibility, updatedAt, publishedAt]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string, maxLength: 120 }
+        title: { type: string, maxLength: 160 }
+        category: { $ref: '#/components/schemas/CategoryRef' }
+        status: { $ref: '#/components/schemas/ArticleStatus' }
+        visibility: { $ref: '#/components/schemas/ArticleVisibility' }
+        updatedAt: { type: string, format: date-time }
+        publishedAt:
+          description: When the article was last published; null while it is a draft.
+          type: [string, 'null']
+          format: date-time
+
+    Article:
+      description: |
+        An article with its Markdown body: every field of ArticleSummary plus `body`, `allowFeedback`, `version`,
+        `createdBy` and `updatedBy`. It is written out in full instead of composing ArticleSummary with `allOf`
+        (see the contract modelling notes in README.md). The body is plain Markdown text: the API neither renders
+        nor sanitizes it, so clients must never insert it as HTML.
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          slug,
+          title,
+          category,
+          status,
+          visibility,
+          updatedAt,
+          publishedAt,
+          body,
+          allowFeedback,
+          version,
+          createdBy,
+          updatedBy,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string, maxLength: 120 }
+        title: { type: string, maxLength: 160 }
+        category: { $ref: '#/components/schemas/CategoryRef' }
+        status: { $ref: '#/components/schemas/ArticleStatus' }
+        visibility: { $ref: '#/components/schemas/ArticleVisibility' }
+        updatedAt: { type: string, format: date-time }
+        publishedAt: { type: [string, 'null'], format: date-time }
+        body: { type: string, maxLength: 20000 }
+        allowFeedback:
+          description: Whether readers may rate the article (the ratings themselves are not part of this API yet).
+          type: boolean
+        version: { type: integer, format: int64, minimum: 0 }
+        createdBy: { $ref: '#/components/schemas/MemberRef' }
+        updatedBy: { $ref: '#/components/schemas/MemberRef' }
+
+    ArticleCreate:
+      type: object
+      additionalProperties: false
+      required: [title, body, categoryId, visibility]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        body: { type: string, minLength: 1, maxLength: 20000 }
+        categoryId: { type: string, format: uuid }
+        visibility: { $ref: '#/components/schemas/ArticleVisibility' }
+        allowFeedback: { type: boolean, default: true }
+
+    ArticlePatch:
+      description: Same fields as ArticleCreate, all optional. No field accepts `null`.
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: { type: string, minLength: 1, maxLength: 160 }
+        body: { type: string, minLength: 1, maxLength: 20000 }
+        categoryId: { type: string, format: uuid }
+        visibility: { $ref: '#/components/schemas/ArticleVisibility' }
+        allowFeedback: { type: boolean }
+
+    ArticlePage:
+      description: An empty page past the last one is valid (200 with no items); `totalPages` is 0 when there are no items.
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ArticleSummary' }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1, maximum: 100 }
+        totalItems: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
 
     Problem:
       description: RFC 9457 Problem Details. An absent `type` means `about:blank`, as the RFC defines.

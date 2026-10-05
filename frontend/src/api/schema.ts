@@ -472,6 +472,141 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/knowledge/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Categories of the knowledge base with their article counts
+         * @description `articles` counts what the caller can read: every article for staff, only published and public ones
+         *     for customers. A customer only receives the categories that have at least one such article, so an
+         *     internal category never shows up for them. Ordered by name, ignoring case.
+         */
+        get: operations["listCategories"];
+        put?: never;
+        /**
+         * Create a category (admin only)
+         * @description The slug comes from the name (`Slugs.from`, lowercase ASCII with hyphens) and never changes. A name whose
+         *     slug already exists in the organization is a 400 field error on `name`.
+         */
+        post: operations["createCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Paginated article list and search
+         * @description Staff see every article; customers only receive the `published` and `public` ones, whatever the filters:
+         *     a customer who asks for `status=draft` gets an empty page. The result never includes articles of other
+         *     organizations. `category` is a category slug, and an unknown slug gives an empty page.
+         */
+        get: operations["listArticles"];
+        put?: never;
+        /**
+         * Create an article as a draft (staff)
+         * @description The article starts as a `draft`. The slug comes from the title and never changes: `Slugs.from(title)`, and
+         *     when it already exists in the organization the first free `-2`, `-3`… suffix. Two simultaneous creations
+         *     with the same title get different slugs. A category that does not exist in the organization is a 400 field
+         *     error on `categoryId`.
+         */
+        post: operations["createArticle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge/articles/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug of the article; it never changes after creation. */
+                slug: components["parameters"]["ArticleSlug"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Article detail
+         * @description A customer can only read published, public articles: any other article answers 404, exactly like a slug
+         *     that does not exist or belongs to another organization.
+         */
+        get: operations["getArticle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit an article (staff)
+         * @description JSON Merge Patch semantics: absent fields are unchanged and no field accepts `null`. The status is not
+         *     patchable (use `publish` and `unpublish`) and the slug never changes. Requires `If-Match` with the
+         *     current version. A patch that changes nothing returns 200 without a new version and without touching
+         *     `updatedAt` or `updatedBy`. Errors are checked in this order: 401, 403, 404, 428, 400, 412.
+         */
+        patch: operations["updateArticle"];
+        trace?: never;
+    };
+    "/knowledge/articles/{slug}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug of the article; it never changes after creation. */
+                slug: components["parameters"]["ArticleSlug"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish an article (staff)
+         * @description Sets `status` to `published` and `publishedAt` to now; a published article with `public` visibility
+         *     becomes readable by customers. Publishing a published article is a 409.
+         */
+        post: operations["publishArticle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/knowledge/articles/{slug}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug of the article; it never changes after creation. */
+                slug: components["parameters"]["ArticleSlug"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take an article back to draft (staff)
+         * @description Sets `status` to `draft` and clears `publishedAt`; customers stop seeing the article at once (404).
+         *     Unpublishing a draft is a 409.
+         */
+        post: operations["unpublishArticle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1061,6 +1196,106 @@ export interface components {
              */
             openAssigned: number;
         };
+        /**
+         * @description `draft` is only visible to staff; `published` follows the article visibility.
+         * @enum {string}
+         */
+        ArticleStatus: "draft" | "published";
+        /**
+         * @description `internal`: only staff, even when published. `public`: customers too, once published.
+         * @enum {string}
+         */
+        ArticleVisibility: "internal" | "public";
+        /** @description A category as shown inside an article. */
+        CategoryRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+        };
+        Category: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            description: string | null;
+            /** @description Articles of the category that the caller can read. */
+            articles: number;
+        };
+        CategoryCreate: {
+            name: string;
+            description?: string | null;
+        };
+        /** @description An article in lists, without its body. */
+        ArticleSummary: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            title: string;
+            category: components["schemas"]["CategoryRef"];
+            status: components["schemas"]["ArticleStatus"];
+            visibility: components["schemas"]["ArticleVisibility"];
+            /** Format: date-time */
+            updatedAt: string;
+            /**
+             * Format: date-time
+             * @description When the article was last published; null while it is a draft.
+             */
+            publishedAt: string | null;
+        };
+        /**
+         * @description An article with its Markdown body: every field of ArticleSummary plus `body`, `allowFeedback`, `version`,
+         *     `createdBy` and `updatedBy`. It is written out in full instead of composing ArticleSummary with `allOf`
+         *     (see the contract modelling notes in README.md). The body is plain Markdown text: the API neither renders
+         *     nor sanitizes it, so clients must never insert it as HTML.
+         */
+        Article: {
+            /** Format: uuid */
+            id: string;
+            slug: string;
+            title: string;
+            category: components["schemas"]["CategoryRef"];
+            status: components["schemas"]["ArticleStatus"];
+            visibility: components["schemas"]["ArticleVisibility"];
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: date-time */
+            publishedAt: string | null;
+            body: string;
+            /** @description Whether readers may rate the article (the ratings themselves are not part of this API yet). */
+            allowFeedback: boolean;
+            /** Format: int64 */
+            version: number;
+            createdBy: components["schemas"]["MemberRef"];
+            updatedBy: components["schemas"]["MemberRef"];
+        };
+        ArticleCreate: {
+            title: string;
+            body: string;
+            /** Format: uuid */
+            categoryId: string;
+            visibility: components["schemas"]["ArticleVisibility"];
+            /** @default true */
+            allowFeedback?: boolean;
+        };
+        /** @description Same fields as ArticleCreate, all optional. No field accepts `null`. */
+        ArticlePatch: {
+            title?: string;
+            body?: string;
+            /** Format: uuid */
+            categoryId?: string;
+            visibility?: components["schemas"]["ArticleVisibility"];
+            allowFeedback?: boolean;
+        };
+        /** @description An empty page past the last one is valid (200 with no items); `totalPages` is 0 when there are no items. */
+        ArticlePage: {
+            items: components["schemas"]["ArticleSummary"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            totalItems: number;
+            totalPages: number;
+        };
         /** @description RFC 9457 Problem Details. An absent `type` means `about:blank`, as the RFC defines. */
         Problem: {
             /** @default about:blank */
@@ -1151,6 +1386,8 @@ export interface components {
         Size: number;
         /** @description Number of entries to return. */
         ActivityFeedSize: number;
+        /** @description Slug of the article; it never changes after creation. */
+        ArticleSlug: string;
         /** @description Length of the report period, in calendar days of the organization time zone. */
         ReportPeriod: "7d" | "30d" | "90d";
     };
@@ -1207,6 +1444,16 @@ export type ReportResolution = components['schemas']['ReportResolution'];
 export type ReportDay = components['schemas']['ReportDay'];
 export type ReportChannel = components['schemas']['ReportChannel'];
 export type ReportAgent = components['schemas']['ReportAgent'];
+export type ArticleStatus = components['schemas']['ArticleStatus'];
+export type ArticleVisibility = components['schemas']['ArticleVisibility'];
+export type CategoryRef = components['schemas']['CategoryRef'];
+export type Category = components['schemas']['Category'];
+export type CategoryCreate = components['schemas']['CategoryCreate'];
+export type ArticleSummary = components['schemas']['ArticleSummary'];
+export type Article = components['schemas']['Article'];
+export type ArticleCreate = components['schemas']['ArticleCreate'];
+export type ArticlePatch = components['schemas']['ArticlePatch'];
+export type ArticlePage = components['schemas']['ArticlePage'];
 export type Problem = components['schemas']['Problem'];
 export type ResponseBadRequest = components['responses']['BadRequest'];
 export type ResponseUnauthorized = components['responses']['Unauthorized'];
@@ -1221,6 +1468,7 @@ export type ParameterMemberUserId = components['parameters']['MemberUserId'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterSize = components['parameters']['Size'];
 export type ParameterActivityFeedSize = components['parameters']['ActivityFeedSize'];
+export type ParameterArticleSlug = components['parameters']['ArticleSlug'];
 export type ParameterReportPeriod = components['parameters']['ReportPeriod'];
 export type HeaderETag = components['headers']['ETag'];
 export type $defs = Record<string, never>;
@@ -1963,6 +2211,239 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
+    listCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The categories. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createCategory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryCreate"];
+            };
+        };
+        responses: {
+            /** @description The created category, without articles. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    listArticles: {
+        parameters: {
+            query?: {
+                /** @description Case-insensitive contains match on the title, the body and the category name. */
+                q?: string;
+                /** @description Slug of a category. */
+                category?: string;
+                status?: components["schemas"]["ArticleStatus"];
+                /** @description Zero-based page index. */
+                page?: components["parameters"]["Page"];
+                size?: components["parameters"]["Size"];
+                /**
+                 * @description `field,direction` with `updatedAt` or `title`. Titles compare case-insensitively; ties are broken by
+                 *     `id` in the same direction.
+                 */
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of articles. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArticlePage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    createArticle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArticleCreate"];
+            };
+        };
+        responses: {
+            /** @description The created article. */
+            201: {
+                headers: {
+                    /** @description URL of the article, `/api/knowledge/articles/{slug}`. */
+                    Location?: string;
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Article"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getArticle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug of the article; it never changes after creation. */
+                slug: components["parameters"]["ArticleSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The article. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Article"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateArticle: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description A single strong validator with the current version, as returned in `ETag`. */
+                "If-Match": string;
+            };
+            path: {
+                /** @description Slug of the article; it never changes after creation. */
+                slug: components["parameters"]["ArticleSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/merge-patch+json": components["schemas"]["ArticlePatch"];
+            };
+        };
+        responses: {
+            /** @description The updated article. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Article"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            412: components["responses"]["PreconditionFailed"];
+            428: components["responses"]["PreconditionRequired"];
+        };
+    };
+    publishArticle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug of the article; it never changes after creation. */
+                slug: components["parameters"]["ArticleSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The published article. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Article"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    unpublishArticle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Slug of the article; it never changes after creation. */
+                slug: components["parameters"]["ArticleSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The article as a draft. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Article"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
 }
 type FlattenedDeepRequired<T> = {
     [K in keyof T]-?: FlattenedDeepRequired<T[K] extends unknown[] | undefined | null ? Extract<T[K], unknown[]>[number] : T[K]>;
@@ -1988,4 +2469,6 @@ export const statusChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequire
 export const priorityChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PriorityChangedActivity"]["type"]> = ["priority_changed"];
 export const assigneeChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AssigneeChangedActivity"]["type"]> = ["assignee_changed"];
 export const reportRangeDaysValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportRange"]["days"]> = [7, 30, 90];
+export const articleStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ArticleStatus"]> = ["draft", "published"];
+export const articleVisibilityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ArticleVisibility"]> = ["internal", "public"];
 export const componentsParametersReportPeriodValues: ReadonlyArray<FlattenedDeepRequired<components>["parameters"]["ReportPeriod"]> = ["7d", "30d", "90d"];

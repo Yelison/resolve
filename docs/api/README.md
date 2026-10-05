@@ -13,6 +13,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 | Inbox metrics and view counts | Authentication provider (see below) |
 | Team: list, invite, change role, remove, team metrics | Invitation emails, agent availability and profiles |
 | Reports: created, resolved, first response, resolution time, by day, channel and agent | Satisfaction and agent availability |
+| Knowledge base: categories, Markdown articles with draft/published and internal/public visibility, search, editing with `If-Match`, publish and unpublish | Article ratings, versions, attachments and full-text search |
 
 ## Organizations, users and roles
 
@@ -28,6 +29,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 - A `customer` membership is linked to a **customer** record of the same organization. Customers are read-only in this delivery: every write returns `403`, and so does every `/customers` endpoint.
 - The **team** (`/members`) is readable by `admin` and `agent` (`customer` gets `403`); inviting, changing a role and removing a member are **admin-only**, and the URL rule answers `403` before the member is even looked up.
 - Archiving, restoring and inviting a customer to the portal is **admin-only**: an agent gets `403`, before the customer is even looked up.
+- The **knowledge base** is readable by every role, but a `customer` only reaches the articles that are `published` **and** `public`; any other article answers `404`, exactly like an unknown slug or one of another organization. Creating and editing articles and publishing or unpublishing them is for `admin` and `agent`; creating categories is **admin-only** (`403` for an agent). The role check runs before anything is read, so a `customer` that attempts a write gets `403` whatever the body or the slug.
 - **Internal notes never reach customers.** The filter is applied in the database query, and no field visible to customers is derived from internal notes.
 - Resources show other members as `{ id, name }` (`MemberRef`); contact data is only in `GET /api/me` and `GET /api/assignees`, which customers cannot call.
 
@@ -45,6 +47,7 @@ There is no authentication provider yet. The security layer resolves the princip
 - Internal identifiers are UUIDs. Tickets also have a visible `number` that is unique **within the organization** (two organizations each have a ticket #1).
 - Numbers come from a per-organization counter row locked during the insert, never from `max(number) + 1`.
 - Customer routes use the uuid: `/api/customers/{id}`. A malformed id is a `400` on the field `id`; a well-formed id that belongs to another organization or does not exist is the same `404`.
+- Article routes use the **slug**: `/api/knowledge/articles/{slug}`. It comes from the title when the article is created and never changes, so links keep working after a title edit. Two organizations can have the same slug.
 - Ticket routes use the number: `/api/tickets/{number}`. A number that does not exist in the caller's organization, or a ticket that belongs to another customer, returns `404` (never `403`, so existence is not leaked). The role check runs before the lookup, so a `customer` that attempts a write always gets `403`, whatever the number.
 
 ## Wire format
@@ -155,6 +158,14 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | `POST /api/members/{userId}/role` | admin | Change the role (`admin` or `agent`); `409` for the last active admin or a removed member |
 | `POST /api/members/{userId}/remove` | admin | Remove from the team; `409` for yourself, the last active admin or a removed member |
 | `GET /api/reports/summary` | admin, agent | Report of a period (`7d`, `30d`, `90d`) with the previous period of the same duration |
+| `GET /api/knowledge/categories` | all | Categories with the number of articles the caller can read |
+| `POST /api/knowledge/categories` | admin | Create a category (`201`); `400` on the field `name` when its slug already exists |
+| `GET /api/knowledge/articles` | all | Article list and search: `q`, `category`, `status`, sorting and pagination; customers only get published, public articles |
+| `POST /api/knowledge/articles` | admin, agent | Create a draft (`201`, `Location`, `ETag`) |
+| `GET /api/knowledge/articles/{slug}` | all | Article with its Markdown body (with `ETag`); `404` for a customer when it is a draft or internal |
+| `PATCH /api/knowledge/articles/{slug}` | admin, agent | Edit title, body, category, visibility and feedback (`If-Match`) |
+| `POST /api/knowledge/articles/{slug}/publish` | admin, agent | Publish; `409` when already published |
+| `POST /api/knowledge/articles/{slug}/unpublish` | admin, agent | Back to draft; `409` when already a draft |
 
 ### Ticket list filters
 
@@ -297,6 +308,31 @@ Computed per organization, independent of any list.
 
 Memberships are matched on the organization, so a user who belongs to two organizations only brings the work of the organization that asks.
 
+### Knowledge base
+
+Categories group articles; an article has one category, a Markdown `body`, a `status` (`draft` or `published`) and a `visibility` (`internal`: only the team, even when published; `public`: customers too, once published).
+
+| Parameter of `GET /api/knowledge/articles` | Values |
+| --- | --- |
+| `q` | Case-insensitive contains match on the title, the body and the category name (at most 120 characters). `%`, `_` and `\` are plain text |
+| `category` | Slug of a category. An unknown slug gives an empty page, never an error |
+| `status` | `draft` or `published`; anything else is a `400` |
+| `sort` | `updatedAt` (default, `desc`) or `title`, with `asc` or `desc`. Titles compare ignoring case; ties are broken by `id` in the same direction |
+
+The list returns `ArticleSummary` (no body). `Article` adds `body`, `allowFeedback`, `version`, `createdBy` and `updatedBy` (`MemberRef`). `allowFeedback` is not in the first sketch of the contract: the editor needs to read it to draw its switch; the ratings themselves are not part of this API.
+
+**What a customer sees.** One rule, applied in the same place to the list, its total, the search, the detail and the category counts: published **and** public. A customer cannot widen it with filters (`status=draft` gives an empty page) or learn from search that a hidden article exists (`q` only matches what they can read). `GET /api/knowledge/categories` counts, for each category, the articles the caller can read, and a customer only receives the categories with at least one: the name of a category that only holds internal articles or drafts never reaches them. Unpublishing, or turning a published article `internal`, hides it from customers immediately.
+
+**Writes.**
+
+- `POST /api/knowledge/articles` always creates a `draft`. Required: `title` (at most 160 characters), `body` (at most 20 000 characters, counted in characters, not UTF-16 units), `categoryId` and `visibility`; `allowFeedback` defaults to `true`. A category of another organization is the same `400` on `categoryId` as an unknown one.
+- The `body` is **plain Markdown text**: it is stored and returned exactly as received (leading and trailing whitespace included) and the API neither renders nor sanitizes it, so hostile content such as `<script>` or `javascript:` links is data, never markup. Clients render it with an element whitelist and must never insert it as HTML. It admits line breaks and tabs; other control characters, including the NUL that PostgreSQL cannot store, are a `400`. Titles and category names are single lines: any control character is a `400`.
+- A value of the wrong type is an error of its field, not a failed request: a numeric `title` is a `400` on `title` ("Debe ser un texto."). No field accepts `null` except the `description` of a category.
+- The **slug** is `Slugs.from(title)`: Unicode decomposed, accents removed, lowercase, every run of characters other than `a-z` and `0-9` becomes a hyphen, cut to 100 characters without a trailing hyphen; a title with no letters or digits (`¿?`, an emoji) uses `articulo`. If the slug already exists in the organization the first free suffix is used (`-2`, `-3`…), so a title that already looks like a suffixed slug ("Factura 2") takes that slug and the next "Factura" skips to `factura-3`. Two creations at the same time never get the same slug: each takes a per-organization transaction lock (`pg_advisory_xact_lock`) before reading the taken slugs and keeps it until it commits; the unique constraint `(organization_id, slug)` stays as a safety net. A category slug comes from its name (at most 80 characters) with no suffix: a name whose slug already exists is a `400` on `name`.
+- `PATCH` uses JSON Merge Patch semantics with the fields of the creation, all optional and none nullable. `status` and `slug` cannot be patched (a `400`, "Campo no permitido."): the status changes with `publish` and `unpublish`. It requires `If-Match` and returns the new `ETag`. A patch whose values equal the current ones answers `200` without a new version and without changing `updatedAt` or `updatedBy`. Errors are checked in this order: 401, 403, 404, 428, 400, 412.
+- `publish` and `unpublish` take no `If-Match`; like the other state transitions they lock the row and read the committed state, so two simultaneous publications give one `200` and one `409`, never a `412`. Publishing sets `publishedAt` to now and unpublishing clears it, so `publishedAt` is the date of the **last** publication. They bump the version.
+- `updatedAt` and `updatedBy` change on every real edit, `publish` and `unpublish`; `createdBy` and `createdAt` never do.
+
 ### Partial updates
 
 `PATCH` uses JSON Merge Patch semantics (`application/merge-patch+json`): a field that is **absent** is left unchanged, and `"assigneeId": null` **unassigns** the ticket. `status` and `priority` cannot be `null`.
@@ -312,6 +348,7 @@ Demo organizations, users, customers and tickets live in a Flyway location (`db/
 ## Contract modelling notes
 
 - `CustomerDetail` repeats the fields of `CustomerSummary` instead of composing it with `allOf`: with `additionalProperties: false` on every branch, a JSON Schema validator treats the fields of the other branch as unexpected and rejects every valid response (checked with the response validator of the tests). `openapi-typescript` accepts the `allOf` form, but the contract has to hold for both tools.
+- `Article` repeats the fields of `ArticleSummary` for the same reason; `CategoryRef` is the reference embedded in both.
 - The `Customer` schema (id, name, email, company) is the reference embedded in tickets; `CustomerSummary` and `CustomerDetail` are the resources of `/customers`.
 
 ## How the contract is enforced
