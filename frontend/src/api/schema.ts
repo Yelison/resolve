@@ -88,10 +88,15 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * End the session
-         * @description Only with the `oidc` profile. Invalidates the server session and answers `204`; it is idempotent, so
-         *     calling it without a session also answers `204`. It needs the CSRF header like every unsafe request
-         *     (`403` without it). It does not end the identity provider's own session.
+         * End the session, and the provider's session with it
+         * @description Only with the `oidc` profile. Invalidates the server session, deletes its cookie and answers `200` with
+         *     `logoutUrl`: the identity provider's end-session endpoint with `id_token_hint` and `post_logout_redirect_uri`
+         *     (the public URL of the application). The client must navigate there (`window.location.assign`) so the
+         *     provider's own session ends too; otherwise the next sign-in with the same browser would complete without
+         *     asking for credentials. If the provider publishes no end-session endpoint, or the caller had no session,
+         *     `logoutUrl` is just the public URL. It is idempotent and needs the CSRF header like every unsafe request
+         *     (`403` without it). The URL carries the ID token of the person who signs out and nothing else of the
+         *     client: no secret, no access or refresh token, no session id.
          */
         post: operations["logout"];
         delete?: never;
@@ -781,6 +786,13 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+        };
+        LogoutResponse: {
+            /**
+             * Format: uri
+             * @description Where the client navigates to finish signing out at the identity provider.
+             */
+            logoutUrl: string;
         };
         SessionOrganizationSelection: {
             /** Format: uuid */
@@ -1565,6 +1577,7 @@ export type OrganizationSettings = components['schemas']['OrganizationSettings']
 export type OrganizationPatch = components['schemas']['OrganizationPatch'];
 export type ProfilePatch = components['schemas']['ProfilePatch'];
 export type OrganizationRef = components['schemas']['OrganizationRef'];
+export type LogoutResponse = components['schemas']['LogoutResponse'];
 export type SessionOrganizationSelection = components['schemas']['SessionOrganizationSelection'];
 export type Me = components['schemas']['Me'];
 export type Member = components['schemas']['Member'];
@@ -1739,11 +1752,13 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description The session ended. */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["LogoutResponse"];
+                };
             };
             403: components["responses"]["Forbidden"];
         };

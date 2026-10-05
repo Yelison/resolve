@@ -1,5 +1,7 @@
 package com.resolve.api.support;
 
+import java.util.Map;
+
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
@@ -16,6 +18,8 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 @TestConfiguration(proxyBeanMethods = false)
 public class OidcTestConfiguration {
 
+	public static final String END_SESSION_URI = "https://idp.test/realms/resolve/protocol/openid-connect/logout";
+
 	public static final String AUTHORIZATION_URI = "https://idp.test/realms/resolve/protocol/openid-connect/auth";
 
 	@Bean
@@ -31,6 +35,7 @@ public class OidcTestConfiguration {
 			.tokenUri("https://idp.test/realms/resolve/protocol/openid-connect/token")
 			.jwkSetUri("https://idp.test/realms/resolve/protocol/openid-connect/certs")
 			.userNameAttributeName("sub")
+			.providerConfigurationMetadata(Map.of("end_session_endpoint", END_SESSION_URI))
 			.build());
 	}
 

@@ -2,6 +2,7 @@ package com.resolve.api.common.security;
 
 import jakarta.servlet.http.Cookie;
 import com.resolve.api.support.OidcApiIntegrationTest;
+import com.resolve.api.support.OidcTestConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -11,6 +12,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -119,23 +121,32 @@ class CsrfTest extends OidcApiIntegrationTest {
 	}
 
 	@Test
-	void logoutEndsTheSessionWithA204AndTheNextCallIsA401() throws Exception {
+	void logoutEndsTheSessionDeletesItsCookieAndGivesTheProviderLogoutUrl() throws Exception {
 		MockHttpSession session = signedIn("laura@acme.example");
 		this.mvc.perform(get("/me").session(session)).andExpect(status().isOk());
 
-		this.mvc.perform(post("/logout").session(session).with(csrfToken()))
-			.andExpect(status().isNoContent())
-			.andExpect(matchesContract("logout"));
+		MvcResult result = this.mvc.perform(post("/api/logout").contextPath("/api").session(session).with(csrfToken()))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("logout"))
+			.andExpect(jsonPath("$.logoutUrl").value(
+					startsWith(OidcTestConfiguration.END_SESSION_URI + "?id_token_hint=token-de-prueba")))
+			.andReturn();
 
 		assertThat(session.isInvalid()).isTrue();
+		// El navegador conserva JSESSIONID hasta que se le ordena borrarla; el Path es el del contexto, como al crearla.
+		Cookie deleted = result.getResponse().getCookie("JSESSIONID");
+		assertThat(deleted).isNotNull();
+		assertThat(deleted.getMaxAge()).isZero();
+		assertThat(deleted.getPath()).isEqualTo("/api");
 		this.mvc.perform(get("/me").session(session)).andExpect(status().isUnauthorized());
 	}
 
 	@Test
-	void logoutWithoutASessionIsIdempotent() throws Exception {
+	void logoutWithoutASessionIsIdempotentAndSendsTheClientBackToTheApplication() throws Exception {
 		this.mvc.perform(post("/logout").with(csrfToken()))
-			.andExpect(status().isNoContent())
-			.andExpect(matchesContract("logout"));
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("logout"))
+			.andExpect(jsonPath("$.logoutUrl").value("http://localhost:5173"));
 	}
 
 	private String csrfCookie(MockHttpSession session) throws Exception {

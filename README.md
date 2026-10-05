@@ -107,7 +107,7 @@ cd backend
 SPRING_PROFILES_ACTIVE=dev,oidc ./mvnw spring-boot:run   # RESOLVE_OIDC_ISSUER=http://localhost:8182/realms/resolve with another KEYCLOAK_PORT
 ```
 
-Then open `http://localhost:8080/api/oauth2/authorization/resolve` in a browser, sign in as `laura.mendez@acme.example` / `demo` and call `/api/me`. With `oidc` the demo login (`X-Demo-User`) is off even next to `dev`; the session is an `HttpOnly` cookie and every `POST`, `PATCH` and `DELETE` must send the `XSRF-TOKEN` cookie's value in `X-XSRF-TOKEN`. `POST /api/logout` ends the session but not Keycloak's, so the next sign-in with the same browser needs no password. The API contract has the details: [Authentication](docs/api/README.md#authentication).
+Then open `http://localhost:8080/api/oauth2/authorization/resolve` in a browser, sign in as `laura.mendez@acme.example` / `demo` and call `/api/me`. With `oidc` the demo login (`X-Demo-User`) is off even next to `dev`; the session is an `HttpOnly` cookie and every `POST`, `PATCH` and `DELETE` must send the `XSRF-TOKEN` cookie's value in `X-XSRF-TOKEN`. `POST /api/logout` ends the session and answers `{ "logoutUrl": … }`; navigating there also ends Keycloak's session, so the next sign-in asks for the password again. The API contract has the details: [Authentication](docs/api/README.md#authentication).
 
 - **Port.** `KEYCLOAK_PORT` (default `8180`) is the host port; the admin console is at `http://localhost:8180` with `admin` / `admin`.
 - **Demo users.** The realm has `yelisson.ortiz@acme.example` (admin), `laura.mendez@acme.example` (agent), `maria.perez@cliente.example` (customer) and `jordi.puig@northwind.example` (agent of the second organization), all with the password `demo` and a verified email, the same emails as the demo data.
