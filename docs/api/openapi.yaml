@@ -24,6 +24,8 @@ tags:
     description: Customer directory, profile, archiving and the customer search used by forms.
   - name: Assignees
     description: Members who can own tickets.
+  - name: Team
+    description: Members of the organization, their invitations, roles and removal.
 
 paths:
   /me:
@@ -467,6 +469,123 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /members:
+    get:
+      tags: [Team]
+      operationId: listMembers
+      summary: Members of the team (admins and agents) with their status and load
+      description: |
+        Every admin and agent of the organization in any status, including `removed` ones (clients hide
+        them by default), ordered by name and then id. Customers with portal access are not part of the team.
+        `openTickets` counts the unresolved tickets assigned to the member.
+      responses:
+        '200':
+          description: The team.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TeamMember' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Team]
+      operationId: inviteMember
+      summary: Invite an admin or agent (admin only)
+      description: |
+        Creates an `invited` membership bound to the email, creating the user when the email is new. No email is
+        sent: the person joins by signing in with that address, which activates the membership on their first
+        request. Inviting an email that was removed from the team brings the same membership back to `invited`
+        with the new role. An email that is already an active or invited member, or that belongs to a customer of
+        the organization, is a 400 on the field `email`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MemberInvite' }
+            example: { email: sofia.rios@acme.example, name: Sofía Ríos, role: agent }
+      responses:
+        '201':
+          description: The invited member.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamMember' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /members/metrics:
+    get:
+      tags: [Team]
+      operationId: getTeamMetrics
+      summary: Team metrics for the whole organization
+      description: |
+        `staff` counts the active admins and agents. `assignedOpen` and `unassignedOpen` count the unresolved
+        tickets with and without an assignee. `averageLoad` is `assignedOpen / staff` with one decimal (`0`
+        without staff). `firstResponseMinutes` is the same median as in the ticket metrics.
+      responses:
+        '200':
+          description: Organization-wide team metrics.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamMetrics' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /members/{userId}/role:
+    parameters:
+      - $ref: '#/components/parameters/MemberUserId'
+    post:
+      tags: [Team]
+      operationId: changeMemberRole
+      summary: Change the role of an admin or agent (admin only)
+      description: |
+        Works on invited and active members. Changing the role of the last active admin is a 409, and so is
+        changing the role of a removed member. A user that is not an admin or agent of the organization
+        (unknown, from another organization or a customer) is a 404.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MemberRoleChange' }
+            example: { role: admin }
+      responses:
+        '200':
+          description: The member with their new role.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamMember' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /members/{userId}/remove:
+    parameters:
+      - $ref: '#/components/parameters/MemberUserId'
+    post:
+      tags: [Team]
+      operationId: removeMember
+      summary: Remove a member from the team (admin only)
+      description: |
+        Marks the membership `removed`; it is never deleted. The member stops being able to sign in, leaves
+        `/assignees` and the team metrics, and their unresolved tickets are unassigned in the same transaction,
+        each with an `assignee_changed` activity whose actor is the caller; resolved tickets keep their assignee.
+        Removing oneself, the last active admin or an already removed member is a 409. A user that is not an
+        admin or agent of the organization is a 404.
+      responses:
+        '200':
+          description: The removed member.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeamMember' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   /assignees:
     get:
       tags: [Assignees]
@@ -502,6 +621,12 @@ components:
     CustomerId:
       name: id
       in: path
+      required: true
+      schema: { type: string, format: uuid }
+    MemberUserId:
+      name: userId
+      in: path
+      description: Id of the member's user, as `TeamMember.id`.
       required: true
       schema: { type: string, format: uuid }
     Page:
@@ -620,6 +745,91 @@ components:
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
+
+    MemberStatus:
+      description: |
+        `invited`: bound to an email that has not signed in yet. `active`: can use the API. `removed`: can no
+        longer sign in; the membership is kept for the history that references it.
+      type: string
+      enum: [invited, active, removed]
+
+    TeamMember:
+      description: A member of the organization with their membership status.
+      type: object
+      additionalProperties: false
+      required: [id, name, email, role, status, openTickets, joinedAt, invitedAt]
+      properties:
+        id:
+          description: Id of the member's user.
+          type: string
+          format: uuid
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { $ref: '#/components/schemas/MemberStatus' }
+        openTickets:
+          description: Unresolved tickets assigned to the member.
+          type: integer
+          minimum: 0
+        joinedAt:
+          description: When the membership became active; null while it is `invited`.
+          type: [string, 'null']
+          format: date-time
+        invitedAt:
+          description: When the current invitation was made; null for members that never were invited.
+          type: [string, 'null']
+          format: date-time
+
+    MemberInvite:
+      type: object
+      additionalProperties: false
+      required: [email, role]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        name:
+          description: Defaults to the part of the email before the `@`. Ignored when the user already exists.
+          type: string
+          minLength: 1
+          maxLength: 120
+        role:
+          type: string
+          enum: [admin, agent]
+
+    MemberRoleChange:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [admin, agent]
+
+    TeamMetrics:
+      type: object
+      additionalProperties: false
+      required: [staff, assignedOpen, unassignedOpen, averageLoad, firstResponseMinutes, firstResponseTargetMinutes]
+      properties:
+        staff:
+          description: Active admins and agents.
+          type: integer
+          minimum: 0
+        assignedOpen:
+          description: Unresolved tickets with an assignee.
+          type: integer
+          minimum: 0
+        unassignedOpen:
+          description: Unresolved tickets without an assignee.
+          type: integer
+          minimum: 0
+        averageLoad:
+          description: '`assignedOpen / staff` with one decimal; `0` without staff.'
+          type: number
+          minimum: 0
+        firstResponseMinutes:
+          description: Same median as `TicketMetrics.firstResponseMinutes`; null without data.
+          type: [integer, 'null']
+          minimum: 0
+        firstResponseTargetMinutes: { type: integer, minimum: 1 }
 
     Customer:
       type: object

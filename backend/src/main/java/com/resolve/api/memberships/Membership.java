@@ -50,6 +50,18 @@ public class Membership {
 	protected Membership() {
 	}
 
+	/** Invitación nueva: queda {@code invited} hasta el primer acceso de la persona. */
+	Membership(UUID id, Organization organization, UserAccount user, Role role, @Nullable UUID customerId,
+			Instant now) {
+		this.id = id;
+		this.organization = organization;
+		this.user = user;
+		this.role = role;
+		this.customerId = customerId;
+		this.status = MemberStatus.INVITED;
+		this.invitedAt = now;
+	}
+
 	public UUID getId() {
 		return this.id;
 	}
@@ -84,6 +96,25 @@ public class Membership {
 
 	public @Nullable Instant getRemovedAt() {
 		return this.removedAt;
+	}
+
+	void changeRole(Role newRole) {
+		this.role = newRole;
+	}
+
+	/** Retira la membresía sin borrarla: el historial sigue refiriéndose a ella. */
+	void remove(Instant now) {
+		this.status = MemberStatus.REMOVED;
+		this.removedAt = now;
+	}
+
+	/** Vuelve a invitar a una persona retirada reutilizando la misma fila. */
+	void reinvite(Role newRole, Instant now) {
+		this.role = newRole;
+		this.status = MemberStatus.INVITED;
+		this.invitedAt = now;
+		this.joinedAt = null;
+		this.removedAt = null;
 	}
 
 }

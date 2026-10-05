@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
@@ -26,12 +28,51 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 			""")
 	List<Membership> findStaff(UUID organizationId);
 
+	/** El equipo en cualquier estado, también los retirados: el cliente de la API decide si los muestra. */
 	@Query("""
 			select m from Membership m join fetch m.user u
-			where m.organization.id = :organizationId and u.id = :userId and m.role in (com.resolve.api.memberships.Role.ADMIN,
-				com.resolve.api.memberships.Role.AGENT) and m.status = com.resolve.api.memberships.MemberStatus.ACTIVE
+			where m.organization.id = :organizationId and m.role in (com.resolve.api.memberships.Role.ADMIN,
+				com.resolve.api.memberships.Role.AGENT)
+			order by lower(u.name), u.id
 			""")
-	Optional<Membership> findStaffMember(UUID organizationId, UUID userId);
+	List<Membership> findTeam(UUID organizationId);
+
+	/**
+	 * Responsable válido de un ticket con {@code SELECT … FOR SHARE} sobre la membresía: una retirada no puede
+	 * confirmarse entre la comprobación y el commit de la asignación, así que no queda un ticket abierto asignado a
+	 * alguien retirado. Sin {@code join fetch}: el usuario se carga después, de forma perezosa.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_READ)
+	@Query("""
+			select m from Membership m
+			where m.organization.id = :organizationId and m.user.id = :userId and m.role in (
+				com.resolve.api.memberships.Role.ADMIN, com.resolve.api.memberships.Role.AGENT)
+				and m.status = com.resolve.api.memberships.MemberStatus.ACTIVE
+			""")
+	Optional<Membership> findAssignableStaffMemberShared(UUID organizationId, UUID userId);
+
+	/** Miembro del equipo (admin o agente) en cualquier estado, con la fila bloqueada hasta el commit. */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select m from Membership m
+			where m.organization.id = :organizationId and m.user.id = :userId and m.role in (
+				com.resolve.api.memberships.Role.ADMIN, com.resolve.api.memberships.Role.AGENT)
+			""")
+	Optional<Membership> lockTeamMember(UUID organizationId, UUID userId);
+
+	/** Cualquier membresía del usuario en la organización, sea cual sea su rol o estado. */
+	@Query("""
+			select m from Membership m
+			where m.organization.id = :organizationId and m.user.id = :userId
+			""")
+	Optional<Membership> findByOrganizationAndUser(UUID organizationId, UUID userId);
+
+	@Query("""
+			select count(m) from Membership m
+			where m.organization.id = :organizationId and m.role = com.resolve.api.memberships.Role.ADMIN
+				and m.status = com.resolve.api.memberships.MemberStatus.ACTIVE
+			""")
+	long countActiveAdmins(UUID organizationId);
 
 	/**
 	 * Activa una invitación. Es un {@code UPDATE} condicional y no un cambio de la entidad: si una retirada se
