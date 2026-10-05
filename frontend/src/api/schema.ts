@@ -144,10 +144,94 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Paginated customer search */
+        /**
+         * Paginated customer list and search
+         * @description Archived customers are left out unless `archived=true`, which lists only them. The result never
+         *     includes customers of other organizations. `openTickets` counts the customer's tickets that are
+         *     not `resolved`.
+         */
         get: operations["listCustomers"];
         put?: never;
+        /**
+         * Create a customer
+         * @description The email must be unique in the organization, ignoring case and including archived customers; a
+         *     duplicate is a 400 field error on `email`.
+         */
+        post: operations["createCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Customer detail
+         * @description Archived customers can be read. Foreign and unknown ids both answer 404.
+         */
+        get: operations["getCustomer"];
+        put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit a customer's contact data and notes
+         * @description JSON Merge Patch semantics: absent fields are unchanged and `null` clears `company` and `notes`
+         *     (`name` and `email` do not accept `null`). Requires `If-Match` with the current version. A patch that
+         *     changes nothing returns 200 without a new version. An archived customer cannot be edited: restore it
+         *     first (409). Errors are checked in this order: 401, 403, 404, 428, 400, 412, 409.
+         */
+        patch: operations["updateCustomer"];
+        trace?: never;
+    };
+    "/customers/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive a customer (admin only)
+         * @description Hides the customer from lists, search, metrics and the new-ticket selector; their tickets stay
+         *     visible and editable and their portal access stops working. Archiving an archived customer is a 409.
+         */
+        post: operations["archiveCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore an archived customer (admin only)
+         * @description Brings the customer back to every list and resumes portal access. Restoring an active customer is a 409.
+         */
+        post: operations["restoreCustomer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -231,6 +315,66 @@ export interface components {
             email: string;
             company: string | null;
         };
+        /** @description A customer in lists, with its ticket counts. `Customer` is the reference embedded in tickets. */
+        CustomerSummary: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: email */
+            email: string;
+            company: string | null;
+            /** @description Tickets of the customer whose status is not `resolved`. */
+            openTickets: number;
+            totalTickets: number;
+            /** Format: date-time */
+            createdAt: string;
+            archived: boolean;
+        };
+        /**
+         * @description A customer with its profile: every field of CustomerSummary plus `notes`, `archivedAt`, `version` and
+         *     `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
+         *     `additionalProperties: false` on each `allOf` branch makes a JSON Schema validator reject the fields of
+         *     the other branch.
+         */
+        CustomerDetail: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: email */
+            email: string;
+            company: string | null;
+            /** @description Tickets of the customer whose status is not `resolved`. */
+            openTickets: number;
+            totalTickets: number;
+            /** Format: date-time */
+            createdAt: string;
+            archived: boolean;
+            notes: string | null;
+            /** Format: date-time */
+            archivedAt: string | null;
+            /** Format: int64 */
+            version: number;
+            /**
+             * @description `none` without a customer membership; `invited` or `active` otherwise.
+             * @enum {string}
+             */
+            portalAccess: "none" | "invited" | "active";
+        };
+        CustomerCreate: {
+            name: string;
+            /** Format: email */
+            email: string;
+            company?: string | null;
+            notes?: string | null;
+        };
+        /** @description Same fields as CustomerCreate, all optional. `name` and `email` do not accept `null`. */
+        CustomerPatch: {
+            name?: string;
+            /** Format: email */
+            email?: string;
+            company?: string | null;
+            notes?: string | null;
+        };
         TicketSummary: {
             /** Format: uuid */
             id: string;
@@ -300,8 +444,9 @@ export interface components {
             totalItems: number;
             totalPages: number;
         };
+        /** @description An empty page past the last one is valid (200 with no items); `totalPages` is 0 when there are no items. */
         CustomerPage: {
-            items: components["schemas"]["Customer"][];
+            items: components["schemas"]["CustomerSummary"][];
             page: number;
             size: number;
             /** Format: int64 */
@@ -489,6 +634,7 @@ export interface components {
     };
     parameters: {
         TicketNumber: number;
+        CustomerId: string;
         /** @description Zero-based page index. */
         Page: number;
         Size: number;
@@ -511,6 +657,10 @@ export type Me = components['schemas']['Me'];
 export type Member = components['schemas']['Member'];
 export type MemberRef = components['schemas']['MemberRef'];
 export type Customer = components['schemas']['Customer'];
+export type CustomerSummary = components['schemas']['CustomerSummary'];
+export type CustomerDetail = components['schemas']['CustomerDetail'];
+export type CustomerCreate = components['schemas']['CustomerCreate'];
+export type CustomerPatch = components['schemas']['CustomerPatch'];
 export type TicketSummary = components['schemas']['TicketSummary'];
 export type Ticket = components['schemas']['Ticket'];
 export type TicketCreate = components['schemas']['TicketCreate'];
@@ -536,6 +686,7 @@ export type ResponsePreconditionFailed = components['responses']['PreconditionFa
 export type ResponsePreconditionRequired = components['responses']['PreconditionRequired'];
 export type ResponseConflict = components['responses']['Conflict'];
 export type ParameterTicketNumber = components['parameters']['TicketNumber'];
+export type ParameterCustomerId = components['parameters']['CustomerId'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterSize = components['parameters']['Size'];
 export type HeaderETag = components['headers']['ETag'];
@@ -808,10 +959,17 @@ export interface operations {
             query?: {
                 /** @description Searches the name, email and company. */
                 q?: string;
+                /** @description Exact company name, compared case-insensitively. An unknown company gives an empty page. */
+                company?: string;
+                /** @description `false` (default) lists active customers; `true` lists only archived ones. */
+                archived?: boolean;
                 /** @description Zero-based page index. */
                 page?: components["parameters"]["Page"];
                 size?: components["parameters"]["Size"];
-                /** @description `field,direction`. Names compare case-insensitively; ties are broken by `id,asc`. */
+                /**
+                 * @description `field,direction` with `name`, `createdAt` or `openTickets`. Names compare case-insensitively;
+                 *     ties are broken by `id,asc`.
+                 */
                 sort?: string;
             };
             header?: never;
@@ -832,6 +990,156 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    createCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CustomerCreate"];
+            };
+        };
+        responses: {
+            /** @description The created customer. */
+            201: {
+                headers: {
+                    /** @description URL of the customer, `/api/customers/{id}`. */
+                    Location?: string;
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The customer. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateCustomer: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description A single strong validator with the current version, as returned in `ETag`. */
+                "If-Match": string;
+            };
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/merge-patch+json": components["schemas"]["CustomerPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated customer. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            428: components["responses"]["PreconditionRequired"];
+        };
+    };
+    archiveCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archived customer. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    restoreCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["CustomerId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The restored customer. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerDetail"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listAssignees: {
@@ -871,6 +1179,7 @@ export const ticketPriorityValues: ReadonlyArray<FlattenedDeepRequired<component
 export const ticketChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TicketChannel"]> = ["email", "chat", "phone", "web"];
 export const ticketViewValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TicketView"]> = ["all", "mine", "unassigned", "resolved"];
 export const messageVisibilityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MessageVisibility"]> = ["public", "internal"];
+export const customerDetailPortalAccessValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CustomerDetail"]["portalAccess"]> = ["none", "invited", "active"];
 export const messageAuthorKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MessageAuthor"]["kind"]> = ["agent", "customer"];
 export const ticketCreatedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TicketCreatedActivity"]["type"]> = ["created"];
 export const statusChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StatusChangedActivity"]["type"]> = ["status_changed"];

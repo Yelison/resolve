@@ -1,11 +1,12 @@
 package com.resolve.api.customers;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
+import com.resolve.api.common.persistence.AssignedIdEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import org.hibernate.annotations.DynamicUpdate;
@@ -15,10 +16,7 @@ import org.jspecify.annotations.Nullable;
 @Entity
 @Table(name = "customers")
 @DynamicUpdate
-public class Customer {
-
-	@Id
-	private UUID id;
+public class Customer extends AssignedIdEntity {
 
 	@Column(name = "organization_id", nullable = false)
 	private UUID organizationId;
@@ -45,8 +43,15 @@ public class Customer {
 	protected Customer() {
 	}
 
-	public UUID getId() {
-		return this.id;
+	Customer(UUID id, UUID organizationId, String name, String email, @Nullable String company, @Nullable String notes,
+			Instant now) {
+		super(id);
+		this.organizationId = organizationId;
+		this.name = name;
+		this.email = email;
+		this.company = company;
+		this.notes = notes;
+		this.createdAt = now;
 	}
 
 	public UUID getOrganizationId() {
@@ -79,6 +84,50 @@ public class Customer {
 
 	public long getVersion() {
 		return this.version;
+	}
+
+	/**
+	 * Aplica los datos de contacto y las notas ya validados; solo toca los campos que cambian, así un cambio vacío
+	 * no marca la entidad como modificada y no sube la versión.
+	 * @return si algún campo cambió
+	 */
+	boolean edit(String name, String email, @Nullable String company, @Nullable String notes) {
+		boolean changed = false;
+		if (!this.name.equals(name)) {
+			this.name = name;
+			changed = true;
+		}
+		if (!this.email.equals(email)) {
+			this.email = email;
+			changed = true;
+		}
+		if (!Objects.equals(this.company, company)) {
+			this.company = company;
+			changed = true;
+		}
+		if (!Objects.equals(this.notes, notes)) {
+			this.notes = notes;
+			changed = true;
+		}
+		return changed;
+	}
+
+	/** @return {@code false} si ya estaba archivado */
+	boolean archive(Instant now) {
+		if (this.archivedAt != null) {
+			return false;
+		}
+		this.archivedAt = now;
+		return true;
+	}
+
+	/** @return {@code false} si no estaba archivado */
+	boolean restore() {
+		if (this.archivedAt == null) {
+			return false;
+		}
+		this.archivedAt = null;
+		return true;
 	}
 
 }

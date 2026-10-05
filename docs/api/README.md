@@ -9,7 +9,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 | Ticket inbox with views, filters, search, sorting and pagination | Tags, attachments and file storage |
 | Ticket detail: conversation, internal notes, activity | SLA targets and SLA compliance |
 | Create ticket, change status, priority and assignee | Customer notifications by email |
-| Customer search and assignee list for forms | Deleting tickets and bulk actions |
+| Customers: list, search, profile, create, edit, archive and restore; assignee list for forms | Deleting tickets and bulk actions |
 | Inbox metrics and view counts | Authentication provider (see below) |
 
 ## Organizations, users and roles
@@ -23,7 +23,8 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 | `agent` | Read all, create, update | Read all, post `public` and `internal` | Yes |
 | `customer` | Read only the tickets of their own customer record | Read only `public` messages | No (403) |
 
-- A `customer` membership is linked to a **customer** record of the same organization. Customers are read-only in this delivery: every write returns `403`.
+- A `customer` membership is linked to a **customer** record of the same organization. Customers are read-only in this delivery: every write returns `403`, and so does every `/customers` endpoint.
+- Archiving and restoring a customer is **admin-only**: an agent gets `403`, before the customer is even looked up.
 - **Internal notes never reach customers.** The filter is applied in the database query, and no field visible to customers is derived from internal notes.
 - Resources show other members as `{ id, name }` (`MemberRef`); contact data is only in `GET /api/me` and `GET /api/assignees`, which customers cannot call.
 
@@ -33,11 +34,13 @@ There is no authentication provider yet. The security layer resolves the princip
 
 - Profiles `dev` and `test` enable a **demo principal resolver** (declared in the contract as the optional `X-Demo-User` security scheme): the `X-Demo-User` header selects a seeded user by email; without the header, `dev` falls back to the demo administrator and `test` rejects the request.
 - Any other profile (including the default and production) has no resolver, so every API call returns `401`. A test guards this.
+- A `customer` membership whose customer is **archived** does not resolve a principal either: the member gets `401` until an admin restores the customer. If the same user has another membership that is not archived, that one is used.
 
 ## Identifiers
 
 - Internal identifiers are UUIDs. Tickets also have a visible `number` that is unique **within the organization** (two organizations each have a ticket #1).
 - Numbers come from a per-organization counter row locked during the insert, never from `max(number) + 1`.
+- Customer routes use the uuid: `/api/customers/{id}`. A malformed id is a `400` on the field `id`; a well-formed id that belongs to another organization or does not exist is the same `404`.
 - Ticket routes use the number: `/api/tickets/{number}`. A number that does not exist in the caller's organization, or a ticket that belongs to another customer, returns `404` (never `403`, so existence is not leaked). The role check runs before the lookup, so a `customer` that attempts a write always gets `403`, whatever the number.
 
 ## Wire format
@@ -56,14 +59,14 @@ There is no authentication provider yet. The security layer resolves the princip
 | 400 | Malformed request, invalid path number, invalid query parameter (unknown sort field, size over 100) or validation error |
 | 401 | No authenticated principal |
 | 403 | The role does not allow the action |
-| 404 | Resource not found in the caller's scope |
+| 404 | Resource not found in the caller's scope (foreign and missing ids answer the same) |
 | 409 | The action is not allowed in the resource's current state (archiving an archived customer, editing an archived customer). It is a business-rule conflict, not input validation (400) and not versioning (412) |
 | 412 | `If-Match` does not match the current version of the resource |
 | 428 | `If-Match` is missing on an update |
 
 ### References to other records
 
-`customerId` and `assigneeId` in request **bodies** must belong to the caller's organization, and the assignee must be an admin or agent. Unknown and foreign ids get the **same** `400` field error, so the API never reveals data of other organizations. List filters never fail on foreign or unknown ids: they return an empty page (see [Ticket list filters](#ticket-list-filters)).
+`customerId` and `assigneeId` in request **bodies** must belong to the caller's organization, the customer must not be archived and the assignee must be an admin or agent. Unknown, foreign and archived customers get the **same** `400` field error, so the API never reveals data of other organizations. List filters never fail on foreign or unknown ids: they return an empty page (see [Ticket list filters](#ticket-list-filters)).
 
 ## Pagination and sorting
 
@@ -71,20 +74,21 @@ There is no authentication provider yet. The security layer resolves the princip
 - Responses use the envelope `{ items, page, size, totalItems, totalPages }`.
 - `sort` is `field,direction` (for example `updatedAt,desc`). Only whitelisted fields are accepted; any other field returns `400`.
   - Tickets: `updatedAt` (default, `desc`), `createdAt`, `number`, `priority`, `status`. `priority` and `status` sort by rank (urgent → low; open → in_progress → waiting → resolved), not alphabetically. Ties are broken by `number desc`.
-  - Customers: `name` (default, `asc`), compared case-insensitively. Ties are broken by `id asc`.
+  - Customers: `name` (default, `asc`, compared case-insensitively), `createdAt` and `openTickets`. Ties are broken by `id asc`.
 - A page past the last one returns `200` with no items; `totalPages` is `0` when nothing matches.
 - Messages and activity are not paginated.
 - The frontend shows 1-based page numbers and converts at the API client.
 
 ## Concurrency
 
-- Tickets expose a `version` and an `ETag: "<version>"` header.
+- Tickets and customers expose a `version` and an `ETag: "<version>"` header.
 - `PATCH /api/tickets/{number}` requires `If-Match: "<version>"`, a single strong validator (weak validators, lists and `*` are rejected with `400`):
   - a different version returns `412` and the client reloads the ticket before retrying;
   - a missing header returns `428`.
 - `PATCH` loads the ticket with a row lock (`PESSIMISTIC_WRITE`, which Hibernate issues as `SELECT … FOR NO KEY UPDATE` on PostgreSQL) and compares the client's version with the stored one inside the same transaction. Two simultaneous patches with the same version are serialized: the second waits for the first to commit, reads the new version and gets the explicit `412`. JPA optimistic locking (`WHERE version = ?`) stays as a safety net for any other writer. That lock does not conflict with the `FOR KEY SHARE` taken by the `INSERT` of a message: an internal note never waits for a `PATCH`, and a public reply only waits at its `UPDATE` of the ticket.
 - A patch that changes nothing returns `200` without a new version or activity entry.
 - Errors are checked in this order: `401`, `403`, `404`, `428`, `400`, `412`.
+- `PATCH /api/customers/{id}` works the same way (`If-Match`, `428` when missing, `412` when stale, no new version for a patch that changes nothing). Its `409` for an archived customer comes **last**: `401`, `403`, `404`, `428`, `400`, `412`, `409`. A client holding an old version is told to reload (`412`) before it is told the customer is archived. Archiving and restoring bump the version, so an edit form opened before an archive fails with `412` afterwards. Two simultaneous patches with the same version yield one `200` and one `412` (JPA optimistic locking is the safety net behind the explicit check).
 - Posting a message does **not** change the ticket version, so a reply never invalidates a parallel status change. A **public** message moves `updatedAt`, which means *last activity* and drives the inbox «Actualizado» column; internal notes do not, so customers cannot infer them from timestamps.
 - `updatedAt` never moves backwards: a `PATCH` stamps `max(updatedAt, now)` and a public message stamps `greatest(updatedAt, now)`. A public reply that arrives while a `PATCH` holds the row waits a few milliseconds for it and then applies its own stamp, so the inbox order is not corrupted by clock differences between requests. The `PATCH` response body and `ETag` match the row as that `PATCH` committed it.
 
@@ -128,7 +132,12 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | `GET /api/tickets/{number}/messages` | all | Conversation; customers only receive `public` messages |
 | `POST /api/tickets/{number}/messages` | admin, agent | Reply (`public`) or internal note (`internal`) |
 | `GET /api/tickets/{number}/activity` | admin, agent | Activity log |
-| `GET /api/customers` | admin, agent | Paginated customer search for forms |
+| `GET /api/customers` | admin, agent | Customer list and search: `q`, `company`, `archived`, sorting and pagination |
+| `POST /api/customers` | admin, agent | Create a customer (`201`, `Location`, `ETag`) |
+| `GET /api/customers/{id}` | admin, agent | Customer detail (with `ETag`); archived customers can be read |
+| `PATCH /api/customers/{id}` | admin, agent | Edit contact data and notes (`If-Match`); `409` when archived |
+| `POST /api/customers/{id}/archive` | admin | Archive a customer; `409` when already archived |
+| `POST /api/customers/{id}/restore` | admin | Restore a customer; `409` when not archived |
 | `GET /api/assignees` | admin, agent | Members who can be assigned (admins and agents) |
 
 ### Ticket list filters
@@ -144,6 +153,35 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 
 Filters combine with `AND` (so `view=resolved&status=open` is empty); repeated values of one filter combine with `OR`.
 
+### Customers
+
+| Parameter | Values |
+| --- | --- |
+| `q` | Case-insensitive contains match on the name, email and company (at most 120 characters) |
+| `company` | Exact company name, compared case-insensitively. A fragment or an unknown company gives an empty page, never an error |
+| `archived` | `false` (default) lists active customers; `true` lists only archived ones. Any other value is a `400` |
+| `sort` | `name` (default, `asc`), `createdAt` or `openTickets`, with `asc` or `desc` |
+
+Every item carries `openTickets` (tickets whose status is not `resolved`) and `totalTickets`, so the list needs no per-row requests. `CustomerDetail` adds `notes` (at most 2 000 characters), `archivedAt`, `version` and `portalAccess` (`none` without a customer membership, `active` with one; `invited` arrives with the team invitations).
+
+Rules for writes:
+
+- `name` is required (at most 120 characters); `email` is required, must look like an email (at most 254) and is **unique per organization ignoring case, archived customers included**. A duplicate is a `400` on the field `email`, also when two requests race for the same address.
+- `company` and `notes` are optional; blank text is stored as `null`. In a `PATCH`, `null` clears them, while `name` and `email` do not accept `null`.
+- The organization is never part of the body: an `organizationId` is an unknown field and a `400`.
+
+#### Deletion and archiving
+
+Customers are never deleted. **Archiving** (admin only) sets `archivedAt` and:
+
+- hides the customer from lists, search, metrics and the new-ticket selector (`GET /api/customers?archived=true` lists the archived ones);
+- keeps their tickets listed, readable and editable, and leaves `ticket.customer` as it was;
+- rejects new tickets for them with the same `400` field error as an unknown customer;
+- rejects edits with `409` ("Restaura el cliente antes de editarlo.") until they are restored;
+- stops their portal access: a `customer` membership of an archived customer gets `401`.
+
+**Restoring** (admin only) brings the customer back to every list and resumes portal access. Archiving an archived customer and restoring an active one are `409`.
+
 ### Partial updates
 
 `PATCH` uses JSON Merge Patch semantics (`application/merge-patch+json`): a field that is **absent** is left unchanged, and `"assigneeId": null` **unassigns** the ticket. `status` and `priority` cannot be `null`.
@@ -155,6 +193,11 @@ The `description` belongs to the ticket and is shown above the conversation; it 
 ## Demo data
 
 Demo organizations, users, customers and tickets live in a Flyway location (`db/demo`) that only the `dev` profile loads, with its own version range, so they never reach other environments.
+
+## Contract modelling notes
+
+- `CustomerDetail` repeats the fields of `CustomerSummary` instead of composing it with `allOf`: with `additionalProperties: false` on every branch, a JSON Schema validator treats the fields of the other branch as unexpected and rejects every valid response (checked with the response validator of the tests). `openapi-typescript` accepts the `allOf` form, but the contract has to hold for both tools.
+- The `Customer` schema (id, name, email, company) is the reference embedded in tickets; `CustomerSummary` and `CustomerDetail` are the resources of `/customers`.
 
 ## How the contract is enforced
 

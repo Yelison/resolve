@@ -21,7 +21,7 @@ tags:
   - name: Messages
     description: Public replies and internal notes of a ticket.
   - name: Customers
-    description: Customer search for forms.
+    description: Customer directory, profile, archiving and the customer search used by forms.
   - name: Assignees
     description: Members who can own tickets.
 
@@ -263,21 +263,35 @@ paths:
     get:
       tags: [Customers]
       operationId: listCustomers
-      summary: Paginated customer search
+      summary: Paginated customer list and search
+      description: |
+        Archived customers are left out unless `archived=true`, which lists only them. The result never
+        includes customers of other organizations. `openTickets` counts the customer's tickets that are
+        not `resolved`.
       parameters:
         - name: q
           in: query
           description: Searches the name, email and company.
           schema: { type: string, maxLength: 120 }
+        - name: company
+          in: query
+          description: Exact company name, compared case-insensitively. An unknown company gives an empty page.
+          schema: { type: string, maxLength: 120 }
+        - name: archived
+          in: query
+          description: '`false` (default) lists active customers; `true` lists only archived ones.'
+          schema: { type: boolean, default: false }
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Size'
         - name: sort
           in: query
-          description: '`field,direction`. Names compare case-insensitively; ties are broken by `id,asc`.'
+          description: |
+            `field,direction` with `name`, `createdAt` or `openTickets`. Names compare case-insensitively;
+            ties are broken by `id,asc`.
           schema:
             type: string
             default: name,asc
-            pattern: '^name,(asc|desc)$'
+            pattern: '^(name|createdAt|openTickets),(asc|desc)$'
       responses:
         '200':
           description: One page of customers.
@@ -287,6 +301,134 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Customers]
+      operationId: createCustomer
+      summary: Create a customer
+      description: |
+        The email must be unique in the organization, ignoring case and including archived customers; a
+        duplicate is a 400 field error on `email`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerCreate' }
+      responses:
+        '201':
+          description: The created customer.
+          headers:
+            Location:
+              schema: { type: string }
+              description: URL of the customer, `/api/customers/{id}`.
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /customers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+    get:
+      tags: [Customers]
+      operationId: getCustomer
+      summary: Customer detail
+      description: Archived customers can be read. Foreign and unknown ids both answer 404.
+      responses:
+        '200':
+          description: The customer.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Customers]
+      operationId: updateCustomer
+      summary: Edit a customer's contact data and notes
+      description: |
+        JSON Merge Patch semantics: absent fields are unchanged and `null` clears `company` and `notes`
+        (`name` and `email` do not accept `null`). Requires `If-Match` with the current version. A patch that
+        changes nothing returns 200 without a new version. An archived customer cannot be edited: restore it
+        first (409). Errors are checked in this order: 401, 403, 404, 428, 400, 412, 409.
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          description: A single strong validator with the current version, as returned in `ETag`.
+          schema: { type: string, pattern: '^"\d+"$', examples: ['"3"'] }
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/components/schemas/CustomerPatch' }
+      responses:
+        '200':
+          description: The updated customer.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+
+  /customers/{id}/archive:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+    post:
+      tags: [Customers]
+      operationId: archiveCustomer
+      summary: Archive a customer (admin only)
+      description: |
+        Hides the customer from lists, search, metrics and the new-ticket selector; their tickets stay
+        visible and editable and their portal access stops working. Archiving an archived customer is a 409.
+      responses:
+        '200':
+          description: The archived customer.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /customers/{id}/restore:
+    parameters:
+      - $ref: '#/components/parameters/CustomerId'
+    post:
+      tags: [Customers]
+      operationId: restoreCustomer
+      summary: Restore an archived customer (admin only)
+      description: Brings the customer back to every list and resumes portal access. Restoring an active customer is a 409.
+      responses:
+        '200':
+          description: The restored customer.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /assignees:
     get:
@@ -320,6 +462,11 @@ components:
       in: path
       required: true
       schema: { type: integer, format: int64, minimum: 1 }
+    CustomerId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     Page:
       name: page
       in: query
@@ -447,6 +594,75 @@ components:
         email: { type: string, format: email }
         company: { type: [string, 'null'] }
 
+    CustomerSummary:
+      description: A customer in lists, with its ticket counts. `Customer` is the reference embedded in tickets.
+      type: object
+      additionalProperties: false
+      required: [id, name, email, company, openTickets, totalTickets, createdAt, archived]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        company: { type: [string, 'null'] }
+        openTickets:
+          description: Tickets of the customer whose status is not `resolved`.
+          type: integer
+          minimum: 0
+        totalTickets: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        archived: { type: boolean }
+
+    CustomerDetail:
+      description: |
+        A customer with its profile: every field of CustomerSummary plus `notes`, `archivedAt`, `version` and
+        `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
+        `additionalProperties: false` on each `allOf` branch makes a JSON Schema validator reject the fields of
+        the other branch.
+      type: object
+      additionalProperties: false
+      required:
+        [id, name, email, company, openTickets, totalTickets, createdAt, archived, notes, archivedAt, version, portalAccess]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string, format: email }
+        company: { type: [string, 'null'] }
+        openTickets:
+          description: Tickets of the customer whose status is not `resolved`.
+          type: integer
+          minimum: 0
+        totalTickets: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        archived: { type: boolean }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+        archivedAt: { type: [string, 'null'], format: date-time }
+        version: { type: integer, format: int64, minimum: 0 }
+        portalAccess:
+          description: '`none` without a customer membership; `invited` or `active` otherwise.'
+          type: string
+          enum: [none, invited, active]
+
+    CustomerCreate:
+      type: object
+      additionalProperties: false
+      required: [name, email]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 254 }
+        company: { type: [string, 'null'], maxLength: 120 }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+
+    CustomerPatch:
+      description: Same fields as CustomerCreate, all optional. `name` and `email` do not accept `null`.
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        email: { type: string, format: email, maxLength: 254 }
+        company: { type: [string, 'null'], maxLength: 120 }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+
     TicketSummary:
       type: object
       additionalProperties: false
@@ -537,13 +753,14 @@ components:
         totalPages: { type: integer, minimum: 0 }
 
     CustomerPage:
+      description: An empty page past the last one is valid (200 with no items); `totalPages` is 0 when there are no items.
       type: object
       additionalProperties: false
       required: [items, page, size, totalItems, totalPages]
       properties:
         items:
           type: array
-          items: { $ref: '#/components/schemas/Customer' }
+          items: { $ref: '#/components/schemas/CustomerSummary' }
         page: { type: integer, minimum: 0 }
         size: { type: integer, minimum: 1, maximum: 100 }
         totalItems: { type: integer, format: int64, minimum: 0 }
