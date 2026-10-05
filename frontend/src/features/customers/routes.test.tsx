@@ -1,26 +1,13 @@
 import { screen } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../../test/api'
-import { renderWithProviders } from '../../test/render'
-import { appRoutes } from '../../app/router'
+import { renderApp, staffMes } from '../../test/renderApp'
 
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function renderApp(path: string) {
-  const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
-  renderWithProviders(<RouterProvider router={router} />)
-  return router
-}
-
 describe('rutas de la aplicación', () => {
-  const staffMes = [
-    ['admin', adminMe],
-    ['agent', { ...adminMe, role: 'agent' }],
-  ] as const
-
   it.each(staffMes)('deja al personal abrir la lista de clientes como %s', async (_role, me) => {
     mockApi({
       'GET /api/me': { body: me },

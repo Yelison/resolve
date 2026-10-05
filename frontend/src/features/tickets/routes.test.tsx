@@ -1,23 +1,12 @@
 import { screen } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../../test/api'
-import { renderWithProviders } from '../../test/render'
 import { page, summary, ticket } from '../../test/ticketFixtures'
-import { appRoutes } from '../../app/router'
+import { renderApp, requestedPaths } from '../../test/renderApp'
 
 afterEach(() => {
   vi.restoreAllMocks()
 })
-
-const requestedPaths = (spy: ReturnType<typeof mockApi>) =>
-  spy.mock.calls.map(([input]) => new URL((input as Request).url).pathname)
-
-function renderApp(path: string) {
-  const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
-  renderWithProviders(<RouterProvider router={router} />)
-  return router
-}
 
 describe('rutas de la aplicación', () => {
   it('muestra a un cliente el aviso sin acceso en /tickets/nuevo, con su encabezado', async () => {

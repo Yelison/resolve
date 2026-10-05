@@ -1,29 +1,13 @@
 import { screen } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { adminMe, customerMe, mockApi } from '../../test/api'
-import { renderWithProviders } from '../../test/render'
-import { appRoutes } from '../../app/router'
+import { customerMe, mockApi } from '../../test/api'
+import { renderApp, requestedPaths, staffMes } from '../../test/renderApp'
 
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
-const requestedPaths = (spy: ReturnType<typeof mockApi>) =>
-  spy.mock.calls.map(([input]) => new URL((input as Request).url).pathname)
-
-function renderApp(path: string) {
-  const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
-  renderWithProviders(<RouterProvider router={router} />)
-  return router
-}
-
 describe('rutas de la aplicación', () => {
-  const staffMes = [
-    ['admin', adminMe],
-    ['agent', { ...adminMe, role: 'agent' }],
-  ] as const
-
   it('un cliente no abre /equipo: ve el aviso sin acceso y el equipo no se pide', async () => {
     const fetchSpy = mockApi({ 'GET /api/me': { body: customerMe } })
     renderApp('/equipo')

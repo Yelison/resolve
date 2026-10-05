@@ -1,21 +1,14 @@
 import { screen } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../test/api'
-import { renderWithProviders } from '../test/render'
 import { metrics, page } from '../test/ticketFixtures'
 import { mainNavigation } from './navigation'
-import { appRoutes, hasFeatureRoutes } from './router'
+import { hasFeatureRoutes } from './router'
+import { renderApp, staffMes } from '../test/renderApp'
 
 afterEach(() => {
   vi.restoreAllMocks()
 })
-
-function renderApp(path: string) {
-  const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
-  renderWithProviders(<RouterProvider router={router} />)
-  return router
-}
 
 describe('rutas de la aplicación', () => {
   it('lleva a un cliente de / a /tickets', async () => {
@@ -38,11 +31,6 @@ describe('rutas de la aplicación', () => {
     expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
-
-  const staffMes = [
-    ['admin', adminMe],
-    ['agent', { ...adminMe, role: 'agent' }],
-  ] as const
 
   const staffSections = mainNavigation.filter((item) => item.to !== '/' && !item.roles.includes('customer'))
 

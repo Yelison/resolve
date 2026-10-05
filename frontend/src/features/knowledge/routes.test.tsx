@@ -1,10 +1,8 @@
 import { screen } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../../test/api'
-import { renderWithProviders } from '../../test/render'
 import { article, articlePage, articleSummary } from './articleFixtures'
-import { appRoutes } from '../../app/router'
+import { renderApp, staffMes } from '../../test/renderApp'
 
 // Las rutas de conocimiento cargan sus vistas con `lazy`. La primera importación transforma `react-markdown` en frío y
 // puede tardar más que la espera por defecto de Testing Library: se precarga aquí y las esperas llevan margen.
@@ -17,18 +15,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-function renderApp(path: string) {
-  const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
-  renderWithProviders(<RouterProvider router={router} />)
-  return router
-}
-
 describe('rutas de la aplicación', () => {
-  const staffMes = [
-    ['admin', adminMe],
-    ['agent', { ...adminMe, role: 'agent' }],
-  ] as const
-
   it('deja a un cliente abrir /conocimiento, sin aviso de acceso ni acciones de personal', async () => {
     mockApi({
       'GET /api/me': { body: customerMe },
