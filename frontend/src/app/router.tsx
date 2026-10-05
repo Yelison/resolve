@@ -92,8 +92,9 @@ const customerChildren: RouteObject[] = [
 ]
 
 /**
- * La lista de conocimiento se carga bajo demanda, igual que el lector y el editor que vendrán: así `react-markdown`
- * queda fuera del paquete principal. `nuevo` y los artículos muestran la vista pendiente hasta que existan.
+ * Las vistas de conocimiento se cargan bajo demanda: así `react-markdown` queda fuera del paquete principal. `nuevo` y
+ * `editar` son estáticos y el servidor reserva esos slugs, de modo que no pueden chocar con un artículo. Mientras el
+ * editor no exista, ambos muestran la vista pendiente.
  */
 const knowledgeChildren = (item: NavigationItem): RouteObject[] => [
   lazyRoute(async () => ({ Component: (await import('../features/knowledge/KnowledgePage')).KnowledgePage }), {
@@ -114,8 +115,26 @@ const knowledgeChildren = (item: NavigationItem): RouteObject[] => [
   },
   {
     path: ':slug',
-    element: <PendingPage title="Artículo" icon={item.icon} />,
+    // El `crumb` recibe solo los parámetros de la ruta, no el artículo cargado: el título no está disponible aquí.
     handle: { crumb: 'Artículo' } satisfies RouteHandle,
+    children: [
+      lazyRoute(async () => ({ Component: (await import('../features/knowledge/ArticlePage')).ArticlePage }), {
+        index: true,
+      }),
+      {
+        path: 'editar',
+        element: (
+          <RequireRole
+            roles={staff}
+            title="Editar artículo"
+            description="Solo los agentes y administradores pueden editar artículos."
+          >
+            <PendingPage title="Editar artículo" icon={item.icon} />
+          </RequireRole>
+        ),
+        handle: { crumb: 'Editar' } satisfies RouteHandle,
+      },
+    ],
   },
 ]
 
