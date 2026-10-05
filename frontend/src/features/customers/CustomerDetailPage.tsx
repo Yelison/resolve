@@ -273,14 +273,14 @@ function Notes({ customer, draft, onDraftChange: setDraft }: NotesProps) {
         save()
       }}
     >
-      {conflict && (
+      {conflict && !customer.archived && (
         <Alert tone="amber" title="El cliente cambió mientras editabas las notas" live>
           Otra persona lo actualizó y ya cargamos la versión actual. Tu texto sigue aquí: revísalo y guarda de nuevo.
         </Alert>
       )}
-      {archivedError && (
-        <Alert tone="red" title="El cliente está archivado" live>
-          Restáuralo para poder editar sus notas.
+      {(customer.archived || archivedError) && (
+        <Alert tone="red" title="El cliente está archivado" live={Boolean(archivedError)}>
+          Ya no se pueden editar sus notas. Solo un administrador puede restaurarlo.
         </Alert>
       )}
       <Textarea

@@ -6,6 +6,7 @@ import { renderWithProviders } from '../../test/render'
 import type { CustomerDetail } from '../../domain/customer'
 import { CustomerFormDialog } from './CustomerFormDialog'
 import { customerDetail } from './customerFixtures'
+import { useCustomer } from './queries'
 
 function renderDialog(
   props: { mode: 'create' | 'edit'; onSaved?: (customer: CustomerDetail) => void },
@@ -175,5 +176,90 @@ describe('CustomerFormDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
     expect(onClose).toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  describe('con el cliente recargado por la API', () => {
+    /** Monta el diálogo con el detalle vivo, como en la página: una recarga tras un 412 le llega por props. */
+    function Harness() {
+      const customer = useCustomer('c-maria')
+      return customer.data ? <CustomerFormDialog open onClose={vi.fn()} mode="edit" customer={customer.data} /> : null
+    }
+    const patchesTo = (fetchSpy: ReturnType<typeof mockApi>) =>
+      fetchSpy.mock.calls.map(([input]) => input as Request).filter((request) => request.method === 'PATCH')
+
+    it('tras un 412 los campos no tocados toman los valores del servidor, los tocados se conservan y el reintento solo envía lo tocado', async () => {
+      let reads = 0
+      let patches = 0
+      const fetchSpy = mockApi({
+        'GET /api/customers/c-maria': () => {
+          reads += 1
+          return { body: customerDetail(reads === 1 ? {} : { company: 'Empresa B', version: 4 }) }
+        },
+        'PATCH /api/customers/c-maria': () => {
+          patches += 1
+          return patches === 1
+            ? { status: 412, body: { status: 412, title: 'El recurso cambió' } }
+            : { body: customerDetail({ name: 'María Pérez Ruiz', company: 'Empresa B', version: 5 }) }
+        },
+      })
+      renderWithProviders(<Harness />)
+      await userEvent.type(await screen.findByRole('textbox', { name: 'Nombre' }), ' Ruiz')
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+      expect(await screen.findByText('El cliente cambió mientras lo editabas')).toBeInTheDocument()
+      await waitFor(() => expect(screen.getByRole('textbox', { name: 'Empresa' })).toHaveValue('Empresa B'))
+      expect(screen.getByRole('textbox', { name: 'Nombre' })).toHaveValue('María Pérez Ruiz')
+
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+      await waitFor(() => expect(patchesTo(fetchSpy)).toHaveLength(2))
+      const retry = patchesTo(fetchSpy)[1]!
+      expect(retry.headers.get('If-Match')).toBe('"4"')
+      expect(await retry.clone().json()).toEqual({ name: 'María Pérez Ruiz' })
+    })
+
+    it('un campo tocado que el servidor cambió muestra «Ahora: …» asociado al campo', async () => {
+      let reads = 0
+      mockApi({
+        'GET /api/customers/c-maria': () => {
+          reads += 1
+          return { body: customerDetail(reads === 1 ? {} : { company: 'Empresa B', version: 4 }) }
+        },
+        'PATCH /api/customers/c-maria': { status: 412, body: { status: 412, title: 'El recurso cambió' } },
+      })
+      renderWithProviders(<Harness />)
+      const company = await screen.findByRole('textbox', { name: 'Empresa' })
+      await userEvent.clear(company)
+      await userEvent.type(company, 'Empresa C')
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+      await waitFor(() =>
+        expect(screen.getByRole('textbox', { name: 'Empresa' })).toHaveAccessibleDescription('Ahora: Empresa B'),
+      )
+      expect(screen.getByRole('textbox', { name: 'Empresa' })).toHaveValue('Empresa C')
+    })
+
+    it('si el cliente pasa a archivado durante la edición muestra el aviso de archivado y no deja guardar', async () => {
+      let reads = 0
+      mockApi({
+        'GET /api/customers/c-maria': () => {
+          reads += 1
+          return { body: customerDetail(reads === 1 ? {} : { archived: true, version: 4 }) }
+        },
+        'PATCH /api/customers/c-maria': { status: 412, body: { status: 412, title: 'El recurso cambió' } },
+      })
+      renderWithProviders(<Harness />)
+      await userEvent.type(await screen.findByRole('textbox', { name: 'Nombre' }), ' Ruiz')
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+      expect(await screen.findByText('El cliente está archivado')).toBeInTheDocument()
+      expect(screen.queryByText('El cliente cambió mientras lo editabas')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled()
+    })
+  })
+
+  it('un 409 al guardar dice que el cliente está archivado', async () => {
+    mockApi({ 'PATCH /api/customers/c-maria': { status: 409, body: { status: 409, title: 'Archivado' } } })
+    const onClose = renderDialog({ mode: 'edit' })
+    await userEvent.type(screen.getByRole('textbox', { name: 'Nombre' }), ' Ruiz')
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+    expect(await screen.findByText('El cliente está archivado')).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })

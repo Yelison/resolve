@@ -59,7 +59,9 @@ function CreateForm({ onClose, onSaved }: FormProps) {
   const toast = useToast()
   return (
     <CustomerForm
-      initial={{ name: '', email: '', company: '' }}
+      source={{ name: '', email: '', company: '' }}
+      sourceVersion={0}
+      archived={false}
       submitLabel="Crear cliente"
       pendingLabel="Creando…"
       pending={create.isPending}
@@ -81,25 +83,22 @@ function CreateForm({ onClose, onSaved }: FormProps) {
 function EditForm({ customer, onClose, onSaved }: FormProps & { customer: CustomerDetail }) {
   const update = useUpdateCustomer(customer.id)
   const toast = useToast()
-  // Lo que se editó se compara con los datos con los que se abrió el diálogo, no con la recarga posterior a un 412:
-  // así un reintento no envía (ni pisa) los campos que cambió otra persona y que esta no tocó.
-  const [initial] = useState<Values>(() => ({
-    name: customer.name,
-    email: customer.email,
-    company: customer.company ?? '',
-  }))
   return (
     <CustomerForm
-      initial={initial}
+      source={{ name: customer.name, email: customer.email, company: customer.company ?? '' }}
+      sourceVersion={customer.version}
+      archived={customer.archived}
       submitLabel="Guardar cambios"
       pendingLabel="Guardando…"
       pending={update.isPending}
       onCancel={onClose}
-      save={async (values) => {
+      save={async (values, changed) => {
+        // Solo viajan los campos que esta persona tocó y que difieren de lo que hay en el servidor: un reintento tras un
+        // 412 no pisa lo que cambió otra persona.
         const changes: CustomerPatch = {}
-        if (values.name !== initial.name) changes.name = values.name
-        if (values.email !== initial.email) changes.email = values.email
-        if (values.company !== initial.company) changes.company = values.company || null
+        if (changed.includes('name')) changes.name = values.name
+        if (changed.includes('email')) changes.email = values.email
+        if (changed.includes('company')) changes.company = values.company || null
         if (Object.keys(changes).length === 0) {
           onClose()
           return
@@ -114,19 +113,54 @@ function EditForm({ customer, onClose, onSaved }: FormProps & { customer: Custom
 }
 
 interface CustomerFormProps {
-  initial: Values
+  /** Valores actuales del servidor (vacíos en el alta). Si llega una versión nueva se rebasan los campos no tocados. */
+  source: Values
+  sourceVersion: number
+  /** Un cliente archivado no se puede editar: se avisa y no se deja guardar. */
+  archived: boolean
   submitLabel: string
   pendingLabel: string
   pending: boolean
   onCancel: () => void
-  /** Guarda los valores ya recortados; rechaza con el error de la API, que el formulario muestra. */
-  save: (values: Values) => Promise<void>
+  /**
+   * Guarda los valores ya recortados y la lista de campos tocados que difieren del servidor; rechaza con el error de la
+   * API, que el formulario muestra.
+   */
+  save: (values: Values, changed: FieldName[]) => Promise<void>
 }
 
-function CustomerForm({ initial, submitLabel, pendingLabel, pending, onCancel, save }: CustomerFormProps) {
-  const [values, setValues] = useState<Values>(initial)
+function CustomerForm({
+  source,
+  sourceVersion,
+  archived,
+  submitLabel,
+  pendingLabel,
+  pending,
+  onCancel,
+  save,
+}: CustomerFormProps) {
+  const [values, setValues] = useState<Values>(source)
+  // Valores del servidor con los que se empezó a editar cada campo: un campo está «tocado» si difiere de su base.
+  const [base, setBase] = useState<Values>(source)
+  const [seenVersion, setSeenVersion] = useState(sourceVersion)
   const [errors, setErrors] = useState<Errors>({})
   const [failure, setFailure] = useState<'conflict' | 'archived' | 'generic' | null>(null)
+
+  // Llegó una versión más nueva del cliente (p. ej. tras un 412): los campos no tocados pasan a los valores del
+  // servidor y los tocados conservan lo escrito.
+  if (sourceVersion > seenVersion) {
+    setSeenVersion(sourceVersion)
+    const untouched = fieldNames.filter((field) => values[field] === base[field])
+    setValues({ ...values, ...Object.fromEntries(untouched.map((field) => [field, source[field]])) })
+    setBase({ ...base, ...Object.fromEntries(untouched.map((field) => [field, source[field]])) })
+  }
+
+  const touched = (field: FieldName) => values[field] !== base[field]
+  /** «Ahora: …» junto a un campo tocado cuyo valor en el servidor cambió desde que se empezó a editar. */
+  const serverNote = (field: FieldName) =>
+    touched(field) && source[field] !== base[field] && values[field].trim() !== source[field]
+      ? `Ahora: ${source[field] || 'vacío'}`
+      : undefined
 
   function change(field: FieldName, value: string) {
     setValues((current) => ({ ...current, [field]: value }))
@@ -146,8 +180,8 @@ function CustomerForm({ initial, submitLabel, pendingLabel, pending, onCancel, s
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    // Enter en un campo envía aunque el botón esté cargando: no se duplica la petición.
-    if (pending) return
+    // Segunda barrera: el botón en carga ya bloquea el envío, también el que dispara Enter en un campo.
+    if (pending || archived) return
     const form = event.currentTarget
     const trimmed: Values = { name: values.name.trim(), email: values.email.trim(), company: values.company.trim() }
     const found = validate(trimmed)
@@ -161,11 +195,15 @@ function CustomerForm({ initial, submitLabel, pendingLabel, pending, onCancel, s
       return
     }
     try {
-      await save(trimmed)
+      await save(
+        trimmed,
+        fieldNames.filter((field) => touched(field) && trimmed[field] !== source[field]),
+      )
     } catch (error) {
       if (isApiError(error, 412)) {
         setFailure('conflict')
       } else if (isApiError(error, 409)) {
+        // El archivado llega como 409 si la versión coincidía; la recarga del detalle lo reflejará en `archived`.
         setFailure('archived')
       } else if (isApiError(error, 400)) {
         const serverErrors: Errors = {}
@@ -186,14 +224,19 @@ function CustomerForm({ initial, submitLabel, pendingLabel, pending, onCancel, s
 
   return (
     <form className={styles.form} onSubmit={(event) => void submit(event)} noValidate>
-      {failure === 'conflict' && (
+      {archived ? (
+        <Alert tone="red" title="El cliente está archivado" live>
+          Ya no se puede editar. Solo un administrador puede restaurarlo.
+        </Alert>
+      ) : null}
+      {!archived && failure === 'conflict' && (
         <Alert tone="amber" title="El cliente cambió mientras lo editabas" live>
           Otra persona lo actualizó y ya cargamos la versión actual. Tus cambios siguen aquí: revisa y vuelve a guardar.
         </Alert>
       )}
-      {failure === 'archived' && (
+      {!archived && failure === 'archived' && (
         <Alert tone="red" title="El cliente está archivado" live>
-          Restáuralo para poder editarlo.
+          Ya no se puede editar. Solo un administrador puede restaurarlo.
         </Alert>
       )}
       {failure === 'generic' && (
@@ -207,6 +250,7 @@ function CustomerForm({ initial, submitLabel, pendingLabel, pending, onCancel, s
         maxLength={MAX_NAME}
         autoComplete="off"
         onChange={(event) => change('name', event.target.value)}
+        hint={serverNote('name')}
         error={errors.name}
       />
       <Input
@@ -216,11 +260,12 @@ function CustomerForm({ initial, submitLabel, pendingLabel, pending, onCancel, s
         maxLength={MAX_EMAIL}
         autoComplete="off"
         onChange={(event) => change('email', event.target.value)}
+        hint={serverNote('email')}
         error={errors.email}
       />
       <Input
         label="Empresa"
-        hint="Opcional."
+        hint={serverNote('company') ?? 'Opcional.'}
         value={values.company}
         maxLength={MAX_COMPANY}
         autoComplete="off"
@@ -231,7 +276,7 @@ function CustomerForm({ initial, submitLabel, pendingLabel, pending, onCancel, s
         <Button variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" loading={pending} loadingLabel={pendingLabel}>
+        <Button type="submit" disabled={archived} loading={pending} loadingLabel={pendingLabel}>
           {submitLabel}
         </Button>
       </div>
