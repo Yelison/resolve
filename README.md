@@ -4,7 +4,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 
 [![CI](https://github.com/Yelison/resolve/actions/workflows/ci.yml/badge.svg)](https://github.com/Yelison/resolve/actions/workflows/ci.yml)
 
-> **Status:** work in progress. The design system, the shared components (internally called **Forma UI**), the application shell and the **Overview**, **Tickets**, **Customers** and **Team** areas (views and Spring Boot API) are done. The API for reports, the recent-activity feed and the knowledge base exists too, but their views (Reports, Knowledge base) and settings come next; until then each one says so instead of showing fake screens.
+> **Status:** work in progress. The design system, the shared components (internally called **Forma UI**), the application shell and every area of the product are done, views and Spring Boot API: **Overview**, **Tickets**, **Customers**, **Team**, **Reports**, **Knowledge base** (reading and editing) and **Settings** (company, profile, appearance and the permissions matrix). What is still pending is an authentication provider for the frontend session, tags, attachments and SLA for tickets, and article ratings; none of them is drawn as if it worked.
 
 | Ticket inbox | Ticket detail (dark) |
 | --- | --- |
@@ -14,9 +14,17 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 | --- | --- |
 | ![Customers list with metrics, filters and the table](docs/screenshots/customers.png) | ![Customer detail with profile, care context and the customer's tickets](docs/screenshots/customer-detail-dark.png) |
 
-| Team |
-| --- |
-| ![Team with metrics, the permissions notice and the table with a pending invitation](docs/screenshots/team.png) |
+| Overview | Reports (dark) |
+| --- | --- |
+| ![Overview with the day's metrics, the requests chart with its table toggle and recent activity](docs/screenshots/overview.png) | ![Reports with the period selector, the chart, requests by channel and the agents table](docs/screenshots/reports-dark.png) |
+
+| Team | Settings |
+| --- | --- |
+| ![Team with metrics, the permissions notice and the table with a pending invitation](docs/screenshots/team.png) | ![Settings with the company tab: name, support email, time zone and first-response target](docs/screenshots/settings.png) |
+
+| Knowledge base | Article |
+| --- | --- |
+| ![Knowledge base with categories, search and the article table](docs/screenshots/knowledge.png) | ![Reading view of an article with its outline and the link to create a ticket](docs/screenshots/article.png) |
 
 | Component catalog (`/catalogo`) | Mobile drawer (dark) |
 | --- | --- |
@@ -47,7 +55,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 - **Accessible by construction.** Components follow the WAI-ARIA Authoring Practices: menu button, tabs, toolbar, dialogs on native `<dialog>` (focus trap, Escape, focus return), tooltips that also appear on focus and can be dismissed (WCAG 1.4.13), labelled fields with announced errors, 44 px touch targets on small screens, a skip link and `prefers-reduced-motion`.
 - **Responsive by content, not by device.** Two breakpoints (768 and 1200 px) drive the shell: a drawer on mobile, an icon sidebar on tablets and a collapsible sidebar on desktop. The customer and team tables share one layout built on container queries: cards in narrow containers, priority columns from 768 to 1199 px and the full table from 1200 px. The ticket table has its own container-query layout and is not guaranteed to behave the same at every width (at 1024 px it already shows all its columns).
 - **Honest UI.** No fake success states: actions without a backend say they are not connected yet, and demo data is labelled as such.
-- **Tested.** 441 unit and component tests with coverage thresholds; 283 backend tests, most of them integration tests on PostgreSQL (Testcontainers), covering organization isolation, permissions, internal notes, filters, pagination, validation, update conflicts, metrics, transactional rollback and concurrency with real threads (ticket numbering, racing edits and replies), with a check that fails the build when an operation of the contract has no validated response; and 225 Playwright tests (mocked API) for the ticket, customer and team flows, table layouts at 390, 1024, 1200 and 1440 px, drawer focus, the persisted sidebar and horizontal overflow at 320–1440 px (including the 767/768 and 1199/1200 edges) in both themes, plus 3 full-stack smoke scenarios against the real API.
+- **Tested.** 724 unit and component tests with coverage thresholds; 453 backend tests, most of them integration tests on PostgreSQL (Testcontainers), covering organization isolation, permissions, internal notes, filters, pagination, validation, update conflicts, metrics, transactional rollback and concurrency with real threads (ticket numbering, racing edits and replies), with a check that fails the build when an operation of the contract has no validated response; and 462 Playwright tests (mocked API) for every area, from the ticket flow to the article editor and the settings tabs, with layout checks at 320–1440 px (no layout shift when data arrives), table layouts at 390, 1024, 1200 and 1440 px, drawer focus, the persisted sidebar and horizontal overflow at 320–1440 px (including the 767/768 and 1199/1200 edges) in both themes, plus 6 full-stack smoke scenarios against the real API.
 
 ## Forma UI
 
@@ -138,7 +146,7 @@ Then open `http://localhost:8080/api/oauth2/authorization/resolve` in a browser,
 
 ### Full-stack smoke test
 
-`frontend/e2e-smoke/` holds three Playwright scenarios with nothing mocked: an agent creates a ticket, finds it in the inbox, replies, leaves an internal note and changes the status, and then the customer opens the ticket and sees only the public reply; an admin creates a customer and uses it in a new ticket; and an admin invites an agent, sees the invitation as pending and then active once the invited person signs in. CI runs them in the `Full-stack smoke` job against PostgreSQL and the `dev` API. To run it locally, start PostgreSQL and the API with the `dev` profile as above (port 8080, or set `API_PROXY_TARGET`), then:
+`frontend/e2e-smoke/` holds six Playwright scenarios with nothing mocked: an agent creates a ticket, finds it in the inbox, replies, leaves an internal note and changes the status, and then the customer opens the ticket and sees only the public reply; an admin creates a customer and uses it in a new ticket; an admin invites an agent, sees the invitation as pending and then active once the invited person signs in; a new urgent ticket shows up under «Necesitan atención» on the Overview; the first-response target saved in Settings appears on the Overview; and an agent publishes a public article that the customer then finds and reads. The scenarios that change shared state undo it (the ticket is resolved, the target restored, the article unpublished) so they can run repeatedly. CI runs them in the `Full-stack smoke` job against PostgreSQL and the `dev` API. To run it locally, start PostgreSQL and the API with the `dev` profile as above (port 8080, or set `API_PROXY_TARGET`), then:
 
 ```sh
 cd frontend
@@ -158,7 +166,11 @@ The Figma frames are the visual reference. Where they conflict with the written 
 - **Editor:** the toolbar applies Markdown, so underline is left out.
 - **Tickets scope:** tags, attachments, SLA, customer notifications, deleting and bulk actions are not in the API yet, so the UI leaves them out (no inert controls); the inbox has no selection checkboxes until bulk actions exist.
 - **Text-only placeholders** in Figma (pagination, breadcrumb, editor toolbar, search) are implemented as real, keyboard-operable controls.
-- **Cards without data (D-02).** Figma metrics that have no data or definition in the model are replaced rather than invented: Customers shows «Nuevos este mes» instead of «Satisfacción» and omits «Plan Pro»; Team omits «Disponibilidad» and shows «Primera respuesta» instead of «Respuesta media». Customers also has no «Actividad» tab yet (only «Tickets» and «Notas»).
+- **Cards without data (D-02).** Figma metrics that have no data or definition in the model are replaced rather than invented: Customers shows «Nuevos este mes» instead of «Satisfacción» and omits «Plan Pro»; Team omits «Disponibilidad» and shows «Primera respuesta» instead of «Respuesta media». Customers also has no «Actividad» tab yet (only «Tickets» and «Notas»). On the Overview, «Satisfacción» becomes «Sin responsable» (tickets without an assignee that are not resolved), the table column «Objetivo SLA» becomes «Actualizado», and Reports shows «Resolución» (median hours) instead of «Cumplimiento SLA». Every figure on the Overview and Reports is defined, with its window and its time zone, in [Metrics](docs/api/README.md#metrics).
+- **Markdown without HTML (D-06).** Articles are Markdown rendered with `react-markdown` to React elements: raw HTML is skipped, only headings 2–3, paragraphs, bold, italics, lists and links are allowed (anything else renders as its text) and the default URL sanitizer drops `javascript:` and `data:` links. There is no `dangerouslySetInnerHTML` and no home-made parser; the API stores the body as plain text and never renders it.
+- **No Notifications tab (D-07).** Figma's Settings has a «Notificaciones» tab, but nothing sends or consumes notifications yet, so it is not shown rather than offering switches without effect. Settings has Company, Profile, Appearance and Permissions; the permissions matrix is read-only because roles are fixed and the server decides (the table says so).
+- **Charts as in-house SVG (D-09).** `BarChart` and `ProgressBar` are plain SVG and CSS inside Forma UI, with no chart library: two simple charts do not justify around 100 kB. Every chart has an accessible alternative table (a toggle you reach with Tab) and a text summary, and the chart scales with its container.
+- **One request per report (D-10).** `GET /api/reports/summary?period=7d|30d|90d` returns every section of the report (figures, previous period, days, channels and agents) in one response read in a single transaction, so all the numbers describe the same moment and the page makes one request instead of five. Metric definitions are in [Metrics](docs/api/README.md#metrics).
 - **Invitations (D-08).** Inviting someone creates an `invited` membership for that email, which becomes `active` the first time that person signs in. No email is sent yet, and the dialog says so ("todavía no enviamos correos de invitación") instead of promising one. It stays compatible with an identity provider that verifies the email.
 - **Permissions, summarized.** The server decides; the interface only hides what would be a `403`. A *customer* reads their own tickets and public messages and nothing else.
 
@@ -170,6 +182,10 @@ The Figma frames are the visual reference. Where they conflict with the written 
   | Team and its metrics: read | ✓ | ✓ | 403 |
   | Invite, change role, remove a member | ✓ | 403 | 403 |
   | Reports and the activity feed | ✓ | ✓ | 403 |
+  | Knowledge base: read | ✓ | ✓ | published and public articles only |
+  | Knowledge base: write, publish, unpublish | ✓ | ✓ | 403 |
+  | Organization settings | edit | read only | 403 |
+  | Your own display name | ✓ | ✓ | ✓ |
 
 - **Tables stay feature-local, except for their shared layout (D-05).** `CustomersTable` and `TeamTable` were compared with each other (`TicketTable` was not measured against them): the container grid, the hidden header, the card with hover, the actions cell, the «Mostrando N resultados» caption, the mid-range rules and the ARIA scaffolding were duplicated line by line (123 identical non-blank lines of CSS between the two files, well over the 40-line threshold, plus the table markup), so they moved to `components/ui/Table`, shown in the catalog. Columns, cells and the grid areas of each range stay in each feature; no sorting, selection or virtualization was added. `TicketTable` is left as it is: it also owns row selection and its own container, and migrating it is outside this change.
 - **Full table from 1200 px.** The table container measures about 894 px at a 1200 px viewport (240 px sidebar) and about 898 px at 1024 px (76 px sidebar), so no container threshold alone can show the full table from 1200 px and still keep priority columns below it. The customer and team tables therefore show the full table only when the viewport is at least 1200 px (the project's own breakpoint) and their container is at least 860 px, with the sidebar expanded or collapsed; from 768 to 1199 px they keep priority columns.
@@ -191,8 +207,10 @@ The Figma frames are the visual reference. Where they conflict with the written 
 - [x] Reports API and recent-activity feed
 - [x] Knowledge base API
 - [x] Overview view
-- [ ] Reports view
-- [ ] Knowledge base views and settings (company, profile, appearance and permissions)
+- [x] Reports view: period, accessible chart, channels, agents and CSV
+- [x] Knowledge base views: list, reading, editor with preview, publish and unpublish
+- [x] Settings: company, profile, appearance and the permissions matrix
+- [ ] Article ratings («¿Te resultó útil?»)
 - [ ] Authentication provider replacing the dev-only demo login
 - [ ] Tags, attachments and SLA for tickets
 
