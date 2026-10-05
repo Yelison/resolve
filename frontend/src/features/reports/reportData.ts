@@ -17,7 +17,7 @@ export const channelLabels: Record<TicketChannel, string> = {
   web: 'Web',
 }
 
-const integer = new Intl.NumberFormat('es', { maximumFractionDigits: 0 })
+export const integer = new Intl.NumberFormat('es', { maximumFractionDigits: 0 })
 const decimal = new Intl.NumberFormat('es', { maximumFractionDigits: 1 })
 
 export interface CountComparison {
@@ -38,7 +38,7 @@ export function compareCount(value: number, previous: number, days: number): Cou
   if (difference === 0) return { text: `Sin cambios ${reference}`, arrow: null, trend: 'neutral' }
   const rounded = previous > 0 ? Math.round((Math.abs(difference) / previous) * 100) : 0
   const percent = rounded > 0 ? ` (${integer.format(rounded)} %)` : ''
-  const amount = Math.abs(difference)
+  const amount = integer.format(Math.abs(difference))
   return {
     text: `${amount} ${difference > 0 ? 'más' : 'menos'}${percent} ${reference}`,
     arrow: difference > 0 ? '↑' : '↓',
@@ -59,7 +59,7 @@ export const formatHours = (hours: number | null) => (hours === null ? 'Sin dato
 
 /** Valor y porcentaje de un canal: «71,4 % · 30 tickets». */
 export function channelValueText({ share, created }: ReportChannel): string {
-  return `${decimal.format(share)} % · ${created === 1 ? '1 ticket' : `${created} tickets`}`
+  return `${decimal.format(share)} % · ${created === 1 ? '1 ticket' : `${integer.format(created)} tickets`}`
 }
 
 const weekdayInitials = ['D', 'L', 'M', 'X', 'J', 'V', 'S'] as const

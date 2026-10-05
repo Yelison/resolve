@@ -17,6 +17,7 @@ import {
   formatMinutes,
   formatRange,
   hasActivity,
+  integer,
   resolvedShare,
 } from './reportData'
 import { downloadCsv } from './csv'
@@ -152,7 +153,7 @@ function Metrics({ data }: { data: ReportSummary }) {
     <div className={styles.metrics}>
       <Metric
         label="Solicitudes"
-        value={data.created.value}
+        value={integer.format(data.created.value)}
         trend={created.trend}
         detail={
           <>
@@ -163,7 +164,7 @@ function Metrics({ data }: { data: ReportSummary }) {
       />
       <Metric
         label="Resueltos"
-        value={data.resolved.value}
+        value={integer.format(data.resolved.value)}
         detail={resolvedShare(data.resolved.value, data.created.value) ?? undefined}
       />
       <Metric
