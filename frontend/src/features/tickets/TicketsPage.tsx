@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useSearchParams } from 'react-router'
 import {
+  Alert,
   Button,
   buttonClassName,
   EmptyState,
@@ -144,7 +145,7 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
         }
       />
 
-      {isStaff && metrics.data && <MetricsRow metrics={metrics.data} />}
+      {isStaff && <MetricsSection query={metrics} />}
 
       <section className={styles.inbox} aria-label="Bandeja de tickets">
         {isStaff && (
@@ -228,26 +229,74 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
   )
 }
 
-function MetricsRow({ metrics }: { metrics: TicketMetrics }) {
+/** Valores representativos para el esqueleto y el error: solo fijan la altura de las tarjetas, nunca se muestran. */
+const ghostMetrics: TicketMetrics = {
+  open: 24,
+  openedToday: 8,
+  inProgress: 12,
+  inProgressAssignedToMe: 4,
+  // «↑ 100 % vs. ayer»: la comparación más larga habitual.
+  resolvedToday: 8,
+  resolvedYesterday: 4,
+  firstResponseMinutes: 18,
+  firstResponseTargetMinutes: 30,
+  views: { all: 24, mine: 4, unassigned: 6, resolved: 10 },
+}
+
+/**
+ * Las métricas ocupan siempre el mismo hueco: durante la carga o el error, las tarjetas reales van ocultas
+ * (`visibility: hidden` las quita también de la lectura de pantalla) y fijan la altura; encima van el esqueleto o el
+ * error, y lo de debajo no salta cuando llegan los datos.
+ */
+function MetricsSection({ query }: { query: ReturnType<typeof useTicketMetrics> }) {
+  if (query.data) return <MetricsRow metrics={query.data} />
+  if (!query.isError && !query.isPending) return null
+  return (
+    <div className={styles.metricsState}>
+      <div className={styles.metricsGhost}>
+        <MetricsRow metrics={ghostMetrics} ghost />
+      </div>
+      <div className={styles.metricsOverlay}>
+        {query.isError ? (
+          <Alert tone="red" title="No pudimos cargar las métricas de la bandeja">
+            <Button
+              variant="secondary"
+              aria-label="Reintentar cargar las métricas de la bandeja"
+              onClick={() => void query.refetch()}
+            >
+              Reintentar
+            </Button>
+          </Alert>
+        ) : (
+          <Skeleton lines={3} label="Cargando métricas…" className={styles.metricsSkeleton} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MetricsRow({ metrics, ghost = false }: { metrics: TicketMetrics; ghost?: boolean }) {
   const { resolvedToday, resolvedYesterday, firstResponseMinutes, firstResponseTargetMinutes } = metrics
   const change =
     resolvedYesterday > 0 ? Math.round(((resolvedToday - resolvedYesterday) / resolvedYesterday) * 100) : null
+  // Con `ghost` las etiquetas van vacías: el esqueleto no debe duplicar ningún texto real.
+  const label = (text: string) => (ghost ? '\u00a0' : text)
   return (
     <div className={styles.metrics}>
       <Metric
-        label="Tickets abiertos"
+        label={label('Tickets abiertos')}
         value={metrics.open}
         detail={`${metrics.openedToday} nuevos hoy`}
         trend={metrics.openedToday > 0 ? 'positive' : 'neutral'}
       />
       <Metric
-        label="En progreso"
+        label={label('En progreso')}
         value={metrics.inProgress}
         detail={`${metrics.inProgressAssignedToMe} asignados a ti`}
         trend="positive"
       />
       <Metric
-        label="Resueltos hoy"
+        label={label('Resueltos hoy')}
         value={resolvedToday}
         detail={
           change === null ? `Ayer: ${resolvedYesterday}` : `${change >= 0 ? '↑' : '↓'} ${Math.abs(change)} % vs. ayer`
@@ -255,7 +304,7 @@ function MetricsRow({ metrics }: { metrics: TicketMetrics }) {
         trend={change === null ? 'neutral' : change >= 0 ? 'positive' : 'negative'}
       />
       <Metric
-        label="Primera respuesta"
+        label={label('Primera respuesta')}
         value={firstResponseMinutes === null ? '—' : `${firstResponseMinutes} min`}
         detail={
           firstResponseMinutes === null
