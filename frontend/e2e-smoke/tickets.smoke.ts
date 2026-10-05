@@ -15,9 +15,20 @@ test('un agente atiende un ticket y la clienta solo ve lo público', async ({ pa
   const notifications = page.getByRole('region', { name: 'Notificaciones' })
   let number = ''
 
-  await test.step('el agente crea un ticket para una clienta', async () => {
+  await test.step('la API real responde como el agente de demostración', async () => {
+    // Falla en segundos y con un mensaje claro si el proxy no llega a la API (devolvería el index.html) o si la API
+    // no tiene el perfil `dev` (401), en vez de esperar al tiempo límite de un localizador.
     await loginAs(page, demoUsers.admin)
+    const meResponse = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/me', {
+      timeout: 15_000,
+    })
     await page.goto('/tickets/nuevo')
+    const me = await meResponse
+    expect(me.status(), 'GET /api/me: ¿backend con perfil dev y proxy de /api?').toBe(200)
+    expect(me.headers()['content-type'] ?? '', 'GET /api/me debe devolver JSON, no el index.html').toContain('json')
+  })
+
+  await test.step('el agente crea un ticket para una clienta', async () => {
     await page.getByRole('combobox', { name: 'Cliente' }).fill('María')
     await page.getByRole('option', { name: /María Pérez/ }).click()
     await page.getByRole('textbox', { name: 'Asunto' }).fill(subject)
@@ -46,7 +57,9 @@ test('un agente atiende un ticket y la clienta solo ve lo público', async ({ pa
     await expect(notifications).toContainText('Respuesta enviada')
     await expect(page.getByText(reply)).toBeVisible()
 
-    await page.getByRole('radio', { name: 'Nota interna' }).check({ force: true })
+    // El radio está oculto visualmente: se pulsa su etiqueta visible, como haría una persona.
+    await page.getByText('Nota interna', { exact: true }).click()
+    await expect(page.getByRole('radio', { name: 'Nota interna' })).toBeChecked()
     await page.getByRole('textbox', { name: 'Nota interna' }).fill(note)
     await page.getByRole('button', { name: 'Guardar nota' }).click()
     await expect(notifications).toContainText('Nota guardada')
