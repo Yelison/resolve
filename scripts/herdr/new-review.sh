@@ -10,7 +10,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 usage() {
   cat <<'USAGE'
 Usage: scripts/herdr/new-review.sh --task ID [--effort high|medium] [--points FILE] [--name NAME] [--lane X]
-                                   [--round N] [--ignore-load]
+                                   [--round N] [--slot N] [--ignore-load]
 
   --task ID       The delivered task to review (its branch HEAD is the reviewed commit)
   --effort LEVEL  Reasoning effort of the reviewer: high (default) or medium
@@ -19,13 +19,14 @@ Usage: scripts/herdr/new-review.sh --task ID [--effort high|medium] [--points FI
   --lane X        Lane the report ends with (REVISIÓN X: …); default: the one in the task's brief
   --round N       The review already exists and the task advanced: move it to the new HEAD (N >= 2), write
                   brief-ronda-N.md with the points and send it to the reviewer
+  --slot N        Port slot 1-9 for the review (default: new-task.sh picks the first free one); first run only
   --ignore-load   Start the reviewer although the load average is above HERDR_MAX_LOAD
 
 The review is the task review-ID; it is retired with scripts/herdr/remove-task.sh like any other task.
 USAGE
 }
 
-ID= EFFORT=high POINTS= NAME= NAME_GIVEN=0 LANE= ROUND= IGNORE_LOAD=0
+ID= EFFORT=high POINTS= NAME= NAME_GIVEN=0 LANE= ROUND= SLOT= IGNORE_LOAD=0
 while [ $# -gt 0 ]; do
   case $1 in
     --task) need_arg "$1" $#; ID=${2:-}; shift 2 ;;
@@ -34,6 +35,7 @@ while [ $# -gt 0 ]; do
     --name) need_arg "$1" $#; NAME=${2:-}; NAME_GIVEN=1; shift 2 ;;
     --lane) need_arg "$1" $#; LANE=${2:-}; shift 2 ;;
     --round) need_arg "$1" $#; ROUND=${2:-}; shift 2 ;;
+    --slot) need_arg "$1" $#; SLOT=${2:-}; shift 2 ;;
     --ignore-load) IGNORE_LOAD=1; shift ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
@@ -58,16 +60,15 @@ IMPL_BRIEF="$(task_dir "$ID")/brief.md"
 DELIVERY="$(task_dir "$ID")/delivery.md"
 [ -f "$IMPL_BRIEF" ] || die "the task has no brief: $IMPL_BRIEF"
 [ -f "$DELIVERY" ] || log "warning: no delivery yet at $DELIVERY"
-if [ -d "$TASK_WORKTREE" ]; then
-  SHA=$(git -C "$TASK_WORKTREE" rev-parse HEAD)
-  if [ -n "$(git -C "$TASK_WORKTREE" status --porcelain)" ]; then
-    log "warning: the task worktree has uncommitted changes; the review covers only $SHA"
-  fi
-else
-  SHA=$(git -C "$TASK_REPO" rev-parse --verify --quiet "refs/heads/$TASK_BRANCH^{commit}") || die "no worktree and no branch $TASK_BRANCH"
+# The reviewed commit is what the task's branch points at (the same as the worktree's HEAD while it is on that branch).
+SHA=$(git -C "$TASK_REPO" rev-parse --verify --quiet "refs/heads/$TASK_BRANCH^{commit}") || die "no branch $TASK_BRANCH in $TASK_REPO"
+if [ -d "$TASK_WORKTREE" ] && [ -n "$(git -C "$TASK_WORKTREE" status --porcelain)" ]; then
+  log "warning: the task worktree has uncommitted changes; the review covers only $SHA"
 fi
 SHA7=${SHA:0:7}
 IMPL_BASE=$TASK_BASE_SHA
+IMPL_SLOT=$TASK_SLOT
+IMPL_PROJECT=$TASK_COMPOSE_PROJECT
 
 # Fields the briefs take from the implementer's brief; each falls back instead of failing on an empty match.
 TITLE=$(awk '/^# /{ sub(/^# /, ""); print; exit }' "$IMPL_BRIEF")
@@ -79,19 +80,47 @@ if [ -z "$LANE" ]; then
   LANE=${LANE:-$ID}
 fi
 
+# Nothing is created or moved before the values that go into the briefs are known to be fillable: a marker-shaped
+# text in them would make the fill fail after the review worktree exists.
+for field in "the title in $IMPL_BRIEF=$TITLE" "the plan reference in $IMPL_BRIEF=$PLAN_REF" \
+  "the points file ${POINTS:-(none)}=$([ -z "$POINTS" ] || cat "$POINTS")"; do
+  if [[ ${field#*=} =~ \{\{[A-Z][A-Z_]*\}\} ]]; then
+    die "${field%%=*} contains the marker-shaped text ${BASH_REMATCH[0]}; reword it (nothing was created)"
+  fi
+done
+
 # Commands for the reviewer: the implementer brief's "## Comandos" block, with the review slot's ports spelled out
 # (auto mode may refuse to read .env.herdr).
 review_commands() {
-  local slot=$1 project=$2 ports cmds
+  local slot=$1 project=$2 ports cmds from to i
+  local -a impl_ports new_ports
   ports=$(slot_ports "$slot" | paste -sd' ')
   cmds=$(awk '/^## Comandos/{ f = 1; next } f && /^## /{ exit } f && /^```/{ if (inb) exit; inb = 1; next } f && inb { print }' "$IMPL_BRIEF")
   printf '# Your slot (%s): %s\n# Docker Compose: always with -p %s\n' "$slot" "$ports" "$project"
-  if [ -n "$cmds" ]; then
-    printf '%s\n' "$cmds"
-  else
+  if [ -z "$cmds" ]; then
     printf '# The implementer brief lists no commands: take them from its acceptance criteria.\ngit log --oneline %s..%s\ngit diff --stat %s..%s\n' \
       "$TASK_BASE_SHA" "$SHA" "$TASK_BASE_SHA" "$SHA"
+    return 0
   fi
+  # The implementer's brief was filled with its own slot: move every port and its Compose project to the review's.
+  [ "$IMPL_SLOT" != "$slot" ] || die "the review would use the implementer's slot $slot"
+  mapfile -t impl_ports < <(slot_ports "$IMPL_SLOT")
+  mapfile -t new_ports < <(slot_ports "$slot")
+  for i in "${!impl_ports[@]}"; do
+    from=${impl_ports[$i]#*=}
+    to=${new_ports[$i]#*=}
+    cmds=$(sed -E "s/\b$from\b/$to/g" <<<"$cmds")
+  done
+  # Twice, because two occurrences separated by a single character share it.
+  for i in 1 2; do
+    cmds=$(sed -E "s/(^|[^A-Za-z0-9_-])$IMPL_PROJECT([^A-Za-z0-9_-]|\$)/\1$project\2/g" <<<"$cmds")
+  done
+  for i in "${!impl_ports[@]}"; do
+    from=${impl_ports[$i]#*=}
+    if grep -Eq "\b$from\b" <<<"$cmds"; then die "the review commands still carry the implementer's port $from"; fi
+  done
+  if grep -Eq "(^|[^A-Za-z0-9_-])$IMPL_PROJECT([^A-Za-z0-9_-]|\$)" <<<"$cmds"; then die "the review commands still carry the implementer's Compose project $IMPL_PROJECT"; fi
+  printf '%s\n' "$cmds"
 }
 
 # The coordinator's extra points as a section (or nothing).
@@ -109,16 +138,18 @@ if [ -z "$ROUND" ]; then
   BRANCH="review/$ID-$SHA7"
   new_args=(--id "$RID" --branch "$BRANCH" --base "$SHA" --advisor none --effort "$EFFORT"
     --effort-reason "independent review of $ID at $SHA7" --install --ignore-load)
+  [ -z "$SLOT" ] || new_args+=(--slot "$SLOT")
   "$SCRIPT_DIR/new-task.sh" "${new_args[@]}" >/dev/null
   load_task "$RID"
   REVIEW_DIR=$(task_dir "$RID")
   update_task "$RID" '.review = { of: $of, sha: $sha, base_sha: $base, round: 1, lane: $lane }' \
     --arg of "$ID" --arg sha "$SHA" --arg base "$IMPL_BASE" --arg lane "$LANE"
   # TASK_* now describe the review task; the implementer's values were captured above.
+  COMMANDS_TEXT=$(TASK_BASE_SHA=$IMPL_BASE review_commands "$TASK_SLOT" "$TASK_COMPOSE_PROJECT")
   render_template "$SCRIPT_DIR/review-brief.template.md" '{{' '}}' \
     "TASK_TITLE=$TITLE" "TASK_ID=$ID" "PLAN_REF=$PLAN_REF" "IMPL_BRIEF=$IMPL_BRIEF" "DELIVERY=$DELIVERY" \
     "SHA=$SHA" "BASE_SHA=$IMPL_BASE" "WORKTREE=$TASK_WORKTREE" "BRANCH=$TASK_BRANCH" \
-    "COMMANDS=$(TASK_BASE_SHA=$IMPL_BASE review_commands "$TASK_SLOT" "$TASK_COMPOSE_PROJECT")" \
+    "COMMANDS=$COMMANDS_TEXT" \
     "EXTRA_POINTS=$(extra_points)" "REVIEW_FILE=$REVIEW_DIR/review.md" "FIXES_PROPOSAL=$REVIEW_DIR/fixes-proposal.md" \
     "LANE=$LANE" >"$REVIEW_DIR/brief.md"
   log "Review brief: $REVIEW_DIR/brief.md"
@@ -141,6 +172,9 @@ if [ -n "$occupant" ]; then
   AGENT_NAME=$(jq -r '.name // empty' <<<"$occupant")
 fi
 [ -n "$occupant" ] || check_load "$IGNORE_LOAD"   # a reviewer that must be started again needs a new session
+CUR_ROUND=$(jq -r '.review.round // 1' "$(task_json "$RID")")
+[ "$ROUND" -gt "$CUR_ROUND" ] || die "the review is at round $CUR_ROUND; --round must be greater (nothing was moved)"
+[ ! -e "$(task_dir "$RID")/brief-ronda-$ROUND.md" ] || die "$(task_dir "$RID")/brief-ronda-$ROUND.md already exists (nothing was moved)"
 OLD_SHA=$(git -C "$TASK_WORKTREE" rev-parse HEAD)
 OLD_BASE=$(jq -r --arg d "$IMPL_BASE" '.review.base_sha // $d' "$(task_json "$RID")")
 [ "$OLD_SHA" != "$SHA" ] || die "the task is still at $SHA, which the review already covers (nothing to do)"
@@ -169,11 +203,12 @@ REVIEW_DIR=$(task_dir "$RID")
 FIXES="$(task_dir "$IMPL_ID")/fixes-$((ROUND - 1)).md"
 if [ -f "$FIXES" ]; then FIXES_REF="\`$FIXES\`"; else FIXES_REF="none written (the implementer's delivery lists what changed)"; fi
 ROUND_BRIEF="$REVIEW_DIR/brief-ronda-$ROUND.md"
+COMMANDS_TEXT=$(TASK_BASE_SHA=$IMPL_BASE review_commands "$TASK_SLOT" "$TASK_COMPOSE_PROJECT")
 render_template "$SCRIPT_DIR/review-round.template.md" '{{' '}}' \
   "TASK_TITLE=$TITLE" "ROUND=$ROUND" "FIRST_BRIEF=$REVIEW_DIR/brief.md" "TASK_ID=$IMPL_ID" "PLAN_REF=$PLAN_REF" \
   "IMPL_BRIEF=$IMPL_BRIEF" "DELIVERY=$DELIVERY" "SHA=$SHA" "OLD_SHA=$OLD_SHA" "HISTORY_NOTE=$HISTORY_NOTE" \
   "WORKTREE=$TASK_WORKTREE" "BRANCH=$TASK_BRANCH" "FIXES=$FIXES_REF" \
-  "COMMANDS=$(TASK_BASE_SHA=$IMPL_BASE review_commands "$TASK_SLOT" "$TASK_COMPOSE_PROJECT")" \
+  "COMMANDS=$COMMANDS_TEXT" \
   "EXTRA_POINTS=$(extra_points)" "REVIEW_FILE=$REVIEW_DIR/review-ronda-$ROUND.md" \
   "FIXES_PROPOSAL=$REVIEW_DIR/fixes-proposal-ronda-$ROUND.md" "LANE=$LANE" >"$ROUND_BRIEF"
 log "Round $ROUND brief: $ROUND_BRIEF (review moved from $OLD_SHA to $SHA)"
