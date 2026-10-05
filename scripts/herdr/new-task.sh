@@ -20,7 +20,7 @@ Usage: scripts/herdr/new-task.sh --id ID --branch BRANCH [options]
   --max-effort L   Highest level the agent may run at (default: same as --effort; raise it with set-effort.sh)
   --effort-reason  One line explaining the level, stored in task.json
   --model ID       Model for the task's agent, e.g. claude-sonnet-5-5 (default: the owner's default model)
-  --advisor ID     Advisor model, e.g. claude-opus-5-5 (default: the owner's advisor setting)
+  --advisor ID     Advisor model, e.g. claude-opus-5-5, or none (default: the owner's advisor setting)
   --install        Run `npm ci` in frontend/ once the worktree exists
   --no-claude-md   Do not copy the local, git-ignored CLAUDE.md into the worktree
   -h, --help       Show this help

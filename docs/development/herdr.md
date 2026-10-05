@@ -138,7 +138,7 @@ worktree can commit it. It survives Herdr restarts, which the `--effort` flag do
 **Model and advisor.** The owner decides which model each kind of agent runs; the coordinator applies that decision
 and never changes it on its own. Since 2026-10-05 new implementer agents run Sonnet 5.5 with Opus 5.5 as the advisor
 (`new-task.sh --model claude-sonnet-5-5 --advisor claude-opus-5-5`), which writes `model` and `advisorModel` to the
-same local settings file. Reviewers run the owner's default model at the effort the review needs. Full model IDs are
+same local settings file. Reviewers: see "Advisor per role" below. Full model IDs are
 used instead of aliases so a Claude Code update cannot move them. An advisor must rank at or above the main model:
 Sonnet cannot advise Opus. `start-agent.sh` records the model from the session header; the advisor shows in
 `/advisor`, which must be closed with `esc` (choosing a row saves it to the owner's settings).
@@ -180,11 +180,26 @@ scripts/herdr/set-effort.sh --id <id> --level high --reason "flaky race test wit
 It refuses while the agent is `working` or `blocked`, rewrites the file, appends to `effort.history`, exits the
 agent and resumes the same conversation with `claude --continue`, then verifies the header again.
 
-**Independent review.** The reviewer picks its own level from the risk of the change: an implementation done at
-`medium` may need a `high` review when it touches permissions, data or shared contracts. A review run as a Claude
-Code session in the task worktree gets its level with `claude --effort <level>` (a one-off session, nothing saved).
-Subagents started from the coordinator inherit the coordinator's level; Claude Code has no per-call setting for
-them. Acceptance criteria and tests are the same at every level.
+**Independent review.** A review runs in its own Claude Code session in Herdr, never as a subagent of the
+coordinator (subagents inherit the coordinator's effort, model and advisor, and Claude Code has no per-call setting
+for them). The coordinator creates a review worktree pinned to the delivered commit, with the level the risk
+requires, and the review brief from `scripts/herdr/review-brief.template.md`:
+
+```sh
+scripts/herdr/new-task.sh --id review-<id> --branch review/<id>-<sha7> --base <sha> \
+  --effort high --advisor none --effort-reason "touches shared cache and the shell"
+scripts/herdr/start-agent.sh --id review-<id> --name rev-<id> --brief ~/resolver-herdr/tasks/review-<id>/brief.md
+```
+
+The implementer does not touch the reviewed commit while the review runs; fixes go on new commits in the task
+worktree, and the review worktree moves to them with `git merge --ff-only <new-sha>` for the next round. An
+implementation done at `medium` may need a `high` review when it touches permissions, data or shared contracts.
+Acceptance criteria and tests are the same at every level. Retire the review worktree once the verdict is final.
+
+**Advisor per role.** Implementers: Sonnet 5.5 with Opus 5.5 as advisor (owner's decision, 2026-10-05). Reviewers:
+the owner's default model at `high`, without advisor (`--advisor none`, which sets `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`
+through the `env` key of the worktree's local settings): the review is already the second opinion, and every advisor
+call re-reads the whole conversation at the advisor's rate.
 
 **Follow-up.** Each delivery reports the level used, the result, any rework and the reason for any escalation; the
 coordinator copies it to `effort.outcome`. Token or cost figures are not recorded: neither Herdr nor Claude Code
