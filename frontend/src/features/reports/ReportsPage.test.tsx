@@ -45,6 +45,9 @@ const requestedPeriods = (spy: ReturnType<typeof mockApi>) =>
     .map((url) => url.searchParams.get('period'))
 
 // El nombre de una tarjeta también aparece en el gráfico y en la tabla: se busca solo entre las etiquetas de métrica.
+// El esqueleto y la línea del rango ocultos repiten texto representativo para reservar su altura: los tests solo cuentan lo no oculto.
+const visibleRange = () =>
+  screen.queryAllByText(/America\/Bogota/).filter((node) => !node.closest('[aria-hidden="true"]'))
 const metricCard = (label: string) => screen.getByText(label, { selector: 'dt' }).closest('dl')!
 const findMetricCard = async (label: string) => (await screen.findByText(label, { selector: 'dt' })).closest('dl')!
 
@@ -153,10 +156,41 @@ describe('ReportsPage', () => {
       await waitFor(() => expect(router.state.location.search).toBe(''))
     })
 
+    it('al cambiar de periodo sigue viendo el informe anterior, avisa que actualiza y no deja exportar', async () => {
+      let release: () => void = () => {}
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      mockApi({
+        ...baseRoutes,
+        'GET /api/reports/summary': async (request) => {
+          if (new URL(request.url).searchParams.get('period') === '30d') await gate
+          return byPeriod()(request)
+        },
+      })
+      renderReports()
+      await findMetricCard('Solicitudes')
+      expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled()
+
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Periodo' }), '30d')
+      // El informe de 7 días sigue en pantalla, ocupado, sin esqueleto, y no se puede exportar como si fuera el de 30.
+      expect(await screen.findByText('Actualizando el informe…')).toBeInTheDocument()
+      expect(screen.getByText(/frente a los 7 días anteriores/).closest('[aria-busy]')).toHaveAttribute(
+        'aria-busy',
+        'true',
+      )
+      expect(screen.queryByText('Cargando el informe…')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeDisabled()
+
+      release()
+      expect(await screen.findByText(/frente a los 30 días anteriores/)).toBeInTheDocument()
+      expect(screen.queryByText('Actualizando el informe…')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled()
+    })
+
     it('abre con el periodo de la URL', async () => {
       const spy = mockApi(baseRoutes)
       renderReports('/reportes?period=90d')
-      expect(await screen.findByText(/frente a los 90 días anteriores/)).toBeInTheDocument()
+      expect(await screen.findByRole('table', { name: 'Rendimiento por agente' })).toBeInTheDocument()
+      expect(screen.getAllByText(/frente a los 90 días anteriores/).length).toBeGreaterThan(0)
       expect(screen.getByRole('combobox', { name: 'Periodo' })).toHaveValue('90d')
       expect(requestedPeriods(spy)).toEqual(['90d'])
       // Con 90 días el gráfico agrega por semanas.
@@ -206,6 +240,28 @@ describe('ReportsPage', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
       expect(await screen.findByRole('table', { name: 'Rendimiento por agente' })).toBeInTheDocument()
     })
+  })
+
+  it('tras un refetch fallido muestra el error, sin el rango anterior, y no deja exportar los datos viejos', async () => {
+    let fail = false
+    mockApi({ ...baseRoutes, 'GET /api/reports/summary': (request) => (fail ? problem : byPeriod()(request)) })
+    const { queryClient } = renderWithProviders(
+      <RouterProvider
+        router={createMemoryRouter([{ path: '/reportes', element: <ReportsPage /> }], {
+          initialEntries: ['/reportes'],
+        })}
+      />,
+    )
+    await findMetricCard('Solicitudes')
+    expect(visibleRange()).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled()
+
+    fail = true
+    await queryClient.refetchQueries()
+    expect(await screen.findByText('No pudimos cargar el informe')).toBeInTheDocument()
+    expect(visibleRange()).toHaveLength(0)
+    expect(screen.queryByRole('table', { name: 'Rendimiento por agente' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeDisabled()
   })
 
   describe('exportar CSV', () => {
