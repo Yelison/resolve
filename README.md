@@ -4,7 +4,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 
 [![CI](https://github.com/Yelison/resolve/actions/workflows/ci.yml/badge.svg)](https://github.com/Yelison/resolve/actions/workflows/ci.yml)
 
-> **Status:** work in progress. The design system, the shared components (internally called **Forma UI**), the application shell and the **Tickets**, **Customers** and **Team** areas (views and Spring Boot API) are done. The API for reports and the recent-activity feed exists too, but their views (Overview, Reports), the knowledge base and settings come next; until then each one says so instead of showing fake screens.
+> **Status:** work in progress. The design system, the shared components (internally called **Forma UI**), the application shell and the **Tickets**, **Customers** and **Team** areas (views and Spring Boot API) are done. The API for reports, the recent-activity feed and the knowledge base exists too, but their views (Overview, Reports, Knowledge base) and settings come next; until then each one says so instead of showing fake screens.
 
 | Ticket inbox | Ticket detail (dark) |
 | --- | --- |
@@ -47,7 +47,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 - **Accessible by construction.** Components follow the WAI-ARIA Authoring Practices: menu button, tabs, toolbar, dialogs on native `<dialog>` (focus trap, Escape, focus return), tooltips that also appear on focus and can be dismissed (WCAG 1.4.13), labelled fields with announced errors, 44 px touch targets on small screens, a skip link and `prefers-reduced-motion`.
 - **Responsive by content, not by device.** Two breakpoints (768 and 1200 px) drive the shell: a drawer on mobile, an icon sidebar on tablets and a collapsible sidebar on desktop. The customer and team tables share one layout built on container queries: cards in narrow containers, priority columns from 768 to 1199 px and the full table from 1200 px. The ticket table has its own container-query layout and is not guaranteed to behave the same at every width (at 1024 px it already shows all its columns).
 - **Honest UI.** No fake success states: actions without a backend say they are not connected yet, and demo data is labelled as such.
-- **Tested.** 410 unit and component tests with coverage thresholds; 214 backend tests, most of them integration tests on PostgreSQL (Testcontainers), covering organization isolation, permissions, internal notes, filters, pagination, validation, update conflicts, metrics, transactional rollback and concurrency with real threads (ticket numbering, racing edits and replies), with a check that fails the build when an operation of the contract has no validated response; and 196 Playwright tests (mocked API) for the ticket, customer and team flows, table layouts at 390, 1024, 1200 and 1440 px, drawer focus, the persisted sidebar and horizontal overflow at 320–1440 px (including the 767/768 and 1199/1200 edges) in both themes, plus 3 full-stack smoke scenarios against the real API.
+- **Tested.** 410 unit and component tests with coverage thresholds; 283 backend tests, most of them integration tests on PostgreSQL (Testcontainers), covering organization isolation, permissions, internal notes, filters, pagination, validation, update conflicts, metrics, transactional rollback and concurrency with real threads (ticket numbering, racing edits and replies), with a check that fails the build when an operation of the contract has no validated response; and 196 Playwright tests (mocked API) for the ticket, customer and team flows, table layouts at 390, 1024, 1200 and 1440 px, drawer focus, the persisted sidebar and horizontal overflow at 320–1440 px (including the 767/768 and 1199/1200 edges) in both themes, plus 3 full-stack smoke scenarios against the real API.
 
 ## Project structure
 
@@ -155,8 +155,9 @@ The Figma frames are the visual reference. Where they conflict with the written 
 - [x] Team: API, list, invitation, roles and removal
 - [x] Shared table layout in Forma UI
 - [x] Reports API and recent-activity feed
+- [x] Knowledge base API
 - [ ] Overview and Reports views
-- [ ] Knowledge base and settings (company, profile, appearance and permissions) views
+- [ ] Knowledge base views and settings (company, profile, appearance and permissions)
 - [ ] Authentication provider replacing the dev-only demo login
 - [ ] Tags, attachments and SLA for tickets
 
