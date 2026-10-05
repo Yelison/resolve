@@ -30,6 +30,8 @@ import com.resolve.api.tickets.TicketRequestParser.NewMessage;
 import com.resolve.api.tickets.TicketRequestParser.NewTicket;
 import com.resolve.api.tickets.TicketRequestParser.TicketChanges;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,9 +62,12 @@ class TicketService {
 
 	private final Clock clock;
 
+	private final ObjectProvider<Runnable> updateBarrier;
+
 	TicketService(TicketRepository tickets, TicketMessageRepository messages, TicketActivityRepository activities,
 			CustomerRepository customers, MembershipRepository memberships, UserAccountRepository users,
-			TicketMetricsQuery metrics, Clock clock) {
+			TicketMetricsQuery metrics, Clock clock,
+			@Qualifier("ticketUpdateBarrier") ObjectProvider<Runnable> updateBarrier) {
 		this.tickets = tickets;
 		this.messages = messages;
 		this.activities = activities;
@@ -71,6 +76,7 @@ class TicketService {
 		this.users = users;
 		this.metrics = metrics;
 		this.clock = clock;
+		this.updateBarrier = updateBarrier;
 	}
 
 	@Transactional(readOnly = true)
@@ -125,6 +131,9 @@ class TicketService {
 		}
 
 		Instant now = this.clock.instant();
+		// Solo existe en el perfil test (TicketUpdateBarrier): permite aparcar el PATCH a mitad de la transacción.
+		this.updateBarrier.getIfAvailable(() -> () -> {
+		}).run();
 		if (changes.status() != null) {
 			TicketStatus previous = ticket.changeStatus(changes.status(), now);
 			if (previous != null) {
