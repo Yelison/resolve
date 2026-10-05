@@ -27,16 +27,24 @@ export function applyFormat(text: string, start: number, end: number, format: Te
   }
 
   if (format === 'heading') {
-    // Encabezado de nivel 2 en la línea del cursor; sobre una línea que ya lo es, lo quita.
+    // Encabezado de nivel 2 en todas las líneas que toca la selección. Cualquier prefijo `#`…`######` pasa a `## `; si
+    // todas ya lo son, se quita. La selección se desplaza lo que cambia cada línea hasta su inicio y su final.
     const lineStart = before.lastIndexOf('\n') + 1
-    const isHeading = text.startsWith('## ', lineStart)
-    const delta = isHeading ? -3 : 3
+    const nextBreak = after.indexOf('\n')
+    const lineEnd = nextBreak === -1 ? text.length : end + nextBreak
+    const lines = text.slice(lineStart, lineEnd).split('\n')
+    const prefix = /^#{1,6} /
+    const allH2 = lines.every((line) => line.startsWith('## '))
+    const changed = lines.map((line) => (allH2 ? line.slice(3) : `## ${line.replace(prefix, '')}`))
+    // Cuánto cambia cada línea (más o menos caracteres), para recolocar el inicio y el final de la selección.
+    const deltas = lines.map((line, index) => changed[index]!.length - line.length)
+    const startLine = text.slice(lineStart, start).split('\n').length - 1
+    const endLine = text.slice(lineStart, end).split('\n').length - 1
+    const sum = (upTo: number) => deltas.slice(0, upTo).reduce((total, delta) => total + delta, 0)
     return {
-      value: isHeading
-        ? `${text.slice(0, lineStart)}${text.slice(lineStart + 3)}`
-        : `${text.slice(0, lineStart)}## ${text.slice(lineStart)}`,
-      selectionStart: Math.max(lineStart, start + delta),
-      selectionEnd: Math.max(lineStart, end + delta),
+      value: `${text.slice(0, lineStart)}${changed.join('\n')}${text.slice(lineEnd)}`,
+      selectionStart: Math.max(lineStart, start + sum(startLine + 1)),
+      selectionEnd: Math.max(lineStart, end + sum(endLine + 1)),
     }
   }
 
