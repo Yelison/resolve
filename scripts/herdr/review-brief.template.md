@@ -32,6 +32,8 @@ Commands to run in your worktree:
 The machine is shared by three or four agents: run Vitest with `npm test -- --maxWorkers=3` and Playwright with `--workers=3`. If a test times out under load, rerun it alone before drawing conclusions.
 ```
 
+{{EXTRA_POINTS}}
+
 ## Delivery
 
 Write `{{REVIEW_FILE}}` with: the verdict (`APROBADO`, `APROBADO CON CAMBIOS MENORES` or `CAMBIOS NECESARIOS`); a

@@ -217,15 +217,33 @@ for them). The coordinator creates a review worktree pinned to the delivered com
 requires, and the review brief from `scripts/herdr/review-brief.template.md`:
 
 ```sh
-scripts/herdr/new-task.sh --id review-<id> --branch review/<id>-<sha7> --base <sha> \
-  --effort high --advisor none --effort-reason "touches shared cache and the shell"
-scripts/herdr/start-agent.sh --id review-<id> --name rev-<id> --brief ~/resolver-herdr/tasks/review-<id>/brief.md
+scripts/herdr/new-review.sh --task <id> [--effort high|medium] [--points points.md] [--name rev-<id>] [--lane X]
 ```
 
-The implementer does not touch the reviewed commit while the review runs; fixes go on new commits in the task
-worktree, and the review worktree moves to them with `git merge --ff-only <new-sha>` for the next round. An
-implementation done at `medium` may need a `high` review when it touches permissions, data or shared contracts.
-Acceptance criteria and tests are the same at every level. Retire the review worktree once the verdict is final.
+It does what the coordinator used to do by hand: creates `review-<id>` with `new-task.sh --base <HEAD of the task>
+--advisor none --effort <level> --install` (branch `review/<id>-<sha7>`), fills `review-brief.template.md`, appends the
+points of `--points` under "Extra points from the coordinator", and starts the reviewer with `start-agent.sh`. The
+brief gets, from the implementer's `brief.md`: the title (its first `# ` heading), the plan reference (its `- Id:`
+line), the lane (the one in `ENTREGA <lane>: LISTA`, unless `--lane`) and the commands (the first code block under
+`## Comandos`, with a first line that spells out the review slot's ports and Compose project, because auto mode may
+refuse to read `.env.herdr`); without that block it falls back to `git log`/`git diff --stat` and says so. The
+reviewed commit is the task's `HEAD`, its base is the task's `base_sha`, and the report goes to
+`tasks/review-<id>/review.md`. The review id must be a valid task id, so the task id has at most 33 characters.
+The manual equivalent is `new-task.sh --id review-<id> --branch review/<id>-<sha7> --base <sha> --effort high
+--advisor none --effort-reason "…"` followed by `start-agent.sh`.
+
+**Next rounds.** The implementer does not touch the reviewed commit while the review runs; fixes go on new commits in
+the task worktree. For the next round run `new-review.sh --task <id> --round N [--points …]` (N ≥ 2). It refuses while
+the reviewer is `working` or `blocked`, while the review worktree has changes, or if the task did not move. Then it
+moves the review worktree to the task's new `HEAD`: `git merge --ff-only` when the old commit is an ancestor, and,
+if the history was rewritten (rebase, amend), a new branch `review/<id>-<sha7>` at the new commit (no `reset --hard`;
+the old branch stays until you delete it). It writes `tasks/review-<id>/brief-ronda-N.md` (previous and new commit,
+a `git range-diff` hint when rewritten, the coordinator's `fixes-<N-1>.md` if it exists, the commands, the extra
+points; the report goes to `review-ronda-N.md`) and sends it to the reviewer with `herdr agent prompt` (a reviewer
+that already exited is started again with `--continue`). The review's `task.json` keeps `review.{of,sha,base_sha,
+round}`. An implementation done at `medium` may need a `high` review when it touches permissions, data or shared
+contracts. Acceptance criteria and tests are the same at every level. Retire the review worktree once the verdict is
+final.
 
 **Advisor per role.** Implementers: Sonnet 5.5 with Opus 5.5 as advisor (owner's decision, 2026-10-05). Reviewers:
 the owner's default model at `high`, without advisor (`--advisor none`, which sets `CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1`
