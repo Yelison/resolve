@@ -52,25 +52,31 @@ export function OverviewPage() {
 
 function MetricsSection() {
   const metrics = useTicketMetrics()
+  // El esqueleto y el error ocupan la misma rejilla que las tarjetas: así las columnas cambian con el ancho igual que
+  // con datos y lo de debajo no salta cuando llegan.
   if (metrics.isPending) {
     return (
-      <div className={styles.metricsPlaceholder}>
-        <Skeleton lines={2} label="Cargando métricas…" />
+      <div className={styles.metrics}>
+        {['Cargando métricas…', '', '', ''].map((label, index) => (
+          <Skeleton key={index} lines={3} label={label} className={styles.metricSkeleton} />
+        ))}
       </div>
     )
   }
   if (metrics.isError) {
     return (
-      <div className={styles.metricsPlaceholder}>
-        <Alert tone="red" title="No pudimos cargar las métricas">
-          <Button
-            variant="secondary"
-            aria-label="Reintentar cargar las métricas"
-            onClick={() => void metrics.refetch()}
-          >
-            Reintentar
-          </Button>
-        </Alert>
+      <div className={styles.metrics}>
+        <div className={styles.metricsError}>
+          <Alert tone="red" title="No pudimos cargar las métricas">
+            <Button
+              variant="secondary"
+              aria-label="Reintentar cargar las métricas"
+              onClick={() => void metrics.refetch()}
+            >
+              Reintentar
+            </Button>
+          </Alert>
+        </div>
       </div>
     )
   }
