@@ -80,8 +80,7 @@ export type FeatureRoutes = (context: FeatureRoutesContext) => SectionContent
 
 /**
  * Registro de secciones: asocia la ruta de cada entrada de `navigation.ts` con las rutas de su feature. Una sección
- * sin entrada aquí muestra «Vista en construcción». Configuración aún no tiene feature: sus rutas son pendientes y
- * viven en este archivo.
+ * sin entrada aquí muestra «Vista en construcción».
  */
 const featureRoutes: Record<string, FeatureRoutes> = {
   '/': overviewRoutes,
@@ -90,14 +89,24 @@ const featureRoutes: Record<string, FeatureRoutes> = {
   '/equipo': teamRoutes,
   '/conocimiento': knowledgeRoutes,
   '/reportes': reportsRoutes,
+}
+
+/**
+ * Secciones sin feature que, aun así, declaran rutas hijas pendientes. Al construir una, se registra en
+ * `featureRoutes` y se borra de aquí junto con sus rutas pendientes.
+ */
+const pendingRoutes: Record<string, FeatureRoutes> = {
   '/configuracion': ({ item }) => ({ children: settingsChildren(item) }),
 }
+
+/** ¿La sección `to` ya tiene su feature? Las pruebas lo usan para saber cuáles siguen mostrando la vista pendiente. */
+export const hasFeatureRoutes = (to: string) => to in featureRoutes
 
 /** Todas las secciones salen de `mainNavigation`; las que aún no tienen vista muestran «Vista en construcción». */
 const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
   sectionRoute(
     item,
-    featureRoutes[item.to]?.({ item, lazyRoute }) ?? {
+    (featureRoutes[item.to] ?? pendingRoutes[item.to])?.({ item, lazyRoute }) ?? {
       element: <PendingPage title={item.label} icon={item.icon} />,
     },
   ),
