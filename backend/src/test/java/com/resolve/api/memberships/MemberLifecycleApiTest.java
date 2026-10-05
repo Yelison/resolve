@@ -1,6 +1,8 @@
 package com.resolve.api.memberships;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import com.resolve.api.common.error.ConflictException;
@@ -10,11 +12,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.web.servlet.MvcResult;
+import tools.jackson.databind.JsonNode;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -225,6 +229,85 @@ class MemberLifecycleApiTest extends TeamFixture {
 		MvcResult demoted = changeRole(ADMIN, this.admin, "agent");
 		assertThat(demoted.getResponse().getStatus()).isEqualTo(200);
 		assertThat(body(demoted).path("role").asString()).isEqualTo("agent");
+	}
+
+	@Test
+	void reopeningAResolvedTicketOfARemovedMemberUnassignsIt() throws Exception {
+		UUID ticket = this.data.ticket(this.acme, this.mariaCustomer, 1, "resolved");
+		this.data.assignTicket(ticket, this.laura);
+		assertThat(remove(ADMIN, this.laura).getResponse().getStatus()).isEqualTo(200);
+		// Resuelto, conserva a su responsable retirado.
+		this.mvc.perform(get("/tickets/1").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Laura Méndez"));
+
+		this.mvc.perform(patch("/tickets/1").with(as(ADMIN))
+			.header("If-Match", "\"0\"")
+			.contentType("application/merge-patch+json")
+			.content("{\"status\": \"open\"}"))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("updateTicket"))
+			.andExpect(jsonPath("$.status").value("open"))
+			.andExpect(jsonPath("$.assignee").isEmpty());
+		List<JsonNode> changes = assigneeChanges(1);
+		assertThat(changes).hasSize(1);
+		assertThat(changes.get(0).path("actor").path("id").asString()).isEqualTo(this.admin.toString());
+		assertThat(changes.get(0).path("from").path("name").asString()).isEqualTo("Laura Méndez");
+		assertThat(changes.get(0).path("to").isNull()).isTrue();
+		assertThat(member(listMembers(ADMIN), LAURA).path("openTickets").asInt()).isZero();
+		this.mvc.perform(get("/members/metrics").with(as(ADMIN)))
+			.andExpect(jsonPath("$.assignedOpen").value(0))
+			.andExpect(jsonPath("$.unassignedOpen").value(1));
+	}
+
+	@Test
+	void reopeningWithANewValidAssigneeKeepsTheNewOne() throws Exception {
+		UUID ticket = this.data.ticket(this.acme, this.mariaCustomer, 1, "resolved");
+		this.data.assignTicket(ticket, this.laura);
+		assertThat(remove(ADMIN, this.laura).getResponse().getStatus()).isEqualTo(200);
+		this.mvc.perform(patch("/tickets/1").with(as(ADMIN))
+			.header("If-Match", "\"0\"")
+			.contentType("application/merge-patch+json")
+			.content("{\"status\": \"open\", \"assigneeId\": \"%s\"}".formatted(this.daniel)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.assignee.name").value("Daniel Santos"));
+		assertThat(assigneeChanges(1)).hasSize(1);
+		assertThat(assigneeChanges(1).get(0).path("to").path("name").asString()).isEqualTo("Daniel Santos");
+	}
+
+	@Test
+	void aPatchThatResendsTheSameRemovedAssigneeOnAResolvedTicketIsNotRejected() throws Exception {
+		UUID ticket = this.data.ticket(this.acme, this.mariaCustomer, 1, "resolved");
+		this.data.assignTicket(ticket, this.laura);
+		assertThat(remove(ADMIN, this.laura).getResponse().getStatus()).isEqualTo(200);
+
+		this.mvc.perform(patch("/tickets/1").with(as(ADMIN))
+			.header("If-Match", "\"0\"")
+			.contentType("application/merge-patch+json")
+			.content("{\"assigneeId\": \"%s\", \"priority\": \"high\"}".formatted(this.laura)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.priority").value("high"))
+			.andExpect(jsonPath("$.status").value("resolved"))
+			.andExpect(jsonPath("$.assignee.name").value("Laura Méndez"));
+		assertThat(assigneeChanges(1)).isEmpty();
+	}
+
+	private List<JsonNode> assigneeChanges(int number) throws Exception {
+		JsonNode activity = body(this.mvc.perform(get("/tickets/" + number + "/activity").with(as(ADMIN))).andReturn());
+		List<JsonNode> changes = new ArrayList<>();
+		for (JsonNode entry : activity) {
+			if ("assignee_changed".equals(entry.path("type").asString())) {
+				changes.add(entry);
+			}
+		}
+		return changes;
+	}
+
+	private static JsonNode member(JsonNode team, String email) {
+		for (JsonNode member : team) {
+			if (email.equals(member.path("email").asString())) {
+				return member;
+			}
+		}
+		throw new AssertionError("No aparece " + email + " en el equipo");
 	}
 
 }
