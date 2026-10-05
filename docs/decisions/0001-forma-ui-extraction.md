@@ -37,53 +37,60 @@ Measured from the code: _Areas_ are the `features/*` folders that import the com
 `app/pages` and `/catalogo` are excluded); _Tests_ means a `*.test.tsx` file in the component's own folder; _Catalog_
 means `CatalogPage.tsx` renders it; _Domain_ means the component imports from `src/domain`. _Commits_ is the number of
 commits that touched the folder; the whole history spans 2026-10-04 to 2026-10-05, so **criterion 1's "a phase without
-changes" cannot be met by any component yet**, and the last column is "ready apart from stability".
+changes" cannot be met by any component yet**. _CSS literal sizes_ lists the `px` values in the component's
+`*.module.css` that are not tokens (criterion 4); breakpoints and container thresholds in `@media`/`@container`, borders,
+outlines and 1–2 px offsets are excluded, and no component has literal colours. _Props with JSDoc_ is documented
+members over declared members of the exported props types (criterion 2); it is a rough count, and T7.1 adds the JSDoc
+of the props. The last column applies criteria 1 (areas only), 3, 4 and 5.
 
-| Component                               | Areas (n)                                    | Tests  | Catalog | Domain                    | Commits | Ready apart from stability               |
-| --------------------------------------- | -------------------------------------------- | ------ | ------- | ------------------------- | ------- | ---------------------------------------- |
-| Alert                                   | 6                                            | yes    | yes     | no                        | 1       | yes                                      |
-| Attachment                              | 0                                            | yes    | yes     | no                        | 1       | no · no product use                      |
-| Avatar                                  | 3                                            | yes    | yes     | no                        | 1       | yes                                      |
-| Badge                                   | 4                                            | yes    | yes     | no                        | 1       | yes                                      |
-| BarChart                                | 2                                            | yes    | yes     | no                        | 5       | no · 2 areas, still changing             |
-| Breadcrumb                              | 0 (shell)                                    | yes    | yes     | no                        | 1       | no · shell only                          |
-| Button / IconButton                     | 6                                            | yes    | yes     | no                        | 1       | yes                                      |
-| Checkbox                                | 0 (inside TicketRow, Switch)                 | yes    | yes     | no                        | 2       | no · no direct product use               |
-| Combobox                                | 1                                            | yes    | **no**  | no                        | 2       | no · 1 area, not in catalog              |
-| Editor                                  | 1                                            | yes    | yes     | no                        | 1       | no · 1 area                              |
-| EmptyState                              | 6                                            | yes    | yes     | no                        | 1       | yes                                      |
-| Field                                   | 0 (inside Input, Select, Textarea, Combobox) | yes    | **no**  | no                        | 1       | no · internal, not in catalog            |
-| FilterChip                              | 4                                            | yes    | yes     | no                        | 1       | yes                                      |
-| Icon                                    | 3                                            | yes    | yes     | no                        | 1       | yes                                      |
-| Input                                   | 3                                            | **no** | yes     | no                        | 1       | no · no own test                         |
-| Menu                                    | 4                                            | yes    | yes     | no                        | 1       | yes                                      |
-| Message                                 | 1                                            | yes    | yes     | no                        | 3       | no · 1 area, still changing              |
-| Metric                                  | 5                                            | yes    | yes     | no                        | 1       | yes                                      |
-| Modal                                   | 2                                            | yes    | yes     | no                        | 1       | no · 2 areas                             |
-| NavItem                                 | 0 (inside Sidebar)                           | yes    | yes     | no                        | 1       | no · no direct product use               |
-| Pagination                              | 3                                            | yes    | yes     | no                        | 1       | yes                                      |
-| ProgressBar                             | 1                                            | yes    | yes     | no                        | 1       | no · 1 area                              |
-| Radio                                   | 0                                            | **no** | yes     | no                        | 1       | no · no use, no own test                 |
-| SearchField                             | 3                                            | yes    | **no**  | no                        | 1       | no · not in catalog                      |
-| Select                                  | 4                                            | **no** | yes     | no                        | 1       | no · no own test                         |
-| Sidebar                                 | 0 (shell)                                    | yes    | **no**  | no                        | 1       | no · shell only, not in catalog          |
-| Skeleton                                | 6                                            | yes    | yes     | no                        | 1       | yes                                      |
-| Switch                                  | 0                                            | **no** | yes     | no                        | 1       | no · no use, no own test                 |
-| Table (+ Cell, HeaderCell, Row)         | 4                                            | yes    | yes     | no                        | 2       | yes                                      |
-| Tabs                                    | 2                                            | yes    | yes     | no                        | 1       | no · 2 areas                             |
-| Textarea                                | 2                                            | **no** | yes     | no                        | 1       | no · 2 areas, no own test                |
-| TicketRow / TicketTable / ticket labels | 3                                            | yes    | yes     | **yes** (`domain/ticket`) | 3       | no · depends on ticket types             |
-| Timeline                                | 2                                            | yes    | yes     | no                        | 1       | no · 2 areas                             |
-| Toast (`ToastProvider`, `useToast`)     | 3 (plus the shell)                           | yes    | yes     | no                        | 1       | yes                                      |
-| Tooltip                                 | 0 (inside NavItem, Sidebar)                  | yes    | yes     | no                        | 1       | no · no direct product use               |
-| Topbar                                  | 0 (shell)                                    | **no** | **no**  | no                        | 1       | no · shell only, no test, not in catalog |
-| Upload                                  | 0                                            | yes    | yes     | no                        | 1       | no · no product use                      |
+| Component                               | Areas (n)                                    | Tests  | Catalog | Domain                    | Commits | CSS literal sizes | Props with JSDoc | Ready apart from stability and JSDoc                   |
+| --------------------------------------- | -------------------------------------------- | ------ | ------- | ------------------------- | ------- | ----------------- | ---------------- | ------------------------------------------------------ |
+| Alert                                   | 6                                            | yes    | yes     | no                        | 1       | none              | 1/3              | yes                                                    |
+| Attachment                              | 0                                            | yes    | yes     | no                        | 1       | 4px               | 2/7              | no · no direct product use, literal sizes              |
+| Avatar                                  | 3                                            | yes    | yes     | no                        | 1       | 28/36/48px        | 2/5              | no · literal sizes                                     |
+| Badge                                   | 4                                            | yes    | yes     | no                        | 1       | 28px              | 0/1              | no · literal sizes                                     |
+| BarChart                                | 2                                            | yes    | yes     | no                        | 5       | 12–160px          | 3/12             | no · 2 areas, literal sizes                            |
+| Breadcrumb                              | 0 (shell)                                    | yes    | yes     | no                        | 1       | none              | 1/4              | no · shell only                                        |
+| Button / IconButton                     | 6                                            | yes    | yes     | no                        | 1       | 16px icon         | 2/5              | no · literal sizes                                     |
+| Checkbox                                | 0 (inside TicketRow)                         | yes    | yes     | no                        | 2       | 10px              | 2/3              | no · no direct product use, literal sizes              |
+| Combobox                                | 1                                            | yes    | **no**  | no                        | 2       | 20/40/264px       | 3/14             | no · 1 area, not in catalog, literal sizes             |
+| Editor                                  | 1                                            | yes    | yes     | no                        | 1       | 20/32/80px        | 2/9              | no · 1 area, literal sizes                             |
+| EmptyState                              | 6                                            | yes    | yes     | no                        | 1       | none              | 3/8              | yes                                                    |
+| Field                                   | 0 (inside Input, Select, Textarea, Combobox) | yes    | **no**  | no                        | 1       | none              | 4/8              | no · no direct product use, not in catalog             |
+| FilterChip                              | 4                                            | yes    | yes     | no                        | 1       | 36px              | 1/1              | no · literal sizes                                     |
+| Icon                                    | 3                                            | yes    | yes     | no                        | 1       | none              | 2/3              | yes                                                    |
+| Input                                   | 3                                            | **no** | yes     | no                        | 1       | none              | 1/4              | no · no own test                                       |
+| Menu                                    | 4                                            | yes    | yes     | no                        | 1       | 36/200/320px      | 1/13             | no · literal sizes                                     |
+| Message                                 | 1                                            | yes    | yes     | no                        | 3       | none              | 3/8              | no · 1 area                                            |
+| Metric                                  | 5                                            | yes    | yes     | no                        | 1       | none              | 1/6              | yes                                                    |
+| Modal                                   | 2                                            | yes    | yes     | no                        | 1       | 440/640px         | 1/8              | no · 2 areas, literal sizes                            |
+| NavItem                                 | 0 (inside Sidebar)                           | yes    | yes     | no                        | 1       | none              | 2/6              | no · no direct product use                             |
+| Pagination                              | 3                                            | yes    | yes     | no                        | 1       | 24/36px           | 1/5              | no · literal sizes                                     |
+| ProgressBar                             | 1                                            | yes    | yes     | no                        | 1       | 8px               | 1/5              | no · 1 area, literal sizes                             |
+| Radio                                   | 0                                            | **no** | yes     | no                        | 1       | 8px               | 0/1              | no · no direct product use, no own test, literal sizes |
+| SearchField                             | 3                                            | yes    | **no**  | no                        | 1       | none              | 1/4              | no · not in catalog                                    |
+| Select                                  | 4                                            | **no** | yes     | no                        | 1       | 20px              | 0/4              | no · no own test, literal sizes                        |
+| Sidebar                                 | 0 (shell)                                    | yes    | **no**  | no                        | 1       | 17/34/52px        | 2/15             | no · shell only, not in catalog, literal sizes         |
+| Skeleton                                | 6                                            | yes    | yes     | no                        | 1       | 12px              | 2/3              | no · literal sizes                                     |
+| Switch                                  | 0                                            | **no** | yes     | no                        | 1       | 14–36px           | 0/1              | no · no direct product use, no own test, literal sizes |
+| Table (+ Cell, HeaderCell, Row)         | 4                                            | yes    | yes     | no                        | 2       | none              | 8/13             | yes                                                    |
+| Tabs                                    | 2                                            | yes    | yes     | no                        | 1       | none              | 2/9              | no · 2 areas                                           |
+| Textarea                                | 2                                            | **no** | yes     | no                        | 1       | 102px             | 0/4              | no · 2 areas, no own test, literal sizes               |
+| TicketRow / TicketTable / ticket labels | 3                                            | yes    | yes     | **yes** (`domain/ticket`) | 3       | 20–170px columns  | 7/12             | no · ticket types, literal sizes                       |
+| Timeline                                | 2                                            | yes    | yes     | no                        | 1       | none              | 1/7              | no · 2 areas                                           |
+| Toast (`ToastProvider`, `useToast`)     | 3 (plus the shell)                           | yes    | yes     | no                        | 1       | 28/360px          | 0/0              | no · literal sizes                                     |
+| Tooltip                                 | 0 (inside NavItem, Sidebar)                  | yes    | yes     | no                        | 1       | 240px             | 1/9              | no · no direct product use, literal sizes              |
+| Topbar                                  | 0 (shell)                                    | **no** | **no**  | no                        | 1       | none              | 2/8              | no · shell only, no own test, not in catalog           |
+| Upload                                  | 0                                            | yes    | yes     | no                        | 1       | 80px              | 2/7              | no · no direct product use, literal sizes              |
 
-Summary: 37 components; 13 meet every criterion except the stability period (Alert, Avatar, Badge, Button, EmptyState,
-FilterChip, Icon, Menu, Metric, Pagination, Skeleton, Table, Toast); one depends on domain types (TicketRow); six have
-no test file of their own (Input, Radio, Select, Switch, Textarea, Topbar); five are missing from `/catalogo`
-(Combobox, Field, SearchField, Sidebar, Topbar), which T7.1 closes. Because the numbers come from a count of
-imports, re-measure on the day of the trigger instead of trusting this table.
+Summary: 37 components. **Five** (Alert, EmptyState, Icon, Metric, Table) meet every measured criterion except the
+stability period and the JSDoc on props. None has literal colours in its CSS Module (no `#…`, `rgb()` or `hsl()` anywhere in
+`components/ui`); 23 have literal pixel sizes (listed above) that should become tokens or a documented exception before
+extraction. Only Table (8/13) and TicketRow (7/12) document more than half of their declared props, and only FilterChip
+documents all of them (1/1); T7.1 adds the JSDoc of the props, so that column will change. One component depends on
+domain types (TicketRow); six have no test file of their own (Input, Radio, Select, Switch, Textarea, Topbar); five are
+missing from `/catalogo` (Combobox, Field, SearchField, Sidebar, Topbar), which T7.1 also closes. Because the numbers
+come from counts, re-measure on the day of the trigger instead of trusting this table.
 
 ## Consequences
 
