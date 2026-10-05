@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { createBrowserRouter, Outlet, type RouteObject } from 'react-router'
 import { Skeleton } from '../components/ui'
 import { AppShell, type RouteHandle } from './layout/AppShell'
@@ -15,6 +15,25 @@ import { TeamPage } from '../features/team/TeamPage'
 import { NewTicketPage } from '../features/tickets/NewTicketPage'
 import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
 import { TicketsPage } from '../features/tickets/TicketsPage'
+
+/**
+ * Esqueleto que se pinta dentro del contenido mientras llega el chunk de una ruta diferida. React Router sustituye el
+ * elemento de la ruta que declara el fallback (y todo lo de debajo), no el de las de arriba: por eso va en la propia
+ * ruta `lazy` y no en la raíz, donde sustituiría a la shell entera.
+ */
+const lazyFallback = (
+  <div className={pageStyles.page}>
+    <Skeleton lines={3} label="Cargando…" />
+  </div>
+)
+
+/**
+ * Ruta diferida con su fallback. Toda ruta `lazy` debe declararse así: sin `hydrateFallbackElement`, una carga directa
+ * deja la app en blanco y React Router avisa en la consola.
+ */
+function lazyRoute(load: () => Promise<{ Component: ComponentType }>, route: RouteObject = {}): RouteObject {
+  return { ...route, lazy: load, hydrateFallbackElement: lazyFallback } as RouteObject
+}
 
 /**
  * Ruta de una sección de la navegación. Siempre pasa por `RequireRole` con los roles y el título de la entrada, de modo
@@ -76,10 +95,9 @@ const customerChildren: RouteObject[] = [
  * queda fuera del paquete principal. `nuevo` y los artículos muestran la vista pendiente hasta que existan.
  */
 const knowledgeChildren = (item: NavigationItem): RouteObject[] => [
-  {
+  lazyRoute(async () => ({ Component: (await import('../features/knowledge/KnowledgePage')).KnowledgePage }), {
     index: true,
-    lazy: async () => ({ Component: (await import('../features/knowledge/KnowledgePage')).KnowledgePage }),
-  },
+  }),
   {
     path: 'nuevo',
     element: (
@@ -135,18 +153,9 @@ export const appRoutes: RouteObject[] = [
   {
     path: '/',
     element: <AppShell />,
-    // Una ruta `lazy` en una carga directa deja el router sin inicializar: sin esto no se pinta nada hasta que llega el chunk.
-    hydrateFallbackElement: (
-      <div className={pageStyles.page}>
-        <Skeleton lines={3} label="Cargando…" />
-      </div>
-    ),
     children: [...sectionRoutes, { path: '*', element: <NotFoundPage />, handle: { crumb: 'No encontrada' } }],
   },
-  {
-    path: '/catalogo',
-    lazy: async () => ({ Component: (await import('./catalog/CatalogPage')).default }),
-  },
+  lazyRoute(async () => ({ Component: (await import('./catalog/CatalogPage')).default }), { path: '/catalogo' }),
 ]
 
 export const router = createBrowserRouter(appRoutes)
