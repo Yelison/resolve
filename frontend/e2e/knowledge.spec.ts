@@ -1,4 +1,4 @@
-import type { Locator } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import { articles, expect, mockApi, test } from './fixtures'
 
 const longTitle = articles.find((article) => article.id === 'a-largo')!.title
@@ -108,11 +108,12 @@ test.describe('base de conocimiento', () => {
     await expect(page.getByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeVisible()
   })
 
-  test('«Nuevo artículo» lleva a la página pendiente', async ({ page }) => {
+  test('«Nuevo artículo» abre el editor', async ({ page }) => {
     await page.goto('/conocimiento')
     await page.getByRole('link', { name: 'Nuevo artículo' }).click()
     await expect(page).toHaveURL(/\/conocimiento\/nuevo$/)
     await expect(page.getByRole('heading', { level: 1, name: 'Nuevo artículo' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Título' })).toBeVisible()
   })
 
   for (const sidebar of ['expandido', 'colapsado'] as const) {
@@ -149,5 +150,179 @@ test.describe('base de conocimiento', () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     )
     expect(overflow).toBeLessThanOrEqual(0)
+  })
+})
+
+const SLUG = 'como-recuperar-el-acceso-a-tu-cuenta'
+
+const noHorizontalOverflow = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+
+test.describe('lectura de un artículo', () => {
+  test('a 1440 px el texto mide a lo sumo 720 px y el índice es un panel lateral que lleva al encabezado', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/conocimiento/${SLUG}`)
+    await expect(page.getByRole('heading', { level: 1, name: 'Cómo recuperar el acceso a tu cuenta' })).toBeVisible()
+    const heading = page.getByRole('heading', { level: 2, name: 'Recupera el acceso' })
+    const paragraph = page.getByRole('article').getByText('Busca el mensaje de recuperación.')
+    expect((await paragraph.boundingBox())!.width).toBeLessThanOrEqual(720)
+    // Panel lateral: sin <details> y a la derecha del artículo.
+    await expect(page.locator('details')).toHaveCount(0)
+    const outline = page.getByRole('navigation', { name: 'En este artículo' })
+    const card = (await page.getByRole('article').boundingBox())!
+    expect((await outline.boundingBox())!.x).toBeGreaterThan(card.x + card.width)
+    await outline.getByRole('link', { name: 'Recupera el acceso' }).click()
+    await expect(heading).toBeFocused()
+    await expect(heading).toBeInViewport()
+    expect(await noHorizontalOverflow(page)).toBeLessThanOrEqual(0)
+  })
+
+  for (const width of [390, 1024]) {
+    test(`a ${width} px el índice se pliega encima del texto y no hay scroll horizontal`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto(`/conocimiento/${SLUG}`)
+      const summary = page.getByText('En este artículo', { exact: true })
+      await expect(summary).toBeVisible()
+      const links = page.getByRole('navigation', { name: 'En este artículo' }).getByRole('link')
+      await expect(links.first()).toBeHidden()
+      await summary.click()
+      await expect(links.first()).toBeVisible()
+      await links.nth(2).click()
+      await expect(page.getByRole('heading', { level: 2, name: 'Recupera el acceso' })).toBeFocused()
+      expect(await noHorizontalOverflow(page)).toBeLessThanOrEqual(0)
+    })
+  }
+
+  test('el personal ve el estado, «Editar artículo» y el aviso de borrador', async ({ page }) => {
+    await page.goto('/conocimiento/configurar-notificaciones')
+    await expect(page.getByText('Borrador: los clientes no lo ven')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Editar artículo' })).toHaveAttribute(
+      'href',
+      '/conocimiento/configurar-notificaciones/editar',
+    )
+    await expect(page.getByRole('link', { name: 'Crear un ticket' })).toHaveAttribute('href', '/tickets/nuevo')
+  })
+
+  test('un cliente lee un publicado sin acciones de personal y recibe 404 en un borrador', async ({ page }) => {
+    await mockApi(page, 'customer')
+    await page.goto(`/conocimiento/${SLUG}`)
+    await expect(page.getByRole('heading', { level: 1, name: 'Cómo recuperar el acceso a tu cuenta' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Editar artículo' })).toHaveCount(0)
+    await expect(page.getByText('Publicado', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Contacta con el equipo de soporte de tu organización.')).toBeVisible()
+    await page.goto('/conocimiento/configurar-notificaciones')
+    await expect(page.getByRole('heading', { level: 1, name: 'Artículo no encontrado' })).toBeVisible()
+  })
+
+  test('un cliente que abre el editor ve el aviso sin acceso', async ({ page }) => {
+    await mockApi(page, 'customer')
+    await page.goto(`/conocimiento/${SLUG}/editar`)
+    await expect(page.getByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeVisible()
+  })
+})
+
+test.describe('editor de artículos', () => {
+  test('crea un borrador, lo previsualiza, lo publica y lo despublica con confirmación', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/conocimiento/nuevo')
+    await page.getByRole('button', { name: 'Guardar borrador' }).click()
+    await expect(page.getByRole('textbox', { name: 'Título' })).toBeFocused()
+    await expect(page.getByText('Elige una categoría.')).toBeVisible()
+
+    await page.getByRole('textbox', { name: 'Título' }).fill('Cambiar tu contraseña')
+    await page.getByRole('combobox', { name: 'Categoría' }).selectOption({ label: 'Cuenta y acceso' })
+    const body = page.getByRole('textbox', { name: 'Contenido' })
+    await body.fill('Primero entra a tu perfil.')
+    await page.getByRole('button', { name: 'Encabezado' }).click()
+    await expect(body).toHaveValue('## Primero entra a tu perfil.')
+    await expect(page.getByText('Borrador guardado en este navegador')).toBeVisible()
+
+    await page.getByRole('tab', { name: 'Vista previa' }).click()
+    await expect(page.getByRole('heading', { level: 2, name: 'Primero entra a tu perfil.' })).toBeVisible()
+    await page.getByRole('tab', { name: 'Escribir' }).click()
+
+    await page.getByRole('button', { name: 'Guardar borrador' }).click()
+    await expect(page).toHaveURL(/\/conocimiento\/cambiar-tu-contrasena\/editar$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Editar artículo' })).toBeVisible()
+    await expect(page.getByText('Borrador', { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Publicar' }).click()
+    await expect(page.getByText('Artículo publicado')).toBeVisible()
+    await expect(page.getByText('Publicado', { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Despublicar' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Despublicar' }).click()
+    await expect(page.getByText('Artículo despublicado')).toBeVisible()
+    await expect(page.getByText('Borrador', { exact: true })).toBeVisible()
+  })
+
+  test('«Nuevo artículo» no se abre con el texto de un borrador ya guardado', async ({ page }) => {
+    await page.goto('/conocimiento/nuevo')
+    await page.getByRole('textbox', { name: 'Título' }).fill('Primer intento')
+    await page.getByRole('textbox', { name: 'Contenido' }).fill('Texto')
+    await page.getByRole('combobox', { name: 'Categoría' }).selectOption({ label: 'Facturación' })
+    await page.getByRole('button', { name: 'Guardar borrador' }).click()
+    await expect(page).toHaveURL(/\/editar$/)
+    await page.goto('/conocimiento/nuevo')
+    await expect(page.getByRole('textbox', { name: 'Título' })).toHaveValue('')
+    await expect(page.getByRole('textbox', { name: 'Contenido' })).toHaveValue('')
+  })
+
+  test('recargar conserva lo escrito en el navegador', async ({ page }) => {
+    await page.goto('/conocimiento/nuevo')
+    await page.getByRole('textbox', { name: 'Título' }).fill('A medias')
+    await page.getByRole('textbox', { name: 'Contenido' }).fill('Sin guardar')
+    await page.reload()
+    await expect(page.getByRole('textbox', { name: 'Título' })).toHaveValue('A medias')
+    await expect(page.getByRole('textbox', { name: 'Contenido' })).toHaveValue('Sin guardar')
+  })
+
+  for (const [width, panelBelow] of [
+    [320, true],
+    [390, true],
+    [767, true],
+    [768, true],
+    [1024, true],
+    [1199, true],
+    [1200, false],
+    [1440, false],
+  ] as const) {
+    test(`a ${width} px el panel de publicación va ${panelBelow ? 'debajo' : 'al lado'} y no hay scroll horizontal`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto(`/conocimiento/${SLUG}/editar`)
+      const form = page.locator('form')
+      await expect(form).toBeVisible()
+      const panel = page.getByRole('region', { name: 'Publicación' })
+      const formBox = (await form.boundingBox())!
+      const panelBox = (await panel.boundingBox())!
+      if (panelBelow) expect(panelBox.y).toBeGreaterThanOrEqual(formBox.y + formBox.height)
+      else expect(panelBox.x).toBeGreaterThanOrEqual(formBox.x + formBox.width)
+      // La barra del editor envuelve: todos sus botones caben dentro del formulario.
+      const toolbar = page.getByRole('toolbar', { name: 'Formato' })
+      for (const button of await toolbar.getByRole('button').all()) {
+        const box = (await button.boundingBox())!
+        expect(box.x + box.width).toBeLessThanOrEqual(formBox.x + formBox.width)
+        if (width < 768) expect(box.height).toBeGreaterThanOrEqual(44 - 1)
+      }
+      expect(await noHorizontalOverflow(page)).toBeLessThanOrEqual(0)
+    })
+  }
+
+  test('el teclado recorre la barra con flechas y el diálogo de despublicar atrapa el foco y cierra con Escape', async ({
+    page,
+  }) => {
+    await page.goto(`/conocimiento/${SLUG}/editar`)
+    await page.getByRole('button', { name: 'Encabezado' }).focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(page.getByRole('button', { name: 'Negrita' })).toBeFocused()
+    await page.getByRole('button', { name: 'Despublicar' }).click()
+    const dialog = page.getByRole('dialog', { name: '¿Despublicar este artículo?' })
+    await expect(dialog).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
   })
 })
