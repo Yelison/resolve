@@ -68,4 +68,19 @@ describe('applyFormat · heading (varias líneas y otros niveles)', () => {
   it('no toca las líneas fuera de la selección', () => {
     expect(applyFormat('a\nb\nc', 2, 3, 'heading').value).toBe('a\n## b\nc')
   })
+
+  it('salta las líneas vacías de la selección', () => {
+    expect(applyFormat('uno\n\ndos', 0, 8, 'heading').value).toBe('## uno\n\n## dos')
+    expect(applyFormat('## uno\n\n## dos', 0, 14, 'heading').value).toBe('uno\n\ndos')
+  })
+
+  it('una selección que termina al inicio de una línea no incluye esa línea', () => {
+    const edit = applyFormat('uno\ndos\ntres', 0, 8, 'heading')
+    expect(edit.value).toBe('## uno\n## dos\ntres')
+    expect(edit.selectionEnd).toBe(8 + 6)
+  })
+
+  it('con el cursor sin selección al inicio de una línea sigue convirtiéndola', () => {
+    expect(applyFormat('uno\ndos', 4, 4, 'heading').value).toBe('uno\n## dos')
+  })
 })
