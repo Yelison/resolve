@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import * as ui from '../../components/ui'
-import catalogSource from './CatalogPage.tsx?raw'
+import rawCatalogSource from './CatalogPage.tsx?raw'
 
 /**
  * Exportaciones de `components/ui` que `/catalogo` no muestra como componente, con su motivo. Cada entrada debe seguir
@@ -10,6 +10,12 @@ const exceptions: Record<string, string> = {
   Field: 'Envoltorio interno de etiqueta, ayuda y error; se ve en cada campo (Input, Select, Textarea, Combobox).',
   ToastProvider: 'Se monta una vez en la raíz de la aplicación; el catálogo muestra su efecto con useToast.',
 }
+
+/** Sin comentarios JSX ni de bloque o línea: un componente comentado no cuenta como mostrado. */
+const catalogSource = rawCatalogSource
+  .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '')
 
 /** Componentes: exportaciones en PascalCase. Quedan fuera funciones auxiliares y hooks (`buttonClassName`, `useToast`…). */
 const components = Object.keys(ui).filter((name) => /^[A-Z]/.test(name))

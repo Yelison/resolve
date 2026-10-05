@@ -105,8 +105,10 @@ export default function CatalogPage() {
   const [search, setSearch] = useState('')
   const [agentQuery, setAgentQuery] = useState('')
   const [agent, setAgent] = useState<ComboboxOption | null>(null)
-  const [statesDraft, setStatesDraft] = useState('Hola María, vamos a ayudarte a recuperar el acceso.')
-  const [statesMode, setStatesMode] = useState<EditorMode>('reply')
+  const [sendingDraft, setSendingDraft] = useState('Hola María, vamos a ayudarte a recuperar el acceso.')
+  const [sendingMode, setSendingMode] = useState<EditorMode>('reply')
+  const [failedDraft, setFailedDraft] = useState('Hola María, vamos a ayudarte a recuperar el acceso.')
+  const [failedMode, setFailedMode] = useState<EditorMode>('reply')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const agentOptions = demoAgents.filter((option) =>
     option.label.toLowerCase().includes(agentQuery.trim().toLowerCase()),
@@ -369,18 +371,18 @@ export default function CatalogPage() {
         </div>
         <div className={styles.grid}>
           <Editor
-            value={statesDraft}
-            onChange={setStatesDraft}
-            mode={statesMode}
-            onModeChange={setStatesMode}
+            value={sendingDraft}
+            onChange={setSendingDraft}
+            mode={sendingMode}
+            onModeChange={setSendingMode}
             onSubmit={() => {}}
             status="sending"
           />
           <Editor
-            value={statesDraft}
-            onChange={setStatesDraft}
-            mode={statesMode}
-            onModeChange={setStatesMode}
+            value={failedDraft}
+            onChange={setFailedDraft}
+            mode={failedMode}
+            onModeChange={setFailedMode}
             onSubmit={() => {}}
             status="error"
           />
@@ -458,8 +460,12 @@ export default function CatalogPage() {
           Barra superior y barra lateral con datos de demostración; los botones no hacen nada. Cada marco las limita a
           su ancho.
         </p>
-        <div className={cx(styles.frame, styles.shellFrame)}>
+        <div id="catalog-demo-menu" className={cx(styles.frame, styles.shellFrame)}>
           <p className={styles.frameLabel}>Barra lateral</p>
+          <p className={styles.demo}>
+            El nombre del landmark es «Principal» porque el componente lo fija; en esta demo no hay otra navegación
+            principal.
+          </p>
           <Sidebar
             className={styles.demoSidebar}
             items={navItems}
