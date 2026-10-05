@@ -27,7 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Valida las respuestas de MockMvc contra docs/api/openapi.yaml: el estado debe estar declarado en la operación y
  * el cuerpo debe cumplir su esquema. Los esquemas de respuesta no admiten campos extra, así que cualquier dato de más
- * (una entidad expuesta o una nota interna) hace fallar el test.
+ * (una entidad expuesta o una nota interna) hace fallar el test. La excepción es {@code Problem}, que RFC 9457 deja
+ * abierto a miembros de extensión: solo cierra los elementos de {@code errors}.
  */
 public final class OpenApiContract {
 
