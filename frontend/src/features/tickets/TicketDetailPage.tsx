@@ -36,7 +36,7 @@ import {
   type TicketChanges,
 } from './queries'
 import styles from './TicketDetailPage.module.css'
-import { useDraft } from './useDraft'
+import { useDraft } from '../../lib/useDraft'
 
 const channelLabels: Record<TicketChannel, string> = {
   email: 'correo electrónico',
