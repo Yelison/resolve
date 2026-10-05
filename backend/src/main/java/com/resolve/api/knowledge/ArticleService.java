@@ -21,8 +21,10 @@ import com.resolve.api.knowledge.KnowledgeDtos.ArticleDto;
 import com.resolve.api.knowledge.KnowledgeDtos.ArticleSummaryDto;
 import com.resolve.api.memberships.UserAccount;
 import com.resolve.api.memberships.UserAccountRepository;
+import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 class ArticleService {
+
+	private static final String SLUG_CONSTRAINT = "articles_organization_slug_key";
 
 	static final String UNKNOWN_CATEGORY = "No existe la categoría.";
 
@@ -86,7 +90,7 @@ class ArticleService {
 		this.slugHook.ifAvailable(ArticleSlugHook::afterSlugChosen);
 		Article article = new Article(Ids.newId(), organizationId, category, slug, request.title(), request.body(),
 				request.visibility(), request.allowFeedback(), author, this.clock.instant());
-		this.articles.saveAndFlush(article);
+		flushUniqueSlug(article);
 		return ArticleDto.from(article);
 	}
 
@@ -164,7 +168,34 @@ class ArticleService {
 	private String freeSlug(UUID organizationId, String base) {
 		// Los slugs solo contienen [a-z0-9-], así que el guion y el comodín no necesitan escape.
 		Set<String> taken = new HashSet<>(this.articles.slugsStartingWith(organizationId, base, base + "-%"));
+		taken.addAll(Slugs.RESERVED);
 		return Slugs.firstFree(base, taken);
+	}
+
+	/**
+	 * Guarda el artículo y traduce a 409 solo la violación del índice único del slug, que el bloqueo de las altas hace
+	 * inalcanzable por esta API pero que otra vía de escritura podría provocar; cualquier otro error se relanza.
+	 */
+	private void flushUniqueSlug(Article article) {
+		try {
+			this.articles.saveAndFlush(article);
+		}
+		catch (DataIntegrityViolationException exception) {
+			if (!violatesUniqueSlug(exception)) {
+				throw exception;
+			}
+			throw new ConflictException("Otro artículo acaba de tomar ese título; vuelve a intentarlo.");
+		}
+	}
+
+	private static boolean violatesUniqueSlug(Throwable exception) {
+		for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+			if (cause instanceof ConstraintViolationException violation
+					&& SLUG_CONSTRAINT.equalsIgnoreCase(violation.getConstraintName())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static ResourceNotFoundException notFound() {

@@ -1,7 +1,9 @@
 package com.resolve.api.knowledge;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -13,9 +15,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
+import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Altas simultáneas con el mismo título. Una barrera aparca la primera entre elegir el slug y guardar, así la carrera
@@ -59,6 +66,28 @@ class ArticleSlugRaceTest extends KnowledgeFixture {
 		assertThat(secondResult.getResponse().getStatus()).isEqualTo(201);
 		assertThat(body(firstResult).path("slug").asString()).isEqualTo("guia-de-envios");
 		assertThat(body(secondResult).path("slug").asString()).isEqualTo("guia-de-envios-2");
+	}
+
+	@Test
+	@Timeout(60)
+	void aSlugTakenBehindTheLockIsAConflictNotAServerError() throws Exception {
+		// Una vía que no pasara por el bloqueo (una importación, otro servicio) guarda el slug entre la elección y el alta.
+		// Se inserta desde otro hilo: en el de la petición, JdbcClient reutilizaría su transacción y la fila se desharía con ella.
+		this.barrier.runOnce(() -> CompletableFuture.runAsync(() -> this.data.article(this.acme, this.accountCategory,
+				"guia-de-envios", "Guía de envíos", "Texto", "draft", "internal", this.lauraId,
+				Instant.parse("2026-10-05T00:00:00Z"))).join());
+
+		this.mvc.perform(post("/knowledge/articles").with(as(LAURA))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content(article("Guía de envíos")))
+			.andExpect(status().isConflict())
+			.andExpect(matchesContract("createArticle"))
+			.andExpect(jsonPath("$.detail").value("Otro artículo acaba de tomar ese título; vuelve a intentarlo."));
+
+		// El alta fallida no deja nada a medias y reintentar toma el siguiente sufijo.
+		assertThat(listArticles(LAURA, "?q=envíos").path("totalItems").asInt()).isEqualTo(1);
+		assertThat(body(postArticle(LAURA, article("Guía de envíos"))).path("slug").asString())
+			.isEqualTo("guia-de-envios-2");
 	}
 
 	@Test
@@ -114,7 +143,14 @@ class ArticleSlugRaceTest extends KnowledgeFixture {
 	/** Espera, consultando los bloqueos de PostgreSQL, a que otra transacción esté bloqueada en un bloqueo consultivo. */
 	private void awaitAWaiterForTheSlugLock() throws InterruptedException {
 		for (int i = 0; i < 200; i++) {
-			Long waiting = this.jdbc.sql("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted")
+			// Solo cuenta a quien espera la clave de las altas de esta organización: classid y objid son las dos mitades
+			// de 32 bits de la clave de 64 bits que calcula hashtextextended.
+			Long waiting = this.jdbc.sql("""
+					SELECT count(*) FROM pg_locks
+					WHERE locktype = 'advisory' AND NOT granted
+					  AND ((classid::bigint << 32) | objid::bigint) = hashtextextended(?, 0)
+					""")
+				.param("article-slug:" + this.acme)
 				.query(Long.class)
 				.single();
 			if (waiting > 0) {

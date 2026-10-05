@@ -14,6 +14,13 @@ final class Slugs {
 	/** La columna de las categorías mide 80 y su slug no lleva sufijo. */
 	static final int CATEGORY_MAX_LENGTH = 80;
 
+	/**
+	 * Segmentos de la interfaz que no pueden ser el slug de un artículo: {@code /conocimiento/nuevo} abre el editor y
+	 * un artículo con ese slug no se podría abrir. «Nuevo» pasa a {@code nuevo-2}; {@code editar} se reserva por
+	 * prudencia.
+	 */
+	static final Set<String> RESERVED = Set.of("nuevo", "editar");
+
 	private static final String ARTICLE_FALLBACK = "articulo";
 
 	private static final Pattern DIACRITICS = Pattern.compile("\\p{M}+");

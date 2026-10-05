@@ -519,7 +519,10 @@ export interface paths {
          * @description The article starts as a `draft`. The slug comes from the title and never changes: `Slugs.from(title)`, and
          *     when it already exists in the organization the first free `-2`, `-3`… suffix. Two simultaneous creations
          *     with the same title get different slugs. A category that does not exist in the organization is a 400 field
-         *     error on `categoryId`.
+         *     error on `categoryId`. The slugs `nuevo` and `editar` are reserved for the routes of the interface and are
+         *     never assigned: a title that would produce one gets the next free suffix (`nuevo-2`). A 409 means another
+         *     article took the slug in the instant between choosing it and saving (it cannot happen through this API, which
+         *     serializes creations; the unique constraint is the last line of defence): the client can retry.
          */
         post: operations["createArticle"];
         delete?: never;
@@ -2323,6 +2326,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
         };
     };
     getArticle: {
