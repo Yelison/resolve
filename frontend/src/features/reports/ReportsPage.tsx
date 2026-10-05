@@ -81,7 +81,10 @@ export function ReportsPage() {
             </option>
           ))}
         </Select>
-        <p className={cx(styles.range, !data && styles.ghost)} aria-hidden={data ? undefined : true}>
+        <p
+          className={cx(styles.range, !data && styles.ghost, updating && styles.updating)}
+          aria-hidden={data ? undefined : true}
+        >
           {formatRange(data?.period ?? ghostRange, timeZone)} · {timeZone}
         </p>
       </div>
