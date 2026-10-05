@@ -45,6 +45,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 
 ```
 docs/api/           # API decisions and the OpenAPI 3.1 contract
+docs/development/   # How to work on several tasks in parallel with Herdr
 frontend/
   src/
     api/            # Types generated from the contract and the typed client
