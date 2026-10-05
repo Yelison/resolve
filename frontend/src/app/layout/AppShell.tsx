@@ -5,6 +5,7 @@ import { useModalDialog } from '../../components/ui/shared/useModalDialog'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import { useMe } from '../../features/session/queries'
 import { navigationFor, roleLabels } from '../navigation'
+import { SessionErrorPage } from '../pages/SessionErrorPage'
 import { useTheme } from '../theme/useTheme'
 import styles from './AppShell.module.css'
 import { useSidebarPreference } from './useSidebarPreference'
@@ -26,7 +27,8 @@ export function AppShell() {
   const toast = useToast()
   const drawerId = useId()
   const me = useMe()
-  // Mientras carga la sesión se muestran marcadores neutros; el contenido de cada página gestiona sus errores.
+  // Mientras carga la sesión se muestran marcadores neutros. Si falla, el contenido se sustituye por un aviso con
+  // reintento: sin rol, las páginas no pueden decidir qué vista mostrar.
   const workspaceName = me.data?.organization.name ?? 'Resolve'
   const userName = me.data?.user.name ?? '…'
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -144,7 +146,11 @@ export function AppShell() {
           }
         />
         <main ref={mainRef} id="contenido" className={styles.content} tabIndex={-1}>
-          <Outlet />
+          {me.isError ? (
+            <SessionErrorPage error={me.error} onRetry={() => void me.refetch()} retrying={me.isFetching} />
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
     </div>
