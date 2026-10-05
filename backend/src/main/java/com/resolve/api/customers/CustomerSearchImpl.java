@@ -17,12 +17,17 @@ import org.jspecify.annotations.Nullable;
  */
 class CustomerSearchImpl implements CustomerSearch {
 
+	// Las subconsultas filtran también por organización (igual que CustomerMetricsQuery): así usan el índice
+	// tickets_customer_idx (organization_id, customer_id); solo con customer_id recorrerían el índice entero por fila.
 	private static final String OPEN_TICKETS = """
 			(select count(t) from Ticket t
-			 where t.customer = c and t.status <> com.resolve.api.tickets.TicketStatus.RESOLVED)
+			 where t.organizationId = c.organizationId and t.customer = c
+			   and t.status <> com.resolve.api.tickets.TicketStatus.RESOLVED)
 			""";
 
-	private static final String TOTAL_TICKETS = "(select count(t) from Ticket t where t.customer = c)";
+	private static final String TOTAL_TICKETS = """
+			(select count(t) from Ticket t where t.organizationId = c.organizationId and t.customer = c)
+			""";
 
 	private static final String SELECT = "select c, " + OPEN_TICKETS + " as openTickets, " + TOTAL_TICKETS
 			+ " as totalTickets ";
