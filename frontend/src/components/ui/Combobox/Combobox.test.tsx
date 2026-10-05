@@ -52,6 +52,16 @@ describe('Combobox', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
+  it('aria-controls solo apunta al listbox mientras está abierto', async () => {
+    render(<Harness />)
+    const input = screen.getByRole('combobox', { name: 'Cliente' })
+    expect(input).not.toHaveAttribute('aria-controls')
+    await userEvent.click(input)
+    expect(input).toHaveAttribute('aria-controls', screen.getByRole('listbox').id)
+    await userEvent.keyboard('{Escape}')
+    expect(input).not.toHaveAttribute('aria-controls')
+  })
+
   it('avisa cuando no hay coincidencias', async () => {
     render(<Harness />)
     await userEvent.type(screen.getByRole('combobox', { name: 'Cliente' }), 'zzz')
