@@ -11,6 +11,7 @@ import { CustomerDetailPage } from '../features/customers/CustomerDetailPage'
 import { CustomersPage } from '../features/customers/CustomersPage'
 import { NewCustomerDialog } from '../features/customers/NewCustomerDialog'
 import { OverviewPage } from '../features/overview/OverviewPage'
+import { ReportsPage } from '../features/reports/ReportsPage'
 import { TeamPage } from '../features/team/TeamPage'
 import { NewTicketPage } from '../features/tickets/NewTicketPage'
 import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
@@ -143,9 +144,11 @@ const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
           ? sectionRoute(item, { element: <TeamPage /> })
           : item.to === '/conocimiento'
             ? sectionRoute(item, { children: knowledgeChildren(item) })
-            : item.to === '/configuracion'
-              ? sectionRoute(item, { children: settingsChildren(item) })
-              : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
+            : item.to === '/reportes'
+              ? sectionRoute(item, { element: <ReportsPage /> })
+              : item.to === '/configuracion'
+                ? sectionRoute(item, { children: settingsChildren(item) })
+                : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
 )
 
 /** Rutas de la aplicación; se exportan para probar el cableado real (guardias y redirecciones) sin navegador. */

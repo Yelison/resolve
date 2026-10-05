@@ -1,0 +1,96 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-8) var(--space-16);
+}
+
+.periodField {
+  flex: 0 1 220px;
+  min-width: min(100%, 160px);
+}
+
+.range {
+  align-self: center;
+  min-width: 0;
+  font: var(--font-caption);
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.metrics {
+  display: grid;
+  /* Una columna si dos no caben a 150 px; nunca más de dos por debajo de 1200 px. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(150px, calc(50% - var(--space-6)))), 1fr));
+  gap: var(--space-12);
+}
+
+.metricSkeleton {
+  min-height: 112px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-24);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+  min-height: 200px;
+  padding: var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.panelTitle {
+  font: var(--font-section);
+  color: var(--color-ink);
+}
+
+.note {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.channels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.agents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-24);
+  }
+
+  /* Gráfico 2/3 y canales 1/3. */
+  .panels {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .panel {
+    padding: var(--space-24);
+  }
+}
