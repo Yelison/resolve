@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, test, tickets } from './fixtures'
 
 test.describe('tickets', () => {
   test('la bandeja filtra por estado y abre el detalle', async ({ page }) => {
@@ -79,6 +79,52 @@ test.describe('tickets · métricas sin saltos de layout', () => {
       await expect(page.getByText('Tickets abiertos')).toBeVisible()
       const loaded = (await inbox.boundingBox())!.y
       expect(Math.abs(loaded - loading), `cargando ${loading}, con datos ${loaded}`).toBeLessThanOrEqual(4)
+    })
+  }
+})
+
+test.describe('tickets · tarjetas', () => {
+  test('a 390 px el enlace del asunto de cada tarjeta mide al menos 44 px de alto', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/tickets')
+    const links = page.getByRole('table', { name: 'Tickets' }).getByRole('link')
+    await expect(links).toHaveCount(3)
+    for (const link of await links.all()) {
+      const box = (await link.boundingBox())!
+      expect(box.height, await link.innerText()).toBeGreaterThanOrEqual(44)
+    }
+  })
+
+  for (const long of ['', 'X'.repeat(120)]) {
+    test(`a 320 px un asunto largo${long ? ' sin espacios' : ''} envuelve sin elipsis ni desbordar`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 320, height: 800 })
+      if (long) {
+        const items = tickets.map((ticket, index) => (index === 0 ? { ...ticket, subject: long } : ticket))
+        await page.route('**/api/tickets?*', (route) =>
+          route.fulfill({
+            json: { items, page: 0, size: 20, totalItems: items.length, totalPages: 1 },
+          }),
+        )
+      }
+      await page.goto('/tickets')
+      const table = page.getByRole('table', { name: 'Tickets' })
+      const link = table.getByRole('link', { name: long ? new RegExp(long) : /Error al procesar el pago/ })
+      await expect(link).toBeVisible()
+      const clipped = await link.evaluate(
+        (node) => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight,
+      )
+      expect(clipped).toBe(false)
+      const style = await link.evaluate((node) => getComputedStyle(node))
+      expect(style.textOverflow).not.toBe('ellipsis')
+      expect(style.whiteSpace).not.toBe('nowrap')
+      // El asunto ocupa varias líneas y la página no se desborda.
+      expect((await link.boundingBox())!.height).toBeGreaterThan(44)
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      )
+      expect(overflow).toBe(false)
     })
   }
 })

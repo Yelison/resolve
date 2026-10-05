@@ -73,14 +73,15 @@
   min-width: 0;
 }
 
+/* En tarjeta el asunto envuelve y el enlace mide al menos la zona táctil; la elipsis queda para las tablas. */
 .subjectLink {
   display: block;
-  overflow: hidden;
+  min-height: var(--touch-target);
+  padding-block: var(--space-12);
+  overflow-wrap: anywhere;
   color: var(--color-ink);
   font: var(--font-strong);
   text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .number {
@@ -94,12 +95,9 @@
 .customer {
   display: block;
   min-width: 0;
-  margin-top: var(--space-4);
-  overflow: hidden;
+  overflow-wrap: anywhere;
   font: var(--font-caption);
   color: var(--color-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .meta {
@@ -129,11 +127,9 @@
 }
 
 .assignee {
-  overflow: hidden;
+  overflow-wrap: anywhere;
   font: var(--font-caption);
   color: var(--color-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .updated {
@@ -158,6 +154,23 @@
   .plain .row {
     grid-template-columns: minmax(0, 1fr) 120px 90px var(--touch-target);
     grid-template-areas: 'subject status priority actions';
+  }
+
+  /* Como tabla, una línea por fila con elipsis; el asunto completo está en el `title` del enlace. */
+  .subjectLink,
+  .customer {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .subjectLink {
+    min-height: 0;
+    padding-block: 0;
+  }
+
+  .customer {
+    margin-top: var(--space-4);
   }
 
   .header {
