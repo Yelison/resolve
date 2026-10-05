@@ -218,6 +218,37 @@ public class TestData {
 			.orElse(null);
 	}
 
+	/** Categoría de la base de conocimiento, creada el 2026-09-01. Devuelve su id. */
+	public UUID category(UUID organizationId, String name, String slug) {
+		UUID id = Ids.newId();
+		this.jdbc.sql("""
+				INSERT INTO knowledge_categories (id, organization_id, name, slug, description, created_at)
+				VALUES (?, ?, ?, ?, NULL, ?)
+				""")
+			.params(id, organizationId, name, slug, Timestamp.from(Instant.parse("2026-09-01T09:00:00Z")))
+			.update();
+		return id;
+	}
+
+	/**
+	 * Artículo insertado directamente, sin pasar por la API; {@code status} y {@code visibility} en formato de la
+	 * API. Un artículo publicado lleva {@code updatedAt} como fecha de publicación.
+	 */
+	public UUID article(UUID organizationId, UUID categoryId, String slug, String title, String body, String status,
+			String visibility, UUID authorUserId, Instant updatedAt) {
+		UUID id = Ids.newId();
+		Timestamp at = Timestamp.from(updatedAt);
+		this.jdbc.sql("""
+				INSERT INTO articles (id, organization_id, category_id, slug, title, body, status, visibility, created_by,
+				                      updated_by, created_at, updated_at, published_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				""")
+			.params(id, organizationId, categoryId, slug, title, body, status, visibility, authorUserId, authorUserId, at,
+					at, status.equals("published") ? at : null)
+			.update();
+		return id;
+	}
+
 	/** Las fechas siguen el estado: las activas ya se unieron, las invitadas tienen invitación, las retiradas se unieron. */
 	private void insertMembership(UUID organizationId, UUID userId, String role, UUID customerId, String status) {
 		Timestamp now = Timestamp.from(Instant.parse("2026-09-01T09:00:00Z"));
