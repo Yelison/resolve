@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from 'react'
 import { Navigate } from 'react-router'
 import { EmptyState, Skeleton } from '../../components/ui'
-import type { Role } from '../../api/schema'
+import { roleValues, type Role } from '../../api/schema'
 import { useMe } from '../../features/session/queries'
 import pageStyles from './Page.module.css'
 import { PageHeader } from './PageHeader'
@@ -9,7 +9,8 @@ import { PageHeader } from './PageHeader'
 /**
  * Protege una sección según el rol de la sesión: esqueleto mientras carga `/me`, aviso de sin acceso si el rol no está
  * en `roles` y el contenido en otro caso. `title` pone el encabezado de la página (el `h1`) sobre el aviso y
- * `description` sustituye al texto genérico. Si `/me` falla, el shell ya muestra su propio aviso y no renderiza las rutas.
+ * `description` sustituye al texto genérico. Si `roles` incluye todos los roles no hay nada que decidir y el contenido
+ * se renderiza sin esperar a `/me`, para que sus propias peticiones salgan en paralelo con la sesión. Si `/me` falla, el shell ya muestra su propio aviso y no renderiza las rutas.
  */
 export function RequireRole({
   roles,
@@ -23,6 +24,7 @@ export function RequireRole({
   children: ReactNode
 }): ReactElement {
   const me = useMe()
+  if (roleValues.every((role) => roles.includes(role))) return <>{children}</>
   if (me.isPending) return <Skeleton lines={3} label="Cargando…" />
   if (!me.data || !roles.includes(me.data.role)) {
     return (
