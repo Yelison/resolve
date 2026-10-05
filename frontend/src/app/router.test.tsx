@@ -1,6 +1,6 @@
 import { screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../test/api'
 import { renderWithProviders } from '../test/render'
 import { reportSummary } from '../features/reports/reportFixtures'
@@ -8,6 +8,17 @@ import { metrics, page, summary, ticket } from '../test/ticketFixtures'
 import { article, articlePage, articleSummary } from '../features/knowledge/articleFixtures'
 import { mainNavigation } from './navigation'
 import { appRoutes } from './router'
+
+// Las rutas de conocimiento cargan sus vistas con `lazy`. La primera importación transforma `react-markdown` en frío y
+// puede tardar más que la espera por defecto de Testing Library: se precarga aquí y las esperas llevan margen.
+beforeAll(async () => {
+  await Promise.all([
+    import('../features/knowledge/ArticlePage'),
+    import('../features/knowledge/ArticleEditorPage'),
+    import('../features/knowledge/KnowledgePage'),
+  ])
+}, 60_000)
+const COLD = { timeout: 10_000 }
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -220,8 +231,8 @@ describe('rutas de la aplicación', () => {
       'GET /api/knowledge/articles': { body: articlePage([articleSummary()]) },
     })
     renderApp('/conocimiento')
-    expect(await screen.findByRole('heading', { level: 1, name: 'Base de conocimiento' })).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: 'Cómo recuperar el acceso a tu cuenta' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Base de conocimiento' }, COLD)).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Cómo recuperar el acceso a tu cuenta' }, COLD)).toBeInTheDocument()
     expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Nuevo artículo/ })).not.toBeInTheDocument()
   })
@@ -233,14 +244,14 @@ describe('rutas de la aplicación', () => {
       'GET /api/knowledge/articles': { body: articlePage([]) },
     })
     renderApp('/conocimiento')
-    expect(await screen.findByText('Todavía no hay artículos')).toBeInTheDocument()
+    expect(await screen.findByText('Todavía no hay artículos', {}, COLD)).toBeInTheDocument()
     expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
   })
 
   it('un cliente no abre /conocimiento/nuevo: ve el aviso sin acceso', async () => {
     mockApi({ 'GET /api/me': { body: customerMe } })
     renderApp('/conocimiento/nuevo')
-    expect(await screen.findByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'No tienes acceso a esta sección' }, COLD)).toBeInTheDocument()
     expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 
@@ -250,8 +261,8 @@ describe('rutas de la aplicación', () => {
       'GET /api/knowledge/categories': { body: [] },
     })
     renderApp('/conocimiento/nuevo')
-    expect(await screen.findByRole('heading', { level: 1, name: 'Nuevo artículo' })).toBeInTheDocument()
-    expect(await screen.findByRole('textbox', { name: 'Título' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Nuevo artículo' }, COLD)).toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'Título' }, COLD)).toBeInTheDocument()
   })
 
   it('/conocimiento/:slug/editar abre el editor al personal con el artículo cargado', async () => {
@@ -261,8 +272,10 @@ describe('rutas de la aplicación', () => {
       'GET /api/knowledge/articles/como-recuperar-el-acceso-a-tu-cuenta': { body: article() },
     })
     renderApp('/conocimiento/como-recuperar-el-acceso-a-tu-cuenta/editar')
-    expect(await screen.findByRole('heading', { level: 1, name: 'Editar artículo' })).toBeInTheDocument()
-    expect(await screen.findByRole('textbox', { name: 'Título' })).toHaveValue('Cómo recuperar el acceso a tu cuenta')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Editar artículo' }, COLD)).toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'Título' }, COLD)).toHaveValue(
+      'Cómo recuperar el acceso a tu cuenta',
+    )
   })
 
   it.each(staffMes)('deja al personal abrir los reportes como %s', async (_role, me) => {
@@ -293,7 +306,7 @@ describe('rutas de la aplicación', () => {
     })
     renderApp('/conocimiento/como-recuperar-el-acceso-a-tu-cuenta')
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Cómo recuperar el acceso a tu cuenta' }),
+      await screen.findByRole('heading', { level: 1, name: 'Cómo recuperar el acceso a tu cuenta' }, COLD),
     ).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Editar artículo' })).not.toBeInTheDocument()
   })
@@ -301,7 +314,7 @@ describe('rutas de la aplicación', () => {
   it('un cliente no abre /conocimiento/:slug/editar: ve el aviso sin acceso', async () => {
     mockApi({ 'GET /api/me': { body: customerMe } })
     renderApp('/conocimiento/como-recuperar-el-acceso-a-tu-cuenta/editar')
-    expect(await screen.findByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'No tienes acceso a esta sección' }, COLD)).toBeInTheDocument()
   })
 
   it('cubre todas las secciones de personal', () => {

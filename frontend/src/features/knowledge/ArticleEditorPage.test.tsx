@@ -2,7 +2,7 @@ import { focusManager } from '@tanstack/react-query'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, mockApi, type MockRoute } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { article, category } from './articleFixtures'
@@ -59,6 +59,13 @@ function conflictApi() {
   }
   return { spy, otherTabSaves }
 }
+
+// La vista previa se carga con `lazy`: la primera importación transforma `react-markdown` en frío. Se precarga aquí y las
+// esperas que dependen de ella llevan un margen explícito.
+beforeAll(async () => {
+  await import('./ArticlePreview')
+}, 60_000)
+const COLD = { timeout: 10_000 }
 
 beforeEach(() => sessionStorage.clear())
 afterEach(() => vi.restoreAllMocks())
@@ -448,7 +455,7 @@ describe('ArticleEditorPage · vista previa', () => {
     await userEvent.clear(body)
     await userEvent.type(body, '## Paso uno{Enter}{Enter}Texto **fuerte** <script>alert(1)</script>')
     await userEvent.click(screen.getByRole('tab', { name: 'Vista previa' }))
-    expect(await screen.findByRole('heading', { level: 2, name: 'Paso uno' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Paso uno' }, COLD)).toBeInTheDocument()
     expect(screen.getByText('fuerte')).toContainHTML('<strong>fuerte</strong>')
     expect(container.querySelector('script')).toBeNull()
     expect(screen.getByRole('navigation', { name: 'En este artículo' })).toBeInTheDocument()
