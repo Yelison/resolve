@@ -6,6 +6,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
@@ -18,6 +20,15 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 @Configuration(proxyBeanMethods = false)
 @Profile("oidc")
 class OidcSecurityConfiguration {
+
+	/**
+	 * Los tokens del cliente OIDC (acceso y refresco) se guardan en la sesión HTTP y mueren con ella. El valor por
+	 * defecto de Spring Boot los dejaría en un servicio en memoria, por usuario, que sobrevive a la sesión invalidada.
+	 */
+	@Bean
+	OAuth2AuthorizedClientRepository authorizedClientRepository() {
+		return new HttpSessionOAuth2AuthorizedClientRepository();
+	}
 
 	/** Sesión en el servidor, CSRF por cookie y cabecera, inicio de sesión OIDC y cierre de sesión con 204. */
 	@Bean
