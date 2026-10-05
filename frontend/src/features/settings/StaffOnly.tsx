@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { EmptyState } from '../../components/ui'
+import { Link } from 'react-router'
+import { buttonClassName, EmptyState } from '../../components/ui'
 import { useMe } from '../session/queries'
 
 /**
@@ -16,6 +17,11 @@ export function StaffOnly({ fallback, children }: { fallback: ReactNode; childre
         kind="restricted"
         title="No tienes acceso a esta sección"
         description="Tu rol no permite abrir esta pestaña."
+        action={
+          <Link to="/configuracion/perfil" className={buttonClassName({ variant: 'secondary' })}>
+            Ir a tu perfil
+          </Link>
+        }
       />
     )
   }
