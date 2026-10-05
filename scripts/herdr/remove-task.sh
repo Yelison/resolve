@@ -56,9 +56,14 @@ find_leftovers() {
   done < <(slot_ports "$TASK_SLOT") | sort -u | awk -F'\t' '{ printf "  port %s: pid %s, %s (cwd %s)\n", $1, $2, $3, $4 }'
 }
 find_containers() {
+  local found
   command -v docker >/dev/null 2>&1 || return 0
-  docker ps -a --filter "label=com.docker.compose.project=$TASK_COMPOSE_PROJECT" --format '{{.ID}} {{.Names}} ({{.Status}})' 2>/dev/null \
-    | awk '{ print "  container " $0 }' || true
+  # A docker that cannot answer is not "no containers": say so, so the task is not retired blind.
+  if ! found=$(docker ps -a --filter "label=com.docker.compose.project=$TASK_COMPOSE_PROJECT" --format '{{.ID}} {{.Names}} ({{.Status}})' 2>/dev/null); then
+    printf '  could not list the containers of %s (docker ps failed; is the Docker daemon running?)\n' "$TASK_COMPOSE_PROJECT"
+    return 0
+  fi
+  [ -z "$found" ] || awk '{ print "  container " $0 }' <<<"$found"
 }
 
 require_herdr
@@ -83,7 +88,9 @@ if [ -n "$leftovers" ]; then
   if [ "$FORCE_LEFTOVERS" = 1 ]; then
     log "Going on (--force-leftovers); nothing listed above is killed here, only the Compose project is stopped below."
   else
-    die "the task left processes or containers behind (nothing was removed). Stop them yourself (docker compose -p $TASK_COMPOSE_PROJECT down for the containers, the owner for the processes) or rerun with --force-leftovers"
+    down_cmd="docker compose -p $TASK_COMPOSE_PROJECT down"
+    [ "$VOLUMES" = 0 ] || down_cmd="$down_cmd --volumes"
+    die "the task left processes or containers behind (nothing was removed). Stop them yourself ($down_cmd for the containers, the owner for the processes) or rerun with --force-leftovers"
   fi
 fi
 
@@ -95,15 +102,25 @@ else
   log "note: $TASK_BRANCH has no upstream; its $ahead commit(s) beyond main stay in the local branch"
 fi
 
+# Without --volumes, only a project Compose still lists is stopped. With it, the volumes are removed even when no
+# container is left (compose ls derives the projects from containers, so it would not list a project that only has
+# volumes), through the project's own compose file.
+project_listed=0
 if command -v docker >/dev/null 2>&1 \
   && docker compose ls -a --format json 2>/dev/null | jq -e --arg n "$TASK_COMPOSE_PROJECT" '.[] | select(.Name == $n)' >/dev/null; then
+  project_listed=1
+fi
+if [ "$VOLUMES" = 1 ] || [ "$project_listed" = 1 ]; then
+  command -v docker >/dev/null 2>&1 || die "docker is required to remove the volumes of $TASK_COMPOSE_PROJECT (nothing was removed)"
   compose_file="$TASK_WORKTREE/docker-compose.yml"
   [ -f "$compose_file" ] || compose_file="$TASK_REPO/docker-compose.yml"
   log "Stopping Docker Compose project $TASK_COMPOSE_PROJECT…"
   if [ "$VOLUMES" = 1 ]; then
-    docker compose -p "$TASK_COMPOSE_PROJECT" -f "$compose_file" down --volumes
+    docker compose -p "$TASK_COMPOSE_PROJECT" -f "$compose_file" down --volumes \
+      || die "could not remove the volumes of $TASK_COMPOSE_PROJECT (nothing else was removed)"
   else
-    docker compose -p "$TASK_COMPOSE_PROJECT" -f "$compose_file" down
+    docker compose -p "$TASK_COMPOSE_PROJECT" -f "$compose_file" down \
+      || die "could not stop $TASK_COMPOSE_PROJECT (nothing else was removed)"
   fi
 fi
 
