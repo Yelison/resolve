@@ -4,10 +4,13 @@ import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.resolve.api.common.persistence.LockTimeouts;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 
 /** Todas las consultas reciben la organización del principal; no existe una búsqueda solo por id. */
 public interface ArticleRepository extends JpaRepository<Article, UUID>, ArticleSearch {
@@ -20,6 +23,7 @@ public interface ArticleRepository extends JpaRepository<Article, UUID>, Article
 	 * de versión con un 412 que esas acciones no declaran.
 	 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@QueryHints(@QueryHint(name = LockTimeouts.HINT, value = LockTimeouts.MILLIS))
 	@Query("select a from Article a where a.organizationId = :organizationId and a.slug = :slug")
 	Optional<Article> lockBySlug(UUID organizationId, String slug);
 

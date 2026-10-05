@@ -3,10 +3,13 @@ package com.resolve.api.customers;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.resolve.api.common.persistence.LockTimeouts;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 
 /** Todas las consultas reciben la organización del principal; no existe una búsqueda solo por id. */
 public interface CustomerRepository extends JpaRepository<Customer, UUID>, CustomerSearch {
@@ -19,6 +22,7 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID>, Custo
 	 * en la comprobación de versión con un 412 que esas acciones no declaran.
 	 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@QueryHints(@QueryHint(name = LockTimeouts.HINT, value = LockTimeouts.MILLIS))
 	@Query("select c from Customer c where c.organizationId = :organizationId and c.id = :id")
 	Optional<Customer> lockInOrganization(UUID organizationId, UUID id);
 

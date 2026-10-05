@@ -3,6 +3,7 @@ package com.resolve.api.common.error;
 import java.sql.SQLException;
 import java.util.List;
 
+import com.resolve.api.common.persistence.LockTimeouts;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -55,6 +57,20 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	@ExceptionHandler
 	ProblemDetail handleOptimisticLock(ObjectOptimisticLockingFailureException exception) {
 		return preconditionFailed("El recurso cambió mientras se guardaba. Vuelve a cargarlo e inténtalo de nuevo.");
+	}
+
+	/**
+	 * Otra transacción retenía la fila más de {@link LockTimeouts#MILLIS} ms. No es un error de versión (412) ni de
+	 * negocio (409): la petición es válida y repetirla tal cual puede funcionar, que es el significado de un 503 con
+	 * {@code Retry-After}. Solo {@link CannotAcquireLockException}; las demás fallas de bloqueo no se traducen aquí.
+	 */
+	@ExceptionHandler
+	ResponseEntity<ProblemDetail> handleLockTimeout(CannotAcquireLockException exception) {
+		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+			.header(HttpHeaders.RETRY_AFTER, String.valueOf(LockTimeouts.RETRY_AFTER_SECONDS))
+			.contentType(MediaType.APPLICATION_PROBLEM_JSON)
+			.body(problem(HttpStatus.SERVICE_UNAVAILABLE, "Recurso ocupado",
+					"Otra operación está modificando este recurso. Inténtalo de nuevo en unos segundos."));
 	}
 
 	/**
