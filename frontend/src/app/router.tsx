@@ -28,7 +28,11 @@ const ticketRoutes: RouteObject[] = [
       {
         path: 'nuevo',
         element: (
-          <RequireRole roles={['admin', 'agent']}>
+          <RequireRole
+            roles={['admin', 'agent']}
+            title="Crear ticket"
+            description="Solo los agentes y administradores pueden registrar tickets."
+          >
             <NewTicketPage />
           </RequireRole>
         ),
