@@ -58,6 +58,24 @@ export const demoChartPoints = [
   { key: 'sun', label: 'Domingo', shortLabel: 'D', values: { requests: 30 } },
 ]
 
+/** Serie diaria sintética (valores de cuatro cifras incluidos) para probar el gráfico con muchos puntos. */
+export function demoDailyPoints(days: number) {
+  return Array.from({ length: days }, (_, index) => {
+    const day = index + 1
+    return {
+      key: `d${day}`,
+      label: `Día ${day}`,
+      shortLabel: String(day),
+      values: { requests: 900 + ((day * 37) % 410), resolved: 700 + ((day * 53) % 380) },
+    }
+  })
+}
+
+export const demoTwoSeries = [
+  { id: 'requests', label: 'Creados' },
+  { id: 'resolved', label: 'Resueltos', color: 'muted' as const },
+]
+
 /** Datos de demostración para `ProgressBar`. */
 export const demoChannelShare = [
   { label: 'Correo', value: 62 },

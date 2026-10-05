@@ -39,7 +39,15 @@ import {
 import { iconPaths } from '../../components/ui/Icon/paths'
 import { cx } from '../../lib/cx'
 import { useTheme } from '../theme/useTheme'
-import { demoChannelShare, demoChartPoints, demoChartSeries, demoNow, demoTickets } from './catalogData'
+import {
+  demoChannelShare,
+  demoChartPoints,
+  demoChartSeries,
+  demoDailyPoints,
+  demoNow,
+  demoTickets,
+  demoTwoSeries,
+} from './catalogData'
 import styles from './CatalogPage.module.css'
 
 const colorTokens = [
@@ -348,6 +356,23 @@ export default function CatalogPage() {
             ))}
             <ProgressBar label="Carga con texto propio" value={30} max={120} valueText="30 de 120 tickets" />
           </div>
+        </div>
+        <div className={styles.stack} data-testid="dense-charts">
+          <BarChart
+            label="Solicitudes de los últimos 30 días (demostración)"
+            series={demoChartSeries}
+            points={demoDailyPoints(30)}
+          />
+          <BarChart
+            label="Creados y resueltos de los últimos 30 días (demostración)"
+            series={demoTwoSeries}
+            points={demoDailyPoints(30)}
+          />
+          <BarChart
+            label="Solicitudes de los últimos 90 días (demostración)"
+            series={demoChartSeries}
+            points={demoDailyPoints(90)}
+          />
         </div>
         <div className={styles.stack}>
           <Message kind="customer" author="María Pérez" sentAt={demoNow} footer="Correo electrónico">
