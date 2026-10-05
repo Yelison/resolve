@@ -159,17 +159,17 @@ The Overview and Reports screens calculate nothing beyond the items marked **(cl
 | --- | --- |
 | Tickets abiertos, "N nuevos hoy" | `open` and `openedToday`. Only tickets with status `open`: those `in_progress` are not counted |
 | Resueltos hoy, "N más que ayer" | `resolvedToday` against `resolvedYesterday`, both from the activity log (distinct tickets that entered `resolved`, in the organization's calendar days). The difference and the percentage are computed **(client)** from those two integers |
-| Primera respuesta, "Mediana de 7 días · Objetivo: N min" | `firstResponseMinutes` (median over the last 168 rolling hours, **not** the calendar window of Reports) and `firstResponseTargetMinutes`, the value saved in Settings. "Sin datos" when `null` |
+| Primera respuesta, "Mediana de 7 días · Objetivo: N min" | `firstResponseMinutes` (median over the tickets **created** in the last 168 rolling hours that have a first response, **not** the calendar window of Reports; a ticket created earlier does not count even if it was answered inside that window) and `firstResponseTargetMinutes`, the value saved in Settings. "Sin datos" when `null` |
 | Sin responsable | `views.unassigned`: tickets without an assignee whose status is not `resolved` (`waiting` ones count). The link opens the inbox on that view |
 | Solicitudes · Últimos 7 días | `byDay[].created` of the 7-day report: tickets created per calendar day of the organization, today included. The alternative table lists the same seven values |
 | Actividad reciente | The latest 5 entries of the activity feed (see [Activity](#activity)) |
-| Necesitan atención | The first 5 tickets with status `open` or `in_progress`, sorted by priority, highest first (`sort=priority,desc`: ranked urgent, high, medium, low; not alphabetical) |
+| Necesitan atención | The first 5 tickets with status `open` or `in_progress`, sorted by priority, highest first (`sort=priority,desc`: ranked urgent, high, medium, low; not alphabetical); within the same priority the highest ticket number (the newest) comes first, always `t.number desc`, so a new urgent ticket is listed first |
 
 **Reports** (`GET /api/reports/summary?period=7d|30d|90d`; the period lives in the URL as `?period=`):
 
 | On screen | Source and definition |
 | --- | --- |
-| Solicitudes, "N más que los 30 días anteriores" | `created.value` against `created.previous` (the adjacent window of the same elapsed duration). Difference and percentage **(client)**; the trend is neutral because more requests is neither good nor bad |
+| Solicitudes, "N más (P %) frente a los N días anteriores" | `created.value` against `created.previous` (the adjacent window of the same elapsed duration). The text is "N más (P %) frente a los N días anteriores" or "N menos (P %) …"; "Sin cambios frente a los N días anteriores" when equal; the "(P %)" is left out when the previous period had none or it rounds to 0. Difference and percentage **(client)**; the trend is neutral because more requests is neither good nor bad |
 | Resueltos, "N resueltos por cada 100 creados" | `resolved.value` (distinct tickets that entered `resolved` in the period) divided by `created.value`, rounded, **(client)**; hidden when nothing was created. It can exceed 100 because the resolved tickets include some created before the period: it is a ratio, not a share of the created ones |
 | Primera respuesta | `firstResponseMinutes`: median over the tickets created in the period that have a first public agent message, next to the organization's `target`; "Sin datos" when `null` |
 | Resolución | `resolutionHours`: median hours from creation to the first time a ticket entered `resolved`, over the tickets created in the period that were ever resolved; "Sin datos" when `null` |
