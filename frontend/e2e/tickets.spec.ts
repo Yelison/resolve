@@ -11,6 +11,15 @@ test.describe('tickets', () => {
     await expect(page).toHaveURL(/status=in_progress/)
     await expect(page.getByRole('table', { name: 'Tickets' }).getByRole('row')).toHaveCount(2)
 
+    const sorted = page.waitForRequest((request) => {
+      const url = new URL(request.url())
+      return url.pathname === '/api/tickets' && url.searchParams.get('sort') === 'priority,desc'
+    })
+    await page.getByRole('combobox', { name: 'Ordenar por' }).selectOption({ label: 'Prioridad: urgente primero' })
+    await sorted
+    await expect(page).toHaveURL(/status=in_progress/)
+    await expect(page).toHaveURL(/sort=priority%2Cdesc/)
+
     await page.getByRole('link', { name: /#1047/ }).click()
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Error al procesar el pago/)
     await expect(page.getByRole('navigation', { name: 'Ruta de navegación' })).toContainText('#1047')
