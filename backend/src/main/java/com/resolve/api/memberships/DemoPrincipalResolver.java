@@ -27,12 +27,15 @@ class DemoPrincipalResolver implements PrincipalResolver {
 
 	private final CustomerRepository customers;
 
+	private final MemberService members;
+
 	private final @Nullable String defaultUser;
 
-	DemoPrincipalResolver(MembershipRepository memberships, CustomerRepository customers,
+	DemoPrincipalResolver(MembershipRepository memberships, CustomerRepository customers, MemberService members,
 			@Value("${resolve.demo.default-user:#{null}}") @Nullable String defaultUser) {
 		this.memberships = memberships;
 		this.customers = customers;
+		this.members = members;
 		this.defaultUser = defaultUser;
 	}
 
@@ -46,12 +49,21 @@ class DemoPrincipalResolver implements PrincipalResolver {
 		if (email == null) {
 			return Optional.empty();
 		}
-		// La membresía de un cliente archivado no resuelve principal: se pasa a la siguiente o se responde 401.
+		// Una membresía retirada o la de un cliente archivado no resuelve principal: se pasa a la siguiente o se
+		// responde 401. Una invitación se activa en el primer acceso, solo la de la membresía elegida.
 		return this.memberships.findAllByUserEmail(email.trim())
 			.stream()
+			.filter((membership) -> membership.getStatus() != MemberStatus.REMOVED)
 			.filter((membership) -> !isArchivedCustomer(membership))
 			.findFirst()
+			.filter(this::isActiveAfterFirstAccess)
 			.map(DemoPrincipalResolver::toMember);
+	}
+
+	/** Activa la invitación en su propia transacción y confirma el estado final: una retirada concurrente gana. */
+	private boolean isActiveAfterFirstAccess(Membership membership) {
+		return membership.getStatus() == MemberStatus.ACTIVE
+				|| this.members.activate(membership.getId()) == MemberStatus.ACTIVE;
 	}
 
 	private boolean isArchivedCustomer(Membership membership) {

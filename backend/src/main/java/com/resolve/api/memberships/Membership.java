@@ -1,5 +1,6 @@
 package com.resolve.api.memberships;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import com.resolve.api.organizations.Organization;
@@ -34,6 +35,18 @@ public class Membership {
 	@Column(name = "customer_id")
 	private @Nullable UUID customerId;
 
+	@Column(nullable = false)
+	private MemberStatus status;
+
+	@Column(name = "invited_at")
+	private @Nullable Instant invitedAt;
+
+	@Column(name = "joined_at")
+	private @Nullable Instant joinedAt;
+
+	@Column(name = "removed_at")
+	private @Nullable Instant removedAt;
+
 	protected Membership() {
 	}
 
@@ -55,6 +68,22 @@ public class Membership {
 
 	public @Nullable UUID getCustomerId() {
 		return this.customerId;
+	}
+
+	public MemberStatus getStatus() {
+		return this.status;
+	}
+
+	public @Nullable Instant getInvitedAt() {
+		return this.invitedAt;
+	}
+
+	public @Nullable Instant getJoinedAt() {
+		return this.joinedAt;
+	}
+
+	public @Nullable Instant getRemovedAt() {
+		return this.removedAt;
 	}
 
 }

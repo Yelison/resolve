@@ -1,5 +1,7 @@
 package com.resolve.api.tickets;
 
+import java.util.UUID;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
@@ -105,6 +107,19 @@ class TicketUpdateApiTest extends TicketsFixture {
 			.content("{\"status\": null, \"organizationId\": \"x\"}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[*].field", contains("organizationId", "status")));
+	}
+
+	@Test
+	void anInvitedOrRemovedMemberCannotBeAssignedByPatch() throws Exception {
+		UUID invited = this.data.staff(this.acme, "agent", "Inés Invitada", "invitada@acme.example", "invited");
+		UUID removed = this.data.staff(this.acme, "agent", "Raúl Retirado", "retirado@acme.example", "removed");
+		for (UUID assignee : new UUID[] { invited, removed }) {
+			this.mvc.perform(patch("/tickets/1").with(as(LAURA)).contentType(TicketsController.MERGE_PATCH_JSON)
+				.header("If-Match", "\"0\"")
+				.content("{\"assigneeId\": \"%s\"}".formatted(assignee)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("assigneeId"));
+		}
 	}
 
 	@Test

@@ -3,6 +3,7 @@ package com.resolve.api.tickets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -132,6 +133,19 @@ class TicketCreationApiTest extends TicketsFixture {
 				""".formatted(this.mariaCustomer, this.northwindAgent)))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("assigneeId"));
+	}
+
+	@Test
+	void anInvitedOrRemovedMemberCannotBeTheAssignee() throws Exception {
+		UUID invited = this.data.staff(this.acme, "agent", "Inés Invitada", "invitada@acme.example", "invited");
+		UUID removed = this.data.staff(this.acme, "agent", "Raúl Retirado", "retirado@acme.example", "removed");
+		for (UUID assignee : new UUID[] { invited, removed }) {
+			this.mvc.perform(post("/tickets").with(as(LAURA)).contentType(MediaType.APPLICATION_JSON).content("""
+					{"customerId": "%s", "subject": "A", "description": "B", "assigneeId": "%s"}
+					""".formatted(this.mariaCustomer, assignee)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.errors[0].field").value("assigneeId"));
+		}
 	}
 
 	@Test
