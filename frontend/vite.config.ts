@@ -7,16 +7,18 @@ import { defineConfig } from 'vite'
 const devServerPort = process.env.DEV_SERVER_PORT
 const apiProxyTarget = process.env.API_PROXY_TARGET || 'http://localhost:8080'
 
+// `vite preview` sirve el build para Playwright: sin este proxy, /api respondería con el index.html.
+const proxy = { '/api': apiProxyTarget }
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
     port: devServerPort ? Number(devServerPort) : undefined,
     strictPort: Boolean(devServerPort),
-    proxy: {
-      '/api': apiProxyTarget,
-    },
+    proxy,
   },
+  preview: { proxy },
   test: {
     environment: 'jsdom',
     globalSetup: ['./src/test/globalSetup.ts'],
