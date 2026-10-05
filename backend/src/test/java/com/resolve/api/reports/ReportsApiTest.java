@@ -109,6 +109,73 @@ class ReportsApiTest extends ReportsFixture {
 		assertThat(summary.at("/created/value").asInt()).isEqualTo(6);
 	}
 
+	/** Madrid adelanta una hora el 29 de marzo de 2026 a las 02:00 (+01:00 → +02:00): ese día dura 23 horas. */
+	@Test
+	void summaryCountsDaysAcrossTheMarchDaylightSavingChange() throws Exception {
+		Seeded madrid = organizationIn("Madrid", "Europe/Madrid");
+		this.clock.set(at("2026-03-30T13:00:00+02:00"));
+
+		madrid.ticket(this, "email", "2026-03-28T23:30:00+01:00"); // día 28
+		madrid.ticket(this, "email", "2026-03-29T00:30:00+01:00"); // primera hora del día 29
+		madrid.ticket(this, "email", "2026-03-29T01:59:59+01:00"); // último segundo antes del salto
+		madrid.ticket(this, "email", "2026-03-29T03:00:00+02:00"); // la hora siguiente: ya +02:00
+		UUID lastOfTheDay = madrid.ticket(this, "email", "2026-03-29T23:30:00+02:00");
+		madrid.resolve(this, lastOfTheDay, "2026-03-29T23:45:00+02:00");
+		madrid.ticket(this, "email", "2026-03-30T00:10:00+02:00"); // día 30
+
+		JsonNode summary = summary(madrid.email(), "7d");
+
+		assertThat(summary.at("/period/from").asString()).isEqualTo("2026-03-23T23:00:00Z"); // 00:00+01:00 del 24
+		assertThat(dates(summary)).containsExactly("2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27",
+				"2026-03-28", "2026-03-29", "2026-03-30");
+		assertThat(day(summary, "2026-03-28").path("created").asInt()).isEqualTo(1);
+		assertThat(day(summary, "2026-03-29").path("created").asInt()).isEqualTo(4);
+		assertThat(day(summary, "2026-03-29").path("resolved").asInt()).isEqualTo(1);
+		assertThat(day(summary, "2026-03-30").path("created").asInt()).isEqualTo(1);
+		assertThat(summary.at("/created/value").asInt()).isEqualTo(6);
+	}
+
+	/** El periodo empieza en un día de cambio de hora: Nueva York adelanta el 8 de marzo de 2026 (día de 23 horas). */
+	@Test
+	void aPeriodThatStartsOnADaylightSavingDayBeginsAtLocalMidnight() throws Exception {
+		Seeded newYork = organizationIn("Nuevayork", "America/New_York");
+		this.clock.set(at("2026-03-14T12:00:00-04:00"));
+		// from = 2026-03-08T00:00-05:00 = 05:00Z; to = 2026-03-14T16:00Z (155 h) → previous = [2026-03-01T18:00Z, from)
+		newYork.ticket(this, "web", "2026-03-08T00:00:00-05:00"); // en el inicio: periodo actual, día 8
+		newYork.ticket(this, "web", "2026-03-08T03:30:00-04:00"); // tras el salto, también día 8
+		newYork.ticket(this, "web", "2026-03-07T23:59:59-05:00"); // un segundo antes: periodo anterior
+		newYork.ticket(this, "web", "2026-03-01T18:00:00Z"); // inicio del anterior: cuenta
+		newYork.ticket(this, "web", "2026-03-01T17:59:59Z"); // un segundo antes: no cuenta
+
+		JsonNode summary = summary(newYork.email(), "7d");
+
+		assertThat(summary.at("/period/from").asString()).isEqualTo("2026-03-08T05:00:00Z");
+		assertThat(dates(summary)).containsExactly("2026-03-08", "2026-03-09", "2026-03-10", "2026-03-11",
+				"2026-03-12", "2026-03-13", "2026-03-14");
+		assertThat(day(summary, "2026-03-08").path("created").asInt()).isEqualTo(2);
+		assertThat(summary.at("/created/value").asInt()).isEqualTo(2);
+		assertThat(summary.at("/created/previous").asInt()).isEqualTo(2);
+	}
+
+	/** Santiago adelanta a medianoche el 6 de septiembre de 2026 (00:00−04:00 → 01:00−03:00): ese día no tiene las 00:00. */
+	@Test
+	void aSkippedMidnightStartsTheDayAtTheFirstExistingInstant() throws Exception {
+		Seeded santiago = organizationIn("Santiago", "America/Santiago");
+		this.clock.set(at("2026-09-12T12:00:00-03:00"));
+
+		santiago.ticket(this, "chat", "2026-09-05T23:59:59-04:00"); // día 5: periodo anterior
+		santiago.ticket(this, "chat", "2026-09-06T01:00:00-03:00"); // primer instante del día 6
+		santiago.ticket(this, "chat", "2026-09-06T12:00:00-03:00");
+
+		JsonNode summary = summary(santiago.email(), "7d");
+
+		assertThat(summary.at("/period/from").asString()).isEqualTo("2026-09-06T04:00:00Z"); // 01:00−03:00
+		assertThat(dates(summary).get(0)).isEqualTo("2026-09-06");
+		assertThat(day(summary, "2026-09-06").path("created").asInt()).isEqualTo(2);
+		assertThat(summary.at("/created/value").asInt()).isEqualTo(2);
+		assertThat(summary.at("/created/previous").asInt()).isEqualTo(1);
+	}
+
 	// --- Periodo anterior ---
 
 	/** Acme: el periodo empieza el 28 a las 05:00 UTC y dura 6 d 10 h hasta «ahora»; el anterior, lo mismo hacia atrás. */
@@ -332,6 +399,9 @@ class ReportsApiTest extends ReportsFixture {
 		UUID two = ticket("email", "2026-10-01T12:00:00Z");
 		UUID three = ticket("email", "2026-10-01T12:00:00Z");
 		this.data.agentMessage(this.acme, one, this.daniel, "internal", at("2026-10-01T12:05:00Z")); // nota: no cuenta
+		// Un mensaje público del cliente antes de la respuesta no es «el primer mensaje público del agente».
+		this.data.customerMessage(this.acme, one, this.customer, at("2026-10-01T12:02:00Z"));
+		this.data.customerMessage(this.acme, two, this.customer, at("2026-10-01T12:00:30Z"));
 		this.data.agentMessage(this.acme, one, this.laura, "public", at("2026-10-01T12:10:00Z"));
 		this.data.agentMessage(this.acme, two, this.laura, "public", at("2026-10-01T12:30:00Z"));
 		this.data.agentMessage(this.acme, three, this.daniel, "public", at("2026-10-01T13:00:00Z"));
