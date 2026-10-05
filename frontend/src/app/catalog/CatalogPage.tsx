@@ -95,6 +95,7 @@ export default function CatalogPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set(['t-1047']))
   const [draft, setDraft] = useState('')
   const [mode, setMode] = useState<EditorMode>('reply')
+  const [articleDraft, setArticleDraft] = useState('')
 
   const selection = selected.size === 0 ? 'none' : selected.size === demoTickets.length ? 'all' : 'some'
   const toggleAll = () => setSelected(selection === 'all' ? new Set() : new Set(demoTickets.map((ticket) => ticket.id)))
@@ -455,6 +456,7 @@ export default function CatalogPage() {
           }}
           onAttach={() => {}}
         />
+        <Editor variant="article" label="Contenido del artículo" value={articleDraft} onChange={setArticleDraft} />
       </Section>
 
       <Section title="Tickets">
