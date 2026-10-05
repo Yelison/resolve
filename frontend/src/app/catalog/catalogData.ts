@@ -57,3 +57,10 @@ export const demoChartPoints = [
   { key: 'sat', label: 'Sábado', shortLabel: 'S', values: { requests: 35 } },
   { key: 'sun', label: 'Domingo', shortLabel: 'D', values: { requests: 30 } },
 ]
+
+/** Datos de demostración para `ProgressBar`. */
+export const demoChannelShare = [
+  { label: 'Correo', value: 62 },
+  { label: 'Portal', value: 28 },
+  { label: 'Chat', value: 10 },
+]

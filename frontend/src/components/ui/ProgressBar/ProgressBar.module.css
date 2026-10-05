@@ -1,0 +1,47 @@
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.label {
+  min-width: 0;
+  font: var(--font-body);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.value {
+  flex: none;
+  font: var(--font-strong);
+  color: var(--color-blue-ink);
+}
+
+.track {
+  height: 8px;
+  border-radius: var(--radius-small);
+  background: var(--color-line);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-brand);
+  transition: width 0.4s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+}

@@ -20,6 +20,7 @@ import {
   Modal,
   NavItem,
   Pagination,
+  ProgressBar,
   Radio,
   Select,
   Skeleton,
@@ -38,7 +39,7 @@ import {
 import { iconPaths } from '../../components/ui/Icon/paths'
 import { cx } from '../../lib/cx'
 import { useTheme } from '../theme/useTheme'
-import { demoChartPoints, demoChartSeries, demoNow, demoTickets } from './catalogData'
+import { demoChannelShare, demoChartPoints, demoChartSeries, demoNow, demoTickets } from './catalogData'
 import styles from './CatalogPage.module.css'
 
 const colorTokens = [
@@ -341,6 +342,12 @@ export default function CatalogPage() {
         <p className={styles.demo}>Datos de demostración: no proceden de ninguna API.</p>
         <div className={styles.grid}>
           <BarChart label="Solicitudes por día (demostración)" series={demoChartSeries} points={demoChartPoints} />
+          <div className={styles.stack}>
+            {demoChannelShare.map((channel) => (
+              <ProgressBar key={channel.label} label={channel.label} value={channel.value} />
+            ))}
+            <ProgressBar label="Carga con texto propio" value={30} max={120} valueText="30 de 120 tickets" />
+          </div>
         </div>
         <div className={styles.stack}>
           <Message kind="customer" author="María Pérez" sentAt={demoNow} footer="Correo electrónico">
