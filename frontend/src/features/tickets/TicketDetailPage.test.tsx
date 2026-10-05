@@ -121,6 +121,19 @@ describe('TicketDetailPage para agentes', () => {
     expect(queryClient.getQueryData<Ticket>(ticketKeys.detail(1048))?.version).toBe(1)
   })
 
+  it('no guarda la respuesta de un PATCH más antigua que el ticket en caché', async () => {
+    staffApi({
+      'GET /api/tickets/1048': { body: ticket({ version: 2 }) },
+      'PATCH /api/tickets/1048': { body: ticket({ status: 'in_progress', version: 1 }) },
+    })
+    const { queryClient } = renderDetail()
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Estado' }), 'in_progress')
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('Estado: En progreso')).toBeInTheDocument()
+    expect(queryClient.getQueryData<Ticket>(ticketKeys.detail(1048))).toMatchObject({ status: 'open', version: 2 })
+    expect(screen.getByRole('combobox', { name: 'Estado' })).toHaveValue('open')
+  })
+
   it('envía una respuesta pública y vacía el borrador', async () => {
     const fetchSpy = staffApi({
       'POST /api/tickets/1048/messages': {
