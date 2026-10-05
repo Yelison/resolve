@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { api, isApiError, unwrap } from '../../api/client'
 import type { MemberInvite, TeamMember, TeamRole } from '../../domain/member'
 import { sessionKeys } from '../session/queries'
-import { ticketKeys } from '../tickets/queries'
+import { invalidateOverview, ticketKeys } from '../tickets/queries'
+import { reportKeys } from '../reports/queries'
 
 export const memberKeys = {
   all: ['members'] as const,
@@ -49,8 +50,12 @@ export function useInviteMember() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (invite: MemberInvite) => unwrap(api.POST('/members', { body: invite })),
-    // Un invitado aún no cuenta como personal ni como responsable asignable: solo cambia la lista.
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: memberKeys.list() }),
+    // Un invitado aún no cuenta como personal ni como responsable asignable: cambia la lista y, como el informe
+    // lista al personal, el resumen y la actividad.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: memberKeys.list() })
+      invalidateOverview(queryClient)
+    },
     onError: (error) => refreshSessionOnForbidden(queryClient, error),
   })
 }
@@ -79,6 +84,7 @@ export function useChangeRole() {
       void queryClient.invalidateQueries({ queryKey: memberKeys.list() })
       // Un administrador puede cambiar su propio rol: la sesión se lee de nuevo para que el menú y las acciones lo reflejen.
       void queryClient.invalidateQueries({ queryKey: sessionKeys.me })
+      invalidateOverview(queryClient)
     },
   )
 }
@@ -92,7 +98,9 @@ export function useRemoveMember() {
     (userId: string) => unwrap(api.POST('/members/{userId}/remove', { params: { path: { userId } } })),
     (queryClient) => {
       void queryClient.invalidateQueries({ queryKey: memberKeys.all })
+      // `ticketKeys.all` incluye el feed, donde queda `assignee_changed`; el informe se lee aparte.
       void queryClient.invalidateQueries({ queryKey: ticketKeys.all })
+      void queryClient.invalidateQueries({ queryKey: reportKeys.all })
     },
   )
 }

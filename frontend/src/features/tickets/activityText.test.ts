@@ -41,4 +41,12 @@ describe('toTimelineEvent', () => {
     expect(toTimelineEvent(created, now, 'America/Mexico_City').timeLabel).toBe('Ayer, 23:30')
     expect(toTimelineEvent(created, now, 'Asia/Tokyo').timeLabel).toBe('Hoy, 14:30')
   })
+
+  it('con el ticket añade número y asunto al título; sin él, no', () => {
+    const created = { ...base, type: 'created' as const }
+    expect(toTimelineEvent(created).title).toBe('Laura Méndez creó el ticket')
+    expect(toTimelineEvent(created, undefined, undefined, { number: 1047, subject: 'Error de pago' }).title).toBe(
+      'Laura Méndez creó el ticket · #1047 Error de pago',
+    )
+  })
 })

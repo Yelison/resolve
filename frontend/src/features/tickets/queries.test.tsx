@@ -6,14 +6,18 @@ import type { Ticket } from '../../domain/ticket'
 import { mockApi } from '../../test/api'
 import { createTestQueryClient } from '../../test/render'
 import { ticket } from '../../test/ticketFixtures'
+import { reportKeys } from '../reports/queries'
 import {
   ticketKeys,
   useAddMessage,
+  useCreateTicket,
   useQuickTicketUpdate,
+  useRecentActivity,
   useTicket,
   useTicketList,
   useTicketMessages,
   useTicketMetrics,
+  useUpdateTicket,
 } from './queries'
 
 afterEach(() => {
@@ -99,5 +103,87 @@ describe('useAddMessage', () => {
 
   it('una respuesta pública vuelve a pedir detalle, mensajes, lista y métricas, una vez cada uno', async () => {
     expect(await readsAfterAdding('public')).toEqual({ detail: 1, messages: 1, list: 1, metrics: 1 })
+  })
+})
+
+describe('invalidaciones del resumen', () => {
+  /** Cuáles de las claves del resumen (informe y actividad reciente) quedan invalidadas tras ejecutar la mutación. */
+  async function invalidatedAfter<TVariables>(
+    useMutationUnderTest: () => { mutate: (variables: TVariables) => void; isSuccess: boolean },
+    variables: TVariables,
+  ) {
+    const queryClient = createTestQueryClient()
+    queryClient.setQueryData(reportKeys.summary('7d'), {})
+    queryClient.setQueryData(ticketKeys.recent(10), [])
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(useMutationUnderTest, { wrapper })
+    act(() => result.current.mutate(variables))
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    return {
+      reports: queryClient.getQueryState(reportKeys.summary('7d'))?.isInvalidated,
+      feed: queryClient.getQueryState(ticketKeys.recent(10))?.isInvalidated,
+    }
+  }
+
+  const routes = {
+    'POST /api/tickets': { status: 201, body: ticket({ number: 1049 }) },
+    'GET /api/tickets/1048': { body: ticket({ version: 3 }) },
+    'PATCH /api/tickets/1048': { body: ticket({ status: 'resolved', version: 4 }) },
+    'POST /api/tickets/1048/messages': { status: 201, body: { id: 'm-1' } },
+  }
+
+  it('crear un ticket invalida el informe y la actividad reciente', async () => {
+    mockApi(routes)
+    const newTicket = { customerId: 'c-maria', subject: 'Hola', description: '', priority: 'low' as const }
+    expect(await invalidatedAfter(useCreateTicket, { ...newTicket, assigneeId: null })).toEqual({
+      reports: true,
+      feed: true,
+    })
+  })
+
+  it('cambiar un ticket desde su página invalida el informe y la actividad reciente', async () => {
+    mockApi(routes)
+    expect(
+      await invalidatedAfter(() => useUpdateTicket(1048), { version: 3, changes: { status: 'resolved' } }),
+    ).toEqual({ reports: true, feed: true })
+  })
+
+  it('cambiar un ticket desde la bandeja invalida el informe y la actividad reciente', async () => {
+    mockApi(routes)
+    expect(await invalidatedAfter(useQuickTicketUpdate, { number: 1048, changes: { status: 'resolved' } })).toEqual({
+      reports: true,
+      feed: true,
+    })
+  })
+
+  it('una respuesta pública invalida el informe, pero no la actividad (no escribe en el historial)', async () => {
+    mockApi(routes)
+    expect(await invalidatedAfter(() => useAddMessage(1048), { body: 'Hola', visibility: 'public' as const })).toEqual({
+      reports: true,
+      feed: false,
+    })
+  })
+
+  it('una nota interna no invalida ni el informe ni la actividad', async () => {
+    mockApi(routes)
+    expect(
+      await invalidatedAfter(() => useAddMessage(1048), { body: 'Nota', visibility: 'internal' as const }),
+    ).toEqual({ reports: false, feed: false })
+  })
+})
+
+describe('useRecentActivity', () => {
+  it('pide el tamaño indicado y lo guarda en la clave', async () => {
+    const spy = mockApi({ 'GET /api/tickets/activity': { body: [] } })
+    const queryClient = createTestQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(() => useRecentActivity(10), { wrapper })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(new URL((spy.mock.calls[0]![0] as Request).url).searchParams.get('size')).toBe('10')
+    expect(queryClient.getQueryState(ticketKeys.recent(10))?.status).toBe('success')
   })
 })
