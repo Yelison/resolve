@@ -36,7 +36,9 @@ export function ArticlePage() {
       </div>
     )
   }
-  if (article.isError) {
+  // Un fallo de red al refrescar un artículo ya leído no lo sustituye por un error; un 404 sí (ya no existe o no se ve).
+  const data = article.data
+  if (!data || (article.isError && isApiError(article.error, 404))) {
     const missing = isApiError(article.error, 404)
     return (
       <div className={pageStyles.page}>
@@ -63,8 +65,8 @@ export function ArticlePage() {
   const isStaff = me.data?.role === 'admin' || me.data?.role === 'agent'
   return (
     <ArticleView
-      key={article.data.id}
-      article={article.data}
+      key={data.id}
+      article={data}
       isStaff={isStaff}
       supportEmail={me.data?.organization.supportEmail ?? null}
     />
