@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
-import { isApiError, UNAUTHORIZED_EVENT } from '../../api/client'
+import { isApiError, setWriteGuard, UNAUTHORIZED_EVENT } from '../../api/client'
 import type { Me } from '../../api/schema'
 import { Button, useToast } from '../../components/ui'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
@@ -60,7 +60,10 @@ export function useSessionSync() {
   const navigate = useNavigate()
   /** `returnTo`: dónde estaba el foco al avisar, para devolvérselo cuando el aviso se retire solo. */
   const notice = useRef<{ id: string; shownAt: number; returnTo: HTMLElement | null } | null>(null)
-  const checking = useRef(false)
+  /** La comprobación en vuelo (resuelve a «¿cambió la sesión?»): la esperan las escrituras y se evita lanzar otra. */
+  const checking = useRef<Promise<boolean> | null>(null)
+  /** Último mensaje de otra pestaña recibido mientras se comprobaba: se atiende al terminar, no se pierde. */
+  const queued = useRef<{ source: Source; message?: SessionMessageType } | null>(null)
 
   useEffect(() => {
     function showNotice() {
@@ -91,8 +94,27 @@ export function useSessionSync() {
 
     async function reconcile(source: Source, message?: SessionMessageType) {
       const previous = queryClient.getQueryData<Me>(sessionKeys.me)
-      if (!previous || checking.current || sessionState.ending) return
-      checking.current = true
+      if (!previous || sessionState.ending) return
+      if (checking.current) {
+        // Un mensaje de otra pestaña no se descarta: p. ej. un `logout` que llega con la lectura ya respondida.
+        // Foco y visibilidad llegan juntos y no se repiten; un `logout` pendiente no lo pisa otro mensaje.
+        if (source === 'tab' && queued.current?.message !== 'logout') queued.current = { source, message }
+        return
+      }
+      const run = check(previous, source, message)
+      checking.current = run
+      try {
+        await run
+      } finally {
+        checking.current = null
+      }
+      const next = queued.current
+      queued.current = null
+      if (next) void reconcile(next.source, next.message)
+    }
+
+    /** Relee `/me` y descarta si cambió la sesión. Devuelve si cambió (o si terminó): las escrituras en espera no salen. */
+    async function check(previous: Me, source: Source, message?: SessionMessageType): Promise<boolean> {
       try {
         const current = await queryClient.fetchQuery({
           queryKey: sessionKeys.me,
@@ -113,17 +135,17 @@ export function useSessionSync() {
           notice.current = null
           restoreFocus(returnTo)
         }
+        return changed
       } catch (error) {
-        if (!isApiError(error, 401)) return // Red o servidor: no se sabe nada; el siguiente intento lo dirá.
+        if (!isApiError(error, 401)) return false // Red o servidor: no se sabe nada; el siguiente intento lo dirá.
         if (message === 'logout') {
           // Cerraron sesión en otra pestaña: aquí no queda nada que enseñar. No se depende de que `useMe` reaccione.
           await clearSessionData(queryClient)
           void navigate('/entrar', { replace: true })
-        } else if (!notice.current) {
-          showNotice()
+          return true
         }
-      } finally {
-        checking.current = false
+        if (!notice.current) showNotice()
+        return false
       }
     }
 
@@ -135,11 +157,13 @@ export function useSessionSync() {
     window.addEventListener('focus', onReturn)
     document.addEventListener('visibilitychange', onReturn)
     const stopListening = subscribeSessionMessages((type) => void reconcile('tab', type))
+    setWriteGuard(async () => (await checking.current) ?? false)
     return () => {
       window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
       window.removeEventListener('focus', onReturn)
       document.removeEventListener('visibilitychange', onReturn)
       stopListening()
+      setWriteGuard(null)
     }
   }, [toast, queryClient, navigate])
 }

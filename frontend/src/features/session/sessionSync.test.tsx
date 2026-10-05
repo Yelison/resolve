@@ -1,6 +1,7 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { api, SESSION_CHANGED_DETAIL } from '../../api/client'
 import { adminMe, mockApi } from '../../test/api'
 import { sessionKeys } from './queries'
 import { SESSION_TAB_ID } from './sessionChannel'
@@ -18,13 +19,30 @@ const personB = { ...inOrganization(acme), user: { id: 'u-jordi', name: 'Jordi P
 const region = () => screen.getByRole('region', { name: 'Notificaciones' })
 const unauthorized = { status: 401, body: { status: 401, title: 'No autenticado' } }
 
-/** La aplicación con `/me` controlado por el test: lo que devuelva `server.me` (`null` = 401) y cuántas veces se pidió. */
+/**
+ * La aplicación con `/me` controlado por el test: lo que devuelva `server.me` (`null` = 401), cuántas veces se pidió,
+ * `server.hold` (si es una promesa, la siguiente lectura de `/me` espera a ella; la respuesta ya está decidida) y las
+ * escrituras que llegaron (`PATCH /me`).
+ */
 async function openShell(path = '/tickets/1046') {
-  const server: { me: ReturnType<typeof inOrganization> | null; reads: number } = { me: inOrganization(acme), reads: 0 }
+  const server: {
+    me: ReturnType<typeof inOrganization> | null
+    reads: number
+    writes: number
+    hold: Promise<void> | null
+  } = { me: inOrganization(acme), reads: 0, writes: 0, hold: null }
   mockApi({
-    'GET /api/me': () => {
+    'GET /api/me': async () => {
       server.reads += 1
-      return server.me ? { body: server.me } : unauthorized
+      const answer = server.me ? { body: server.me } : unauthorized
+      const hold = server.hold
+      server.hold = null
+      if (hold) await hold
+      return answer
+    },
+    'PATCH /api/me': () => {
+      server.writes += 1
+      return { body: adminMe }
     },
   })
   sessionStorage.setItem('resolve-draft-1046', 'Respuesta a medias')
@@ -33,6 +51,13 @@ async function openShell(path = '/tickets/1046') {
   shell.queryClient.setQueryData(['tickets', 'detail', 1046], { subject: 'Ticket de la sesión anterior' })
   const reads = server.reads
   return { ...shell, server, readsSinceOpen: () => server.reads - reads }
+}
+
+/** Una lectura de `/me` retenida hasta llamar a `release`. */
+function holdNextRead(server: { hold: Promise<void> | null }) {
+  let release!: () => void
+  server.hold = new Promise<void>((resolve) => (release = resolve))
+  return release
 }
 
 const cachedTicket = (client: { getQueryData: (key: unknown[]) => unknown }) =>
@@ -111,6 +136,101 @@ describe('otras pestañas (BroadcastChannel)', () => {
     server.me = null
     fromAnotherTab('organization-changed')
     expect(await within(region()).findByText('Tu sesión caducó')).toBeInTheDocument()
+  })
+})
+
+describe('mensajes durante una comprobación', () => {
+  it('un «logout» que llega con la lectura ya respondida no se pierde: se repite al terminar', async () => {
+    const { server, router, queryClient } = await openShell()
+    const release = holdNextRead(server)
+    act(() => void window.dispatchEvent(new Event('focus'))) // la comprobación por foco queda en vuelo (200, misma sesión)
+    await waitFor(() => expect(server.reads).toBeGreaterThan(1))
+    server.me = null // en otra pestaña cerraron sesión
+    fromAnotherTab('logout')
+    release()
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/entrar'))
+    expect(queryClient.getQueryData(sessionKeys.me)).toBeUndefined()
+  })
+
+  it('el mensaje pendiente solo repite una vez aunque lleguen varios', async () => {
+    const { server, readsSinceOpen } = await openShell()
+    const release = holdNextRead(server)
+    act(() => void window.dispatchEvent(new Event('focus')))
+    await waitFor(() => expect(readsSinceOpen()).toBe(1))
+    fromAnotherTab('signed-in')
+    fromAnotherTab('signed-in')
+    fromAnotherTab('organization-changed')
+    release()
+    await waitFor(() => expect(readsSinceOpen()).toBe(2))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(readsSinceOpen()).toBe(2)
+  })
+})
+
+describe('escrituras mientras se comprueba la sesión (B-1n)', () => {
+  const patch = () => api.PATCH('/me', { body: { name: 'Yelisson' } })
+
+  it('si al terminar la comprobación la organización cambió, la escritura no sale y recibe un 409 con el motivo', async () => {
+    const { server, queryClient } = await openShell()
+    server.me = inOrganization(northwind)
+    const release = holdNextRead(server)
+    act(() => void window.dispatchEvent(new Event('focus')))
+    await waitFor(() => expect(server.reads).toBeGreaterThan(1))
+
+    const write = patch() // el clic llega con la comprobación en vuelo
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(server.writes).toBe(0)
+    release()
+    const { response, error } = await write
+
+    expect(response.status).toBe(409)
+    expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+    expect(server.writes).toBe(0)
+    expect(await within(region()).findByText('Cambiaste a Northwind en otra pestaña')).toBeInTheDocument()
+    expect(cachedTicket(queryClient)).toBeUndefined()
+  })
+
+  it('si cambió la persona también se cancela', async () => {
+    const { server } = await openShell()
+    server.me = personB
+    const release = holdNextRead(server)
+    act(() => void window.dispatchEvent(new Event('focus')))
+    await waitFor(() => expect(server.reads).toBeGreaterThan(1))
+    const write = patch()
+    release()
+    expect((await write).response.status).toBe(409)
+    expect(server.writes).toBe(0)
+  })
+
+  it('si la sesión es la misma, la escritura sale en cuanto termina la comprobación', async () => {
+    const { server } = await openShell()
+    const release = holdNextRead(server)
+    act(() => void window.dispatchEvent(new Event('focus')))
+    await waitFor(() => expect(server.reads).toBeGreaterThan(1))
+    const write = patch()
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(server.writes).toBe(0)
+    release()
+    expect((await write).response.status).toBe(200)
+    expect(server.writes).toBe(1)
+  })
+
+  it('sin comprobación en vuelo no espera ni pide /me', async () => {
+    const { server, readsSinceOpen } = await openShell()
+    expect((await patch()).response.status).toBe(200)
+    expect(server.writes).toBe(1)
+    expect(readsSinceOpen()).toBe(0)
+  })
+
+  it('una lectura GET no espera a la comprobación', async () => {
+    const { server } = await openShell()
+    const release = holdNextRead(server)
+    act(() => void window.dispatchEvent(new Event('focus')))
+    await waitFor(() => expect(server.reads).toBeGreaterThan(1))
+    const read = api.GET('/me')
+    release()
+    expect((await read).response.status).toBe(200)
   })
 })
 

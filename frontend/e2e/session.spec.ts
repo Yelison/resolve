@@ -322,6 +322,44 @@ test.describe('varias pestañas', () => {
     await expect(page).toHaveURL(/\/$/)
   })
 
+  test('sin canal, una escritura que sale con la comprobación en vuelo no llega a la organización nueva', async ({
+    page,
+    context,
+  }) => {
+    await context.addInitScript(() => Object.assign(window, { BroadcastChannel: undefined }))
+    await mockApi(page, 'admin', { organizations: [acme, northwind] })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets/1048')
+    const reply = page.getByRole('textbox', { name: 'Respuesta al cliente' })
+    await reply.fill('Respuesta para Acme')
+
+    const other = await context.newPage()
+    await other.goto('/')
+    await switchToNorthwind(other)
+
+    // La pestaña original recupera el foco y el clic en «Enviar» llega con la lectura de /me aún en vuelo.
+    const posts: string[] = []
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/messages')) posts.push(request.url())
+    })
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    await page.route('**/api/me', async (route) => {
+      await gate
+      await route.fallback()
+    })
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await page.getByRole('button', { name: 'Enviar respuesta' }).click()
+    await page.waitForTimeout(300)
+    expect(posts).toEqual([])
+    release()
+
+    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText(
+      'Cambiaste a Northwind en otra pestaña',
+    )
+    expect(posts).toEqual([])
+  })
+
   test('cerrar sesión en una pestaña lleva la otra a /entrar', async ({ page, context }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/tickets')
