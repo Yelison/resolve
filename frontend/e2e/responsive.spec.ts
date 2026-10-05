@@ -27,6 +27,10 @@ for (const route of routes) {
         await page.setViewportSize({ width, height: 900 })
         await page.goto(route)
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+        // El informe llega después del título: se mide con los datos, no con el esqueleto.
+        if (route.startsWith('/reportes')) {
+          await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
+        }
 
         const overflow = await page.evaluate(
           () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

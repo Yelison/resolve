@@ -25,10 +25,53 @@
   gap: var(--space-12);
 }
 
-.metricSkeleton {
-  min-height: 112px;
+/* Esqueleto de las tarjetas: las reales, ocultas, fijan la altura (`visibility: hidden` también las quita de la lectura). */
+.ghostCard {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.ghostContent {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  visibility: hidden;
+}
+
+.ghostContent > * {
+  flex: 1;
+}
+
+.ghostSkeleton {
+  position: absolute;
+  inset: 0;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-panel);
+}
+
+/* La línea del rango ocupa su sitio mientras carga: con el texto de un rango representativo, oculto. */
+.ghost {
+  visibility: hidden;
+}
+
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  min-width: 0;
+  transition: opacity var(--duration-fast) ease;
+}
+
+/* Informe anterior mientras llega el nuevo: atenuado, sin cambiar el tamaño de nada. */
+.updating {
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report {
+    transition: none;
+  }
 }
 
 .panels {

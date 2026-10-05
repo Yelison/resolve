@@ -1,5 +1,24 @@
 import { readFile } from 'node:fs/promises'
+import type { Page } from '@playwright/test'
 import { expect, me, test } from './fixtures'
+
+/** Retiene las respuestas del informe que cumplan `held` hasta llamar a la función devuelta. */
+async function holdSummary(page: Page, held: (url: string) => boolean) {
+  let release = () => {}
+  const gate = new Promise<void>((resolve) => (release = resolve))
+  await page.route('**/api/reports/summary*', async (route) => {
+    if (held(route.request().url())) await gate
+    await route.fallback()
+  })
+  return release
+}
+
+const panelsTop = (page: Page) => page.getByTestId('report-panels').evaluate((el) => el.getBoundingClientRect().top)
+const rangeBox = (page: Page) =>
+  page
+    .getByText(/America\/Bogota/)
+    .first()
+    .evaluate((el) => el.getBoundingClientRect().height)
 
 test.describe('reportes', () => {
   test('muestra las cifras, el gráfico con su tabla, los canales y los agentes con su estado', async ({ page }) => {
@@ -89,4 +108,41 @@ test.describe('reportes', () => {
     await expect(page.getByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeVisible()
     expect(reportRequests).toEqual([])
   })
+
+  for (const width of [390, 768, 1440]) {
+    test(`el contenido no salta en la primera carga ni al cambiar de periodo · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      const releaseFirst = await holdSummary(
+        page,
+        (url) => url.includes('period=30d') === false && !url.includes('period=90d'),
+      )
+      await page.goto('/reportes')
+      await expect(page.getByText('Cargando el informe…')).toBeAttached()
+      const loading = { top: await panelsTop(page), range: await rangeBox(page) }
+      releaseFirst()
+      await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
+      expect(await panelsTop(page), 'los paneles no se mueven al llegar el informe').toBeCloseTo(loading.top, 0)
+      expect(await rangeBox(page), 'la línea del rango conserva su altura').toBeCloseTo(loading.range, 0)
+    })
+
+    test(`al cambiar de periodo se ve el informe anterior sin esqueleto ni salto · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      const releaseSecond = await holdSummary(page, (url) => url.includes('period=30d'))
+      await page.goto('/reportes')
+      await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
+      const before = { top: await panelsTop(page), range: await rangeBox(page) }
+
+      await page.getByRole('combobox', { name: 'Periodo' }).selectOption('30d')
+      await expect(page.getByText('Actualizando el informe…')).toBeAttached()
+      await expect(page.getByText('Cargando el informe…')).toHaveCount(0)
+      await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeDisabled()
+      expect(await panelsTop(page)).toBeCloseTo(before.top, 0)
+      expect(await rangeBox(page)).toBeCloseTo(before.range, 0)
+
+      releaseSecond()
+      await expect(page.getByText(/frente a los 30 días anteriores/)).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled()
+    })
+  }
 })
