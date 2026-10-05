@@ -16,6 +16,7 @@
   font: var(--font-caption);
   color: var(--color-muted);
   overflow-wrap: anywhere;
+  transition: opacity var(--duration-fast) ease;
 }
 
 .metrics {
@@ -63,13 +64,14 @@
   transition: opacity var(--duration-fast) ease;
 }
 
-/* Informe anterior mientras llega el nuevo: atenuado, sin cambiar el tamaño de nada. */
+/* Informe (y su rango) anterior mientras llega el nuevo: atenuados, sin cambiar el tamaño de nada. */
 .updating {
   opacity: 0.55;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .report {
+  .report,
+  .range {
     transition: none;
   }
 }

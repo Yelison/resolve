@@ -4,10 +4,10 @@ const BOM = '﻿'
 const ROW_SEPARATOR = '\r\n'
 /**
  * Celdas que una hoja de cálculo podría interpretar como fórmula: las que empiezan por tabulador o retorno de carro, y
- * las que, tras saltar los espacios (también los de ancho cero), empiezan por `=`, `+`, `-` o `@` o por sus formas de
- * ancho completo (`＝`, `＋`, `－`, `＠`), que algunas hojas normalizan antes de evaluar.
+ * las que, tras saltar los espacios (también los de ancho cero, las marcas de dirección LRM y RLM y el guion suave), empiezan por `=`, `+`, `-` o `@` o por sus formas de
+ * ancho completo (`＝`, `＋`, `－`, `＠`), `﹦` (U+FE66) o el signo menos `−` (U+2212), que algunas hojas normalizan antes de evaluar.
  */
-const FORMULA_START = /^(?:[\t\r]|[\s\u200B-\u200D\u2060\uFEFF]*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20])/
+const FORMULA_START = /^(?:[\t\r]|[\s\u00AD\u200B-\u200F\u2060\uFEFF]*[=+\-@\u2212\uFE66\uFF1D\uFF0B\uFF0D\uFF20])/
 /**
  * Una celda de texto: se neutraliza la inyección de fórmulas con un `'` delante y después se entrecomilla si hace
  * falta (RFC 4180). El orden importa: el prefijo va primero para que un `\r` inicial acabe prefijado *y* entrecomillado.

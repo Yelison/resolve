@@ -179,10 +179,13 @@ describe('ReportsPage', () => {
       )
       expect(screen.queryByText('Cargando el informe…')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeDisabled()
+      // El rango sigue siendo el del informe visible: se atenúa con él para que no se lea como el del periodo elegido.
+      expect(visibleRange()[0]).toHaveClass('updating')
 
       release()
       expect(await screen.findByText(/frente a los 30 días anteriores/)).toBeInTheDocument()
       expect(screen.queryByText('Actualizando el informe…')).not.toBeInTheDocument()
+      expect(visibleRange()[0]).not.toHaveClass('updating')
       expect(screen.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled()
     })
 
