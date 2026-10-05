@@ -1,0 +1,235 @@
+/*
+ * La disposición depende del ancho del contenedor, no del viewport:
+ * tarjetas por debajo de 560 px, nombre/empresa/tickets/estado hasta 960 px y todas las columnas por encima.
+ */
+.wrapper {
+  container: customers / inline-size;
+  min-width: 0;
+}
+
+.table {
+  min-width: 0;
+}
+
+.header,
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--touch-target);
+  grid-template-areas:
+    'name actions'
+    'meta .'
+    'chips .';
+  align-items: center;
+  column-gap: var(--space-12);
+  row-gap: var(--space-8);
+}
+
+.header {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.header span {
+  font: var(--font-caption);
+  color: var(--color-muted);
+  text-transform: uppercase;
+}
+
+.headerName {
+  grid-area: name;
+}
+
+.headerCompany {
+  grid-area: company;
+}
+
+.headerEmail {
+  grid-area: email;
+  display: none;
+}
+
+.headerTickets {
+  grid-area: tickets;
+}
+
+.headerStatus {
+  grid-area: status;
+}
+
+.headerActions {
+  grid-area: actions;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.row {
+  padding: var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.row:hover {
+  background: var(--color-surface-hover);
+}
+
+.name {
+  grid-area: name;
+  min-width: 0;
+}
+
+.nameLink {
+  display: block;
+  overflow: hidden;
+  color: var(--color-ink);
+  font: var(--font-strong);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nameLink:hover {
+  text-decoration: underline;
+}
+
+/* En tarjeta, empresa y correo se agrupan en «meta» y las celdas de tickets y estado en «chips». */
+.meta {
+  grid-area: meta;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  min-width: 0;
+}
+
+.chips {
+  grid-area: chips;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-12);
+  min-width: 0;
+}
+
+.company,
+.email,
+.tickets {
+  min-width: 0;
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.company,
+.email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sin empresa no hay nada que separar: el correo ocupa la línea. */
+.company.none {
+  display: none;
+}
+
+.company:not(.none)::after {
+  margin-left: var(--space-4);
+  content: '·';
+}
+
+.actions {
+  grid-area: actions;
+  justify-self: end;
+}
+
+.caption {
+  margin: var(--space-12) 0 0;
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+@container customers (min-width: 560px) {
+  .header,
+  .row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 110px 90px var(--touch-target);
+    grid-template-areas: 'name company tickets status actions';
+    padding: var(--space-12);
+  }
+
+  .header {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-bg);
+  }
+
+  .rows {
+    gap: 0;
+  }
+
+  .row {
+    border: 0;
+    border-bottom: 1px solid var(--color-line);
+    border-radius: 0;
+  }
+
+  .row:last-child {
+    border-bottom: 0;
+  }
+
+  .meta,
+  .chips {
+    display: contents;
+  }
+
+  .company,
+  .company.none {
+    display: block;
+    grid-area: company;
+    font: var(--font-body);
+  }
+
+  .company:not(.none)::after {
+    content: none;
+  }
+
+  .email {
+    display: none;
+    grid-area: email;
+  }
+
+  .tickets {
+    grid-area: tickets;
+    font: var(--font-body);
+  }
+
+  .status {
+    grid-area: status;
+  }
+}
+
+@container customers (min-width: 960px) {
+  .header,
+  .row {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.5fr) 110px 90px var(--touch-target);
+    grid-template-areas: 'name company email tickets status actions';
+  }
+
+  .email {
+    display: block;
+    font: var(--font-body);
+  }
+
+  .headerEmail {
+    display: block;
+  }
+}
