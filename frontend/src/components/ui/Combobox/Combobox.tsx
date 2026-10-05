@@ -97,7 +97,7 @@ export function Combobox({
             autoComplete="off"
             aria-autocomplete="list"
             aria-expanded={open}
-            aria-controls={listboxId}
+            aria-controls={open ? listboxId : undefined}
             aria-activedescendant={open && activeIndex >= 0 ? optionId(activeIndex) : undefined}
             className={cx(fieldStyles.control, styles.input)}
             placeholder={placeholder}
