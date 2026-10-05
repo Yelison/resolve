@@ -19,6 +19,7 @@ import { useTimeZone } from '../session/useTimeZone'
 import { toTimelineEvent } from '../tickets/activityText'
 import { useRecentActivity, useTicketList, useTicketMetrics } from '../tickets/queries'
 import { compareResolved, newToday, requestPoints } from './overviewData'
+import { useRetryFocus } from './useRetryFocus'
 import styles from './OverviewPage.module.css'
 
 // La ficha dice 10; con 5 se reduce la diferencia de altura entre la actividad y el gráfico.
@@ -110,6 +111,7 @@ function metricCards(data: MetricsData, ghost = false) {
 
 function MetricsSection() {
   const metrics = useTicketMetrics()
+  const focus = useRetryFocus<HTMLDivElement>(metrics.isSuccess)
   // El esqueleto dibuja las mismas tarjetas, ocultas, con valores representativos: ocupan lo mismo que las reales en
   // cualquier ancho y fuente, y lo de debajo no salta cuando llegan los datos. Encima va el esqueleto visible.
   if (metrics.isPending) {
@@ -132,7 +134,7 @@ function MetricsSection() {
             <Button
               variant="secondary"
               aria-label="Reintentar cargar las métricas"
-              onClick={() => void metrics.refetch()}
+              onClick={() => focus.retry(metrics.refetch)}
             >
               Reintentar
             </Button>
@@ -141,13 +143,18 @@ function MetricsSection() {
       </div>
     )
   }
-  return <div className={styles.metrics}>{metricCards(metrics.data)}</div>
+  return (
+    <div ref={focus.ref} className={styles.metrics} role="group" aria-label="Métricas del resumen" tabIndex={-1}>
+      {metricCards(metrics.data)}
+    </div>
+  )
 }
 
 function RequestsPanel() {
   const report = useReportSummary('7d')
+  const focus = useRetryFocus<HTMLElement>(report.isSuccess)
   return (
-    <section className={styles.panel} aria-labelledby="overview-requests">
+    <section ref={focus.ref} className={styles.panel} aria-labelledby="overview-requests" tabIndex={-1}>
       <h2 id="overview-requests" className={styles.panelTitle}>
         Solicitudes · Últimos 7 días
       </h2>
@@ -165,7 +172,7 @@ function RequestsPanel() {
               <Button
                 variant="secondary"
                 aria-label="Reintentar cargar el gráfico de solicitudes"
-                onClick={() => void report.refetch()}
+                onClick={() => focus.retry(report.refetch)}
               >
                 Reintentar
               </Button>
@@ -193,9 +200,10 @@ function RequestsPanel() {
 
 function ActivityPanel() {
   const activity = useRecentActivity(ACTIVITY_SIZE)
+  const focus = useRetryFocus<HTMLElement>(activity.isSuccess)
   const timeZone = useTimeZone()
   return (
-    <section className={styles.panel} aria-labelledby="overview-activity">
+    <section ref={focus.ref} className={styles.panel} aria-labelledby="overview-activity" tabIndex={-1}>
       <h2 id="overview-activity" className={styles.panelTitle}>
         Actividad reciente
       </h2>
@@ -213,7 +221,7 @@ function ActivityPanel() {
               <Button
                 variant="secondary"
                 aria-label="Reintentar cargar la actividad reciente"
-                onClick={() => void activity.refetch()}
+                onClick={() => focus.retry(activity.refetch)}
               >
                 Reintentar
               </Button>
@@ -260,8 +268,14 @@ function AttentionPanel() {
     // Por rango, no alfabético: `desc` deja primero a los urgentes (verificado contra la API real; `asc` empieza por los bajos).
     sort: 'priority,desc',
   })
+  const focus = useRetryFocus<HTMLElement>(tickets.isSuccess)
   return (
-    <section className={`${styles.panel} ${styles.panelFlush}`} aria-labelledby="overview-attention">
+    <section
+      ref={focus.ref}
+      className={`${styles.panel} ${styles.panelFlush}`}
+      aria-labelledby="overview-attention"
+      tabIndex={-1}
+    >
       <div className={styles.panelHeader}>
         <h2 id="overview-attention" className={styles.panelTitle}>
           Necesitan atención
@@ -287,7 +301,7 @@ function AttentionPanel() {
               <Button
                 variant="secondary"
                 aria-label="Reintentar cargar los tickets que necesitan atención"
-                onClick={() => void tickets.refetch()}
+                onClick={() => focus.retry(tickets.refetch)}
               >
                 Reintentar
               </Button>

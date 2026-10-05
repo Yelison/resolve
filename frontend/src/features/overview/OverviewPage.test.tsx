@@ -192,15 +192,39 @@ describe('OverviewPage', () => {
 
   describe('error', () => {
     const cases = [
-      ['GET /api/tickets/metrics', 'No pudimos cargar las métricas', 'Reintentar cargar las métricas'],
-      ['GET /api/reports/summary', 'No pudimos cargar las solicitudes', 'Reintentar cargar el gráfico de solicitudes'],
-      ['GET /api/tickets/activity', 'No pudimos cargar la actividad', 'Reintentar cargar la actividad reciente'],
-      ['GET /api/tickets', 'No pudimos cargar los tickets', 'Reintentar cargar los tickets que necesitan atención'],
+      [
+        'GET /api/tickets/metrics',
+        'No pudimos cargar las métricas',
+        'Reintentar cargar las métricas',
+        'group',
+        'Métricas del resumen',
+      ],
+      [
+        'GET /api/reports/summary',
+        'No pudimos cargar las solicitudes',
+        'Reintentar cargar el gráfico de solicitudes',
+        'region',
+        'Solicitudes · Últimos 7 días',
+      ],
+      [
+        'GET /api/tickets/activity',
+        'No pudimos cargar la actividad',
+        'Reintentar cargar la actividad reciente',
+        'region',
+        'Actividad reciente',
+      ],
+      [
+        'GET /api/tickets',
+        'No pudimos cargar los tickets',
+        'Reintentar cargar los tickets que necesitan atención',
+        'region',
+        'Necesitan atención',
+      ],
     ] as const
 
     it.each(cases)(
       'si falla %s solo ese bloque muestra el error y se reintenta por separado',
-      async (route, title, retry) => {
+      async (route, title, retry, role, block) => {
         let failing = true
         mockApi({ ...baseRoutes, [route]: () => (failing ? problem : baseRoutes[route]) })
         renderOverview()
@@ -211,6 +235,8 @@ describe('OverviewPage', () => {
         await userEvent.click(screen.getByRole('button', { name: retry }))
         await vi.waitFor(() => expect(screen.queryByText(title)).not.toBeInTheDocument())
         expect(screen.queryByRole('button', { name: /^Reintentar/ })).not.toBeInTheDocument()
+        // El botón desaparece: el foco pasa al bloque recuperado, no a `body`.
+        expect(screen.getByRole(role, { name: block })).toHaveFocus()
       },
     )
   })

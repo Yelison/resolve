@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, Outlet, useLocation, useSearchParams, type To } from 'react-router'
 import {
   Alert,
@@ -17,6 +17,7 @@ import {
 } from '../../components/ui'
 import type { CustomerMetrics } from '../../domain/customer'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
+import { useRetryFocus } from '../overview/useRetryFocus'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { CustomersTable } from './CustomersTable'
@@ -88,6 +89,8 @@ export function CustomersPage() {
   const list = useCustomerList({ ...state, pageSize: PAGE_SIZE })
   const metrics = useCustomerMetrics()
   const companies = useCompanies()
+  const metricsFocus = useRetryFocus<HTMLDivElement>(metrics.isSuccess)
+  const companiesFocus = useRetryFocus<HTMLSelectElement>(companies.isSuccess)
 
   const filtersActive = hasActiveCustomerFilters(state)
   const clearFilters = () => {
@@ -120,14 +123,14 @@ export function CustomersPage() {
             <Button
               variant="secondary"
               aria-label="Reintentar cargar las métricas"
-              onClick={() => void metrics.refetch()}
+              onClick={() => metricsFocus.retry(metrics.refetch)}
             >
               Reintentar
             </Button>
           </Alert>
         </div>
       ) : (
-        <MetricsRow metrics={metrics.data} />
+        <MetricsRow metrics={metrics.data} rowRef={metricsFocus.ref} />
       )}
 
       <section className={styles.panel} aria-label="Lista de clientes">
@@ -140,6 +143,7 @@ export function CustomersPage() {
             fieldClassName={styles.search}
           />
           <Select
+            ref={companiesFocus.ref}
             label="Empresa"
             value={state.company ?? ''}
             onChange={(event) => update({ company: event.target.value || undefined })}
@@ -152,7 +156,7 @@ export function CustomersPage() {
                     type="button"
                     className={styles.retry}
                     aria-label="Reintentar cargar las empresas"
-                    onClick={() => void companies.refetch()}
+                    onClick={() => companiesFocus.retry(companies.refetch)}
                   >
                     Reintentar
                   </button>
@@ -200,9 +204,10 @@ export function CustomersPage() {
   )
 }
 
-function MetricsRow({ metrics }: { metrics: CustomerMetrics }) {
+function MetricsRow({ metrics, rowRef }: { metrics: CustomerMetrics; rowRef: RefObject<HTMLDivElement | null> }) {
   return (
-    <div className={styles.metrics}>
+    // Grupo con nombre al que va el foco tras un reintento con éxito.
+    <div ref={rowRef} className={styles.metrics} role="group" aria-label="Métricas de clientes" tabIndex={-1}>
       <Metric label="Clientes activos" value={metrics.total} />
       <Metric label="Empresas" value={metrics.companies} />
       <Metric label="Con tickets abiertos" value={metrics.withOpenTickets} />

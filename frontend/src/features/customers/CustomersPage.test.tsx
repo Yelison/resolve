@@ -169,6 +169,22 @@ describe('CustomersPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar cargar las métricas' }))
     expect(await screen.findByText('142')).toBeInTheDocument()
     expect(screen.queryByText('No pudimos cargar las métricas de clientes')).not.toBeInTheDocument()
+    // El botón desaparece: el foco pasa a las métricas, no a `body`.
+    expect(screen.getByRole('group', { name: 'Métricas de clientes' })).toHaveFocus()
+  })
+
+  it('un reintento de métricas que vuelve a fallar deja el foco en el botón', async () => {
+    const fetchSpy = mockApi({
+      ...baseRoutes,
+      'GET /api/customers/metrics': { status: 500, body: { status: 500, title: 'Error' } },
+      'GET /api/customers': { body: page([customer()]) },
+    })
+    renderCustomers()
+    const retry = await screen.findByRole('button', { name: 'Reintentar cargar las métricas' })
+    await userEvent.click(retry)
+    await vi.waitFor(() => expect(requestsTo(fetchSpy, '/api/customers/metrics').length).toBeGreaterThan(1))
+    expect(screen.getByRole('button', { name: 'Reintentar cargar las métricas' })).toHaveFocus()
+    expect(screen.queryByRole('group', { name: 'Métricas de clientes' })).not.toBeInTheDocument()
   })
 
   it('un error en las empresas lo dice junto al filtro y permite reintentar', async () => {
@@ -185,6 +201,8 @@ describe('CustomersPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar cargar las empresas' }))
     expect(await screen.findByRole('option', { name: 'Northstar' })).toBeInTheDocument()
     expect(screen.queryByText(/No pudimos cargar las empresas/)).not.toBeInTheDocument()
+    // El botón desaparece: el foco pasa al filtro de empresa, no a `body`.
+    expect(screen.getByRole('combobox', { name: 'Empresa' })).toHaveFocus()
   })
 
   it('un error ofrece reintentar y recupera la lista', async () => {
