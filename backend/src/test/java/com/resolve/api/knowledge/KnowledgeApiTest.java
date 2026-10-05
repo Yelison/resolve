@@ -191,6 +191,16 @@ class KnowledgeApiTest extends KnowledgeFixture {
 	}
 
 	@Test
+	void theSegmentsOfTheInterfaceAreNeverASlug() throws Exception {
+		// /conocimiento/nuevo abre el editor: un artículo con ese slug no se podría abrir desde la interfaz.
+		assertThat(createArticle(LAURA, "Nuevo").path("slug").asString()).isEqualTo("nuevo-2");
+		assertThat(createArticle(LAURA, "¡NUEVO!").path("slug").asString()).isEqualTo("nuevo-3");
+		assertThat(createArticle(LAURA, "Editar").path("slug").asString()).isEqualTo("editar-2");
+		// Un título que ya contiene otra cosa no se ve afectado.
+		assertThat(createArticle(LAURA, "Nuevo plan").path("slug").asString()).isEqualTo("nuevo-plan");
+	}
+
+	@Test
 	void creatingUsesTheCategoryOfTheOrganizationOnly() throws Exception {
 		MvcResult foreign = postArticle(LAURA, articleJson("Ajeno", "Texto", this.northwindCategory, "internal"));
 		MvcResult unknown = postArticle(LAURA, articleJson("Ajeno", "Texto", UUID.randomUUID(), "internal"));
@@ -259,7 +269,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 
 		assertThat(accepted.getResponse().getStatus()).isEqualTo(201);
 		assertThat(rejected.getResponse().getStatus()).isEqualTo(400);
-		assertThat(errors(rejected)).containsEntry("body", "Admite como máximo 20000 caracteres.");
+		assertThat(errors(rejected)).containsEntry("body", "Admite como máximo 20 000 caracteres.");
 		// Los caracteres fuera del plano básico cuentan una vez, no dos.
 		String emojis = "😀".repeat(20_000);
 		assertThat(postArticle(LAURA, articleJson("Emojis", emojis, this.accountCategory, "internal")).getResponse()
@@ -379,6 +389,26 @@ class KnowledgeApiTest extends KnowledgeFixture {
 	}
 
 	@Test
+	void searchAndCategoryLimitsCountCharactersNotUtf16Units() throws Exception {
+		// 61 emojis son 61 caracteres (122 unidades UTF-16): caben en el máximo de 120.
+		String sixtyOne = "😀".repeat(61);
+		for (String parameter : List.of("q", "category")) {
+			assertThat(this.mvc.perform(get("/knowledge/articles").param(parameter, sixtyOne).with(as(LAURA)))
+				.andReturn()
+				.getResponse()
+				.getStatus()).as(parameter + " con 61 emojis").isEqualTo(200);
+			assertThat(this.mvc.perform(get("/knowledge/articles").param(parameter, "😀".repeat(120)).with(as(LAURA)))
+				.andReturn()
+				.getResponse()
+				.getStatus()).as(parameter + " con 120 emojis").isEqualTo(200);
+			assertThat(this.mvc.perform(get("/knowledge/articles").param(parameter, "😀".repeat(121)).with(as(LAURA)))
+				.andReturn()
+				.getResponse()
+				.getStatus()).as(parameter + " con 121 caracteres").isEqualTo(400);
+		}
+	}
+
+	@Test
 	void rejectsInvalidListParametersWithFieldErrors() throws Exception {
 		for (String query : List.of("?page=-1", "?size=0", "?size=101", "?sort=slug,asc", "?sort=title",
 				"?status=archived", "?q=" + "x".repeat(121), "?category=" + "x".repeat(121))) {
@@ -494,7 +524,7 @@ class KnowledgeApiTest extends KnowledgeFixture {
 		assertThat(errors(patchArticle(LAURA, RECOVER, "0", "{\"title\": \"" + "t".repeat(161) + "\"}")))
 			.containsEntry("title", "Admite como máximo 160 caracteres.");
 		assertThat(errors(patchArticle(LAURA, RECOVER, "0", "{\"body\": \"" + "x".repeat(20_001) + "\"}")))
-			.containsEntry("body", "Admite como máximo 20000 caracteres.");
+			.containsEntry("body", "Admite como máximo 20 000 caracteres.");
 		assertThat(errors(patchArticle(LAURA, RECOVER, "0", "{\"status\": \"draft\"}"))).containsEntry("status",
 				"Campo no permitido.");
 		assertThat(errors(patchArticle(LAURA, RECOVER, "0", "{\"slug\": \"otro\"}"))).containsEntry("slug",

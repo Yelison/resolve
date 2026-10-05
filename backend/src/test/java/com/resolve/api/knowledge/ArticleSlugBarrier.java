@@ -21,6 +21,8 @@ class ArticleSlugBarrier implements ArticleSlugHook {
 
 	private final AtomicBoolean armed = new AtomicBoolean();
 
+	private volatile Runnable action;
+
 	private volatile CountDownLatch reached = new CountDownLatch(1);
 
 	private volatile CountDownLatch released = new CountDownLatch(1);
@@ -32,8 +34,17 @@ class ArticleSlugBarrier implements ArticleSlugHook {
 		this.armed.set(true);
 	}
 
+	/**
+	 * La siguiente alta que elija su slug ejecuta {@code action} en su hilo, con el bloqueo tomado y antes de guardar:
+	 * sirve para colar por otra conexión un artículo con ese slug, como haría una vía que no pasara por el bloqueo.
+	 */
+	void runOnce(Runnable action) {
+		this.action = action;
+	}
+
 	/** Desarma y libera a quien esté aparcado. Seguro de llamar siempre, también en {@code finally}. */
 	void disarm() {
+		this.action = null;
 		this.armed.set(false);
 		this.released.countDown();
 	}
@@ -48,6 +59,11 @@ class ArticleSlugBarrier implements ArticleSlugHook {
 
 	@Override
 	public void afterSlugChosen() {
+		Runnable pending = this.action;
+		if (pending != null) {
+			this.action = null;
+			pending.run();
+		}
 		if (!this.armed.compareAndSet(true, false)) {
 			return;
 		}

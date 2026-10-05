@@ -24,7 +24,7 @@ final class ArticleRequestParser {
 
 	static final int MAX_TITLE_LENGTH = 160;
 
-	/** Límite del cuerpo en caracteres (D-14). */
+	/** Límite del cuerpo en caracteres (D-14); el mensaje lo escribe con el espacio de millares del español. */
 	static final int MAX_BODY_LENGTH = 20_000;
 
 	static final int MAX_CATEGORY_NAME_LENGTH = 80;
@@ -54,12 +54,13 @@ final class ArticleRequestParser {
 		String text = null;
 		if (q != null && !q.isBlank()) {
 			text = q.trim();
-			if (text.length() > MAX_QUERY_LENGTH) {
+			if (text.codePointCount(0, text.length()) > MAX_QUERY_LENGTH) {
 				parser.error("q", "La búsqueda admite como máximo " + MAX_QUERY_LENGTH + " caracteres.");
 			}
 		}
 		String categorySlug = (category == null || category.isBlank()) ? null : category.trim();
-		if (categorySlug != null && categorySlug.length() > MAX_CATEGORY_FILTER_LENGTH) {
+		if (categorySlug != null
+				&& categorySlug.codePointCount(0, categorySlug.length()) > MAX_CATEGORY_FILTER_LENGTH) {
 			parser.error("category", "La categoría admite como máximo " + MAX_CATEGORY_FILTER_LENGTH + " caracteres.");
 		}
 		ArticleStatus statusFilter = null;
@@ -161,7 +162,7 @@ final class ArticleRequestParser {
 			return invalid("body", CONTROL_CHARACTERS);
 		}
 		if (value.codePointCount(0, value.length()) > MAX_BODY_LENGTH) {
-			return invalid("body", "Admite como máximo " + MAX_BODY_LENGTH + " caracteres.");
+			return invalid("body", "Admite como máximo 20 000 caracteres.");
 		}
 		return value;
 	}
