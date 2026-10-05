@@ -5,6 +5,7 @@ import choice from '../shared/choice.module.css'
 import styles from './Checkbox.module.css'
 
 export interface CheckboxProps extends Omit<ComponentProps<'input'>, 'type' | 'children'> {
+  /** Etiqueta asociada a la casilla; es el nombre accesible */
   label: ReactNode
   /** Oculta la etiqueta visualmente pero la mantiene para lectores de pantalla. */
   hideLabel?: boolean

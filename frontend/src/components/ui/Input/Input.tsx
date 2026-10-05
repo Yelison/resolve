@@ -4,8 +4,11 @@ import { Field } from '../Field/Field'
 import fieldStyles from '../Field/Field.module.css'
 
 export interface InputProps extends Omit<ComponentProps<'input'>, 'children'> {
+  /** Etiqueta visible del campo. */
   label: ReactNode
+  /** Ayuda permanente bajo el campo. */
   hint?: ReactNode
+  /** Mensaje de error; marca el campo como inválido. */
   error?: ReactNode
   /** Clase del contenedor del campo; `className` se aplica al input. */
   fieldClassName?: string

@@ -6,9 +6,13 @@ import { Icon } from '../Icon/Icon'
 import styles from './Select.module.css'
 
 export interface SelectProps extends ComponentProps<'select'> {
+  /** Etiqueta visible del select. */
   label: ReactNode
+  /** Ayuda permanente bajo el select. */
   hint?: ReactNode
+  /** Mensaje de error; marca el select como inválido. */
   error?: ReactNode
+  /** Clase del contenedor del campo. */
   fieldClassName?: string
 }
 

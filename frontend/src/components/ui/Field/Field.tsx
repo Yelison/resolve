@@ -3,12 +3,16 @@ import { cx } from '../../../lib/cx'
 import styles from './Field.module.css'
 
 export interface FieldControlProps {
+  /** Id que enlaza el control con su etiqueta. */
   id: string
+  /** Ids de la ayuda, el error y otros textos que describen el control. */
   'aria-describedby'?: string
+  /** `true` cuando hay un error; si no, no se define. */
   'aria-invalid'?: true
 }
 
 export interface FieldProps {
+  /** Etiqueta visible del control. */
   label: ReactNode
   /** Ayuda permanente bajo el control. */
   hint?: ReactNode
@@ -18,7 +22,9 @@ export interface FieldProps {
   id?: string
   /** Ids adicionales que describen el control, además de la ayuda y el error. */
   describedBy?: string
+  /** Clase del contenedor del campo. */
   className?: string
+  /** Función que recibe las props de enlace y devuelve el control. */
   children: (control: FieldControlProps) => ReactNode
 }
 

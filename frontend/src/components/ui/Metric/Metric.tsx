@@ -5,12 +5,17 @@ import styles from './Metric.module.css'
 export type MetricTrend = 'positive' | 'neutral' | 'negative'
 
 export interface MetricProps {
+  /** Nombre del indicador. */
   label: ReactNode
+  /** Valor principal. */
   value: ReactNode
+  /** Texto de detalle bajo el valor. */
   detail?: ReactNode
   /** Color del detalle. Refuerza el texto, que debe expresar por sí mismo si la variación es buena o mala. */
   trend?: MetricTrend
+  /** Si es `true`, destaca la tarjeta; por defecto `false`. */
   highlighted?: boolean
+  /** Clase del contenedor. */
   className?: string
 }
 

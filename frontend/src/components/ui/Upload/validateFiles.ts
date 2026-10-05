@@ -3,11 +3,14 @@ import { formatBytes } from '../../../lib/format'
 export interface FileRules {
   /** Tipos MIME admitidos; vacío admite cualquiera. */
   accept: readonly string[]
+  /** Tamaño máximo por archivo en bytes. */
   maxSize: number
 }
 
 export interface FileValidation {
+  /** Archivos que cumplen las reglas. */
   accepted: File[]
+  /** Un mensaje por cada archivo rechazado. */
   errors: string[]
 }
 

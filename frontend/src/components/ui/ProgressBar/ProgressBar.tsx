@@ -3,11 +3,15 @@ import { cx } from '../../../lib/cx'
 import styles from './ProgressBar.module.css'
 
 export interface ProgressBarProps {
+  /** Etiqueta visible de la barra. */
   label: string
+  /** Valor actual. */
   value: number
+  /** Valor máximo; por defecto 100. */
   max?: number
   /** Texto del valor, visible y leído por lectores de pantalla; por omisión el porcentaje. */
   valueText?: string
+  /** Clase del contenedor. */
   className?: string
 }
 

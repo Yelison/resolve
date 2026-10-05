@@ -53,7 +53,9 @@ export function Table({ label, caption, actionsLabel, header, children, classNam
 export interface TableHeaderCellProps {
   /** Área de la rejilla de la columna. */
   area: string
+  /** Texto de la cabecera. */
   children: ReactNode
+  /** Clase adicional de la celda. */
   className?: string
 }
 
@@ -66,6 +68,7 @@ export function TableHeaderCell({ area, children, className }: TableHeaderCellPr
 }
 
 export interface TableRowProps {
+  /** Celdas de la fila. */
   children: ReactNode
 }
 
@@ -81,7 +84,9 @@ export function TableRow({ children }: TableRowProps) {
 export interface TableCellProps {
   /** `name` es la celda principal de la fila y `actions` la del menú, alineada al final. */
   kind: 'name' | 'actions'
+  /** Contenido de la celda. */
   children: ReactNode
+  /** Clase adicional de la celda. */
   className?: string
 }
 

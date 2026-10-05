@@ -6,8 +6,11 @@ import styles from './SearchField.module.css'
 export interface SearchFieldProps extends Omit<ComponentProps<'input'>, 'type' | 'onChange' | 'value'> {
   /** Nombre accesible; el campo no tiene etiqueta visible. */
   label: string
+  /** Texto actual de la búsqueda. */
   value: string
+  /** Se llama con el nuevo texto. */
   onValueChange: (value: string) => void
+  /** Clase del contenedor del campo. */
   fieldClassName?: string
 }
 

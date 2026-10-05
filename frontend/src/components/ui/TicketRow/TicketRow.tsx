@@ -13,6 +13,7 @@ import styles from './TicketRow.module.css'
 export interface TicketTableSelection {
   /** Estado de «seleccionar todos»: marcado, parcial o vacío. */
   state: 'all' | 'some' | 'none'
+  /** Se llama al activar «seleccionar todos». */
   onToggleAll: () => void
 }
 
@@ -21,7 +22,9 @@ export interface TicketTableProps {
   label: string
   /** Activa la columna de selección. Úsala solo si hay acciones para los tickets seleccionados. */
   selection?: TicketTableSelection
+  /** Un `TicketRow` por fila. */
   children: ReactNode
+  /** Clase adicional de la tabla. */
   className?: string
 }
 
@@ -73,11 +76,13 @@ export function TicketTable({ label, selection, children, className }: TicketTab
 }
 
 export interface TicketRowProps {
+  /** Ticket que muestra la fila. */
   ticket: TicketSummary
   /** Ruta del detalle del ticket. */
   to: string
   /** Solo dentro de una TicketTable con selección. */
   selection?: { selected: boolean; onChange: (selected: boolean) => void }
+  /** Acciones del menú de la fila; sin ninguna, no se muestra el menú. */
   actions: MenuItem[]
   /** Fecha de referencia para el tiempo relativo; útil en pruebas. */
   now?: Date

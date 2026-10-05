@@ -4,8 +4,11 @@ import styles from './Button.module.css'
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 export interface ButtonStyleOptions {
+  /** Variante visual; por defecto 'primary' */
   variant?: ButtonVariant
+  /** Si es true aplica la clase de bloque (el botón ocupa todo el ancho); por defecto false */
   block?: boolean
+  /** Clases adicionales que se añaden al final */
   className?: string
 }
 

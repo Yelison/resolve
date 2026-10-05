@@ -4,14 +4,21 @@ import { useModalDialog } from '../shared/useModalDialog'
 import styles from './Modal.module.css'
 
 export interface ModalProps {
+  /** Si el diálogo está abierto. */
   open: boolean
+  /** Se llama al cerrar (Escape o clic en el fondo). */
   onClose: () => void
+  /** Título del diálogo. */
   title: ReactNode
+  /** Texto descriptivo bajo el título. */
   description?: ReactNode
   /** Acciones al pie, normalmente Button secundario y principal. */
   footer?: ReactNode
+  /** Ancho del diálogo: `default` o `wide`; por defecto `default`. */
   size?: 'default' | 'wide'
+  /** Clase del diálogo. */
   className?: string
+  /** Contenido del diálogo. */
   children?: ReactNode
 }
 

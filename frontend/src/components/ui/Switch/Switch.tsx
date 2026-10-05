@@ -4,6 +4,7 @@ import choice from '../shared/choice.module.css'
 import styles from './Switch.module.css'
 
 export interface SwitchProps extends Omit<ComponentProps<'input'>, 'type' | 'role' | 'children'> {
+  /** Texto asociado al interruptor. */
   label: ReactNode
 }
 

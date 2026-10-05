@@ -6,14 +6,19 @@ import styles from './Attachment.module.css'
 export type AttachmentStatus = 'ready' | 'uploading' | 'error'
 
 export interface AttachmentProps {
+  /** Nombre del archivo; se muestra, es el título al pasar el cursor y nombra la descarga */
   name: string
+  /** Tamaño en bytes; se muestra formateado cuando el archivo está listo */
   size: number
+  /** Estado de la subida; por defecto 'ready' */
   status?: AttachmentStatus
   /** Progreso de subida de 0 a 100. */
   progress?: number
   /** Enlace de descarga cuando el archivo está listo. */
   href?: string
+  /** Se ejecuta al pulsar «Reintentar»; el botón solo aparece en estado 'error' */
   onRetry?: () => void
+  /** Clase adicional para el contenedor */
   className?: string
 }
 

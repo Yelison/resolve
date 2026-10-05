@@ -8,22 +8,31 @@ import styles from './Tooltip.module.css'
 const HIDE_DELAY = 120
 
 export interface TooltipTriggerProps {
+  /** Registra el disparador como ancla de posición del tooltip. */
   ref: (node: HTMLElement | null) => void
+  /** Abre el tooltip al entrar el puntero. */
   onPointerEnter: () => void
+  /** Cierra el tooltip tras un breve margen al salir el puntero. */
   onPointerLeave: () => void
+  /** Abre el tooltip al recibir foco. */
   onFocus: () => void
+  /** Cierra el tooltip al perder el foco. */
   onBlur: () => void
+  /** Id del tooltip mientras está abierto y `describe` es `true`. */
   'aria-describedby'?: string
 }
 
 export interface TooltipProps {
+  /** Contenido del tooltip. */
   content: ReactNode
+  /** Lado del disparador donde aparece. Por defecto, `right`. */
   placement?: Placement
   /**
    * Enlaza el texto como descripción del disparador. Desactívalo cuando el disparador
    * ya tiene ese mismo texto como nombre accesible, para no leerlo dos veces.
    */
   describe?: boolean
+  /** Recibe las props del disparador, que hay que esparcir en el elemento. */
   children: (trigger: TooltipTriggerProps) => ReactNode
 }
 

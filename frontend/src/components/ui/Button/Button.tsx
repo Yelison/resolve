@@ -5,9 +5,11 @@ import { Icon, type IconName } from '../Icon/Icon'
 import styles from './Button.module.css'
 
 export interface ButtonProps extends ComponentProps<'button'>, ButtonStyleOptions {
+  /** Icono mostrado antes del contenido; se sustituye por un indicador de carga mientras `loading` */
   icon?: IconName
   /** Bloquea nuevas pulsaciones y muestra `loadingLabel` mientras dura la acción. */
   loading?: boolean
+  /** Contenido que sustituye al texto del botón mientras `loading`; por defecto «Enviando…» */
   loadingLabel?: ReactNode
 }
 
@@ -47,6 +49,7 @@ export function Button({
 }
 
 export interface IconButtonProps extends Omit<ComponentProps<'button'>, 'children'> {
+  /** Icono que se muestra en el botón */
   icon: IconName
   /** Nombre accesible obligatorio: el botón no tiene texto visible. */
   label: string
