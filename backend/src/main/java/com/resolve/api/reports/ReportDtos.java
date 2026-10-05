@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import com.resolve.api.memberships.MemberRefDto;
+import com.resolve.api.memberships.MemberStatus;
 import com.resolve.api.tickets.TicketChannel;
 import org.jspecify.annotations.Nullable;
 
@@ -37,7 +38,7 @@ final class ReportDtos {
 	record Channel(TicketChannel channel, int created, BigDecimal share) {
 	}
 
-	record Agent(MemberRefDto member, int resolved, @Nullable Integer firstResponseMinutes, int openAssigned) {
+	record Agent(MemberRefDto member, MemberStatus status, int resolved, @Nullable Integer firstResponseMinutes, int openAssigned) {
 	}
 
 }

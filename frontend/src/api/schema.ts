@@ -919,6 +919,7 @@ export interface components {
          *             "id": "3f0c2f9a-6a56-4d1f-9c3e-1f4b0a7d2c11",
          *             "name": "Laura Méndez"
          *           },
+         *           "status": "active",
          *           "resolved": 20,
          *           "firstResponseMinutes": 15,
          *           "openAssigned": 4
@@ -940,8 +941,9 @@ export interface components {
              */
             byChannel: components["schemas"]["ReportChannel"][];
             /**
-             * @description Every active admin and agent, plus removed members who resolved tickets in the period, most
-             *     resolved first (ties by name, then id).
+             * @description Every active admin and agent, plus the members who are no longer active (removed, or invited again)
+             *     and resolved tickets or gave a first response in the period, most resolved first (ties by name, then
+             *     id). `status` tells them apart.
              */
             byAgent: components["schemas"]["ReportAgent"][];
         };
@@ -1039,6 +1041,8 @@ export interface components {
         };
         ReportAgent: {
             member: components["schemas"]["MemberRef"];
+            /** @description Membership status. Anything other than `active` is someone who left but worked in the period. */
+            status: components["schemas"]["MemberStatus"];
             /**
              * @description Distinct tickets this member moved to `resolved` in the period (the actor of the activity).
              * @example 20

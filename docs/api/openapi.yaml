@@ -1305,8 +1305,9 @@ components:
           items: { $ref: '#/components/schemas/ReportChannel' }
         byAgent:
           description: |
-            Every active admin and agent, plus removed members who resolved tickets in the period, most
-            resolved first (ties by name, then id).
+            Every active admin and agent, plus the members who are no longer active (removed, or invited again)
+            and resolved tickets or gave a first response in the period, most resolved first (ties by name, then
+            id). `status` tells them apart.
           type: array
           items: { $ref: '#/components/schemas/ReportAgent' }
       examples:
@@ -1322,6 +1323,7 @@ components:
             - { channel: chat, created: 12, share: 28.6 }
           byAgent:
             - member: { id: 3f0c2f9a-6a56-4d1f-9c3e-1f4b0a7d2c11, name: Laura Méndez }
+              status: active
               resolved: 20
               firstResponseMinutes: 15
               openAssigned: 4
@@ -1426,9 +1428,13 @@ components:
     ReportAgent:
       type: object
       additionalProperties: false
-      required: [member, resolved, firstResponseMinutes, openAssigned]
+      required: [member, status, resolved, firstResponseMinutes, openAssigned]
       properties:
         member: { $ref: '#/components/schemas/MemberRef' }
+        status:
+          description: Membership status. Anything other than `active` is someone who left but worked in the period.
+          allOf:
+            - $ref: '#/components/schemas/MemberStatus'
         resolved:
           description: Distinct tickets this member moved to `resolved` in the period (the actor of the activity).
           type: integer
