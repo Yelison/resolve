@@ -64,14 +64,41 @@ test.describe('base de conocimiento', () => {
     await expect(page.getByRole('button', { name: /Primeros pasos/ })).toContainText('1 artículo')
   })
 
-  test('una carga directa de /conocimiento pinta la lista sin avisos en la consola', async ({ page }) => {
+  test('una carga directa de /conocimiento pinta la shell con un esqueleto mientras llega el chunk, sin avisos', async ({
+    page,
+  }) => {
     const messages: string[] = []
     page.on('console', (message) => {
       if (message.type() === 'warning' || message.type() === 'error') messages.push(message.text())
     })
     page.on('pageerror', (error) => messages.push(error.message))
-    await page.goto('/conocimiento')
+    // El chunk de la ruta queda retenido hasta que el test lo suelte.
+    let release!: () => void
+    const released = new Promise<void>((resolve) => (release = resolve))
+    await page.route('**/assets/KnowledgePage-*.js', async (route) => {
+      await released
+      await route.continue()
+    })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const navigation = page.goto('/conocimiento')
+    const main = page.locator('main#contenido')
+    await expect(page.getByRole('navigation', { name: 'Principal' })).toBeVisible()
+    await expect(main).toBeVisible()
+    await expect(main.getByText('Cargando…')).toBeVisible()
+    await expect(page.getByRole('table', { name: 'Artículos' })).toHaveCount(0)
+    release()
+    await navigation
     await expect(page.getByRole('table', { name: 'Artículos' })).toBeVisible()
+    expect(messages).toEqual([])
+  })
+
+  test('una carga directa de /catalogo no avisa en la consola', async ({ page }) => {
+    const messages: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') messages.push(message.text())
+    })
+    await page.goto('/catalogo')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     expect(messages).toEqual([])
   })
 
