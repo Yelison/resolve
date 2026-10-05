@@ -23,23 +23,39 @@ public final class RowLock implements AutoCloseable {
 		Connection connection = dataSource.getConnection();
 		try {
 			connection.setAutoCommit(false);
-			try (PreparedStatement statement = connection.prepareStatement(selectForUpdate)) {
-				for (int index = 0; index < parameters.length; index++) {
-					statement.setObject(index + 1, parameters[index]);
-				}
-				if (!statement.execute()) {
-					throw new IllegalStateException("La consulta no devolvió filas que bloquear");
-				}
-				if (!statement.getResultSet().next()) {
-					throw new IllegalStateException("No existe la fila que debía bloquearse");
-				}
-			}
+			select(connection, selectForUpdate, parameters);
 		}
 		catch (SQLException | RuntimeException exception) {
 			connection.close();
 			throw exception;
 		}
 		return new RowLock(connection);
+	}
+
+	/** Ejecuta una sentencia sin resultado en la misma transacción (por ejemplo un {@code set local}). */
+	public void run(String sql) throws SQLException {
+		try (java.sql.Statement statement = this.connection.createStatement()) {
+			statement.execute(sql);
+		}
+	}
+
+	/** Bloquea otra fila en la misma transacción; espera si otra transacción la tiene. */
+	public void alsoLock(String selectForUpdate, Object... parameters) throws SQLException {
+		select(this.connection, selectForUpdate, parameters);
+	}
+
+	private static void select(Connection connection, String sql, Object... parameters) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(sql)) {
+			for (int index = 0; index < parameters.length; index++) {
+				statement.setObject(index + 1, parameters[index]);
+			}
+			if (!statement.execute()) {
+				throw new IllegalStateException("La consulta no devolvió filas que bloquear");
+			}
+			if (!statement.getResultSet().next()) {
+				throw new IllegalStateException("No existe la fila que debía bloquearse");
+			}
+		}
 	}
 
 	@Override
