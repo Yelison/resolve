@@ -20,7 +20,9 @@ import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
-import { useAssignees, useCreateTicket, useCustomerSearch } from './queries'
+import { useCustomerSearch } from '../customers/queries'
+import { useAssignees } from '../team/queries'
+import { useCreateTicket } from './queries'
 import styles from './NewTicketPage.module.css'
 
 const MAX_SUBJECT = 160

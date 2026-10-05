@@ -173,24 +173,6 @@ export function useCreateTicket() {
   })
 }
 
-export function useAssignees(enabled = true) {
-  return useQuery({
-    queryKey: ['assignees'],
-    queryFn: ({ signal }) => unwrap(api.GET('/assignees', { signal })),
-    staleTime: 5 * 60_000,
-    enabled,
-  })
-}
-
-export function useCustomerSearch(q: string) {
-  return useQuery({
-    queryKey: ['customers', q],
-    queryFn: ({ signal }) =>
-      unwrap(api.GET('/customers', { params: { query: { q: q || undefined, size: 20 } }, signal })),
-    placeholderData: keepPreviousData,
-  })
-}
-
 /**
  * Cambio rápido desde la bandeja: el resumen no trae la versión, así que se lee el ticket actual y se aplica el
  * cambio con su If-Match. Si alguien lo cambió en medio, la API responde 412 y no se pisa nada.

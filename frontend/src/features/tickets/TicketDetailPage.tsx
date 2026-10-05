@@ -24,10 +24,10 @@ import { formatDateTime } from '../../lib/format'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
+import { useAssignees } from '../team/queries'
 import { toTimelineEvent } from './activityText'
 import {
   useAddMessage,
-  useAssignees,
   useTicket,
   useTicketActivity,
   useTicketMessages,
