@@ -131,14 +131,23 @@ async function isCsrfRejection(response: Response): Promise<boolean> {
 }
 
 /**
- * Envía la petición y, si una escritura recibe el 403 de CSRF (justo tras iniciar sesión la cookie aún no existe hasta
- * el primer GET), relee `/me` para que el navegador reciba la cookie y la reintenta una sola vez. El segundo intento
- * no se vigila: un segundo 403 llega tal cual a quien llamó, nunca hay bucle.
+ * Envía la petición y reintenta **una sola vez** una escritura rechazada por falta de token CSRF. Justo tras iniciar
+ * sesión la cookie aún no existe hasta el primer GET: se relee `/me` para que el navegador la reciba y se reenvía la
+ * escritura con ella. Se reintenta en dos casos:
+ * - la escritura salió **sin** token y recibió cualquier 403 (no depende del texto del backend);
+ * - salió con token y el 403 trae el `detail` de CSRF (token caducado), como respaldo mientras el Problem no tenga un
+ *   `type` estable.
+ * El segundo intento no se vigila: un segundo 403 llega tal cual a quien llamó, nunca hay bucle. Sin cookie tras releer
+ * `/me` (p. ej. el backend de demostración, sin CSRF) se devuelve el 403 original: cuesta un GET más por cada 403 de
+ * una escritura en ese modo.
  */
 async function fetchWithCsrfRetry(request: Request): Promise<Response> {
-  const retry = UNSAFE_METHODS.has(request.method) ? request.clone() : null
+  const unsafe = UNSAFE_METHODS.has(request.method)
+  const retry = unsafe ? request.clone() : null
+  const sentWithToken = request.headers.has(CSRF_HEADER)
   const response = await globalThis.fetch(request)
-  if (!retry || !(await isCsrfRejection(response))) return response
+  if (!retry || response.status !== 403) return response
+  if (sentWithToken && !(await isCsrfRejection(response))) return response
   try {
     await globalThis.fetch(new URL('/api/me', window.location.origin))
   } catch {
