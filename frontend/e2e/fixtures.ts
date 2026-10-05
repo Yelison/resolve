@@ -3,11 +3,13 @@ import type {
   Me,
   Message,
   Activity,
+  ActivityFeedItem,
   Customer,
   CustomerDetail,
   CustomerMetrics,
   CustomerSummary,
   Member,
+  ReportSummary,
   TeamMember,
   TeamMetrics,
   Ticket,
@@ -161,6 +163,45 @@ const metrics: TicketMetrics = {
   views: { all: 3, mine: 0, unassigned: 1, resolved: 0 },
 }
 
+/** Informe de 7 días de demostración con el contrato de `getReportSummary`; solo `byDay` lo usa el resumen. */
+const reportDays = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']
+const reportSummary: ReportSummary = {
+  period: { from: '2026-09-28T05:00:00Z', to: '2026-10-04T15:00:00Z', days: 7, timeZone: 'America/Bogota' },
+  created: { value: 361, previous: 300 },
+  resolved: { value: 300, previous: 280 },
+  firstResponseMinutes: { value: 18, previous: 22, target: 30 },
+  resolutionHours: { value: 6.5, previous: null },
+  byDay: reportDays.map((date, index) => ({ date, created: [44, 61, 54, 72, 65, 35, 30][index]!, resolved: 0 })),
+  byChannel: [],
+  byAgent: [],
+}
+
+/** Actividad reciente de toda la organización, con el contrato de `listRecentActivity`. */
+const recentActivity: ActivityFeedItem[] = [
+  {
+    ticketNumber: 1047,
+    subject: 'Error al procesar el pago con la tarjeta corporativa en la renovación anual del plan Pro',
+    activity: {
+      id: 'a-feed-2',
+      type: 'status_changed',
+      actor: { id: laura.id, name: laura.name },
+      createdAt: minutesAgo(12),
+      from: 'open',
+      to: 'in_progress',
+    },
+  },
+  {
+    ticketNumber: 1048,
+    subject: 'No puedo acceder a mi cuenta',
+    activity: {
+      id: 'a-feed-1',
+      type: 'created',
+      actor: { id: me.user.id, name: me.user.name },
+      createdAt: minutesAgo(18),
+    },
+  },
+]
+
 const detail = (summary: TicketSummary): Ticket => ({
   ...summary,
   description: 'Desde esta mañana no puedo acceder. El enlace de recuperación dice que ya venció.',
@@ -248,6 +289,8 @@ export async function mockApi(page: Page) {
 
     if (method === 'GET' && path === '/me') return json(route, me)
     if (method === 'GET' && path === '/tickets/metrics') return json(route, metrics)
+    if (method === 'GET' && path === '/reports/summary') return json(route, reportSummary)
+    if (method === 'GET' && path === '/tickets/activity') return json(route, recentActivity)
     if (method === 'GET' && path === '/assignees') return json(route, [daniel, laura])
     if (method === 'GET' && path === '/members/metrics') return json(route, teamMetrics())
     if (method === 'GET' && path === '/members') return json(route, [...members.values()])
@@ -389,10 +432,11 @@ export async function mockApi(page: Page) {
       }
     }
     if (method === 'GET' && path === '/tickets') {
-      const status = url.searchParams.get('status')
+      const status = url.searchParams.getAll('status')
       const customerId = url.searchParams.get('customerId')
       const items = currentTickets().filter(
-        (ticket) => (!status || ticket.status === status) && (!customerId || ticket.customer.id === customerId),
+        (ticket) =>
+          (status.length === 0 || status.includes(ticket.status)) && (!customerId || ticket.customer.id === customerId),
       )
       return json(route, { items, page: 0, size: 20, totalItems: items.length, totalPages: items.length ? 1 : 0 })
     }
