@@ -8,11 +8,13 @@ import org.jspecify.annotations.Nullable;
 /**
  * Filtros ya validados de la bandeja. Se combinan con AND; los valores repetidos de un filtro, con OR.
  * @param assignee responsable concreto, {@link AssigneeFilter#none()} para sin asignar o {@code null} para todos
+ * @param customerId cliente concreto o {@code null} para todos; en un cliente miembro se suma a su propio alcance
  * @param ticketNumber número exacto si la búsqueda es un número (con o sin #)
  * @param text texto a buscar en asunto y cliente si la búsqueda no es un número
  */
 record TicketFilters(TicketView view, Set<TicketStatus> statuses, Set<TicketPriority> priorities,
-		@Nullable AssigneeFilter assignee, @Nullable Long ticketNumber, @Nullable String text) {
+		@Nullable AssigneeFilter assignee, @Nullable UUID customerId, @Nullable Long ticketNumber,
+		@Nullable String text) {
 
 	record AssigneeFilter(@Nullable UUID userId) {
 

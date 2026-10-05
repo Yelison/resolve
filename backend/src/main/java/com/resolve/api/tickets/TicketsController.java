@@ -59,6 +59,7 @@ class TicketsController {
 			@RequestParam(name = "status", required = false) @Nullable List<String> statuses,
 			@RequestParam(name = "priority", required = false) @Nullable List<String> priorities,
 			@RequestParam(required = false) @Nullable String assigneeId,
+			@RequestParam(required = false) @Nullable String customerId,
 			@RequestParam(required = false) @Nullable String q, @RequestParam(required = false) @Nullable String page,
 			@RequestParam(required = false) @Nullable String size,
 			@RequestParam(required = false) @Nullable String sort) {
@@ -66,7 +67,7 @@ class TicketsController {
 		PageQuery<TicketSortField> pageQuery = collect(errors,
 				() -> PageQuery.parse(page, size, sort, SORTABLE, DEFAULT_SORT));
 		TicketFilters filters = collect(errors,
-				() -> TicketRequestParser.filters(view, statuses, priorities, assigneeId, q));
+				() -> TicketRequestParser.filters(view, statuses, priorities, assigneeId, customerId, q));
 		if (!errors.isEmpty()) {
 			throw new ApiValidationException(errors);
 		}

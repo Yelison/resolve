@@ -561,6 +561,11 @@ export interface operations {
                 /** @description A member id, or `none` for unassigned tickets. */
                 assigneeId?: string;
                 /**
+                 * @description Only tickets of this customer. For customer members it combines with their own scope,
+                 *     so another id yields no results.
+                 */
+                customerId?: string;
+                /**
                  * @description Case-insensitive contains match on the subject and the customer name, email and company;
                  *     a number, with or without `#`, matches the ticket number exactly.
                  */
