@@ -289,7 +289,7 @@ Computed per organization, independent of any list.
 
 **By agent.** One row per member, most resolved first, then by name and id:
 
-- every **active** admin or agent, even with zeros, and anyone else (removed, or invited again) who **resolved tickets or gave a first response in the period**, so the work done by someone who left does not vanish from the report and the rows keep adding up. Someone who is not active and did neither in the period is not listed. Customers never appear;
+- every **active** admin or agent, even with zeros, and anyone else (removed, or invited again) who **resolved tickets in the period or gave the first response to a ticket created in the period** (the same tickets their `firstResponseMinutes` is based on; answering an older ticket does not list them), so the work done by someone who left does not vanish from the report and the rows keep adding up. Someone who is not active and did neither in the period is not listed. Customers never appear;
 - `status`: the membership status (`active`, `removed` or `invited`), so the interface can mark whoever left;
 - `resolved`: distinct tickets the member moved to `resolved` in the period (the actor of the activity);
 - `firstResponseMinutes`: the median of the tickets created in the period whose **first** public message is the member's; a later reply on a ticket someone else answered first does not count, nor does an internal note; `null` without data;
