@@ -10,11 +10,11 @@ machine.
 
 ## Topology
 
-| Role              | Git                                                                                  | Herdr                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Coordinator       | The main checkout (`main`); it reviews, integrates and never implements tasks itself | The session you start Claude Code from                                                             |
-| Task A, B, …      | A linked worktree on its own branch, created from a known commit                     | One workspace per task whose root pane opens the worktree; Claude Code runs there as a named agent |
-| Servers and tests | —                                                                                    | Extra panes in the task workspace, only when needed                                                |
+| Role | Git | Herdr |
+| --- | --- | --- |
+| Coordinator | The main checkout (`main`); it reviews, integrates and never implements tasks itself | The session you start Claude Code from |
+| Task A, B, … | A linked worktree on its own branch, created from a known commit | One workspace per task whose root pane opens the worktree; Claude Code runs there as a named agent |
+| Servers and tests | — | Extra panes in the task workspace, only when needed |
 
 Rules that keep the checkouts independent:
 
@@ -163,11 +163,11 @@ the file is not being read: do not hand over the task until it does.
 of a mistake, the fragility of the code it touches, its reach across modules and how hard its result is to check;
 not by the number of files or the expected duration.
 
-| Level                                      | Typical task                                                                                         |
-| ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `low`                                      | Mechanical changes, copy, simple adjustments following a proven pattern                              |
-| `medium` (starting point)                  | Usual components, forms, simple endpoints, tests with clear requirements                             |
-| `high`                                     | Cross-module changes, contracts, complex queries, migrations, diagnosing failures                    |
+| Level | Typical task |
+| --- | --- |
+| `low` | Mechanical changes, copy, simple adjustments following a proven pattern |
+| `medium` (starting point) | Usual components, forms, simple endpoints, tests with clear requirements |
+| `high` | Cross-module changes, contracts, complex queries, migrations, diagnosing failures |
 | `xhigh` (the highest a task file can hold) | Especially hard concurrency, isolation, authorisation or architecture problems with real uncertainty |
 
 A sensitive task does not need the top level when a proven pattern, clear requirements and tests make it checkable.
@@ -313,14 +313,14 @@ commits that are not pushed, and only deletes the branch when `git branch -d` ag
 
 ## Recover after a failure
 
-| Situation                                        | What to do                                                                                                                                                                                                                                              |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The agent exited or crashed                      | `scripts/herdr/start-agent.sh --id <id> --name <name> --continue` starts it again in the same pane and resumes its last conversation; drop `--continue` for a fresh one. The worktree keeps every file and commit, and the effort file keeps the level. |
-| The Herdr server restarted                       | Workspaces come back from `session.json`; Claude Code panes are resumed automatically. Check with `scripts/herdr/status.sh`; if a pane id changed, update `tasks/<id>/task.json`.                                                                       |
-| The workspace was closed but the worktree exists | `herdr worktree open --cwd ~/resolver --path ~/resolver-herdr/worktrees/<id> --no-focus`, then put the new ids in `task.json`.                                                                                                                          |
-| `task.json` is missing                           | Recreate it from `git worktree list`, `herdr worktree list` and `.env.herdr`; the scripts only need those fields.                                                                                                                                       |
-| A prompt timed out                               | Read the agent (`herdr agent read`) before deciding whether to resend.                                                                                                                                                                                  |
-| Ports are busy                                   | `ss -ltnp` shows the owner; pick another slot rather than killing processes you do not own.                                                                                                                                                             |
+| Situation | What to do |
+| --- | --- |
+| The agent exited or crashed | `scripts/herdr/start-agent.sh --id <id> --name <name> --continue` starts it again in the same pane and resumes its last conversation; drop `--continue` for a fresh one. The worktree keeps every file and commit, and the effort file keeps the level. |
+| The Herdr server restarted | Workspaces come back from `session.json`; Claude Code panes are resumed automatically. Check with `scripts/herdr/status.sh`; if a pane id changed, update `tasks/<id>/task.json`. |
+| The workspace was closed but the worktree exists | `herdr worktree open --cwd ~/resolver --path ~/resolver-herdr/worktrees/<id> --no-focus`, then put the new ids in `task.json`. |
+| `task.json` is missing | Recreate it from `git worktree list`, `herdr worktree list` and `.env.herdr`; the scripts only need those fields. |
+| A prompt timed out | Read the agent (`herdr agent read`) before deciding whether to resend. |
+| Ports are busy | `ss -ltnp` shows the owner; pick another slot rather than killing processes you do not own. |
 
 ## Where a feature registers itself
 
