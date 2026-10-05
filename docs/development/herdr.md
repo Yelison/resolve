@@ -58,8 +58,9 @@ Slot `n` (1–9) uses:
 | `PLAYWRIGHT_PORT` | 4180 + n | the preview server Playwright starts (`frontend/playwright.config.ts`) |
 | `SERVER_PORT` | 8080 + n | Spring Boot |
 | `POSTGRES_PORT` | 5440 + n | the host port of `docker-compose.yml`, project `COMPOSE_PROJECT_NAME=resolve-<task-id>` |
+| `KEYCLOAK_PORT` | 8180 + n | the host port of the `keycloak` service of `docker-compose.yml` (loopback only) |
 
-`API_PROXY_TARGET` points the Vite dev proxy at the task's own backend and `DATABASE_URL` at its own database. The
+`API_PROXY_TARGET` points the Vite dev proxy at the task's own backend and `DATABASE_URL` at its own database; `RESOLVE_OIDC_ISSUER` and `RESOLVE_PUBLIC_URL` point an `oidc` backend at the task's own Keycloak and send sign-in and sign-out back to the task's Vite. The
 main checkout keeps the defaults (5173, 4173, 8080 and the `POSTGRES_PORT` of its compose project).
 
 ## Create a task

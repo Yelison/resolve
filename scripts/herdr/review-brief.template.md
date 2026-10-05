@@ -28,6 +28,8 @@ Commands to run in your worktree:
 
 ```sh
 {{COMMANDS}}
+
+The machine is shared by three or four agents: run Vitest with `npm test -- --maxWorkers=3` and Playwright with `--workers=3`. If a test times out under load, rerun it alone before drawing conclusions.
 ```
 
 ## Delivery

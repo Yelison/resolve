@@ -121,6 +121,9 @@ head_branch=$(git -C "$WORKTREE" branch --show-current)
   printf 'COMPOSE_PROJECT_NAME=%s\n' "$COMPOSE_PROJECT"
   printf 'DATABASE_URL=jdbc:postgresql://localhost:%s/resolve\n' $((5440 + SLOT))
   printf 'API_PROXY_TARGET=http://localhost:%s\n' $((8080 + SLOT))
+  # OIDC sign-in against the task's own Keycloak (docker-compose service `keycloak`, `dev,oidc` profiles).
+  printf 'RESOLVE_OIDC_ISSUER=http://localhost:%s/realms/resolve\n' $((8180 + SLOT))
+  printf 'RESOLVE_PUBLIC_URL=http://localhost:%s\n' $((5180 + SLOT))
 } >"$WORKTREE/.env.herdr"
 if ! git -C "$WORKTREE" check-ignore -q .env.herdr; then
   rm -f "$WORKTREE/.env.herdr"
