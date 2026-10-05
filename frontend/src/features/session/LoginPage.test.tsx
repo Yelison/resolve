@@ -7,6 +7,7 @@ import { adminMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { requestedPaths } from '../../test/renderApp'
 import { LOGIN_PATH, navigation } from './sessionLifecycle'
+import { setCsrfCookie } from './shellHarness'
 import { FakeChannel, fromAnotherTab, stubProductionBuild } from './shellHarness'
 
 const unauthorized = { status: 401, body: { status: 401, title: 'No autenticado' } }
@@ -16,6 +17,15 @@ function renderRoutes(path: string) {
   const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
   renderWithProviders(<RouterProvider router={router} />)
   return router
+}
+
+/**
+ * Espera a que termine la comprobación de la sesión: el título está desde el principio (oculto bajo el esqueleto) y
+ * solo recibe el foco cuando la respuesta 401 ya llegó y la pantalla está lista.
+ */
+async function settled() {
+  const heading = await screen.findByRole('heading', { name: 'Entra a Resolve' })
+  await waitFor(() => expect(heading).toHaveFocus())
 }
 
 beforeEach(() => {
@@ -58,7 +68,7 @@ describe('sin sesión', () => {
   it('no muestra ese aviso en una visita normal', async () => {
     mockApi({ 'GET /api/me': unauthorized })
     renderRoutes('/entrar')
-    await screen.findByRole('heading', { name: 'Entra a Resolve' })
+    await settled()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -89,6 +99,68 @@ describe('sin sesión', () => {
     expect(screen.queryByRole('button', { name: 'Entrar con tu cuenta' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+  })
+})
+
+describe('cuenta que el proveedor autentica pero la aplicación no admite', () => {
+  const deactivated = {
+    status: 401,
+    body: { status: 401, title: 'No autenticado', detail: 'Tu acceso a esta organización fue desactivado' },
+  }
+  const generic = {
+    status: 401,
+    body: { status: 401, title: 'No autenticado', detail: 'Inicia sesión para usar la API.' },
+  }
+
+  afterEach(() => setCsrfCookie(null))
+
+  it('muestra el motivo en un aviso, anunciado, y ofrece cerrar sesión para usar otra cuenta', async () => {
+    setCsrfCookie('token-1')
+    mockApi({
+      'GET /api/me': deactivated,
+      'POST /api/logout': { body: { logoutUrl: 'https://idp.example/logout' } },
+    })
+    const spy = vi.spyOn(globalThis, 'fetch')
+    renderRoutes('/entrar')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Esta cuenta no tiene acceso')
+    expect(alert).toHaveTextContent('Tu acceso a esta organización fue desactivado')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' }))
+    await waitFor(() => expect(navigation.assign).toHaveBeenCalledWith('https://idp.example/logout'))
+    const logout = spy.mock.calls
+      .map(([input]) => input as Request)
+      .find((request) => request.url.endsWith('/api/logout'))!
+    expect(logout.headers.get('X-XSRF-TOKEN')).toBe('token-1')
+  })
+
+  it('sin sesión OIDC (sin cookie de CSRF) explica el motivo pero no ofrece cerrar sesión', async () => {
+    mockApi({ 'GET /api/me': deactivated })
+    renderRoutes('/entrar')
+    expect(await screen.findByRole('alert')).toHaveTextContent('fue desactivado')
+    expect(screen.queryByRole('button', { name: /Cerrar sesión/ })).not.toBeInTheDocument()
+  })
+
+  it('el 401 genérico no muestra aviso ni botón de cerrar sesión, aunque haya cookie', async () => {
+    setCsrfCookie('token-1')
+    mockApi({ 'GET /api/me': generic })
+    renderRoutes('/entrar')
+    await settled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Cerrar sesión/ })).not.toBeInTheDocument()
+  })
+
+  it('si cerrar sesión falla avisa y deja la pantalla como estaba', async () => {
+    setCsrfCookie('token-1')
+    mockApi({
+      'GET /api/me': deactivated,
+      'POST /api/logout': { status: 500, body: { status: 500, title: 'Error interno' } },
+    })
+    renderRoutes('/entrar')
+    await userEvent.click(await screen.findByRole('button', { name: 'Cerrar sesión y usar otra cuenta' }))
+    expect(await screen.findByText('No pudimos cerrar la sesión')).toBeInTheDocument()
+    expect(navigation.assign).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' })).toBeEnabled()
   })
 })
 

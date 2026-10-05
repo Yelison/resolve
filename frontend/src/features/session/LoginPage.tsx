@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Navigate, useSearchParams } from 'react-router'
-import { isApiError } from '../../api/client'
+import { isApiError, readCsrfToken } from '../../api/client'
 import { cx } from '../../lib/cx'
 import { Alert, Button, EmptyState, Skeleton } from '../../components/ui'
 import { DemoUserPicker } from './DemoUserPicker'
@@ -8,6 +8,14 @@ import { useMe } from './queries'
 import styles from './session.module.css'
 import { subscribeSessionMessages } from './sessionChannel'
 import { LOGIN_PATH, navigation } from './sessionLifecycle'
+import { useSessionActions } from './useSessionActions'
+
+/**
+ * `detail` que el backend pone a cualquier 401 sin más motivo. Cualquier otro (p. ej. «Tu acceso a esta organización fue
+ * desactivado») explica por qué esta cuenta no entra. Se distingue por el texto mientras el Problem no lleve un `type`
+ * estable: si el backend lo cambia, el aviso sale también en la visita normal (ruido, no un fallo).
+ */
+const GENERIC_UNAUTHORIZED_DETAIL = 'Inicia sesión para usar la API.'
 
 /**
  * Pantalla de entrada (`/entrar`). Sin sesión ofrece entrar con el proveedor de identidad; con sesión vuelve al
@@ -20,6 +28,12 @@ export function LoginPage() {
   // La condición va escrita aquí (ver `api/client.ts`): así el build de producción elimina el selector entero.
   const demoLogin = import.meta.env.DEV || import.meta.env.MODE === 'smoke'
   const unauthenticated = !me.data && isApiError(me.error, 401)
+  const { signOut } = useSessionActions()
+  // Motivo por el que el proveedor sí autenticó a la persona pero la aplicación no la admite (cuenta desactivada).
+  const detail = isApiError(me.error, 401) ? me.error.problem.detail : undefined
+  const refusal = detail && detail !== GENERIC_UNAUTHORIZED_DETAIL ? detail : undefined
+  // Con una sesión OIDC en el servidor hay cookie de CSRF: se puede cerrar para entrar con otra cuenta.
+  const canSignOut = refusal !== undefined && readCsrfToken() !== null
 
   useEffect(() => {
     document.title = 'Entrar · Resolve'
@@ -77,9 +91,30 @@ export function LoginPage() {
                   El proveedor de identidad no completó la entrada. Inténtalo de nuevo.
                 </Alert>
               )}
+              {refusal && (
+                <Alert
+                  key={checking ? 'checking' : 'ready'}
+                  tone="red"
+                  live={!checking}
+                  title="Esta cuenta no tiene acceso"
+                >
+                  {refusal}
+                </Alert>
+              )}
               <Button block onClick={() => navigation.assign(LOGIN_PATH)}>
                 Entrar con tu cuenta
               </Button>
+              {canSignOut && (
+                <Button
+                  block
+                  variant="secondary"
+                  loading={signOut.isPending}
+                  loadingLabel="Cerrando sesión…"
+                  onClick={() => signOut.mutate()}
+                >
+                  Cerrar sesión y usar otra cuenta
+                </Button>
+              )}
               {demoLogin && (
                 <section className={styles.demo} aria-labelledby="demo-title">
                   <h2 id="demo-title" className={styles.demoTitle}>
