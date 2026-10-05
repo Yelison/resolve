@@ -1,10 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { Editor, type EditorMode, type EditorProps } from './Editor'
+import { Editor, type EditorMode, type TicketEditorProps } from './Editor'
 
-function Harness(props: Partial<EditorProps>) {
+function Harness(props: Partial<TicketEditorProps>) {
   const [value, setValue] = useState('')
   const [mode, setMode] = useState<EditorMode>('reply')
   return (
@@ -67,5 +67,52 @@ describe('Editor', () => {
   it('bloquea el reenvío mientras envía', () => {
     render(<Harness status="sending" />)
     expect(screen.getByRole('button', { name: 'Enviando…' })).toHaveAttribute('aria-busy', 'true')
+  })
+
+  describe('variante de artículo', () => {
+    function ArticleHarness({ initial = '' }: { initial?: string }) {
+      const [value, setValue] = useState(initial)
+      return (
+        <Editor
+          variant="article"
+          label="Contenido"
+          value={value}
+          onChange={setValue}
+          invalid
+          describedBy="body-error"
+        />
+      )
+    }
+
+    it('no dibuja el selector de modo ni el pie de envío', () => {
+      render(<ArticleHarness />)
+      expect(screen.getByRole('textbox', { name: 'Contenido' })).toBeInTheDocument()
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Enviar|Guardar nota/ })).not.toBeInTheDocument()
+      expect(screen.queryByText(/Ctrl o ⌘/)).not.toBeInTheDocument()
+    })
+
+    it('ofrece H2, negrita, cursiva, lista y enlace, sin adjuntar', () => {
+      render(<ArticleHarness />)
+      const names = within(screen.getByRole('toolbar', { name: 'Formato' }))
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label'))
+      expect(names).toEqual(['Encabezado', 'Negrita', 'Cursiva', 'Lista', 'Enlace'])
+    })
+
+    it('el botón H2 antepone «## » a la línea y vuelve a quitarlo', async () => {
+      render(<ArticleHarness initial="Título" />)
+      await userEvent.click(screen.getByRole('button', { name: 'Encabezado' }))
+      expect(screen.getByRole('textbox')).toHaveValue('## Título')
+      await userEvent.click(screen.getByRole('button', { name: 'Encabezado' }))
+      expect(screen.getByRole('textbox')).toHaveValue('Título')
+    })
+
+    it('marca el campo como inválido y lo describe con el id recibido', () => {
+      render(<ArticleHarness />)
+      const textbox = screen.getByRole('textbox')
+      expect(textbox).toHaveAttribute('aria-invalid', 'true')
+      expect(textbox).toHaveAttribute('aria-describedby', 'body-error')
+    })
   })
 })

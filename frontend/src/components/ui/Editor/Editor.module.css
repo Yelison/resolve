@@ -135,3 +135,12 @@
     min-height: var(--touch-target);
   }
 }
+
+/* Cuerpo de un artículo: más alto que una respuesta y con el borde de error cuando el campo es inválido. */
+.article .textarea {
+  min-height: 320px;
+}
+
+.invalid {
+  border-color: var(--color-red-ink);
+}

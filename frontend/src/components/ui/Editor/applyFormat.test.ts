@@ -28,3 +28,17 @@ describe('applyFormat', () => {
     expect(edit.value.slice(edit.selectionStart, edit.selectionEnd)).toBe('Cerrar sesión\n- Borrar caché\n- Entrar')
   })
 })
+
+describe('applyFormat · heading', () => {
+  it('antepone «## » a la línea del cursor y desplaza la selección', () => {
+    expect(applyFormat('uno\ndos', 5, 6, 'heading')).toEqual({
+      value: 'uno\n## dos',
+      selectionStart: 8,
+      selectionEnd: 9,
+    })
+  })
+
+  it('quita «## » si la línea ya es un encabezado', () => {
+    expect(applyFormat('## uno', 4, 4, 'heading')).toEqual({ value: 'uno', selectionStart: 1, selectionEnd: 1 })
+  })
+})

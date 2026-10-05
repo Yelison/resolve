@@ -1,4 +1,4 @@
-export type TextFormat = 'bold' | 'italic' | 'list' | 'link'
+export type TextFormat = 'heading' | 'bold' | 'italic' | 'list' | 'link'
 
 export interface TextEdit {
   value: string
@@ -23,6 +23,20 @@ export function applyFormat(text: string, start: number, end: number, format: Te
       value: `${before}${mark}${selected}${mark}${after}`,
       selectionStart: start + mark.length,
       selectionEnd: end + mark.length,
+    }
+  }
+
+  if (format === 'heading') {
+    // Encabezado de nivel 2 en la línea del cursor; sobre una línea que ya lo es, lo quita.
+    const lineStart = before.lastIndexOf('\n') + 1
+    const isHeading = text.startsWith('## ', lineStart)
+    const delta = isHeading ? -3 : 3
+    return {
+      value: isHeading
+        ? `${text.slice(0, lineStart)}${text.slice(lineStart + 3)}`
+        : `${text.slice(0, lineStart)}## ${text.slice(lineStart)}`,
+      selectionStart: Math.max(lineStart, start + delta),
+      selectionEnd: Math.max(lineStart, end + delta),
     }
   }
 
