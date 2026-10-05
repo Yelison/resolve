@@ -55,4 +55,48 @@ test.describe('clientes', () => {
       expect(overflow).toBeLessThanOrEqual(0)
     })
   }
+
+  const metricColumns = [
+    { width: 390, columns: 2 },
+    { width: 767, columns: 2 },
+    { width: 1024, columns: 2 },
+    { width: 1199, columns: 2 },
+    { width: 1440, columns: 4 },
+  ]
+  for (const { width, columns } of metricColumns) {
+    for (const route of ['/clientes', '/tickets']) {
+      test(`${route}: ${columns} columnas de métricas · ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto(route)
+        const first = page.locator('dl').first()
+        await expect(first).toBeVisible()
+        const tops = await page
+          .locator('dl')
+          .evaluateAll((items) =>
+            items.slice(0, 4).map((item) => Math.round(item.closest('div')!.getBoundingClientRect().top)),
+          )
+        expect(tops.filter((top) => top === tops[0])).toHaveLength(columns)
+      })
+    }
+  }
+
+  test('en móvil el enlace de cada tarjeta es una zona táctil de al menos 44 px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/clientes')
+    const link = page.getByRole('table', { name: 'Clientes' }).getByRole('link', { name: 'María Pérez' })
+    expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+  })
+
+  test('en móvil el nombre y el correo largos envuelven sin recortarse', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 })
+    await page.goto('/clientes')
+    const table = page.getByRole('table', { name: 'Clientes' })
+    for (const locator of [
+      table.getByRole('link', { name: /Ana García Fernández/ }),
+      table.getByText('ana.garcia.fernandez.de.la.fuente@orbit-labs.example'),
+    ]) {
+      const clipped = await locator.evaluate((node) => node.scrollWidth > node.clientWidth)
+      expect(clipped).toBe(false)
+    }
+  })
 })

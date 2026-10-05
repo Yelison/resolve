@@ -1,6 +1,7 @@
 .metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  /* Una columna si dos no caben a 150 px; nunca más de dos por debajo de 1200 px. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(150px, calc(50% - var(--space-6)))), 1fr));
   gap: var(--space-12);
 }
 
@@ -26,11 +27,21 @@
 }
 
 .search {
-  flex: 1 1 240px;
+  flex: 2 1 280px;
 }
 
 .select {
   flex: 1 1 100%;
+}
+
+.retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-blue-ink);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .results {
@@ -46,7 +57,18 @@
   min-height: 240px;
 }
 
+/* Mismo umbral que la tabla: en tarjetas hay margen interior; como tabla, las filas llegan al borde del panel. */
+@container customers-results (min-width: 560px) {
+  .resultsInner {
+    margin: 0 calc(var(--space-16) * -1) calc(var(--space-16) * -1);
+  }
+}
+
 @media (min-width: 768px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .select {
     flex: 0 1 220px;
   }

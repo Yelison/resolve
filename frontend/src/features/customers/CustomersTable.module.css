@@ -86,14 +86,15 @@
   min-width: 0;
 }
 
+/* En tarjeta el nombre envuelve y el enlace mide al menos una zona táctil; la elipsis queda para la tabla. */
 .nameLink {
-  display: block;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target);
   color: var(--color-ink);
   font: var(--font-strong);
+  overflow-wrap: anywhere;
   text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .nameLink:hover {
@@ -128,9 +129,7 @@
 
 .company,
 .email {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /* Sin empresa no hay nada que separar: el correo ocupa la línea. */
@@ -189,6 +188,25 @@
   .meta,
   .chips {
     display: contents;
+  }
+
+  .nameLink {
+    display: block;
+    min-height: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .company,
+  .email {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .caption {
+    padding-inline: var(--space-12);
   }
 
   .company,
