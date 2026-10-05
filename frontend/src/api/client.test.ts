@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { ApiError, isApiError, toApiPage, unwrap, versionFromEtag } from './client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { api, ApiError, DEMO_USER_STORAGE_KEY, isApiError, toApiPage, unwrap, versionFromEtag } from './client'
 
 describe('unwrap', () => {
   it('devuelve los datos de una respuesta correcta', async () => {
@@ -39,5 +39,37 @@ describe('helpers', () => {
     expect(toApiPage(1)).toBe(0)
     expect(toApiPage(3)).toBe(2)
     expect(toApiPage(0)).toBe(0)
+  })
+})
+
+describe('usuario de demostración', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  /** Hace una petición con el modo indicado y devuelve el valor que X-Demo-User llevó a la red (o null). */
+  async function demoHeaderSentIn(mode: string, dev = false) {
+    vi.stubEnv('MODE', mode)
+    // DEV solo es true en el servidor de desarrollo; el build smoke lo lleva en false y aun así debe enviar la cabecera.
+    vi.stubEnv('DEV', dev)
+    localStorage.setItem(DEMO_USER_STORAGE_KEY, 'maria.perez@cliente.example')
+    const fetchMock = vi.fn(() => Promise.resolve(new Response('{}', { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+    await api.GET('/me')
+    const request = (fetchMock.mock.calls[0] as unknown as [Request])[0]
+    return request.headers.get('X-Demo-User')
+  }
+
+  it('lo envía en el build smoke, que no es el servidor de desarrollo', async () => {
+    await expect(demoHeaderSentIn('smoke')).resolves.toBe('maria.perez@cliente.example')
+  })
+
+  it('lo envía en desarrollo', async () => {
+    await expect(demoHeaderSentIn('development', true)).resolves.toBe('maria.perez@cliente.example')
+  })
+
+  it('nunca lo envía en producción aunque haya un usuario guardado', async () => {
+    await expect(demoHeaderSentIn('production')).resolves.toBeNull()
   })
 })
