@@ -31,7 +31,8 @@ class UuidsTest {
 	@ValueSource(strings = { "", " ", "1-2-3-4-5", "no-es-un-uuid", "{0192f000-0000-7000-8000-00000000abcd}",
 			"0192f00000007000800000000000abcd", "0192f000-0000-7000-8000-00000000abcde",
 			"+192f000-0000-7000-8000-00000000abcd", "0192f000-0000-7000-8000-00000000abcg",
-			"0192f000-0000-7000-8000-00000000abc\n", "٠192f000-0000-7000-8000-00000000abcd" })
+			"0192f000-0000-7000-8000-00000000abc\n", "٠192f000-0000-7000-8000-00000000abcd", "\u0000" + CANONICAL, CANONICAL + "\u0007",
+			"\u0000\u001f" + CANONICAL + "\u0007", "\u001f" + CANONICAL })
 	void rejectsEveryOtherForm(String value) {
 		assertThat(Uuids.parse(value)).isEmpty();
 	}
