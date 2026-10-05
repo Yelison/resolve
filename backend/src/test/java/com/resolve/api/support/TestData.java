@@ -133,6 +133,17 @@ public class TestData {
 		this.jdbc.sql("UPDATE tickets SET status = ? WHERE id = ?").params(to, ticketId).update();
 	}
 
+	/** Mensaje público de un cliente; no cuenta como respuesta, así que no toca la primera respuesta del ticket. */
+	public void customerMessage(UUID organizationId, UUID ticketId, UUID customerId, Instant at) {
+		this.jdbc.sql("""
+				INSERT INTO ticket_messages (id, organization_id, ticket_id, visibility, author_kind, author_customer_id,
+				                             body, created_at)
+				VALUES (?, ?, ?, 'public', 'customer', ?, 'Mensaje del cliente', ?)
+				""")
+			.params(Ids.newId(), organizationId, ticketId, customerId, Timestamp.from(at))
+			.update();
+	}
+
 	/** Mensaje de un agente. Una respuesta pública también fija la primera respuesta del ticket si aún no la tenía. */
 	public void agentMessage(UUID organizationId, UUID ticketId, UUID agentUserId, String visibility, Instant at) {
 		this.jdbc.sql("""
