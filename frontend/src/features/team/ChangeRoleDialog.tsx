@@ -1,6 +1,6 @@
+import { mutationErrorDetail } from './errorDetail'
 import { useState } from 'react'
 import { Alert, Button, Modal, Select, useToast } from '../../components/ui'
-import { isApiError } from '../../api/client'
 import { teamRoles, type TeamMember, type TeamRole } from '../../domain/member'
 import { roleLabels } from '../../app/navigation'
 import { useChangeRole } from './queries'
@@ -19,7 +19,13 @@ export function ChangeRoleDialog({ member, onClose }: ChangeRoleDialogProps) {
       open={member !== null}
       onClose={onClose}
       title="Cambiar rol"
-      description={member ? `Elige el rol de ${member.name}.` : undefined}
+      description={
+        member ? (
+          <>
+            Elige el rol de <span className={styles.name}>{member.name}</span>.
+          </>
+        ) : undefined
+      }
     >
       {member && <RoleForm key={member.id} member={member} onClose={onClose} />}
     </Modal>
@@ -38,7 +44,10 @@ function RoleForm({ member, onClose }: { member: TeamMember; onClose: () => void
       { userId: member.id, role },
       {
         onSuccess: () => {
-          toast.show({ title: 'Rol actualizado', description: `${member.name} ahora es ${roleLabels[role]}.` })
+          toast.show({
+            title: 'Rol actualizado',
+            description: `${member.name} ahora tiene el rol de ${roleLabels[role].toLowerCase()}.`,
+          })
           onClose()
         },
       },
@@ -57,9 +66,7 @@ function RoleForm({ member, onClose }: { member: TeamMember; onClose: () => void
     >
       {error && (
         <Alert tone="red" title="No se pudo cambiar el rol" live>
-          {isApiError(error, 409) || isApiError(error, 404)
-            ? (error.problem.detail ?? error.problem.title)
-            : 'Revisa tu conexión e inténtalo de nuevo.'}
+          {mutationErrorDetail(error)}
         </Alert>
       )}
       <Select

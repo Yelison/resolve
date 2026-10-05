@@ -18,6 +18,7 @@ import { isApiError } from '../../api/client'
 import type { CustomerDetail } from '../../domain/customer'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
+import { mutationErrorDetail } from '../team/errorDetail'
 import { useMe } from '../session/queries'
 import { useTimeZone } from '../session/useTimeZone'
 import { customerSince } from './customerSince'
@@ -240,9 +241,9 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
       >
         {invite.error && (
           <Alert tone="red" title="No se pudo dar acceso al portal" live>
-            {isApiError(invite.error, 409) || isApiError(invite.error, 400) || isApiError(invite.error, 404)
+            {isApiError(invite.error, 400)
               ? (invite.error.problem.detail ?? invite.error.problem.title)
-              : 'Revisa tu conexión e inténtalo de nuevo.'}
+              : mutationErrorDetail(invite.error)}
           </Alert>
         )}
       </Modal>

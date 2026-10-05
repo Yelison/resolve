@@ -459,5 +459,42 @@ describe('CustomerDetailPage', () => {
       expect(await within(dialog).findByRole('alert')).toHaveTextContent('El correo pertenece a un miembro del equipo.')
       expect(screen.queryByText('Invitación creada')).not.toBeInTheDocument()
     })
+
+    it('un 403 muestra su detalle y relee la sesión: el botón desaparece si ya no eres administrador', async () => {
+      let me: typeof adminMe | typeof agentMe = adminMe
+      api({
+        'GET /api/me': () => ({ body: me }),
+        'GET /api/customers/c-maria': { body: none() },
+        'POST /api/customers/c-maria/invite': () => {
+          me = agentMe
+          return { status: 403, body: { status: 403, title: 'Prohibido', detail: 'Tu rol no permite esta acción.' } }
+        },
+      })
+      renderDetail()
+      await userEvent.click(await screen.findByRole('button', { name: 'Dar acceso al portal' }))
+      const dialog = screen.getByRole('dialog', { name: 'Dar acceso al portal' })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Dar acceso' }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Tu rol no permite esta acción.')
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+      await waitFor(() =>
+        expect(screen.queryByRole('button', { name: 'Dar acceso al portal' })).not.toBeInTheDocument(),
+      )
+    })
+
+    it('un 409 relee el detalle del cliente', async () => {
+      api({
+        'GET /api/customers/c-maria': { body: none() },
+        'POST /api/customers/c-maria/invite': {
+          status: 409,
+          body: { status: 409, title: 'Conflicto', detail: 'El cliente ya tiene acceso al portal.' },
+        },
+      })
+      const { queryClient } = renderDetail()
+      await userEvent.click(await screen.findByRole('button', { name: 'Dar acceso al portal' }))
+      const dialog = screen.getByRole('dialog', { name: 'Dar acceso al portal' })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Dar acceso' }))
+      await within(dialog).findByRole('alert')
+      await waitFor(() => expect(queryClient.getQueryState(customerKeys.detail('c-maria'))?.dataUpdateCount).toBe(2))
+    })
   })
 })

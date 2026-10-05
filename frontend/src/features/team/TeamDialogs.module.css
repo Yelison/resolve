@@ -11,3 +11,8 @@
   justify-content: flex-end;
   gap: var(--space-12);
 }
+
+/* Un nombre de 120 caracteres sin espacios debe envolver dentro del diálogo en lugar de recortarse. */
+.name {
+  overflow-wrap: anywhere;
+}

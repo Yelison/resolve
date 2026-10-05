@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { Alert, Button, Input, Modal, Select, useToast } from '../../components/ui'
 import { isApiError } from '../../api/client'
+import { mutationErrorDetail } from './errorDetail'
 import { teamRoles, type TeamRole } from '../../domain/member'
 import { roleLabels } from '../../app/navigation'
 import { useInviteMember } from './queries'
@@ -43,7 +44,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
   const [role, setRole] = useState<TeamRole>('agent')
   const [errors, setErrors] = useState<Errors>({})
-  const [failed, setFailed] = useState(false)
+  const [failed, setFailed] = useState<string | null>(null)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -59,7 +60,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
     // flushSync pinta los errores antes de mover el foco al primer campo inválido.
     flushSync(() => {
       setErrors(found)
-      setFailed(false)
+      setFailed(null)
     })
     if (Object.keys(found).length > 0) {
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
@@ -79,7 +80,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
       }
       flushSync(() => {
         setErrors(serverErrors)
-        setFailed(Object.keys(serverErrors).length === 0)
+        setFailed(Object.keys(serverErrors).length === 0 ? mutationErrorDetail(error) : null)
       })
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
     }
@@ -89,7 +90,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
     <form className={styles.form} onSubmit={(event) => void submit(event)} noValidate aria-busy={invite.isPending}>
       {failed && (
         <Alert tone="red" title="No se pudo crear la invitación" live>
-          Revisa tu conexión e inténtalo de nuevo.
+          {failed}
         </Alert>
       )}
       <Input
