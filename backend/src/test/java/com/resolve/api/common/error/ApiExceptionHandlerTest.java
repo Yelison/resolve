@@ -6,7 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.dao.DeadlockLoserDataAccessException;
 import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
@@ -80,9 +79,10 @@ class ApiExceptionHandlerTest {
 	}
 
 	@Test
-	void otherLockingFailuresAreNotMappedAsALockTimeout() {
-		assertThatThrownBy(() -> this.mvc.perform(get("/deadlock")))
-			.hasRootCauseInstanceOf(DeadlockLoserDataAccessException.class);
+	void aDeadlockThatReachesUsAsTheSameExceptionIsNotHiddenAsALockTimeout() {
+		assertThatThrownBy(() -> this.mvc.perform(get("/deadlock"))).hasRootCauseInstanceOf(SQLException.class)
+			.rootCause()
+			.hasFieldOrPropertyWithValue("SQLState", "40P01");
 	}
 
 	@RestController
@@ -90,12 +90,14 @@ class ApiExceptionHandlerTest {
 
 		@GetMapping("/lock")
 		String lock() {
-			throw new CannotAcquireLockException("canceling statement due to lock timeout");
+			throw new CannotAcquireLockException("could not obtain lock",
+					new SQLException("canceling statement due to lock timeout", "55P03"));
 		}
 
 		@GetMapping("/deadlock")
 		String deadlock() {
-			throw new DeadlockLoserDataAccessException("deadlock detected", null);
+			throw new CannotAcquireLockException("could not obtain lock",
+					new SQLException("deadlock detected", "40P01"));
 		}
 
 		@GetMapping("/nul")

@@ -27,6 +27,9 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	/** SQLSTATE 22021: secuencia de bytes no válida para la codificación (el byte 0 en un texto). */
 	private static final String INVALID_BYTE_SEQUENCE = "22021";
 
+	/** SQLSTATE 55P03: no se obtuvo el bloqueo en el tiempo de {@code lock_timeout}. */
+	private static final String LOCK_NOT_AVAILABLE = "55P03";
+
 	@ExceptionHandler
 	ProblemDetail handleValidation(ApiValidationException exception) {
 		return validationProblem(exception.errors());
@@ -60,12 +63,21 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	}
 
 	/**
-	 * Otra transacción retenía la fila más de {@link LockTimeouts#MILLIS} ms. No es un error de versión (412) ni de
-	 * negocio (409): la petición es válida y repetirla tal cual puede funcionar, que es el significado de un 503 con
-	 * {@code Retry-After}. Solo {@link CannotAcquireLockException}; las demás fallas de bloqueo no se traducen aquí.
+	 * Otra transacción retenía la fila más de {@link LockTimeouts#MILLIS} ms (SQLSTATE 55P03). No es un error de
+	 * versión (412) ni de negocio (409): la petición es válida y repetirla tal cual puede funcionar, que es el
+	 * significado de un 503 con {@code Retry-After}.
+	 *
+	 * <p>
+	 * Hay que mirar el SQLSTATE: por la ruta JPA un interbloqueo (40P01) llega como la misma
+	 * {@link CannotAcquireLockException} (Hibernate lo traduce a {@code LockAcquisitionException}, la superclase de
+	 * {@code LockTimeoutException}). Un interbloqueo no es el tope de espera ni lo declaran las operaciones que no
+	 * toman el bloqueo, así que se relanza y sigue siendo un 500.
 	 */
 	@ExceptionHandler
 	ResponseEntity<ProblemDetail> handleLockTimeout(CannotAcquireLockException exception) {
+		if (!hasSqlState(exception, LOCK_NOT_AVAILABLE)) {
+			throw exception;
+		}
 		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
 			.header(HttpHeaders.RETRY_AFTER, String.valueOf(LockTimeouts.RETRY_AFTER_SECONDS))
 			.contentType(MediaType.APPLICATION_PROBLEM_JSON)
