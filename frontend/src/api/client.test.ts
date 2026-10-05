@@ -181,6 +181,34 @@ describe('CSRF', () => {
     expect(network.sent).toHaveLength(1)
   })
 
+  it('una escritura sin token que recibe cualquier 403 relee /me y se reintenta con el token nuevo, sin depender del texto', async () => {
+    const network = stubFetch(
+      problem(403, 'Cualquier otro texto.'),
+      new Response('{}', { status: 200 }),
+      new Response('{}'),
+    )
+    const respond = globalThis.fetch
+    vi.stubGlobal('fetch', (input: Request | URL) => {
+      if (urlOf(input).endsWith('/api/me')) setCookie('token-nuevo')
+      return respond(input)
+    })
+    setCookie(null)
+    const { response } = await api.POST('/session/organization', { body: organization })
+    expect(response.status).toBe(200)
+    expect(network.sent).toHaveLength(3)
+    expect(network.at(0).headers.has('X-XSRF-TOKEN')).toBe(false)
+    expect(network.at(2).headers.get('X-XSRF-TOKEN')).toBe('token-nuevo')
+  })
+
+  it('sin cookie ni siquiera tras releer /me (backend sin CSRF) devuelve el 403 original: un GET más y nada de reintento', async () => {
+    const network = stubFetch(problem(403, 'Tu rol no permite esta acción.'), new Response('{}', { status: 200 }))
+    const { response, error } = await api.POST('/session/organization', { body: organization })
+    expect(response.status).toBe(403)
+    expect(error).toMatchObject({ detail: 'Tu rol no permite esta acción.' })
+    expect(network.sent).toHaveLength(2)
+    expect(urlOf(network.sent[1]!)).toMatch(/\/api\/me$/)
+  })
+
   it('un 403 de CSRF en un GET no se reintenta', async () => {
     const network = stubFetch(csrfRejection())
     const { response } = await api.GET('/me')
