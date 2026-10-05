@@ -1393,6 +1393,17 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description Another transaction held the row for longer than the server waits (3 seconds). Nothing was changed: the same request can be sent again after `Retry-After`. */
+        LockTimeout: {
+            headers: {
+                /** @description Seconds to wait before repeating the request. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description No authenticated principal. */
         Unauthorized: {
             headers: {
@@ -1531,6 +1542,7 @@ export type ArticlePatch = components['schemas']['ArticlePatch'];
 export type ArticlePage = components['schemas']['ArticlePage'];
 export type Problem = components['schemas']['Problem'];
 export type ResponseBadRequest = components['responses']['BadRequest'];
+export type ResponseLockTimeout = components['responses']['LockTimeout'];
 export type ResponseUnauthorized = components['responses']['Unauthorized'];
 export type ResponseForbidden = components['responses']['Forbidden'];
 export type ResponseNotFound = components['responses']['NotFound'];
@@ -1835,6 +1847,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     listMessages: {
@@ -2092,6 +2105,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     archiveCustomer: {
@@ -2120,6 +2134,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     restoreCustomer: {
@@ -2148,6 +2163,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     inviteCustomer: {
@@ -2175,6 +2191,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     listMembers: {
@@ -2544,6 +2561,7 @@ export interface operations {
             404: components["responses"]["NotFound"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     publishArticle: {
@@ -2572,6 +2590,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     unpublishArticle: {
@@ -2600,6 +2619,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["LockTimeout"];
         };
     };
 }

@@ -304,6 +304,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
+        '503': { $ref: '#/components/responses/LockTimeout' }
 
   /tickets/{number}/messages:
     parameters:
@@ -527,6 +528,7 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
+        '503': { $ref: '#/components/responses/LockTimeout' }
 
   /customers/{id}/archive:
     parameters:
@@ -551,6 +553,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/LockTimeout' }
 
   /customers/{id}/restore:
     parameters:
@@ -573,6 +576,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/LockTimeout' }
 
   /customers/{id}/invite:
     parameters:
@@ -599,6 +603,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/LockTimeout' }
 
   /members:
     get:
@@ -922,6 +927,7 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
+        '503': { $ref: '#/components/responses/LockTimeout' }
 
   /knowledge/articles/{slug}/publish:
     parameters:
@@ -945,6 +951,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/LockTimeout' }
 
   /knowledge/articles/{slug}/unpublish:
     parameters:
@@ -968,6 +975,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/LockTimeout' }
 
 components:
   securitySchemes:
@@ -1030,6 +1038,17 @@ components:
   responses:
     BadRequest:
       description: Malformed request, invalid parameter or validation error.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    LockTimeout:
+      description: >-
+        Another transaction held the row for longer than the server waits (3 seconds). Nothing was changed: the
+        same request can be sent again after `Retry-After`.
+      headers:
+        Retry-After:
+          description: Seconds to wait before repeating the request.
+          schema: { type: integer, minimum: 1 }
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

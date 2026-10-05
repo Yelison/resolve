@@ -5,10 +5,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.resolve.api.common.persistence.LockTimeouts;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.Repository;
 
 /**
@@ -42,6 +45,7 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 	 * join; cliente y responsable se cargan después, de forma perezosa, dentro de la transacción.
 	 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@QueryHints(@QueryHint(name = LockTimeouts.HINT, value = LockTimeouts.MILLIS))
 	@Query("""
 			select t from Ticket t
 			where t.organizationId = :organizationId and t.number = :number
@@ -50,6 +54,7 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 
 	/** Versión con bloqueo de {@link #findForCustomer}; filtra por la clave foránea, sin join. */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@QueryHints(@QueryHint(name = LockTimeouts.HINT, value = LockTimeouts.MILLIS))
 	@Query("""
 			select t from Ticket t
 			where t.organizationId = :organizationId and t.number = :number and t.customer.id = :customerId
@@ -61,6 +66,7 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 	 * {@code join fetch}, por el mismo motivo que {@link #lockInOrganization}; en orden de número para que dos
 	 * transacciones que bloqueen varios tickets lo hagan siempre en el mismo orden.
 	 */
+	// Sin tope de espera a propósito: lo llama la baja de un miembro (memberships), cuyo contrato no declara el 503.
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("""
 			select t from Ticket t

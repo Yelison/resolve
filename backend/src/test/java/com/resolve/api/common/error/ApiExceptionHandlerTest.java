@@ -1,17 +1,23 @@
 package com.resolve.api.common.error;
 
+import java.sql.SQLException;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.MediaType;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DeadlockLoserDataAccessException;
+import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -60,23 +66,48 @@ class ApiExceptionHandlerTest {
 
 	@Test
 	void otherIntegrityViolationsAreNotHiddenAsClientErrors() {
-		org.assertj.core.api.Assertions.assertThatThrownBy(() -> this.mvc.perform(get("/integrity")))
-			.hasRootCauseInstanceOf(java.sql.SQLException.class);
+		assertThatThrownBy(() -> this.mvc.perform(get("/integrity")))
+			.hasRootCauseInstanceOf(SQLException.class);
+	}
+
+	@Test
+	void aLockTimeoutIsA503WithRetryAfter() throws Exception {
+		this.mvc.perform(get("/lock"))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(header().string("Retry-After", "1"))
+			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+			.andExpect(jsonPath("$.title").value("Recurso ocupado"));
+	}
+
+	@Test
+	void otherLockingFailuresAreNotMappedAsALockTimeout() {
+		assertThatThrownBy(() -> this.mvc.perform(get("/deadlock")))
+			.hasRootCauseInstanceOf(DeadlockLoserDataAccessException.class);
 	}
 
 	@RestController
 	static class Thrower {
 
+		@GetMapping("/lock")
+		String lock() {
+			throw new CannotAcquireLockException("canceling statement due to lock timeout");
+		}
+
+		@GetMapping("/deadlock")
+		String deadlock() {
+			throw new DeadlockLoserDataAccessException("deadlock detected", null);
+		}
+
 		@GetMapping("/nul")
 		String nul() {
 			throw new DataIntegrityViolationException("could not execute statement",
-					new java.sql.SQLException("invalid byte sequence for encoding \"UTF8\": 0x00", "22021"));
+					new SQLException("invalid byte sequence for encoding \"UTF8\": 0x00", "22021"));
 		}
 
 		@GetMapping("/integrity")
 		String integrity() {
 			throw new DataIntegrityViolationException("could not execute statement",
-					new java.sql.SQLException("duplicate key", "23505"));
+					new SQLException("duplicate key", "23505"));
 		}
 
 		@GetMapping("/conflict")
