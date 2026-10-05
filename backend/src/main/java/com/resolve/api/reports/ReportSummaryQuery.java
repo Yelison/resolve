@@ -182,7 +182,7 @@ class ReportSummaryQuery {
 	ReportSummaryDto compute(UUID organizationId, ReportPeriod period) {
 		Organization organization = this.organizations.findById(organizationId).orElseThrow();
 		ZoneId zone = organization.zone();
-		Instant to = wholeSecond(this.clock.instant());
+		Instant to = this.clock.instant().truncatedTo(ChronoUnit.SECONDS);
 		LocalDate firstDay = LocalDate.ofInstant(to, zone).minusDays(period.days() - 1L);
 		Instant from = firstDay.atStartOfDay(zone).toInstant();
 		Instant previousFrom = from.minus(Duration.between(from, to));
@@ -268,16 +268,6 @@ class ReportSummaryQuery {
 			channels.add(new Channel(counts.get(i).channel(), counts.get(i).created(), BigDecimal.valueOf(units[i], 1)));
 		}
 		return channels;
-	}
-
-	/**
-	 * El final del periodo en segundos enteros, redondeado hacia arriba: la salida es estable y todo lo creado hasta
-	 * este instante (también hace una fracción de segundo) queda dentro. El inicio ya es una medianoche local y el
-	 * periodo anterior se calcula con ambos, así que también son segundos enteros.
-	 */
-	private static Instant wholeSecond(Instant instant) {
-		Instant truncated = instant.truncatedTo(ChronoUnit.SECONDS);
-		return truncated.equals(instant) ? instant : truncated.plusSeconds(1);
 	}
 
 	private static @Nullable Integer integer(@Nullable BigDecimal value) {

@@ -226,19 +226,34 @@ class ReportsApiTest extends ReportsFixture {
 		assertThat(summary.at("/created/previous").asInt()).isEqualTo(2);
 	}
 
-	/** El reloj real trae nanosegundos: el informe devuelve segundos enteros y no pierde lo creado hace una fracción. */
+	/** El reloj real trae nanosegundos: el informe termina en el segundo entero anterior, sin redondear hacia arriba. */
 	@Test
-	void theEndOfThePeriodIsAWholeSecondThatKeepsEverythingAlreadyCreated() throws Exception {
+	void theEndOfThePeriodIsTheRequestInstantTruncatedToTheSecond() throws Exception {
 		this.clock.set(at("2026-10-04T15:00:00.400Z"));
-		ticket("email", "2026-10-04T15:00:00.300Z"); // creado hace 100 ms
-		ticket("email", "2026-10-04T15:00:01.100Z"); // en el futuro: no cuenta
+		ticket("email", "2026-10-04T15:00:00.000Z"); // en el segundo exacto: cuenta
+		ticket("email", "2026-10-04T15:00:00.300Z"); // después del final truncado: aparecerá en la siguiente carga
 
 		JsonNode summary = summary(LAURA, "7d");
 
-		assertThat(summary.at("/period/to").asString()).isEqualTo("2026-10-04T15:00:01Z");
+		assertThat(summary.at("/period/to").asString()).isEqualTo("2026-10-04T15:00:00Z");
 		assertThat(summary.at("/period/from").asString()).isEqualTo("2026-09-28T05:00:00Z");
 		assertThat(summary.at("/created/value").asInt()).isEqualTo(1);
-		assertThat(day(summary, "2026-10-04").path("created").asInt()).isEqualTo(1);
+	}
+
+	/** En el último segundo del día local el informe sigue siendo de hoy: redondear hacia arriba lo movería a mañana. */
+	@Test
+	void aRequestInTheLastSecondOfTheLocalDayStillReportsToday() throws Exception {
+		this.clock.set(at("2026-10-04T23:59:59.500-05:00"));
+		ticket("email", "2026-09-28T12:00:00-05:00"); // primer día del periodo
+
+		JsonNode summary = summary(LAURA, "7d");
+
+		assertThat(summary.at("/period/from").asString()).isEqualTo("2026-09-28T05:00:00Z");
+		assertThat(summary.at("/period/to").asString()).isEqualTo("2026-10-05T04:59:59Z");
+		assertThat(dates(summary)).containsExactly("2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01",
+				"2026-10-02", "2026-10-03", "2026-10-04");
+		assertThat(day(summary, "2026-09-28").path("created").asInt()).isEqualTo(1);
+		assertThat(summary.at("/created/value").asInt()).isEqualTo(1);
 	}
 
 	/** Las cinco consultas deben ver el mismo estado: una transacción de solo lectura con instantánea. */
