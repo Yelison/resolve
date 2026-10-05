@@ -240,7 +240,7 @@ Rules, all `409` and leaving the membership untouched:
 - removing the last **active** admin, or changing its role (an invited admin does not count as active);
 - changing the role of, or removing, a member who is already `removed`.
 
-A resolved ticket keeps its assignee even if that person is removed; **reopening** it (status out of `resolved`) unassigns a removed assignee in the same transaction, with an `assignee_changed` activity whose actor is the caller, unless the same `PATCH` brings a new valid assignee. A `PATCH` that merely resends the unchanged assignee is not revalidated.
+A resolved ticket keeps its assignee even if that person is removed; **reopening** it (status out of `resolved`) unassigns an assignee who is no longer active staff (removed, or invited again and not signed in yet) in the same transaction, with an `assignee_changed` activity whose actor is the caller, unless the same `PATCH` brings a new valid assignee. A `PATCH` that merely resends the unchanged assignee is not revalidated, unless it also reopens the ticket.
 
 A request already in flight from an admin who is demoted or removed meanwhile finishes with the authority it had when its principal was resolved; the last-admin rule is always evaluated on committed state.
 
