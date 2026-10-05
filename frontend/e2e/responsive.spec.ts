@@ -4,6 +4,7 @@ import { expect, test } from './fixtures'
 const widths = [320, 390, 767, 768, 1024, 1199, 1200, 1440]
 const themes = ['light', 'dark'] as const
 const routes = [
+  '/',
   '/catalogo',
   '/tickets',
   '/tickets/1047',
