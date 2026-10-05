@@ -4,14 +4,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
-import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Patrón BFF con OpenID Connect (perfil {@code oidc}): el backend hace el flujo de código de autorización con PKCE
@@ -30,9 +30,10 @@ class OidcSecurityConfiguration {
 		return new HttpSessionOAuth2AuthorizedClientRepository();
 	}
 
-	/** Sesión en el servidor, CSRF por cookie y cabecera, inicio de sesión OIDC y cierre de sesión con 204. */
+	/** Sesión en el servidor, CSRF por cookie y cabecera, inicio de sesión OIDC y cierre de sesión en el proveedor. */
 	@Bean
-	HttpSecurityCustomizer oidcSecurity(@Value("${resolve.public-url}") String publicUrl) {
+	HttpSecurityCustomizer oidcSecurity(ClientRegistrationRepository registrations, JsonMapper jsonMapper,
+			@Value("${resolve.public-url}") String publicUrl) {
 		String appUrl = publicUrl.replaceAll("/+$", "");
 		// La cookie la lee JavaScript (por eso no es HttpOnly) en todo el sitio, no solo bajo /api.
 		CookieCsrfTokenRepository csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
@@ -48,9 +49,12 @@ class OidcSecurityConfiguration {
 			// de entrada de la cadena sigue siendo el de Problem Details, que prevalece sobre la redirección de oauth2Login.
 			.oauth2Login((login) -> login.defaultSuccessUrl(appUrl, true)
 				.failureHandler((request, response, exception) -> response.sendRedirect(appUrl + "/entrar?error=oidc")))
+			// La cookie JSESSIONID se borra con el mismo Path con el que se creó (el contexto, /api); el 200 lleva la URL
+			// con la que el cliente cierra también la sesión del proveedor.
 			.logout((logout) -> logout.logoutUrl("/logout")
 				.invalidateHttpSession(true)
-				.logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT)));
+				.deleteCookies("JSESSIONID")
+				.logoutSuccessHandler(new OidcLogoutSuccessHandler(registrations, appUrl, jsonMapper)));
 	}
 
 }
