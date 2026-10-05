@@ -129,10 +129,25 @@ describe('rutas de la aplicación', () => {
     expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
   })
 
-  it('«Nuevo cliente» lleva a la vista pendiente hasta que exista el diálogo de alta', async () => {
-    mockApi({ 'GET /api/me': { body: adminMe } })
+  it('/clientes/nuevo abre el diálogo de alta sobre la lista, que sigue montada', async () => {
+    mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/customers': { body: { items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 } },
+      'GET /api/customers/metrics': { body: { total: 0, companies: 0, withOpenTickets: 0, newThisMonth: 0 } },
+      'GET /api/customers/companies': { body: [] },
+    })
     renderApp('/clientes/nuevo')
-    expect(await screen.findByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Nuevo cliente' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument()
+  })
+
+  it('/clientes/:id abre el detalle del cliente', async () => {
+    mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/customers/c-maria': { status: 404, body: { status: 404, title: 'No encontrado' } },
+    })
+    renderApp('/clientes/c-maria')
+    expect(await screen.findByText('No existe el cliente')).toBeInTheDocument()
   })
 
   it('cubre todas las secciones de personal', () => {

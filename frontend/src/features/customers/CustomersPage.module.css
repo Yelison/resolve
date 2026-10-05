@@ -35,6 +35,11 @@
 }
 
 .retry {
+  /* Zona táctil de 44 px por debajo de 768 px; en pantallas anchas vuelve a ser un enlace en línea. */
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: none;
@@ -42,6 +47,14 @@
   font: inherit;
   text-decoration: underline;
   cursor: pointer;
+}
+
+@media (min-width: 768px) {
+  .retry {
+    display: inline;
+    min-width: 0;
+    min-height: 0;
+  }
 }
 
 .results {

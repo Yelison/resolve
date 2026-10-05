@@ -166,7 +166,7 @@ describe('CustomersPage', () => {
     expect(await screen.findByText('No pudimos cargar las métricas de clientes')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'María Pérez' })).toBeInTheDocument()
     fail = false
-    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar cargar las métricas' }))
     expect(await screen.findByText('142')).toBeInTheDocument()
     expect(screen.queryByText('No pudimos cargar las métricas de clientes')).not.toBeInTheDocument()
   })
@@ -182,7 +182,7 @@ describe('CustomersPage', () => {
     renderCustomers()
     expect(await screen.findByText(/No pudimos cargar las empresas/)).toBeInTheDocument()
     fail = false
-    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar cargar las empresas' }))
     expect(await screen.findByRole('option', { name: 'Northstar' })).toBeInTheDocument()
     expect(screen.queryByText(/No pudimos cargar las empresas/)).not.toBeInTheDocument()
   })

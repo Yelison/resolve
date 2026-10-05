@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, Outlet, useLocation, useSearchParams, type To } from 'react-router'
 import {
   Alert,
   Button,
@@ -45,6 +45,21 @@ const sortLabels: Record<CustomerSort, string> = {
 /** Lista de clientes del personal. La guardia de rol la pone la ruta (`sectionRoute`). */
 export function CustomersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
+  // El alta se abre sobre la lista y conserva su búsqueda y filtros al cerrarse.
+  const location = useLocation()
+  const newCustomerTo: To = { pathname: '/clientes/nuevo', search: location.search }
+  const newCustomerLink = useRef<HTMLAnchorElement>(null)
+  const dialogOpen = location.pathname === '/clientes/nuevo'
+  const dialogWasOpen = useRef(dialogOpen)
+  // Al cerrar el alta el shell mueve el foco al contenido tras cada cambio de ruta: se devuelve al botón que la abrió
+  // después de ese salto, en la siguiente tarea.
+  useEffect(() => {
+    const closed = dialogWasOpen.current && !dialogOpen
+    dialogWasOpen.current = dialogOpen
+    if (!closed) return
+    const timer = setTimeout(() => newCustomerLink.current?.focus(), 0)
+    return () => clearTimeout(timer)
+  }, [dialogOpen])
   const state = readCustomerListState(searchParams)
   const [searchText, setSearchText] = useState(state.q)
   const debouncedSearch = useDebouncedValue(searchText)
@@ -88,7 +103,7 @@ export function CustomersPage() {
         title="Clientes"
         description="El contexto que tu equipo necesita para ayudar mejor."
         actions={
-          <Link to="/clientes/nuevo" className={buttonClassName()}>
+          <Link ref={newCustomerLink} to={newCustomerTo} className={buttonClassName()}>
             <Icon name="plus" />
             Nuevo cliente
           </Link>
@@ -102,7 +117,11 @@ export function CustomersPage() {
       ) : metrics.isError ? (
         <div className={styles.metricsPlaceholder}>
           <Alert tone="red" title="No pudimos cargar las métricas de clientes">
-            <Button variant="secondary" onClick={() => void metrics.refetch()}>
+            <Button
+              variant="secondary"
+              aria-label="Reintentar cargar las métricas"
+              onClick={() => void metrics.refetch()}
+            >
               Reintentar
             </Button>
           </Alert>
@@ -129,7 +148,12 @@ export function CustomersPage() {
               companies.isError ? (
                 <>
                   No pudimos cargar las empresas.{' '}
-                  <button type="button" className={styles.retry} onClick={() => void companies.refetch()}>
+                  <button
+                    type="button"
+                    className={styles.retry}
+                    aria-label="Reintentar cargar las empresas"
+                    onClick={() => void companies.refetch()}
+                  >
                     Reintentar
                   </button>
                 </>
@@ -164,12 +188,14 @@ export function CustomersPage() {
               state={state}
               list={list}
               filtersActive={filtersActive}
+              newCustomerTo={newCustomerTo}
               onClearFilters={clearFilters}
               onPageChange={(page) => setSearchParams(writeCustomerListState({ ...state, page }))}
             />
           </div>
         </div>
       </section>
+      <Outlet />
     </div>
   )
 }
@@ -205,11 +231,12 @@ interface ResultsProps {
   state: CustomerListState
   list: ReturnType<typeof useCustomerList>
   filtersActive: boolean
+  newCustomerTo: To
   onClearFilters: () => void
   onPageChange: (page: number) => void
 }
 
-function Results({ state, list, filtersActive, onClearFilters, onPageChange }: ResultsProps) {
+function Results({ state, list, filtersActive, newCustomerTo, onClearFilters, onPageChange }: ResultsProps) {
   if (list.isPending) {
     return (
       <div className={styles.loading}>
@@ -274,7 +301,7 @@ function Results({ state, list, filtersActive, onClearFilters, onPageChange }: R
         title="Todavía no hay clientes"
         description="Añade al primero para ver aquí su historial de tickets."
         action={
-          <Link to="/clientes/nuevo" className={buttonClassName()}>
+          <Link to={newCustomerTo} className={buttonClassName()}>
             Nuevo cliente
           </Link>
         }
