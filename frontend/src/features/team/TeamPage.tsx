@@ -4,6 +4,7 @@ import { Alert, Button, EmptyState, FilterChip, Menu, Metric, Skeleton, type Men
 import { isCurrentMember, type TeamMember, type TeamMetrics } from '../../domain/member'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
+import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
 import { useMe } from '../session/queries'
 import { ChangeRoleDialog } from './ChangeRoleDialog'
 import { InviteMemberDialog } from './InviteMemberDialog'
@@ -35,6 +36,12 @@ export function TeamPage() {
   // Sin conocer el rol no se dibuja ninguna acción de administración: evita mostrarlas un instante a un agente.
   const isAdmin = me.data?.role === 'admin'
   const selfId = me.data?.user.id
+
+  // Si el disparador ya no existe al cerrar (un 403 ocultó las acciones o la fila desapareció), el foco no se pierde.
+  function closeDialog(close: () => void) {
+    close()
+    focusPageHeadingIfFocusLost()
+  }
 
   function actionsFor(member: TeamMember): MenuItem[] {
     if (!isAdmin || member.status === 'removed') return []
@@ -109,9 +116,9 @@ export function TeamPage() {
         </div>
       </section>
 
-      <InviteMemberDialog open={inviting} onClose={() => setInviting(false)} />
-      <ChangeRoleDialog member={changingRole} onClose={() => setChangingRole(null)} />
-      <RemoveMemberDialog member={removing} onClose={() => setRemoving(null)} />
+      <InviteMemberDialog open={inviting} onClose={() => closeDialog(() => setInviting(false))} />
+      <ChangeRoleDialog member={changingRole} onClose={() => closeDialog(() => setChangingRole(null))} />
+      <RemoveMemberDialog member={removing} onClose={() => closeDialog(() => setRemoving(null))} />
     </div>
   )
 }

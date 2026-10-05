@@ -479,6 +479,8 @@ describe('CustomerDetailPage', () => {
       await waitFor(() =>
         expect(screen.queryByRole('button', { name: 'Dar acceso al portal' })).not.toBeInTheDocument(),
       )
+      // El disparador ya no existe: el foco va al título de la página en lugar de perderse en el body.
+      await waitFor(() => expect(screen.getByRole('heading', { level: 1 })).toHaveFocus())
     })
 
     it('un 409 relee el detalle del cliente', async () => {

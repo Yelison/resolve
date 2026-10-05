@@ -386,6 +386,19 @@ describe('TeamPage', () => {
       expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument()
     })
 
+    it('al cerrar el diálogo cuyo disparador ya no existe el foco va al título de la página', async () => {
+      degradedAfterForbidden('POST /api/members/u-laura/remove')
+      renderTeam()
+      await userEvent.click(await screen.findByRole('button', { name: 'Acciones de Laura Méndez' }))
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Retirar del equipo' }))
+      const dialog = await screen.findByRole('dialog', { name: '¿Retirar a este miembro del equipo?' })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Retirar del equipo' }))
+      await within(dialog).findByRole('alert')
+      await waitFor(() => expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument())
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+      await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Equipo' })).toHaveFocus())
+    })
+
     it('cambiar el rol con un 403 muestra su detalle y relee la sesión', async () => {
       degradedAfterForbidden('POST /api/members/u-laura/role')
       const { queryClient } = renderTeam()

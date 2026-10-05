@@ -1,4 +1,4 @@
-import { isApiError } from '../../api/client'
+import { isApiError } from '../api/client'
 
 /**
  * Texto de un error de mutación para un `Alert`: el `detail` del Problem cuando el servidor explica la negativa (403

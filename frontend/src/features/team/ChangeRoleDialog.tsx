@@ -1,4 +1,4 @@
-import { mutationErrorDetail } from './errorDetail'
+import { mutationErrorDetail } from '../../lib/mutationError'
 import { useState } from 'react'
 import { Alert, Button, Modal, Select, useToast } from '../../components/ui'
 import { teamRoles, type TeamMember, type TeamRole } from '../../domain/member'
