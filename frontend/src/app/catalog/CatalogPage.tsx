@@ -25,6 +25,10 @@ import {
   Select,
   Skeleton,
   Switch,
+  Table,
+  TableCell,
+  TableHeaderCell,
+  TableRow,
   Tabs,
   Textarea,
   TicketRow,
@@ -101,6 +105,46 @@ export default function CatalogPage() {
       else next.delete(id)
       return next
     })
+
+  const demoTable = (
+    <Table
+      label="Agentes de ejemplo"
+      caption="Mostrando 3 agentes"
+      actionsLabel="Acciones"
+      className={styles.demoTable}
+      header={
+        <>
+          <TableHeaderCell area="name">Agente</TableHeaderCell>
+          <TableHeaderCell area="role">Rol</TableHeaderCell>
+          <TableHeaderCell area="status">Estado</TableHeaderCell>
+        </>
+      }
+    >
+      {[
+        { name: 'Laura Méndez', role: 'Administradora', status: 'Activa' },
+        { name: 'Daniel Santos', role: 'Agente', status: 'Activo' },
+        { name: 'Ana Ruiz', role: 'Agente', status: 'Invitada' },
+      ].map((agent) => (
+        <TableRow key={agent.name}>
+          <TableCell kind="name">{agent.name}</TableCell>
+          <span role="cell" className={styles.demoTableRole}>
+            {agent.role}
+          </span>
+          <span role="cell" className={styles.demoTableStatus}>
+            <Badge tone={agent.status === 'Invitada' ? 'amber' : 'green'}>{agent.status}</Badge>
+          </span>
+          <TableCell kind="actions">
+            <Menu
+              label={`Acciones de ${agent.name}`}
+              items={[{ id: 'edit', label: 'Cambiar rol', onSelect: () => {} }]}
+            >
+              {(trigger) => <IconButton icon="more" label={`Acciones de ${agent.name}`} {...trigger} />}
+            </Menu>
+          </TableCell>
+        </TableRow>
+      ))}
+    </Table>
+  )
 
   const ticketTable = (
     <TicketTable label="Tickets de ejemplo" selection={{ state: selection, onToggleAll: toggleAll }}>
@@ -422,6 +466,21 @@ export default function CatalogPage() {
         <div className={styles.frame}>
           <p className={styles.frameLabel}>Ancho completo</p>
           {ticketTable}
+        </div>
+      </Section>
+
+      <Section title="Tablas">
+        <p className={styles.demo}>
+          La tabla compartida reúne lo común de las tablas de clientes y del equipo: rejilla por contenedor, tarjeta,
+          acciones y leyenda. Cada feature declara sus columnas.
+        </p>
+        <div className={cx(styles.frame, styles.narrow)}>
+          <p className={styles.frameLabel}>Contenedor de 380 px</p>
+          {demoTable}
+        </div>
+        <div className={styles.frame}>
+          <p className={styles.frameLabel}>Ancho completo</p>
+          {demoTable}
         </div>
       </Section>
     </main>

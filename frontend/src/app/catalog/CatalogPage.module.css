@@ -135,3 +135,21 @@
     padding: var(--space-16);
   }
 }
+
+/* Columnas de la tabla de demostración de `Table`. */
+.demoTable {
+  --table-areas-card: 'name actions' 'role .' 'status .';
+  --table-columns-mid: minmax(0, 1fr) minmax(0, 1fr) 120px var(--touch-target);
+  --table-areas-mid: 'name role status actions';
+  --table-columns-wide: minmax(0, 1fr) minmax(0, 1fr) 120px var(--touch-target);
+  --table-areas-wide: 'name role status actions';
+}
+
+.demoTableRole {
+  grid-area: role;
+  color: var(--color-muted);
+}
+
+.demoTableStatus {
+  grid-area: status;
+}

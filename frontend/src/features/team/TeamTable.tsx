@@ -1,5 +1,15 @@
-import { useId } from 'react'
-import { Avatar, Badge, IconButton, Menu, type BadgeTone, type MenuItem } from '../../components/ui'
+import {
+  Avatar,
+  Badge,
+  IconButton,
+  Menu,
+  Table,
+  TableCell,
+  TableHeaderCell,
+  TableRow,
+  type BadgeTone,
+  type MenuItem,
+} from '../../components/ui'
 import { memberStatusLabels, type MemberStatus, type TeamMember } from '../../domain/member'
 import { roleLabels } from '../../app/navigation'
 import styles from './TeamTable.module.css'
@@ -15,50 +25,38 @@ export interface TeamTableProps {
 const statusTones: Record<MemberStatus, BadgeTone> = { invited: 'amber', active: 'green', removed: 'neutral' }
 
 /**
- * Tabla del equipo con semántica ARIA de tabla en cualquier ancho: tarjetas en contenedores estrechos (< 560 px),
- * agente, estado y carga hasta 960 px (el rol bajo el nombre) y todas las columnas por encima.
+ * Tabla del equipo sobre `Table`: tarjetas en contenedores estrechos (< 560 px), agente, estado y carga hasta la tabla
+ * completa (el rol bajo el nombre hasta entonces).
  */
 export function TeamTable({ members, caption, actions }: TeamTableProps) {
-  const captionId = useId()
   return (
-    <div className={styles.wrapper}>
-      <div role="table" aria-label="Equipo" aria-describedby={captionId} className={styles.table}>
-        <div role="rowgroup">
-          <div role="row" className={styles.header}>
-            <span role="columnheader" className={styles.headerName}>
-              Agente
-            </span>
-            <span role="columnheader" className={styles.headerRole}>
-              Rol
-            </span>
-            <span role="columnheader" className={styles.headerStatus}>
-              Estado
-            </span>
-            <span role="columnheader" className={styles.headerLoad}>
-              Carga
-            </span>
-            <span role="columnheader" className={styles.headerActions}>
-              <span className="visually-hidden">Acción</span>
-            </span>
-          </div>
-        </div>
-        <div role="rowgroup" className={styles.rows}>
-          {members.map((member) => (
-            <MemberRow key={member.id} member={member} actions={actions?.(member) ?? []} />
-          ))}
-        </div>
-      </div>
-      <p id={captionId} className={styles.caption}>
-        {caption}
-      </p>
-    </div>
+    <Table
+      label="Equipo"
+      caption={caption}
+      actionsLabel="Acción"
+      className={styles.table}
+      header={
+        <>
+          <TableHeaderCell area="name">Agente</TableHeaderCell>
+          <TableHeaderCell area="role" className={styles.headerRole}>
+            Rol
+          </TableHeaderCell>
+          <TableHeaderCell area="status">Estado</TableHeaderCell>
+          <TableHeaderCell area="load">Carga</TableHeaderCell>
+        </>
+      }
+    >
+      {members.map((member) => (
+        <MemberRow key={member.id} member={member} actions={actions?.(member) ?? []} />
+      ))}
+    </Table>
   )
 }
 
 function MemberRow({ member, actions }: { member: TeamMember; actions: MenuItem[] }) {
   return (
-    <div role="row" className={styles.row}>
-      <span role="cell" className={styles.name}>
+    <TableRow>
+      <TableCell kind="name" className={styles.name}>
         <Avatar name={member.name} decorative />
         <span className={styles.identity}>
           <span className={styles.nameText} title={member.name}>
@@ -68,7 +66,7 @@ function MemberRow({ member, actions }: { member: TeamMember; actions: MenuItem[
             {member.email}
           </span>
         </span>
-      </span>
+      </TableCell>
       <span role="cell" className={styles.role}>
         {roleLabels[member.role]}
       </span>
@@ -80,13 +78,13 @@ function MemberRow({ member, actions }: { member: TeamMember; actions: MenuItem[
           {member.openTickets === 1 ? '1 abierto' : `${member.openTickets} abiertos`}
         </span>
       </span>
-      <span role="cell" className={styles.actions}>
+      <TableCell kind="actions">
         {actions.length > 0 && (
           <Menu label={`Acciones de ${member.name}`} items={actions}>
             {(trigger) => <IconButton icon="more" label={`Acciones de ${member.name}`} {...trigger} />}
           </Menu>
         )}
-      </span>
-    </div>
+      </TableCell>
+    </TableRow>
   )
 }
