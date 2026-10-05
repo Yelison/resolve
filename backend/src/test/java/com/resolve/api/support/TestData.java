@@ -1,5 +1,7 @@
 package com.resolve.api.support;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.resolve.api.common.persistence.Ids;
@@ -54,6 +56,44 @@ public class TestData {
 		UUID id = Ids.newId();
 		this.jdbc.sql("INSERT INTO customers (id, organization_id, name, email, company) VALUES (?, ?, ?, ?, ?)")
 			.params(id, organizationId, name, email, company)
+			.update();
+		return id;
+	}
+
+	/** Cliente con fecha de alta explícita (el reloj de la base de datos no sirve para probar orden ni «este mes»). */
+	public UUID customer(UUID organizationId, String name, String email, String company, Instant createdAt) {
+		UUID id = Ids.newId();
+		this.jdbc
+			.sql("INSERT INTO customers (id, organization_id, name, email, company, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+			.params(id, organizationId, name, email, company, Timestamp.from(createdAt))
+			.update();
+		return id;
+	}
+
+	public UUID customerIdByEmail(UUID organizationId, String email) {
+		return this.jdbc.sql("SELECT id FROM customers WHERE organization_id = ? AND lower(email) = lower(?)")
+			.params(organizationId, email)
+			.query(UUID.class)
+			.single();
+	}
+
+	/** Archiva un cliente directamente en la base, sin pasar por la API. */
+	public void archiveCustomer(UUID customerId, Instant archivedAt) {
+		this.jdbc.sql("UPDATE customers SET archived_at = ? WHERE id = ?")
+			.params(Timestamp.from(archivedAt), customerId)
+			.update();
+	}
+
+	/** Ticket sin responsable ni mensajes, insertado directamente; {@code status} en formato de la API. */
+	public UUID ticket(UUID organizationId, UUID customerId, long number, String status) {
+		UUID id = Ids.newId();
+		Timestamp now = Timestamp.from(Instant.parse("2026-10-01T12:00:00Z"));
+		this.jdbc.sql("""
+				INSERT INTO tickets (id, organization_id, number, subject, description, status, priority, channel,
+				                     customer_id, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'Detalle', ?, 'medium', 'web', ?, ?, ?)
+				""")
+			.params(id, organizationId, number, "Ticket " + number, status, customerId, now, now)
 			.update();
 		return id;
 	}

@@ -1,5 +1,7 @@
 package com.resolve.api.customers;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import com.resolve.api.support.ApiIntegrationTest;
@@ -8,16 +10,24 @@ import org.junit.jupiter.api.Test;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class CustomersApiTest extends ApiIntegrationTest {
 
+	private UUID acme;
+
 	@BeforeEach
 	void seed() {
 		UUID acme = this.data.organization("Acme Studio");
+		this.acme = acme;
 		this.data.staff(acme, "agent", "Laura Méndez", "laura@acme.example");
 		this.data.customer(acme, "maría Pérez", "maria@cliente.example", "Acme Studio");
 		this.data.customer(acme, "Carlos Ruiz", "carlos@northstar.example", "Northstar");
@@ -102,6 +112,136 @@ class CustomersApiTest extends ApiIntegrationTest {
 			.andExpect(jsonPath("$.totalItems").value(0));
 		this.mvc.perform(get("/customers").with(as("laura@acme.example")))
 			.andExpect(jsonPath("$.items[*].company", hasItem("Northstar")));
+	}
+
+	@Test
+	void listsCustomersWithTicketCountsAndHidesArchivedByDefault() throws Exception {
+		UUID maria = customerId("maria@cliente.example");
+		UUID archived = this.data.customer(this.acme, "Zoe Archivada", "zoe@example.com", "Orbit Labs");
+		this.data.ticket(this.acme, maria, 1, "open");
+		this.data.ticket(this.acme, maria, 2, "waiting");
+		this.data.ticket(this.acme, maria, 3, "resolved");
+		this.data.ticket(this.acme, archived, 4, "open");
+		this.data.archiveCustomer(archived, Instant.parse("2026-10-01T10:00:00Z"));
+
+		this.mvc.perform(get("/customers").with(as("laura@acme.example")))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listCustomers"))
+			.andExpect(jsonPath("$.totalItems").value(5))
+			.andExpect(jsonPath("$.items[*].name", not(hasItem("Zoe Archivada"))))
+			.andExpect(jsonPath("$.items[?(@.name == 'maría Pérez')].openTickets").value(2))
+			.andExpect(jsonPath("$.items[?(@.name == 'maría Pérez')].totalTickets").value(3))
+			.andExpect(jsonPath("$.items[?(@.name == 'Ana García')].totalTickets").value(0))
+			.andExpect(jsonPath("$.items[*].archived", everyItem(is(false))));
+	}
+
+	@Test
+	void archivedTrueListsOnlyArchivedCustomersWithTheirCounts() throws Exception {
+		UUID archived = this.data.customer(this.acme, "Zoe Archivada", "zoe@example.com", "Orbit Labs");
+		this.data.ticket(this.acme, archived, 4, "open");
+		this.data.archiveCustomer(archived, Instant.parse("2026-10-01T10:00:00Z"));
+
+		this.mvc.perform(get("/customers").param("archived", "true").with(as("laura@acme.example")))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listCustomers"))
+			.andExpect(jsonPath("$.items[*].name", contains("Zoe Archivada")))
+			.andExpect(jsonPath("$.items[0].archived").value(true))
+			.andExpect(jsonPath("$.items[0].openTickets").value(1));
+		this.mvc.perform(get("/customers").param("archived", "false").with(as("laura@acme.example")))
+			.andExpect(jsonPath("$.totalItems").value(5));
+	}
+
+	@Test
+	void rejectsAnArchivedValueThatIsNotABoolean() throws Exception {
+		this.mvc.perform(get("/customers").param("archived", "maybe").with(as("laura@acme.example")))
+			.andExpect(status().isBadRequest())
+			.andExpect(matchesContract("listCustomers"))
+			.andExpect(jsonPath("$.errors[0].field").value("archived"));
+	}
+
+	@Test
+	void filtersByCompanyCaseInsensitively() throws Exception {
+		this.mvc.perform(get("/customers").param("company", "nOrThStAr").with(as("laura@acme.example")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[*].name", contains("Carlos Ruiz", "Elena Díaz")));
+		// La empresa es una igualdad, no una búsqueda: un fragmento no coincide.
+		this.mvc.perform(get("/customers").param("company", "North").with(as("laura@acme.example")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.totalItems").value(0));
+		// Y la de otra organización no se ve aunque exista allí.
+		this.mvc.perform(get("/customers").param("company", "Northwind").with(as("laura@acme.example")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items").isEmpty());
+	}
+
+	@Test
+	void sortsByOpenTicketsWithStableTies() throws Exception {
+		UUID carlos = customerId("carlos@northstar.example");
+		UUID ana = customerId("ana@orbit.example");
+		this.data.ticket(this.acme, carlos, 1, "open");
+		this.data.ticket(this.acme, carlos, 2, "in_progress");
+		this.data.ticket(this.acme, ana, 3, "open");
+		this.data.ticket(this.acme, ana, 4, "resolved");
+
+		// Carlos (2) primero; Ana (1) después; los tres sin tickets abiertos empatan y salen por id ascendente.
+		List<String> tied = List.of(customerId("maria@cliente.example"), customerId("promo@example.com"),
+				customerId("elena@northstar.example")).stream().map(UUID::toString).sorted().toList();
+		this.mvc.perform(get("/customers").param("sort", "openTickets,desc").with(as("laura@acme.example")))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listCustomers"))
+			.andExpect(jsonPath("$.items[0].name").value("Carlos Ruiz"))
+			.andExpect(jsonPath("$.items[1].name").value("Ana García"))
+			.andExpect(jsonPath("$.items[2:5].id", contains(tied.toArray())));
+		this.mvc.perform(get("/customers").param("sort", "openTickets,asc").with(as("laura@acme.example")))
+			.andExpect(jsonPath("$.items[0:3].id", contains(tied.toArray())))
+			.andExpect(jsonPath("$.items[3].name").value("Ana García"))
+			.andExpect(jsonPath("$.items[4].name").value("Carlos Ruiz"));
+	}
+
+	@Test
+	void sortsByCreationDate() throws Exception {
+		UUID oldest = this.data.customer(this.acme, "Zeta Antigua", "zeta@example.com", null,
+				Instant.parse("2020-01-01T00:00:00Z"));
+		this.mvc.perform(get("/customers").param("sort", "createdAt,asc").param("size", "1")
+			.with(as("laura@acme.example")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.items[0].id").value(oldest.toString()));
+		this.mvc.perform(get("/customers").param("sort", "createdAt,desc").param("size", "1")
+			.with(as("laura@acme.example")))
+			.andExpect(jsonPath("$.items[0].id").value(not(oldest.toString())));
+	}
+
+	@Test
+	void aCustomerMemberGets403OnEveryCustomerEndpoint() throws Exception {
+		UUID id = customerId("carlos@northstar.example");
+		String elena = "elena@northstar.example";
+		this.mvc.perform(get("/customers").with(as(elena)))
+			.andExpect(status().isForbidden())
+			.andExpect(matchesContract("listCustomers"));
+		this.mvc.perform(post("/customers").with(as(elena))
+			.contentType("application/json")
+			.content("{\"name\": \"Nuevo\", \"email\": \"nuevo@example.com\"}"))
+			.andExpect(status().isForbidden())
+			.andExpect(matchesContract("createCustomer"));
+		this.mvc.perform(get("/customers/" + id).with(as(elena)))
+			.andExpect(status().isForbidden())
+			.andExpect(matchesContract("getCustomer"));
+		this.mvc.perform(patch("/customers/" + id).with(as(elena))
+			.header("If-Match", "\"0\"")
+			.contentType("application/merge-patch+json")
+			.content("{\"name\": \"Otro\"}"))
+			.andExpect(status().isForbidden())
+			.andExpect(matchesContract("updateCustomer"));
+		this.mvc.perform(post("/customers/" + id + "/archive").with(as(elena)))
+			.andExpect(status().isForbidden())
+			.andExpect(matchesContract("archiveCustomer"));
+		this.mvc.perform(post("/customers/" + id + "/restore").with(as(elena)))
+			.andExpect(status().isForbidden())
+			.andExpect(matchesContract("restoreCustomer"));
+	}
+
+	private UUID customerId(String email) {
+		return this.data.customerIdByEmail(this.acme, email);
 	}
 
 }

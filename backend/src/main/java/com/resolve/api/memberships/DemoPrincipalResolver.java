@@ -1,9 +1,11 @@
 package com.resolve.api.memberships;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import com.resolve.api.common.security.CurrentMember;
 import com.resolve.api.common.security.PrincipalResolver;
+import com.resolve.api.customers.CustomerRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,11 +25,14 @@ class DemoPrincipalResolver implements PrincipalResolver {
 
 	private final MembershipRepository memberships;
 
+	private final CustomerRepository customers;
+
 	private final @Nullable String defaultUser;
 
-	DemoPrincipalResolver(MembershipRepository memberships,
+	DemoPrincipalResolver(MembershipRepository memberships, CustomerRepository customers,
 			@Value("${resolve.demo.default-user:#{null}}") @Nullable String defaultUser) {
 		this.memberships = memberships;
+		this.customers = customers;
 		this.defaultUser = defaultUser;
 	}
 
@@ -41,7 +46,17 @@ class DemoPrincipalResolver implements PrincipalResolver {
 		if (email == null) {
 			return Optional.empty();
 		}
-		return this.memberships.findFirstByUserEmail(email.trim()).map(DemoPrincipalResolver::toMember);
+		// La membresía de un cliente archivado no resuelve principal: se pasa a la siguiente o se responde 401.
+		return this.memberships.findAllByUserEmail(email.trim())
+			.stream()
+			.filter((membership) -> !isArchivedCustomer(membership))
+			.findFirst()
+			.map(DemoPrincipalResolver::toMember);
+	}
+
+	private boolean isArchivedCustomer(Membership membership) {
+		UUID customerId = membership.getCustomerId();
+		return customerId != null && this.customers.existsByIdAndArchivedAtIsNotNull(customerId);
 	}
 
 	private static CurrentMember toMember(Membership membership) {

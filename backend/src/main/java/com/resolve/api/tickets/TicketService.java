@@ -95,7 +95,9 @@ class TicketService {
 
 	@Transactional
 	TicketDto create(CurrentMember member, NewTicket request) {
+		// Un cliente archivado no admite tickets nuevos y se rechaza igual que uno desconocido o de otra organización.
 		Customer customer = this.customers.findByOrganizationIdAndId(member.organizationId(), request.customerId())
+			.filter((candidate) -> candidate.getArchivedAt() == null)
 			.orElseThrow(() -> new ApiValidationException("customerId", UNKNOWN_CUSTOMER));
 		UserAccount assignee = (request.assigneeId() != null) ? staffMember(member, request.assigneeId()) : null;
 		Instant now = this.clock.instant();
