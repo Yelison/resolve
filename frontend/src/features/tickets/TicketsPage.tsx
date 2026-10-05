@@ -25,8 +25,9 @@ import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
+import { useAssignees } from '../team/queries'
 import { hasActiveFilters, readInboxState, writeInboxState, type InboxState } from './inboxParams'
-import { useAssignees, useQuickTicketUpdate, useTicketList, useTicketMetrics, type TicketChanges } from './queries'
+import { useQuickTicketUpdate, useTicketList, useTicketMetrics, type TicketChanges } from './queries'
 import styles from './TicketsPage.module.css'
 
 const PAGE_SIZE = 20
