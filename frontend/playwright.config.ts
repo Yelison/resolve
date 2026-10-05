@@ -5,7 +5,7 @@ const PORT = Number(process.env.PLAYWRIGHT_PORT || 4173)
 
 // El smoke full-stack necesita un backend real (perfil `dev`) y un build `smoke`, que conserva el login de
 // demostración: solo existe con SMOKE=1, así que `npm run test:e2e` y el job `e2e` siguen igual.
-const SMOKE = Boolean(process.env.SMOKE)
+const SMOKE = process.env.SMOKE === '1'
 
 export default defineConfig({
   testDir: './e2e',
