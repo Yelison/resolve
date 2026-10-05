@@ -152,7 +152,21 @@ describe('KnowledgePage', () => {
     )
   })
 
-  it('sin artículos el personal puede crear el primero y un cliente no', async () => {
+  it('mientras /me carga no se enseña «Nuevo artículo», el filtro de estado ni la columna Estado', async () => {
+    mockApi({
+      ...staffRoutes,
+      'GET /api/me': () => new Promise(() => {}) as never,
+      'GET /api/knowledge/articles': { body: articlePage([articleSummary(), draft]) },
+    })
+    renderKnowledge('/conocimiento?status=draft')
+    const table = await screen.findByRole('table', { name: 'Artículos' })
+    expect(within(table).queryByRole('columnheader', { name: 'Estado' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Borrador')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Nuevo artículo/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Estado/ })).not.toBeInTheDocument()
+  })
+
+  it('sin artículos el personal puede crear el primero', async () => {
     mockApi({ ...staffRoutes, 'GET /api/knowledge/articles': { body: articlePage([]) } })
     renderKnowledge()
     expect(await screen.findByText('Todavía no hay artículos')).toBeInTheDocument()
