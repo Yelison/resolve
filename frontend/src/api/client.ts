@@ -63,13 +63,98 @@ const demoUser: Middleware = {
   },
 }
 
+/** Nombre de la cookie con el token CSRF (legible, `SameSite=Lax`) y de la cabecera que debe llevar su valor. */
+export const CSRF_COOKIE = 'XSRF-TOKEN'
+export const CSRF_HEADER = 'X-XSRF-TOKEN'
+
+/** `detail` con el que el backend rechaza una petición sin token CSRF válido; el título es el de cualquier 403. */
+export const CSRF_REJECTION_DETAIL = 'Falta el token CSRF o no es válido.'
+
+/** Evento de `window` que avisa de un 401 de la API. Su `detail` es un {@link UnauthorizedDetail}. */
+export const UNAUTHORIZED_EVENT = 'resolve:unauthorized'
+
+export interface UnauthorizedDetail {
+  /** Método HTTP de la petición que recibió el 401. */
+  method: string
+  /** Ruta de la API sin el prefijo `/api` (`/me`, `/tickets/1046/messages`…). */
+  path: string
+}
+
+const UNSAFE_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE'])
+
+/** Valor de la cookie `XSRF-TOKEN`, o `null` si el navegador aún no la tiene (hasta el primer GET tras iniciar sesión). */
+export function readCsrfToken(): string | null {
+  for (const part of document.cookie.split(';')) {
+    const separator = part.indexOf('=')
+    if (separator !== -1 && part.slice(0, separator).trim() === CSRF_COOKIE) {
+      try {
+        return decodeURIComponent(part.slice(separator + 1).trim())
+      } catch {
+        return part.slice(separator + 1).trim()
+      }
+    }
+  }
+  return null
+}
+
+/** Reenvía el token CSRF en las peticiones que cambian datos. Sin cookie (sin sesión OIDC) no añade nada. */
+const csrf: Middleware = {
+  onRequest({ request }) {
+    const token = UNSAFE_METHODS.has(request.method) ? readCsrfToken() : null
+    if (token) request.headers.set(CSRF_HEADER, token)
+    return request
+  },
+}
+
+/** Avisa de cualquier 401 para que la aplicación pida volver a entrar sin que cada pantalla lo gestione. */
+const unauthorized: Middleware = {
+  onResponse({ request, response }) {
+    if (response.status === 401) {
+      const path = new URL(request.url).pathname.replace(/^\/api(?=\/|$)/, '')
+      const detail: UnauthorizedDetail = { method: request.method, path }
+      window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail }))
+    }
+    return undefined
+  },
+}
+
+async function isCsrfRejection(response: Response): Promise<boolean> {
+  if (response.status !== 403) return false
+  try {
+    const problem = (await response.clone().json()) as Problem
+    return problem.detail === CSRF_REJECTION_DETAIL
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Envía la petición y, si una escritura recibe el 403 de CSRF (justo tras iniciar sesión la cookie aún no existe hasta
+ * el primer GET), relee `/me` para que el navegador reciba la cookie y la reintenta una sola vez. El segundo intento
+ * no se vigila: un segundo 403 llega tal cual a quien llamó, nunca hay bucle.
+ */
+async function fetchWithCsrfRetry(request: Request): Promise<Response> {
+  const retry = UNSAFE_METHODS.has(request.method) ? request.clone() : null
+  const response = await globalThis.fetch(request)
+  if (!retry || !(await isCsrfRejection(response))) return response
+  try {
+    await globalThis.fetch(new URL('/api/me', window.location.origin))
+  } catch {
+    return response
+  }
+  const token = readCsrfToken()
+  if (!token) return response
+  retry.headers.set(CSRF_HEADER, token)
+  return globalThis.fetch(retry)
+}
+
 // URL absoluta: el navegador resuelve la relativa, pero Request de Node (tests) no.
 export const api = createClient<paths>({
   baseUrl: new URL('/api', window.location.origin).href,
   // Se resuelve en cada llamada (no al importar), así los tests y las herramientas pueden sustituir fetch.
-  fetch: (request) => globalThis.fetch(request),
+  fetch: fetchWithCsrfRetry,
 })
-api.use(demoUser)
+api.use(demoUser, csrf, unauthorized)
 
 interface FetchResult<T> {
   data?: T
