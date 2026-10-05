@@ -149,6 +149,28 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /tickets/activity:
+    get:
+      tags: [Tickets]
+      operationId: listRecentActivity
+      summary: Latest activity of the whole organization, newest first (not paginated)
+      description: |
+        Staff only. The most recent entries of the activity logs of every ticket of the organization, each with
+        the number and subject of its ticket. Internal notes are messages, not activity, and never appear.
+      parameters:
+        - $ref: '#/components/parameters/ActivityFeedSize'
+      responses:
+        '200':
+          description: Activity entries, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ActivityFeedItem' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /tickets/{number}:
     parameters:
       - $ref: '#/components/parameters/TicketNumber'
@@ -688,6 +710,11 @@ components:
       name: size
       in: query
       schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    ActivityFeedSize:
+      name: size
+      in: query
+      description: Number of entries to return.
+      schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
     ReportPeriod:
       name: period
       in: query
@@ -1235,6 +1262,26 @@ components:
             - $ref: '#/components/schemas/MemberRef'
             - type: 'null'
         createdAt: { type: string, format: date-time }
+
+    ActivityFeedItem:
+      description: An activity entry of the organization together with the ticket it belongs to.
+      type: object
+      additionalProperties: false
+      required: [ticketNumber, subject, activity]
+      properties:
+        ticketNumber: { type: integer, format: int64, minimum: 1, examples: [1048] }
+        subject: { type: string, examples: [No puedo acceder a mi cuenta] }
+        activity: { $ref: '#/components/schemas/Activity' }
+      examples:
+        - ticketNumber: 1048
+          subject: No puedo acceder a mi cuenta
+          activity:
+            id: 4a7c1c52-3f6e-4a58-9d0b-2b2f7f9a6c10
+            type: status_changed
+            actor: { id: 3f0c2f9a-6a56-4d1f-9c3e-1f4b0a7d2c11, name: Laura Méndez }
+            from: open
+            to: in_progress
+            createdAt: '2026-10-04T14:52:00Z'
 
     ReportSummary:
       type: object

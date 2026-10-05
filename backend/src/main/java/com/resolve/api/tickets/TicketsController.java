@@ -14,6 +14,7 @@ import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.SortDirection;
 import com.resolve.api.common.web.SortSpec;
 import com.resolve.api.tickets.TicketDtos.ActivityDto;
+import com.resolve.api.tickets.TicketDtos.ActivityFeedItemDto;
 import com.resolve.api.tickets.TicketDtos.MessageDto;
 import com.resolve.api.tickets.TicketDtos.TicketDto;
 import com.resolve.api.tickets.TicketDtos.TicketSummaryDto;
@@ -49,8 +50,11 @@ class TicketsController {
 
 	private final TicketService service;
 
-	TicketsController(TicketService service) {
+	private final ActivityFeedQuery feed;
+
+	TicketsController(TicketService service, ActivityFeedQuery feed) {
 		this.service = service;
+		this.feed = feed;
 	}
 
 	@GetMapping
@@ -88,6 +92,13 @@ class TicketsController {
 	@GetMapping("/metrics")
 	TicketMetrics metrics(@AuthenticationPrincipal CurrentMember member) {
 		return this.service.metrics(member);
+	}
+
+	/** El tamaño llega como texto para que un valor inválido sea un 400 sobre el campo {@code size}. */
+	@GetMapping("/activity")
+	List<ActivityFeedItemDto> recentActivity(@AuthenticationPrincipal CurrentMember member,
+			@RequestParam(required = false) @Nullable String size) {
+		return this.feed.latest(member.organizationId(), ActivityFeedQuery.parseSize(size));
 	}
 
 	@PostMapping

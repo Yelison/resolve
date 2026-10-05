@@ -88,6 +88,10 @@ final class TicketDtos {
 
 	}
 
+	/** Entrada del feed de la organización: la actividad con el número y el asunto de su ticket. */
+	record ActivityFeedItemDto(long ticketNumber, String subject, ActivityDto activity) {
+	}
+
 	record CreatedActivityDto(UUID id, String type, MemberRefDto actor, Instant createdAt) implements ActivityDto {
 	}
 
