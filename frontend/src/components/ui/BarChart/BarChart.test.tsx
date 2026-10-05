@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BarChart } from './BarChart'
 
 const series = [{ id: 'requests', label: 'Solicitudes' }]
@@ -69,5 +69,86 @@ describe('BarChart', () => {
     const table = screen.getByRole('table', { hidden: true })
     expect(within(table).getAllByRole('columnheader', { hidden: true })).toHaveLength(3)
     expect(screen.getAllByText('Anterior')).toHaveLength(2) // leyenda + cabecera de la tabla
+  })
+
+  it('dibuja cada barra con una altura proporcional a su valor', () => {
+    const { container } = render(<BarChart label="Solicitudes por día" series={series} points={points} />)
+    const ratios = [...container.querySelectorAll('svg')].map((svg) => Number(svg.style.getPropertyValue('--ratio')))
+    expect(ratios[1]).toBe(1)
+    expect(ratios[0]).toBeCloseTo(44 / 61)
+  })
+
+  it('pinta con la clase de color pedida para cada serie', () => {
+    const { container } = render(
+      <BarChart
+        label="Comparativa"
+        series={[
+          { id: 'a', label: 'Actual', color: 'muted' },
+          { id: 'b', label: 'Anterior' },
+        ]}
+        points={[{ key: 'x', label: 'Semana 1', values: { a: 10, b: 4 } }]}
+      />,
+    )
+    const [first, second] = [...container.querySelectorAll('rect')]
+    expect(first).toHaveClass('muted')
+    expect(second).toHaveClass('muted') // sin color explícito, la 2.ª serie usa el tono secundario por defecto
+    expect(first).not.toHaveClass('brand')
+  })
+})
+
+describe('BarChart con muchos puntos', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  function renderAtWidth(width: number, count: number, withShortLabel = true) {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    )
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width } as DOMRect)
+    const many = Array.from({ length: count }, (_, index) => ({
+      key: `d${index + 1}`,
+      label: `${index + 1} de julio`,
+      shortLabel: withShortLabel ? String(index + 1) : undefined,
+      values: { requests: 900 + index },
+    }))
+    return render(<BarChart label="Solicitudes" series={series} points={many} />)
+  }
+
+  const axisTexts = (container: HTMLElement) => [...container.querySelectorAll('.axis')].map((el) => el.textContent)
+
+  it('90 puntos en 256 px: separación mínima, sin cifras y con el eje aclarado', () => {
+    const { container } = renderAtWidth(256, 90)
+    expect(container.querySelector<HTMLElement>('.columns')?.style.columnGap).toBe('1px')
+    expect(container.querySelectorAll('.value')).toHaveLength(0)
+    const labels = axisTexts(container)
+    expect(labels[0]).toBe('1')
+    expect(labels.length).toBeGreaterThan(5)
+    expect(labels.length).toBeLessThan(30)
+    expect(container.querySelectorAll('title')).toHaveLength(90) // el valor sigue en cada barra
+  })
+
+  it('30 puntos en 256 px: una etiqueta cada varios puntos', () => {
+    const { container } = renderAtWidth(256, 30)
+    expect(container.querySelector<HTMLElement>('.columns')?.style.columnGap).toBe('2px')
+    const labels = axisTexts(container)
+    expect(labels.length).toBeLessThan(30)
+    expect(labels.slice(0, 2)).toEqual(['1', '4'])
+  })
+
+  it('sin shortLabel y 7 puntos en 256 px aclara el eje en vez de recortar', () => {
+    const { container } = renderAtWidth(256, 7, false)
+    expect(axisTexts(container).length).toBeLessThan(7)
+  })
+
+  it('7 puntos en 1100 px: todas las etiquetas y las cifras', () => {
+    const { container } = renderAtWidth(1100, 7)
+    expect(axisTexts(container)).toHaveLength(7)
+    expect(container.querySelectorAll('.value')).toHaveLength(7)
   })
 })
