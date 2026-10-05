@@ -10,6 +10,7 @@ import {
   Metric,
   Pagination,
   SearchField,
+  Select,
   Skeleton,
   ticketPriority,
   ticketStatus,
@@ -26,11 +27,31 @@ import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
 import { useAssignees } from '../team/queries'
-import { hasActiveFilters, readInboxState, writeInboxState, type InboxState } from './inboxParams'
+import {
+  hasActiveFilters,
+  readInboxState,
+  ticketSortValues,
+  writeInboxState,
+  type InboxState,
+  type TicketSort,
+} from './inboxParams'
 import { useQuickTicketUpdate, useTicketList, useTicketMetrics, type TicketChanges } from './queries'
 import styles from './TicketsPage.module.css'
 
 const PAGE_SIZE = 20
+
+const sortLabels: Record<TicketSort, string> = {
+  'updatedAt,desc': 'Actualización: más reciente primero',
+  'updatedAt,asc': 'Actualización: más antigua primero',
+  'createdAt,desc': 'Creación: más reciente primero',
+  'createdAt,asc': 'Creación: más antigua primero',
+  'number,desc': 'Número: mayor primero',
+  'number,asc': 'Número: menor primero',
+  'priority,desc': 'Prioridad: urgente primero',
+  'priority,asc': 'Prioridad: baja primero',
+  'status,asc': 'Estado: abiertos primero',
+  'status,desc': 'Estado: resueltos primero',
+}
 
 const views: { view: TicketView; label: string; count?: keyof TicketMetrics['views'] }[] = [
   { view: 'all', label: 'Todos los tickets', count: 'all' },
@@ -95,7 +116,7 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
     q: state.q,
     page: state.page,
     pageSize: PAGE_SIZE,
-    sort: 'updatedAt,desc',
+    sort: state.sort,
   })
   const metrics = useTicketMetrics(isStaff)
 
@@ -175,6 +196,18 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
             onChange={(priority) => update({ priority: priority as TicketPriority | undefined })}
           />
           {isStaff && <AssigneeFilter value={state.assignee} onChange={(assignee) => update({ assignee })} />}
+          <Select
+            label="Ordenar por"
+            value={state.sort}
+            onChange={(event) => update({ sort: event.target.value as TicketSort })}
+            fieldClassName={styles.sort}
+          >
+            {ticketSortValues.map((sort) => (
+              <option key={sort} value={sort}>
+                {sortLabels[sort]}
+              </option>
+            ))}
+          </Select>
         </div>
 
         <div className={styles.results}>

@@ -68,6 +68,65 @@ describe('TicketsPage para agentes', () => {
     })
   })
 
+  it('cambiar el orden pide la lista con ese orden y vuelve a la primera página', async () => {
+    const fetchSpy = mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/tickets/metrics': { body: metrics },
+      'GET /api/tickets': { body: page([summary()]) },
+      'GET /api/assignees': { body: [] },
+    })
+    const router = renderInbox('/tickets?page=3')
+    await screen.findByRole('link', { name: '#1048 No puedo acceder a mi cuenta' })
+    expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveValue('updatedAt,desc')
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Ordenar por' }), 'Número: mayor primero')
+
+    expect(new URLSearchParams(router.state.location.search).get('sort')).toBe('number,desc')
+    expect(new URLSearchParams(router.state.location.search).has('page')).toBe(false)
+    await waitFor(() => {
+      const last = requestsTo(fetchSpy, '/api/tickets').at(-1)!
+      expect(last.searchParams.get('sort')).toBe('number,desc')
+      expect(last.searchParams.get('page')).toBe('0')
+    })
+  })
+
+  it('carga el orden de la URL y ignora uno no válido', async () => {
+    const fetchSpy = mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/tickets/metrics': { body: metrics },
+      'GET /api/tickets': { body: page([summary()]) },
+      'GET /api/assignees': { body: [] },
+    })
+    renderInbox('/tickets?sort=priority,asc')
+    await screen.findByRole('link', { name: '#1048 No puedo acceder a mi cuenta' })
+    expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveValue('priority,asc')
+    expect(requestsTo(fetchSpy, '/api/tickets').at(-1)!.searchParams.get('sort')).toBe('priority,asc')
+  })
+
+  it('cambiar la vista o el responsable desde la página 3 vuelve a la primera y conserva el orden', async () => {
+    const fetchSpy = mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/tickets/metrics': { body: metrics },
+      'GET /api/tickets': { body: page([summary()]) },
+      'GET /api/assignees': { body: [{ id: 'u-2', name: 'Marta Ruiz', email: 'marta@example.com' }] },
+    })
+    const router = renderInbox('/tickets?page=3&sort=number,asc')
+    await screen.findByRole('link', { name: '#1048 No puedo acceder a mi cuenta' })
+    const search = () => new URLSearchParams(router.state.location.search)
+    const lastPage = () => requestsTo(fetchSpy, '/api/tickets').at(-1)!.searchParams.get('page')
+
+    await userEvent.click(screen.getByRole('link', { name: /Asignados a mí/ }))
+    expect(search().get('view')).toBe('mine')
+    expect(search().has('page')).toBe(false)
+    await waitFor(() => expect(lastPage()).toBe('0'))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Responsable' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Marta Ruiz' }))
+    expect(search().get('assignee')).toBe('u-2')
+    expect(search().has('page')).toBe(false)
+    expect(search().get('sort')).toBe('number,asc')
+  })
+
   it('distingue una bandeja vacía de una búsqueda sin resultados', async () => {
     mockApi({
       'GET /api/me': { body: adminMe },

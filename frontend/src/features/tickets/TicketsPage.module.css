@@ -54,6 +54,10 @@
   flex: 1 1 240px;
 }
 
+.sort {
+  flex: 1 1 100%;
+}
+
 .results {
   container: inbox-results / inline-size;
   min-width: 0;
@@ -70,6 +74,12 @@
 @container inbox-results (min-width: 560px) {
   .resultsInner {
     margin: 0 calc(var(--space-16) * -1) calc(var(--space-16) * -1);
+  }
+}
+
+@media (min-width: 768px) {
+  .sort {
+    flex: 0 1 280px;
   }
 }
 
