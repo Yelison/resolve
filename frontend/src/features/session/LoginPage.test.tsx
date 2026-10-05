@@ -7,7 +7,7 @@ import { adminMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { requestedPaths } from '../../test/renderApp'
 import { LOGIN_PATH, navigation } from './sessionLifecycle'
-import { stubProductionBuild } from './shellHarness'
+import { FakeChannel, fromAnotherTab, stubProductionBuild } from './shellHarness'
 
 const unauthorized = { status: 401, body: { status: 401, title: 'No autenticado' } }
 
@@ -89,6 +89,35 @@ describe('sin sesión', () => {
     expect(screen.queryByRole('button', { name: 'Entrar con tu cuenta' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+  })
+})
+
+describe('otra pestaña entra', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    FakeChannel.open.clear()
+  })
+
+  it('al recibir «signed-in» vuelve a comprobar la sesión y pasa al resumen', async () => {
+    vi.stubGlobal('BroadcastChannel', FakeChannel)
+    let signedIn = false
+    mockApi({ 'GET /api/me': () => (signedIn ? { body: adminMe } : unauthorized) })
+    const router = renderRoutes('/entrar')
+    await screen.findByRole('heading', { name: 'Entra a Resolve' })
+    signedIn = true
+    fromAnotherTab('signed-in')
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+  })
+
+  it('otros mensajes de otras pestañas no la mueven', async () => {
+    vi.stubGlobal('BroadcastChannel', FakeChannel)
+    const spy = mockApi({ 'GET /api/me': unauthorized })
+    renderRoutes('/entrar')
+    await screen.findByRole('heading', { name: 'Entra a Resolve' })
+    const before = requestedPaths(spy).length
+    fromAnotherTab('logout')
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(requestedPaths(spy)).toHaveLength(before)
   })
 })
 

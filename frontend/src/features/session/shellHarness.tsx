@@ -1,7 +1,9 @@
 import { createMemoryRouter, RouterProvider } from 'react-router'
+import { act } from '@testing-library/react'
 import { vi } from 'vitest'
 import { AppShell } from '../../app/layout/AppShell'
 import { renderWithProviders } from '../../test/render'
+import type { SessionMessageType } from './sessionChannel'
 
 /** Estado de un test de sesión: la shell real con unas pocas rutas y la pantalla de entrada. */
 export function renderShell(path = '/tickets/1046') {
@@ -32,4 +34,30 @@ export function setCsrfCookie(value: string | null) {
 export function stubProductionBuild() {
   vi.stubEnv('DEV', false)
   vi.stubEnv('MODE', 'production')
+}
+
+/** `BroadcastChannel` determinista: entrega al instante a las demás instancias abiertas con el mismo nombre. */
+export class FakeChannel {
+  static open = new Set<FakeChannel>()
+  onmessage: ((event: { data: unknown }) => void) | null = null
+  readonly name: string
+  constructor(name: string) {
+    this.name = name
+    FakeChannel.open.add(this)
+  }
+  postMessage(data: unknown) {
+    for (const channel of FakeChannel.open) {
+      if (channel !== this && channel.name === this.name) channel.onmessage?.({ data })
+    }
+  }
+  close() {
+    FakeChannel.open.delete(this)
+  }
+}
+
+/** Lo que publicaría otra pestaña. */
+export function fromAnotherTab(type: SessionMessageType, tab = 'otra-pestana') {
+  const remote = new FakeChannel('resolve-session')
+  act(() => remote.postMessage({ type, tab }))
+  remote.close()
 }

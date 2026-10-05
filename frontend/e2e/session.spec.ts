@@ -226,6 +226,84 @@ test.describe('sesión caducada durante una escritura', () => {
   })
 })
 
+test.describe('varias pestañas', () => {
+  /** Cambia de organización desde el menú de la pestaña `tab`. */
+  async function switchToNorthwind(tab: Page) {
+    await account(tab).click()
+    await tab.getByRole('menuitem', { name: /Cambiar de organización/ }).click()
+    const dialog = tab.getByRole('dialog', { name: 'Cambiar de organización' })
+    await dialog.getByRole('radio', { name: 'Northwind' }).check()
+    await dialog.getByRole('button', { name: 'Cambiar de organización' }).click()
+    await expect(tab.getByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })).toBeVisible()
+  }
+
+  test('cambiar de organización en una pestaña actualiza la otra, sin recargar, antes de que se pueda escribir', async ({
+    page,
+    context,
+  }) => {
+    await mockApi(page, 'admin', { organizations: [acme, northwind] })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets/1048')
+    const reply = page.getByRole('textbox', { name: 'Respuesta al cliente' })
+    await reply.fill('Borrador de Acme')
+    await expect(account(page)).toHaveAccessibleName('Cuenta: Yelisson Ortiz, Acme Studio')
+
+    const other = await context.newPage()
+    await other.setViewportSize({ width: 1440, height: 900 })
+    await other.goto('/')
+    await switchToNorthwind(other)
+
+    // La pestaña original no se recargó: se entera por el canal, descarta lo suyo y avisa.
+    await expect(page.getByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })).toBeVisible()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText(
+      'Cambiaste a Northwind en otra pestaña',
+    )
+    expect(await page.evaluate(() => sessionStorage.getItem('resolve-draft-1048'))).toBeNull()
+  })
+
+  test('sin BroadcastChannel, la otra pestaña se entera al recuperar el foco', async ({ page, context }) => {
+    await context.addInitScript(() => Object.assign(window, { BroadcastChannel: undefined }))
+    await mockApi(page, 'admin', { organizations: [acme, northwind] })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets/1048')
+    await expect(account(page)).toHaveAccessibleName('Cuenta: Yelisson Ortiz, Acme Studio')
+
+    const other = await context.newPage()
+    await other.goto('/')
+    await switchToNorthwind(other)
+    // Sin canal no hay aviso: la pestaña original sigue con la etiqueta anterior hasta que recupera el foco.
+    await expect(account(page)).toHaveAccessibleName('Cuenta: Yelisson Ortiz, Acme Studio')
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
+    await expect(page.getByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })).toBeVisible()
+    await expect(page).toHaveURL(/\/$/)
+  })
+
+  test('cerrar sesión en una pestaña lleva la otra a /entrar', async ({ page, context }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    await expect(account(page)).toBeVisible()
+    const other = await context.newPage()
+    await other.goto('/tickets')
+    await account(other).click()
+    await other.getByRole('menuitem', { name: 'Cerrar sesión' }).click()
+    await expect(other).toHaveURL(/\/entrar$/)
+    await expect(page).toHaveURL(/\/entrar$/)
+    await expect(page.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
+  })
+
+  test('entrar en otra pestaña saca de /entrar a la que esperaba', async ({ page, context }) => {
+    await mockApi(page, 'admin', { signedIn: false })
+    await page.goto('/entrar')
+    await expect(page.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
+    const other = await context.newPage()
+    await other.goto('/api/oauth2/authorization/resolve')
+    await expect(other).toHaveURL(/\/$/)
+    await expect(page).toHaveURL(/\/$/)
+    await expect(account(page)).toBeVisible()
+  })
+})
+
 test.describe('menú de la cuenta', () => {
   test('con teclado: Enter abre el menú, Escape lo cierra y el foco vuelve al botón', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })

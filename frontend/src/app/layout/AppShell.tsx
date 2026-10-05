@@ -6,7 +6,7 @@ import { useMediaQuery } from '../../lib/useMediaQuery'
 import { AccountMenu, AccountMenuPlaceholder } from '../../features/session/AccountMenu'
 import { useMe } from '../../features/session/queries'
 import { SessionGate } from '../../features/session/SessionGate'
-import { useSessionExpiredNotice } from '../../features/session/useSessionExpiredNotice'
+import { useSessionSync } from '../../features/session/useSessionSync'
 import { navigationFor, roleLabels } from '../navigation'
 import { SessionErrorPage } from '../pages/SessionErrorPage'
 import { useTheme } from '../theme/useTheme'
@@ -39,7 +39,7 @@ function AppFrame() {
   const toast = useToast()
   const drawerId = useId()
   const me = useMe()
-  useSessionExpiredNotice()
+  useSessionSync()
   // Mientras carga la sesión se muestran marcadores neutros. Si falla, el contenido se sustituye por un aviso con
   // reintento: sin rol, las páginas no pueden decidir qué vista mostrar.
   // Al reintentar, una query sin datos vuelve a «pending» y pierde el error: el aviso se decide por los fallos
