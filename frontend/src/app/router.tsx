@@ -8,6 +8,7 @@ import { IndexRedirect, RequireRole } from './pages/RequireRole'
 import { CustomerDetailPage } from '../features/customers/CustomerDetailPage'
 import { CustomersPage } from '../features/customers/CustomersPage'
 import { NewCustomerDialog } from '../features/customers/NewCustomerDialog'
+import { TeamPage } from '../features/team/TeamPage'
 import { NewTicketPage } from '../features/tickets/NewTicketPage'
 import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
 import { TicketsPage } from '../features/tickets/TicketsPage'
@@ -73,7 +74,9 @@ const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
     ? sectionRoute(item, { children: ticketChildren })
     : item.to === '/clientes'
       ? sectionRoute(item, { children: customerChildren })
-      : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
+      : item.to === '/equipo'
+        ? sectionRoute(item, { element: <TeamPage /> })
+        : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
 )
 
 /** Rutas de la aplicación; se exportan para probar el cableado real (guardias y redirecciones) sin navegador. */

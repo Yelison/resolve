@@ -103,8 +103,8 @@ describe('rutas de la aplicación', () => {
     },
   )
 
-  // /clientes ya tiene su vista; se prueba aparte.
-  const pendingSections = staffSections.filter((item) => item.to !== '/clientes')
+  // /clientes y /equipo ya tienen su vista; se prueban aparte.
+  const pendingSections = staffSections.filter((item) => item.to !== '/clientes' && item.to !== '/equipo')
 
   it.each(pendingSections.flatMap((item) => staffMes.map(([role, me]) => [item.to, item.label, role, me] as const)))(
     'deja al personal abrir %s («%s») como %s',
@@ -155,6 +155,35 @@ describe('rutas de la aplicación', () => {
     })
     renderApp('/clientes/c-maria')
     expect(await screen.findByText('No existe el cliente')).toBeInTheDocument()
+  })
+
+  it('un cliente no abre /equipo: ve el aviso sin acceso y el equipo no se pide', async () => {
+    const fetchSpy = mockApi({ 'GET /api/me': { body: customerMe } })
+    renderApp('/equipo')
+    expect(await screen.findByText('No tienes acceso a esta sección')).toBeInTheDocument()
+    expect(requestedPaths(fetchSpy)).toEqual(['/api/me'])
+  })
+
+  it.each(staffMes)('deja al personal abrir el equipo como %s', async (_role, me) => {
+    mockApi({
+      'GET /api/me': { body: me },
+      'GET /api/members': { body: [] },
+      'GET /api/members/metrics': {
+        body: {
+          staff: 0,
+          assignedOpen: 0,
+          unassignedOpen: 0,
+          averageLoad: 0,
+          firstResponseMinutes: null,
+          firstResponseTargetMinutes: 30,
+        },
+      },
+    })
+    renderApp('/equipo')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Equipo' })).toBeInTheDocument()
+    expect(await screen.findByText('Todavía no hay equipo')).toBeInTheDocument()
+    expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 
   it('cubre todas las secciones de personal', () => {
