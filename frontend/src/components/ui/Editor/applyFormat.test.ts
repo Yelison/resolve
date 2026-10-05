@@ -42,3 +42,30 @@ describe('applyFormat · heading', () => {
     expect(applyFormat('## uno', 4, 4, 'heading')).toEqual({ value: 'uno', selectionStart: 1, selectionEnd: 1 })
   })
 })
+
+describe('applyFormat · heading (varias líneas y otros niveles)', () => {
+  it('sustituye cualquier prefijo # por «## » en lugar de apilarlo', () => {
+    expect(applyFormat('### Detalle', 5, 5, 'heading').value).toBe('## Detalle')
+    expect(applyFormat('# Uno', 0, 0, 'heading').value).toBe('## Uno')
+    expect(applyFormat('###### Seis', 0, 0, 'heading').value).toBe('## Seis')
+  })
+
+  it('actúa en todas las líneas seleccionadas y la misma porción sigue seleccionada', () => {
+    const edit = applyFormat('uno\ndos\ntres', 1, 10, 'heading')
+    expect(edit.value).toBe('## uno\n## dos\n## tres')
+    // «no\ndos\ntr» pasa a «no\n## dos\n## tr».
+    expect(edit.value.slice(edit.selectionStart, edit.selectionEnd)).toBe('no\n## dos\n## tr')
+  })
+
+  it('quita el prefijo de todas las líneas si todas son ya «## »', () => {
+    expect(applyFormat('## uno\n## dos', 0, 13, 'heading').value).toBe('uno\ndos')
+  })
+
+  it('si solo algunas lo son, las iguala todas a «## » sin duplicarlo', () => {
+    expect(applyFormat('## uno\ndos', 0, 10, 'heading').value).toBe('## uno\n## dos')
+  })
+
+  it('no toca las líneas fuera de la selección', () => {
+    expect(applyFormat('a\nb\nc', 2, 3, 'heading').value).toBe('a\n## b\nc')
+  })
+})
