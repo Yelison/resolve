@@ -232,6 +232,51 @@ describe('menú de la cuenta', () => {
       await waitFor(() => expect(router.state.location.pathname).toBe('/'))
     })
 
+    it('estando ya en / el foco acaba en el contenido, no en body (B-2)', async () => {
+      setCsrfCookie(null)
+      mockApi({ 'GET /api/me': { body: adminMe } })
+      const { router } = renderShell('/')
+      await userEvent.click(within(await openAccountMenu()).getByRole('menuitem', { name: /usuario de demostración/ }))
+      const dialog = screen.getByRole('dialog', { name: 'Cambiar de usuario de demostración' })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de usuario' }))
+      await waitFor(() => expect(localStorage.getItem('resolve-demo-user')).toBe('yelisson.ortiz@acme.example'))
+      await waitFor(() => expect(screen.getByRole('main')).toHaveFocus())
+      expect(router.state.location.pathname).toBe('/')
+      expect(document.body).not.toHaveFocus()
+    })
+
+    it.each([403, 404])(
+      'si /logout responde %i en desarrollo (sin oidc o cookie ajena) ofrece el selector en lugar de un error (B-3)',
+      async (status) => {
+        mockApi({
+          'GET /api/me': { body: adminMe },
+          'POST /api/logout': { status, body: { status, title: 'No existe' } },
+        })
+        renderShell()
+        await userEvent.click(within(await openAccountMenu()).getByRole('menuitem', { name: 'Cerrar sesión' }))
+        expect(await screen.findByRole('dialog', { name: 'Cambiar de usuario de demostración' })).toBeInTheDocument()
+        const region = screen.getByRole('region', { name: 'Notificaciones' })
+        expect(within(region).queryByText('No pudimos cerrar la sesión')).not.toBeInTheDocument()
+        expect(navigation.assign).not.toHaveBeenCalled()
+      },
+    )
+
+    it.each([403, 404])(
+      'en el build de producción un %i de /logout sigue siendo un error con su aviso',
+      async (status) => {
+        stubProductionBuild()
+        mockApi({
+          'GET /api/me': { body: adminMe },
+          'POST /api/logout': { status, body: { status, title: 'No existe' } },
+        })
+        renderShell()
+        await userEvent.click(within(await openAccountMenu()).getByRole('menuitem', { name: 'Cerrar sesión' }))
+        const region = screen.getByRole('region', { name: 'Notificaciones' })
+        expect(await within(region).findByText('No pudimos cerrar la sesión')).toBeInTheDocument()
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      },
+    )
+
     it('con cookie CSRF (hay sesión OIDC) ofrece cerrar sesión, no el selector', async () => {
       mockApi({ 'GET /api/me': { body: adminMe } })
       renderShell()

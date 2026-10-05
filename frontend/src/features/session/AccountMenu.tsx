@@ -18,12 +18,13 @@ export interface AccountMenuProps {
  * sin sesión OIDC (no hay cookie `XSRF-TOKEN`: la operación /logout no existe), el selector de usuario de demostración.
  */
 export function AccountMenu({ me, avatar }: AccountMenuProps) {
-  const { signOut } = useSessionActions()
   const [dialog, setDialog] = useState<'organization' | 'demo' | null>(null)
   const closeDialog = () => setDialog(null)
 
   // La condición va escrita aquí (ver `api/client.ts`): así el build de producción elimina el selector entero.
   const demoLogin = import.meta.env.DEV || import.meta.env.MODE === 'smoke'
+  // En desarrollo, un 403 o 404 de /logout (backend sin oidc, o una cookie XSRF-TOKEN ajena en localhost) lleva al selector.
+  const { signOut } = useSessionActions({ onLogoutUnavailable: demoLogin ? () => setDialog('demo') : undefined })
   const demoSession = demoLogin && readCsrfToken() === null
   const organizations = me.organizations ?? []
 
