@@ -343,6 +343,7 @@ describe('ArticleEditorPage · publicación', () => {
 })
 
 describe('ArticleEditorPage · vista previa', () => {
+  // La primera vista previa descarga y transforma `react-markdown`: en una máquina cargada supera los 5 s por defecto.
   it('renderiza el Markdown con ArticleBody, sin HTML en bruto', async () => {
     api()
     const { container } = renderEditor()
@@ -354,7 +355,7 @@ describe('ArticleEditorPage · vista previa', () => {
     expect(screen.getByText('fuerte')).toContainHTML('<strong>fuerte</strong>')
     expect(container.querySelector('script')).toBeNull()
     expect(screen.getByRole('navigation', { name: 'En este artículo' })).toBeInTheDocument()
-  })
+  }, 20_000)
 
   it('sin contenido no hay nada que previsualizar', async () => {
     api()
