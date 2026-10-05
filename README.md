@@ -90,9 +90,21 @@ To try other roles in development, call `setDemoUser` from the browser console, 
 | --- | --- |
 | `npm run dev` / `build` / `preview` | Develop, build and serve the production build |
 | `npm test` / `test:watch` / `coverage` | Unit and component tests (Vitest) |
-| `npm run test:e2e` | Playwright against a production build |
+| `npm run test:e2e` | Playwright against a production build and a mocked API |
+| `SMOKE=1 npx playwright test --project=smoke` | Full-stack smoke test against the real API (see below) |
 | `npm run lint` / `typecheck` / `format:check` | oxlint, `tsc -b` and Prettier |
 | `npm run api:types` | Regenerate `src/api/schema.ts` from `docs/api/openapi.yaml` (CI fails if it is stale) |
+
+### Full-stack smoke test
+
+`frontend/e2e-smoke/` holds a Playwright scenario with nothing mocked: an agent creates a ticket, finds it in the inbox, replies, leaves an internal note and changes the status, and then the customer opens the ticket and sees only the public reply. CI runs it in the `Full-stack smoke` job against PostgreSQL and the `dev` API. To run it locally, start PostgreSQL and the API with the `dev` profile as above (port 8080, or set `API_PROXY_TARGET`), then:
+
+```sh
+cd frontend
+SMOKE=1 npx playwright test --project=smoke   # PLAYWRIGHT_PORT=4182 if 4173 is taken
+```
+
+`SMOKE=1` builds the frontend with `vite build --mode smoke`, which keeps the demo login so the test can act as different users. The `production` build never includes it: the `X-Demo-User` header, its storage key and `setDemoUser` are absent from `dist/assets/*.js`. Without `SMOKE=1` the `smoke` project does not exist, so `npm run test:e2e` is unchanged.
 
 ## Design decisions
 
@@ -114,7 +126,7 @@ The Figma frames are the visual reference. Where they conflict with the written 
 - [x] API contract (OpenAPI) with generated frontend types
 - [x] Tickets: Spring Boot API with organization scoping, concurrency control and activity log
 - [x] Tickets: inbox, detail and new ticket views wired with TanStack Query
-- [ ] Full-stack end-to-end smoke test against the real API in CI
+- [x] Full-stack end-to-end smoke test against the real API in CI
 - [ ] Authentication provider replacing the dev-only demo login
 - [ ] Customers, team, reports, knowledge base and settings views
 - [ ] Tags, attachments and SLA for tickets
