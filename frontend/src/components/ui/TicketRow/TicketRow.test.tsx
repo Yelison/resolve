@@ -103,4 +103,22 @@ describe('TicketTable sin selección', () => {
     expect(screen.getAllByRole('columnheader')).toHaveLength(6)
     expect(within(screen.getAllByRole('row')[1]!).getAllByRole('cell')).toHaveLength(6)
   })
+
+  it('cuenta los días del «ayer» relativo en la zona indicada', () => {
+    const old = { ...ticket, updatedAt: '2026-10-02T20:00:00Z' }
+    const now = new Date('2026-10-04T05:30:00Z') // 33 h y 30 min después
+    const renderRow = (timeZone?: string) =>
+      render(
+        <MemoryRouter>
+          <TicketTable label="Tickets" selection={{ state: 'none', onToggleAll: vi.fn() }}>
+            <TicketRow ticket={old} to="/tickets/1048" actions={[]} now={now} timeZone={timeZone} />
+          </TicketTable>
+        </MemoryRouter>,
+      )
+    const view = renderRow('America/Mexico_City') // 14:00 del 2 → 23:30 del 3
+    expect(screen.getByText('ayer')).toBeInTheDocument()
+    view.unmount()
+    renderRow('UTC') // día 2 → día 4
+    expect(screen.getByText('anteayer')).toBeInTheDocument()
+  })
 })

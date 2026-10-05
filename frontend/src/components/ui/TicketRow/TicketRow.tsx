@@ -81,9 +81,11 @@ export interface TicketRowProps {
   actions: MenuItem[]
   /** Fecha de referencia para el tiempo relativo; útil en pruebas. */
   now?: Date
+  /** Zona IANA con la que se cuentan los días de «ayer»; por defecto, la del navegador. */
+  timeZone?: string
 }
 
-export function TicketRow({ ticket, to, selection, actions, now }: TicketRowProps) {
+export function TicketRow({ ticket, to, selection, actions, now, timeZone }: TicketRowProps) {
   const status = ticketStatus[ticket.status]
   const priority = ticketPriority[ticket.priority]
   const updatedAt = new Date(ticket.updatedAt)
@@ -120,7 +122,7 @@ export function TicketRow({ ticket, to, selection, actions, now }: TicketRowProp
           {ticket.assignee?.name ?? 'Sin asignar'}
         </span>
         <span role="cell" className={styles.updated}>
-          <time dateTime={updatedAt.toISOString()}>{formatRelative(updatedAt, now)}</time>
+          <time dateTime={updatedAt.toISOString()}>{formatRelative(updatedAt, now, timeZone)}</time>
         </span>
       </span>
       <span role="cell" className={styles.actions}>

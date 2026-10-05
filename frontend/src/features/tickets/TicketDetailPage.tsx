@@ -24,6 +24,7 @@ import { formatDateTime } from '../../lib/format'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
+import { useTimeZone } from '../session/useTimeZone'
 import { useAssignees } from '../team/queries'
 import { toTimelineEvent } from './activityText'
 import {
@@ -89,6 +90,7 @@ export function TicketDetailPage() {
 function TicketDetail({ ticket }: { ticket: Ticket }) {
   const me = useMe()
   const isStaff = me.data ? me.data.role !== 'customer' : false
+  const timeZone = useTimeZone()
   const toast = useToast()
   const update = useUpdateTicket(ticket.number)
   const conflict = update.error && isApiError(update.error, 412)
@@ -108,7 +110,9 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
   }
 
   const resolved = ticket.status === 'resolved'
-  const created = formatDateTime(new Date(ticket.createdAt)).replace(/^(Hoy|Ayer)/, (day) => day.toLowerCase())
+  const created = formatDateTime(new Date(ticket.createdAt), undefined, timeZone).replace(/^(Hoy|Ayer)/, (day) =>
+    day.toLowerCase(),
+  )
 
   return (
     <div className={pageStyles.page}>
@@ -267,6 +271,7 @@ function CustomerSummary({ ticket }: { ticket: Ticket }) {
 }
 
 function Conversation({ ticket, isStaff }: { ticket: Ticket; isStaff: boolean }) {
+  const timeZone = useTimeZone()
   const messages = useTicketMessages(ticket.number)
   return (
     <div className={styles.conversation}>
@@ -293,6 +298,7 @@ function Conversation({ ticket, isStaff }: { ticket: Ticket; isStaff: boolean })
           kind={message.visibility === 'internal' ? 'note' : message.author.kind}
           author={message.author.name}
           sentAt={new Date(message.createdAt)}
+          timeZone={timeZone}
         >
           {message.body}
         </Message>
@@ -340,6 +346,7 @@ function Composer({ number }: { number: number }) {
 
 function History({ number }: { number: number }) {
   const activity = useTicketActivity(number)
+  const timeZone = useTimeZone()
   if (activity.isPending) return <Skeleton lines={3} label="Cargando historial…" />
   if (activity.isError) {
     return (
@@ -357,7 +364,12 @@ function History({ number }: { number: number }) {
   }
   return (
     <div className={styles.history}>
-      <Timeline events={activity.data.map((entry) => toTimelineEvent(entry))} />
+      <Timeline
+        events={activity.data.map((entry) => {
+          const event = toTimelineEvent(entry)
+          return { ...event, timeLabel: formatDateTime(event.at, undefined, timeZone) }
+        })}
+      />
     </div>
   )
 }

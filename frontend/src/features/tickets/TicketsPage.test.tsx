@@ -17,6 +17,7 @@ const requestsTo = (fetchSpy: ReturnType<typeof mockApi>, path: string) =>
   fetchSpy.mock.calls.map(([input]) => new URL((input as Request).url)).filter((url) => url.pathname === path)
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -293,5 +294,23 @@ describe('TicketsPage para clientes', () => {
     expect(params.get('view')).toBe('all')
     expect(params.has('assigneeId')).toBe(false)
     expect(screen.queryByRole('button', { name: /Acciones del ticket/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('TicketsPage y la zona de la organización', () => {
+  it('cuenta el «ayer» de cada fila en la zona de la organización', async () => {
+    // 11:00 del día 2 en Ciudad de México; ahora son las 23:30 del día 3 allí (36 h y 30 min después). Contar días de UTC daría «anteayer».
+    vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-04T05:30:00Z') })
+    mockApi({
+      'GET /api/me': {
+        body: { ...adminMe, organization: { ...adminMe.organization, timeZone: 'America/Mexico_City' } },
+      },
+      'GET /api/tickets/metrics': { body: metrics },
+      'GET /api/tickets': { body: page([summary({ updatedAt: '2026-10-02T17:00:00Z' })]) },
+      'GET /api/assignees': { body: [] },
+    })
+    renderInbox()
+    expect((await screen.findAllByText('ayer')).length).toBeGreaterThan(0)
+    expect(screen.queryByText('anteayer')).not.toBeInTheDocument()
   })
 })
