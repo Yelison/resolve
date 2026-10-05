@@ -29,6 +29,11 @@ export function AppShell() {
   const me = useMe()
   // Mientras carga la sesión se muestran marcadores neutros. Si falla, el contenido se sustituye por un aviso con
   // reintento: sin rol, las páginas no pueden decidir qué vista mostrar.
+  // Al reintentar, una query sin datos vuelve a «pending» y pierde el error: el aviso se decide por los fallos
+  // acumulados y conserva el último error para que ni la página ni su descripción desaparezcan durante el reintento.
+  const sessionFailed = !me.data && me.errorUpdateCount > 0
+  const [sessionError, setSessionError] = useState<unknown>(null)
+  if (me.error && me.error !== sessionError) setSessionError(me.error)
   const workspaceName = me.data?.organization.name ?? 'Resolve'
   const userName = me.data?.user.name ?? '…'
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -146,8 +151,13 @@ export function AppShell() {
           }
         />
         <main ref={mainRef} id="contenido" className={styles.content} tabIndex={-1}>
-          {me.isError ? (
-            <SessionErrorPage error={me.error} onRetry={() => void me.refetch()} retrying={me.isFetching} />
+          {sessionFailed ? (
+            <SessionErrorPage
+              error={sessionError}
+              onRetry={() => void me.refetch()}
+              retrying={me.isFetching}
+              retryFailed={!me.isFetching && me.errorUpdateCount > 1}
+            />
           ) : (
             <Outlet />
           )}

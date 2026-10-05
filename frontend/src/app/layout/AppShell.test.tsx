@@ -110,4 +110,34 @@ describe('AppShell sin sesión', () => {
     expect(meCalls()).toBe(2)
     expect(screen.queryByRole('heading', { name: 'No pudimos cargar tu sesión' })).not.toBeInTheDocument()
   })
+
+  it('mientras reintenta conserva el aviso y el foco, y anuncia el fallo al terminar', async () => {
+    let calls = 0
+    mockApi({
+      'GET /api/me': async () => {
+        calls += 1
+        if (calls > 1) await new Promise((resolve) => setTimeout(resolve, 150))
+        return { status: 500, body: { status: 500, title: 'Error interno' } }
+      },
+    })
+    renderShell()
+    await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })
+    const description = 'El servidor no respondió como esperábamos. Vuelve a intentarlo en unos segundos.'
+    expect(screen.getByText(description)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    screen.getByRole('button', { name: 'Reintentar' }).focus()
+    await userEvent.keyboard('{Enter}')
+    const button = await screen.findByRole('button', { name: 'Reintentando…' })
+    expect(button).toHaveFocus()
+    expect(screen.getByRole('heading', { name: 'No pudimos cargar tu sesión' })).toBeInTheDocument()
+    expect(screen.getByText(description)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Tickets' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    const alert = await screen.findByRole('alert')
+    expect(within(alert).getByRole('heading', { name: 'No pudimos cargar tu sesión' })).toBeInTheDocument()
+    expect(within(alert).getByRole('button', { name: 'Reintentar' })).toHaveFocus()
+    expect(calls).toBe(2)
+  })
 })
