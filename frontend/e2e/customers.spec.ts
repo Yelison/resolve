@@ -161,13 +161,19 @@ test.describe('clientes', () => {
     expect(box.width).toBeGreaterThan(profile.width + context.width - 80)
   })
 
-  test('a 1200 px la tabla de tickets del detalle no está en tarjetas', async ({ page }) => {
-    await page.setViewportSize({ width: 1200, height: 900 })
-    await page.goto('/clientes/c-maria')
-    const table = page.getByRole('table', { name: 'Tickets de María Pérez' })
-    await expect(table.getByRole('columnheader', { name: 'Estado' })).toBeVisible()
-    expect((await table.getByRole('row').first().boundingBox())!.width).toBeGreaterThan(300)
-  })
+  for (const width of [1200, 1218]) {
+    test(`a ${width} px la tabla de tickets del detalle no está en tarjetas y conserva sus columnas`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/clientes/c-maria')
+      const table = page.getByRole('table', { name: 'Tickets de María Pérez' })
+      for (const name of ['Estado', 'Prioridad', 'Responsable', 'Actualizado']) {
+        await expect(table.getByRole('columnheader', { name })).toBeVisible()
+      }
+      expect((await table.getByRole('row').first().boundingBox())!.width).toBeGreaterThan(300)
+    })
+  }
 
   for (const width of [320, 390]) {
     test(`el diálogo de alta cabe en el viewport y no desborda · ${width}px`, async ({ page }) => {
