@@ -116,8 +116,9 @@ A new Claude Code session knows nothing about this conversation, so the brief mu
    cites it): Resumen; Commits; Pruebas con cifras base y final; Los tests nuevos fallan sin su cambio;
    Autocomprobación; Desviaciones y decisiones; Limitaciones; Esfuerzo usado; `git status --short`; and a last line,
    `ENTREGA <lane>: LISTA` or `BLOQUEO <lane>: <reason>`. Fixed titles and order make deliveries comparable and let
-   the coordinator check them mechanically. A base commit that predates the template falls back to those same sections
-   in the footer's wording.
+   the coordinator check them mechanically. The footer says to follow the template when the agent's base has it and
+   otherwise to use the sections it lists itself (behaviour, files, commits, tests, effort, limitations, decisions,
+   `git status`).
 7. What it must report instead of working around: a reserved file, a failing test on the base commit, a new
    dependency, a permission prompt it cannot answer, an ambiguity.
 8. Repository rules it inherits: Conventional Commits in English with the `Co-Authored-By` trailer, every commit
@@ -451,6 +452,18 @@ Parallel tasks should not edit the same shared files, so each feature declares i
 - **E2E mocks.** `frontend/e2e/mocks/<feature>.ts` exports its demo data and a `<feature>Mock()` factory returning a
   `handle` function; `e2e/fixtures.ts` lists the factory in `mockApi`. Keep state inside the factory, never at module
   level, so tests do not leak into each other.
+
+## Tests of the scripts
+
+`scripts/herdr/tests/run.sh [brief|review|ship|remove|load…]` runs the scenarios of the coordination tooling in
+disposable environments: a temporary git repository with a local bare remote, a `HERDR_TASKS_ROOT` of its own, and
+**fake** `herdr`, `gh`, `docker` and `npm` first in `PATH` (`tests/bin/`), so it never reaches GitHub, a real Herdr, a
+Docker daemon or `~/resolver-herdr`. `lib.sh` refuses to run if a tool is not the fake or the tasks root is outside the
+temporary directory, and picks port slots whose ports are free on the machine (other agents use them); the leftover
+tests start one real listener on a free slot's Vite port and kill it by PID. It needs `jq`, `git`, `ss` and
+`python3`, exits non-zero on any failure and prints `ALL TESTS PASSED` otherwise. `HERDR_TEST_KEEP=1` keeps the
+temporary directory; `HERDR_SCRIPTS_SRC=<dir>` runs the tests against a modified copy of `scripts/herdr` (to check that
+a scenario fails without its fix). Run it after changing anything under `scripts/herdr/`; it is not part of CI.
 
 ## Notes and decisions
 
