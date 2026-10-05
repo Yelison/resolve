@@ -949,8 +949,8 @@ export interface components {
         };
         /**
          * @description The window the report covers. `from` is the start of the first day in the organization time zone and
-         *     `to` is the moment of the request rounded up to a whole second, so it never leaves out a ticket created
-         *     a fraction of a second earlier.
+         *     `to` is the moment of the request truncated to a whole second; a ticket created in the fraction of a
+         *     second before the request shows up in the next report.
          */
         ReportRange: {
             /**
