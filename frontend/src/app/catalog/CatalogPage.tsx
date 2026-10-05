@@ -496,6 +496,26 @@ export default function CatalogPage() {
               onSearch={() => {}}
               onNotifications={() => {}}
               userName="Laura Méndez"
+              userMenu={(avatar) => (
+                <Menu
+                  label="Cuenta de ejemplo"
+                  items={[
+                    { id: 'profile', label: 'Mi perfil', onSelect: () => {} },
+                    { id: 'sign-out', label: 'Cerrar sesión', tone: 'danger', onSelect: () => {} },
+                  ]}
+                >
+                  {(trigger) => (
+                    <button
+                      type="button"
+                      className={styles.demoAccount}
+                      aria-label="Cuenta de Laura Méndez"
+                      {...trigger}
+                    >
+                      {avatar}
+                    </button>
+                  )}
+                </Menu>
+              )}
             />
           </div>
         </div>
