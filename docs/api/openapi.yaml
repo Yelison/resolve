@@ -1049,7 +1049,7 @@ components:
       name: X-Demo-User
       description: |
         Only in the `dev` and `test` profiles, and never together with `oidc`: email of a seeded user.
-        Any other profile answers 401 to this header.
+        In any other profile the header is ignored.
 
   parameters:
     TicketNumber:
