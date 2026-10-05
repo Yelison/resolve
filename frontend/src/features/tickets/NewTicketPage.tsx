@@ -4,10 +4,8 @@ import { useNavigate } from 'react-router'
 import {
   Button,
   Combobox,
-  EmptyState,
   Input,
   Select,
-  Skeleton,
   Textarea,
   ticketPriority,
   useToast,
@@ -19,7 +17,6 @@ import { ticketPriorityValues } from '../../domain/ticket'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
-import { useMe } from '../session/queries'
 import { useCustomerSearch } from '../customers/queries'
 import { useAssignees } from '../team/queries'
 import { useCreateTicket } from './queries'
@@ -32,24 +29,6 @@ type FieldName = 'customerId' | 'subject' | 'description' | 'priority' | 'assign
 type Errors = Partial<Record<FieldName, string>>
 
 export function NewTicketPage() {
-  const me = useMe()
-  if (me.isPending) return <Skeleton lines={3} label="Cargando…" />
-  if (me.data?.role === 'customer') {
-    return (
-      <div className={pageStyles.page}>
-        <PageHeader title="Crear ticket" />
-        <EmptyState
-          kind="restricted"
-          title="No tienes acceso a esta sección"
-          description="Solo los agentes y administradores pueden registrar tickets."
-        />
-      </div>
-    )
-  }
-  return <NewTicketForm />
-}
-
-function NewTicketForm() {
   const navigate = useNavigate()
   const toast = useToast()
   const createTicket = useCreateTicket()

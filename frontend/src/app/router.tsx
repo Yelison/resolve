@@ -3,6 +3,7 @@ import { AppShell, type RouteHandle } from './layout/AppShell'
 import { mainNavigation } from './navigation'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PendingPage } from './pages/PendingPage'
+import { IndexRedirect, RequireRole } from './pages/RequireRole'
 import { NewTicketPage } from '../features/tickets/NewTicketPage'
 import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
 import { TicketsPage } from '../features/tickets/TicketsPage'
@@ -13,7 +14,9 @@ const pendingRoutes: RouteObject[] = mainNavigation
   .map((item) => {
     const handle: RouteHandle = { crumb: item.label }
     const element = <PendingPage title={item.label} icon={item.icon} />
-    return item.to === '/' ? { index: true, element, handle } : { path: item.to.slice(1), element, handle }
+    return item.to === '/'
+      ? { index: true, element: <IndexRedirect fallback={element} />, handle }
+      : { path: item.to.slice(1), element, handle }
   })
 
 const ticketRoutes: RouteObject[] = [
@@ -22,7 +25,15 @@ const ticketRoutes: RouteObject[] = [
     handle: { crumb: 'Tickets' } satisfies RouteHandle,
     children: [
       { index: true, element: <TicketsPage /> },
-      { path: 'nuevo', element: <NewTicketPage />, handle: { crumb: 'Nuevo ticket' } satisfies RouteHandle },
+      {
+        path: 'nuevo',
+        element: (
+          <RequireRole roles={['admin', 'agent']}>
+            <NewTicketPage />
+          </RequireRole>
+        ),
+        handle: { crumb: 'Nuevo ticket' } satisfies RouteHandle,
+      },
       {
         path: ':number',
         element: <TicketDetailPage />,

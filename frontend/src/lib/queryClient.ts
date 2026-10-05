@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
-import { ApiError } from '../api/client'
+import { ApiError, DEMO_USER_EVENT } from '../api/client'
 
 /** Reintenta fallos de red y errores 5xx; un 4xx no cambia al repetir la misma petición. */
 export function shouldRetry(failureCount: number, error: unknown): boolean {
@@ -15,3 +15,10 @@ export const queryClient = new QueryClient({
     },
   },
 })
+
+/** Vacía la caché cuando cambia el usuario de demostración. Devuelve la función que quita el oyente. */
+export function clearCacheOnDemoUserChange(client: QueryClient): () => void {
+  const clear = () => client.clear()
+  window.addEventListener(DEMO_USER_EVENT, clear)
+  return () => window.removeEventListener(DEMO_USER_EVENT, clear)
+}
