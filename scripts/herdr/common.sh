@@ -176,3 +176,24 @@ agent_effort() {
   done
   return 0
 }
+
+# render_template FILE OPEN CLOSE [KEY=VALUE...]: prints FILE with every OPEN KEY CLOSE replaced by its value
+# (e.g. `render_template brief.md '{{' '}}' SHA=abc`). Pure bash on purpose: sed breaks on `&`, `/` or `#` inside a
+# value, and the replacement is quoted so bash 5.2 does not expand `&` either. Fails if a marker is left unfilled.
+render_template() {
+  local file=$1 open=$2 close=$3 out kv key value
+  shift 3
+  [ -f "$file" ] || die "template not found: $file"
+  shopt -u patsub_replacement 2>/dev/null || true
+  out=$(cat "$file"; printf x)
+  out=${out%x}
+  for kv in "$@"; do
+    key=${kv%%=*}
+    value=${kv#*=}
+    out=${out//"$open$key$close"/"$value"}
+  done
+  if [[ $out =~ "$open"[A-Z][A-Z_]*"$close" ]]; then
+    die "unfilled marker ${BASH_REMATCH[0]} in $file"
+  fi
+  printf '%s' "$out"
+}

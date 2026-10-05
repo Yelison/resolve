@@ -106,6 +106,24 @@ A new Claude Code session knows nothing about this conversation, so the brief mu
 8. Repository rules it inherits: Conventional Commits in English with the `Co-Authored-By` trailer, every commit
    builds, no push and no pull request unless the brief says so, nothing disabled to turn CI green.
 
+### Fill the common part with `fill-brief.sh`
+
+Write only the task-specific part of the brief (goal, files, contracts, criteria, effort card) in a staging file, using
+these markers wherever the task's own values go, and let the script append the common footer
+(`scripts/herdr/brief-footer.md`: commits, machine usage, dangerous commands, self-check, delivery, what to report):
+
+```sh
+scripts/herdr/fill-brief.sh t0-1-tickets-follow-ups A ~/resolver-herdr/staging/t0-1.md
+```
+
+It reads the task's slot, worktree and base commit from `task.json`, writes `tasks/<id>/brief.md` and fails, without
+touching an existing brief, if any `__MARKER__` is left or the result lacks the `Sin push ni PR` rule or
+`ENTREGA <lane>: LISTA`. Markers: `__WT__` (worktree), `__BASE__` and `__BASEFULL__` (base commit, 7 and 40
+characters), `__SL__` (slot), `__VITE__`, `__PW__`, `__API__`, `__PG__`, `__KC__` (the slot's ports), `__LANE__` and
+`__LANE_NAME__`, `__DELIVERY__`. The lane is any short name (`A`, `C`…); it ends up in `ENTREGA <lane>: LISTA`. Text
+that merely looks like a marker (`__INIT__`) makes the script stop: reword it. Nothing in the script depends on the
+owner's home: it uses `HERDR_TASKS_ROOT` like the others, and does not need to run inside a Herdr pane.
+
 ## Start the agent
 
 ```sh
