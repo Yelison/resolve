@@ -13,7 +13,11 @@ const pendingRoutes: RouteObject[] = mainNavigation
   .filter((item) => item.to !== '/tickets')
   .map((item) => {
     const handle: RouteHandle = { crumb: item.label }
-    const element = <PendingPage title={item.label} icon={item.icon} />
+    const element = (
+      <RequireRole roles={item.roles} title={item.label}>
+        <PendingPage title={item.label} icon={item.icon} />
+      </RequireRole>
+    )
     return item.to === '/'
       ? { index: true, element: <IndexRedirect fallback={element} />, handle }
       : { path: item.to.slice(1), element, handle }
