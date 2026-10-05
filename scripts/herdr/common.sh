@@ -83,6 +83,7 @@ slot_ports() {
   printf 'PLAYWRIGHT_PORT=%s\n' $((4180 + slot))
   printf 'SERVER_PORT=%s\n' $((8080 + slot))
   printf 'POSTGRES_PORT=%s\n' $((5440 + slot))
+  printf 'KEYCLOAK_PORT=%s\n' $((8180 + slot))
 }
 
 # Live agent (JSON) hosted by a pane, or nothing.
