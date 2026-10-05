@@ -38,6 +38,10 @@ class SecurityConfiguration {
 				.permitAll()
 				.requestMatchers("/actuator/health", "/actuator/health/**")
 				.permitAll()
+				// Los ajustes de la organización los lee el personal (regla de lectura de más abajo) y solo los edita un
+				// administrador.
+				.requestMatchers(HttpMethod.PATCH, "/organization")
+				.hasRole("ADMIN")
 				// Archivar, restaurar e invitar clientes es solo de administradores (Q-02); va antes de la regla general.
 				.requestMatchers(HttpMethod.POST, "/customers/{id}/archive", "/customers/{id}/restore",
 						"/customers/{id}/invite")
@@ -58,7 +62,7 @@ class SecurityConfiguration {
 				// que va antes de «/tickets/{number}»: ese patrón también la reconoce y dejaría pasar a un cliente.
 				.requestMatchers(HttpMethod.GET, "/tickets/metrics", "/tickets/activity", "/tickets/{number}/activity",
 						"/customers", "/customers/**", "/assignees", "/members", "/members/metrics",
-						"/reports/summary")
+						"/reports/summary", "/organization")
 				.hasAnyRole(STAFF)
 				.requestMatchers(HttpMethod.GET, "/me", "/tickets", "/tickets/{number}", "/tickets/{number}/messages")
 				.authenticated()

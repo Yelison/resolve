@@ -58,6 +58,14 @@ public class Organization {
 		return this.firstResponseTargetMinutes;
 	}
 
+	/** Aplica los ajustes ya validados; Hibernate solo escribe (y sube la versión) si algún valor cambió. */
+	void edit(String name, @Nullable String supportEmail, String timeZone, int firstResponseTargetMinutes) {
+		this.name = name;
+		this.supportEmail = supportEmail;
+		this.timeZone = timeZone;
+		this.firstResponseTargetMinutes = firstResponseTargetMinutes;
+	}
+
 	public @Nullable String getSupportEmail() {
 		return this.supportEmail;
 	}

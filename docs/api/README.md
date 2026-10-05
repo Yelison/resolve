@@ -29,6 +29,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 
 - A `customer` membership is linked to a **customer** record of the same organization. Customers are read-only in this delivery: every write returns `403`, and so does every `/customers` endpoint.
 - The **team** (`/members`) is readable by `admin` and `agent` (`customer` gets `403`); inviting, changing a role and removing a member are **admin-only**, and the URL rule answers `403` before the member is even looked up.
+- The **organization settings** (`/organization`) are readable by `admin` and `agent` and editable only by `admin`; a `customer` gets `403` on both. Changing the first-response target changes `firstResponseTargetMinutes` in the ticket and team metrics and `firstResponseMinutes.target` in the reports; changing the time zone changes the reports' `period` and `byDay` days.
 - Archiving, restoring and inviting a customer to the portal is **admin-only**: an agent gets `403`, before the customer is even looked up.
 - The **knowledge base** is readable by every role, but a `customer` only reaches the articles that are `published` **and** `public`; any other article answers `404`, exactly like an unknown slug or one of another organization. Creating and editing articles and publishing or unpublishing them is for `admin` and `agent`; creating categories is **admin-only** (`403` for an agent). The role check runs before anything is read, so a `customer` that attempts a write gets `403` whatever the body or the slug.
 - **Internal notes never reach customers.** The filter is applied in the database query, and no field visible to customers is derived from internal notes.
@@ -97,6 +98,7 @@ There is no authentication provider yet. The security layer resolves the princip
 - A patch that changes nothing returns `200` without a new version or activity entry.
 - Errors are checked in this order: `401`, `403`, `404`, `428`, `400`, `412`.
 - `PATCH /api/customers/{id}` works the same way (`If-Match`, `428` when missing, `412` when stale, no new version for a patch that changes nothing). Its `409` for an archived customer comes **last**: `401`, `403`, `404`, `428`, `400`, `412`, `409`. A client holding an old version is told to reload (`412`) before it is told the customer is archived. Archiving and restoring bump the version, so an edit form opened before an archive fails with `412` afterwards. `PATCH`, archive and restore load the customer with a row lock (`PESSIMISTIC_WRITE`), so simultaneous writes are serialized: two patches with the same version yield one `200` and one `412`, and two simultaneous archives (or restores) yield one `200` and `409` for the rest, never a `412` that those actions do not declare. JPA optimistic locking stays as the safety net.
+- `PATCH /api/organization` follows the same rules (`If-Match`, `428`, `400` before `412`, no new version for a patch that changes nothing, row lock so two simultaneous edits yield one `200` and one `412`). The ticket counter (`next_ticket_number`) is bumped with a native `UPDATE` that never touches `version`, so creating tickets does not invalidate a settings form that is open. `timeZone` must be an IANA region spelled exactly as both Java and PostgreSQL know it (checked against `pg_timezone_names`): offsets (`+05:00`), `Z` and aliases such as `UTC+5` (which PostgreSQL reads with the opposite sign) are a `400` on `timeZone`. An empty or `null` `supportEmail` clears it.
 - Posting a message does **not** change the ticket version, so a reply never invalidates a parallel status change. A **public** message moves `updatedAt`, which means *last activity* and drives the inbox «Actualizado» column; internal notes do not, so customers cannot infer them from timestamps.
 - `updatedAt` never moves backwards: a `PATCH` stamps `max(updatedAt, now)` and a public message stamps `greatest(updatedAt, now)`. A public reply that arrives while a `PATCH` holds the row waits a few milliseconds for it and then applies its own stamp, so the inbox order is not corrupted by clock differences between requests. The `PATCH` response body and `ETag` match the row as that `PATCH` committed it.
 
@@ -134,6 +136,8 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | Method and path | Roles | Purpose |
 | --- | --- | --- |
 | `GET /api/me` | all | Current user, organization and role |
+| `GET /api/organization` | admin, agent | Settings of the organization (name, support email, time zone, first-response target) with `ETag` |
+| `PATCH /api/organization` | admin | Edit the settings (`If-Match`); `403` for agents, before anything is read |
 | `GET /api/tickets` | all | Inbox: views, filters, search, sorting and pagination |
 | `GET /api/tickets/metrics` | admin, agent | Inbox metrics and view counts |
 | `POST /api/tickets` | admin, agent | Create a ticket |

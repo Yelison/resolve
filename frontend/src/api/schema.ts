@@ -21,6 +21,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/organization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Settings of the caller's organization
+         * @description Readable by admins and agents; customers get 403.
+         */
+        get: operations["getOrganization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit the settings of the organization (admin only)
+         * @description JSON Merge Patch semantics: absent fields are unchanged; `supportEmail` accepts `null` (or an empty
+         *     text) to clear it and no other field does. `timeZone` must be an IANA region id that PostgreSQL also
+         *     knows, spelled exactly (`America/Bogota`); offsets, aliases such as `UTC+5` and other spellings are a
+         *     400 on `timeZone`. Requires `If-Match` with the current version; a patch that changes nothing returns
+         *     200 without a new version. Creating tickets does not change the version. Errors are checked in this
+         *     order: 401, 403, 428, 400, 412.
+         */
+        patch: operations["updateOrganization"];
+        trace?: never;
+    };
     "/tickets": {
         parameters: {
             query?: never;
@@ -642,6 +671,28 @@ export interface components {
              * @description Public support address shown in the knowledge base footer; null when not set.
              */
             supportEmail: string | null;
+        };
+        OrganizationSettings: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: email */
+            supportEmail: string | null;
+            /** @example America/Bogota */
+            timeZone: string;
+            /** @description Target for the first public reply; the reference of the ticket metrics and the reports. */
+            firstResponseTargetMinutes: number;
+            /** @description Same value as the ETag. */
+            version: number;
+        };
+        /** @description All fields optional. Only `supportEmail` accepts `null`. */
+        OrganizationPatch: {
+            name?: string;
+            /** Format: email */
+            supportEmail?: string | null;
+            /** @example America/Bogota */
+            timeZone?: string;
+            firstResponseTargetMinutes?: number;
         };
         Me: {
             user: components["schemas"]["Member"];
@@ -1413,6 +1464,8 @@ export type TicketChannel = components['schemas']['TicketChannel'];
 export type TicketView = components['schemas']['TicketView'];
 export type MessageVisibility = components['schemas']['MessageVisibility'];
 export type Organization = components['schemas']['Organization'];
+export type OrganizationSettings = components['schemas']['OrganizationSettings'];
+export type OrganizationPatch = components['schemas']['OrganizationPatch'];
 export type Me = components['schemas']['Me'];
 export type Member = components['schemas']['Member'];
 export type MemberRef = components['schemas']['MemberRef'];
@@ -1500,6 +1553,62 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    getOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The settings. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSettings"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    updateOrganization: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description A single strong validator with the current version, as returned in `ETag`. */
+                "If-Match": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/merge-patch+json": components["schemas"]["OrganizationPatch"];
+            };
+        };
+        responses: {
+            /** @description The updated settings. */
+            200: {
+                headers: {
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            412: components["responses"]["PreconditionFailed"];
+            428: components["responses"]["PreconditionRequired"];
         };
     };
     listTickets: {

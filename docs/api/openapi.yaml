@@ -16,6 +16,8 @@ security:
 tags:
   - name: Session
     description: The authenticated member and their organization.
+  - name: Organization
+    description: Settings of the organization (name, support address, time zone, first-response target).
   - name: Tickets
     description: Inbox, detail, updates, metrics and activity.
   - name: Messages
@@ -44,6 +46,58 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /organization:
+    get:
+      tags: [Organization]
+      operationId: getOrganization
+      summary: Settings of the caller's organization
+      description: Readable by admins and agents; customers get 403.
+      responses:
+        '200':
+          description: The settings.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationSettings' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: [Organization]
+      operationId: updateOrganization
+      summary: Edit the settings of the organization (admin only)
+      description: |
+        JSON Merge Patch semantics: absent fields are unchanged; `supportEmail` accepts `null` (or an empty
+        text) to clear it and no other field does. `timeZone` must be an IANA region id that PostgreSQL also
+        knows, spelled exactly (`America/Bogota`); offsets, aliases such as `UTC+5` and other spellings are a
+        400 on `timeZone`. Requires `If-Match` with the current version; a patch that changes nothing returns
+        200 without a new version. Creating tickets does not change the version. Errors are checked in this
+        order: 401, 403, 428, 400, 412.
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          description: A single strong validator with the current version, as returned in `ETag`.
+          schema: { type: string, pattern: '^"\d+"$', examples: ['"3"'] }
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema: { $ref: '#/components/schemas/OrganizationPatch' }
+      responses:
+        '200':
+          description: The updated settings.
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationSettings' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
 
   /tickets:
     get:
@@ -1021,6 +1075,33 @@ components:
           description: Public support address shown in the knowledge base footer; null when not set.
           type: [string, 'null']
           format: email
+
+    OrganizationSettings:
+      type: object
+      additionalProperties: false
+      required: [id, name, supportEmail, timeZone, firstResponseTargetMinutes, version]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        supportEmail: { type: [string, 'null'], format: email, maxLength: 254 }
+        timeZone: { type: string, examples: [America/Bogota] }
+        firstResponseTargetMinutes:
+          description: Target for the first public reply; the reference of the ticket metrics and the reports.
+          type: integer
+          minimum: 1
+          maximum: 1440
+        version: { type: integer, minimum: 0, description: Same value as the ETag. }
+
+    OrganizationPatch:
+      description: All fields optional. Only `supportEmail` accepts `null`.
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        supportEmail: { type: [string, 'null'], format: email, maxLength: 254 }
+        timeZone: { type: string, examples: [America/Bogota] }
+        firstResponseTargetMinutes: { type: integer, minimum: 1, maximum: 1440 }
 
     Me:
       type: object
