@@ -5,7 +5,9 @@ import { mainNavigation, staff, type NavigationItem } from './navigation'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { PendingPage } from './pages/PendingPage'
 import { IndexRedirect, RequireRole } from './pages/RequireRole'
+import { CustomerDetailPage } from '../features/customers/CustomerDetailPage'
 import { CustomersPage } from '../features/customers/CustomersPage'
+import { NewCustomerDialog } from '../features/customers/NewCustomerDialog'
 import { NewTicketPage } from '../features/tickets/NewTicketPage'
 import { TicketDetailPage } from '../features/tickets/TicketDetailPage'
 import { TicketsPage } from '../features/tickets/TicketsPage'
@@ -53,13 +55,16 @@ const ticketChildren: RouteObject[] = [
 ]
 
 const customerChildren: RouteObject[] = [
-  { index: true, element: <CustomersPage /> },
   {
-    path: 'nuevo',
-    // Hasta T2.4, que abrirá aquí el diálogo de alta, la ruta del botón «Nuevo cliente» muestra la vista pendiente.
-    element: <PendingPage title="Nuevo cliente" icon="clients" />,
-    handle: { crumb: 'Nuevo cliente' } satisfies RouteHandle,
+    // La lista sigue montada bajo el diálogo de alta (`nuevo`), que se pinta en su `Outlet`.
+    element: <CustomersPage />,
+    children: [
+      { index: true },
+      { path: 'nuevo', element: <NewCustomerDialog />, handle: { crumb: 'Nuevo cliente' } satisfies RouteHandle },
+    ],
   },
+  // El `crumb` recibe solo los parámetros de la ruta, no el cliente cargado: el nombre no está disponible aquí.
+  { path: ':id', element: <CustomerDetailPage />, handle: { crumb: 'Detalle del cliente' } satisfies RouteHandle },
 ]
 
 /** Todas las secciones salen de `mainNavigation`; las que aún no tienen vista muestran «Vista en construcción». */
