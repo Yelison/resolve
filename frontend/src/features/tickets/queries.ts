@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, toApiPage, unwrap } from '../../api/client'
 import type { MessageVisibility, Ticket, TicketPriority, TicketStatus, TicketView } from '../../domain/ticket'
+import { reportKeys } from '../reports/queries'
 
 export interface TicketListParams {
   view: TicketView
@@ -22,6 +23,9 @@ export const ticketKeys = {
   lists: () => [...ticketKeys.all, 'list'] as const,
   list: (params: TicketListParams) => [...ticketKeys.lists(), params] as const,
   metrics: () => [...ticketKeys.all, 'metrics'] as const,
+  /** Actividad reciente de toda la organización (no la de un ticket: esa es `activity(number)`). */
+  feed: () => [...ticketKeys.all, 'feed'] as const,
+  recent: (size: number) => [...ticketKeys.feed(), size] as const,
   detail: (number: number) => [...ticketKeys.all, 'detail', number] as const,
   messages: (number: number) => [...ticketKeys.detail(number), 'messages'] as const,
   activity: (number: number) => [...ticketKeys.detail(number), 'activity'] as const,
@@ -95,6 +99,20 @@ export function useTicketActivity(number: number, enabled = true) {
   })
 }
 
+/** Últimos `size` eventos de actividad de la organización, del más reciente al más antiguo. Solo personal. */
+export function useRecentActivity(size: number) {
+  return useQuery({
+    queryKey: ticketKeys.recent(size),
+    queryFn: ({ signal }) => unwrap(api.GET('/tickets/activity', { params: { query: { size } }, signal })),
+  })
+}
+
+/** Lo que cambia un ticket (alta, estado, prioridad, responsable) y se refleja en el resumen y en el informe. */
+export function invalidateOverview(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ticketKeys.feed() })
+  void queryClient.invalidateQueries({ queryKey: reportKeys.all })
+}
+
 export interface TicketChanges {
   status?: TicketStatus
   priority?: TicketPriority
@@ -136,6 +154,7 @@ export function useUpdateTicket(number: number) {
       void queryClient.invalidateQueries({ queryKey: ticketKeys.activity(number) })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
+      invalidateOverview(queryClient)
     },
     onError: () => {
       void queryClient.invalidateQueries({ queryKey: ticketKeys.detail(number), exact: true })
@@ -159,6 +178,8 @@ export function useAddMessage(number: number) {
       void queryClient.invalidateQueries({ queryKey: ticketKeys.detail(number) })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
+      // La primera respuesta entra en el informe; no añade eventos al historial, así que el feed no cambia.
+      void queryClient.invalidateQueries({ queryKey: reportKeys.all })
     },
   })
 }
@@ -179,6 +200,7 @@ export function useCreateTicket() {
       queryClient.setQueryData(ticketKeys.detail(ticket.number), ticket)
       void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
+      invalidateOverview(queryClient)
     },
   })
 }
@@ -210,6 +232,7 @@ export function useQuickTicketUpdate() {
       void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.activity(ticket.number) })
+      invalidateOverview(queryClient)
     },
   })
 }

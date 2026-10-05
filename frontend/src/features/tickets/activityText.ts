@@ -18,12 +18,21 @@ export function activityTitle(activity: Activity): string {
   }
 }
 
-export function toTimelineEvent(activity: Activity, now?: Date, timeZone?: string): TimelineEvent {
+/**
+ * Evento de la línea de tiempo. Con `ticket` (actividad de toda la organización) el título añade el número y el
+ * asunto, porque el evento ya no se lee dentro de un ticket concreto.
+ */
+export function toTimelineEvent(
+  activity: Activity,
+  now?: Date,
+  timeZone?: string,
+  ticket?: { number: number; subject: string },
+): TimelineEvent {
   const at = new Date(activity.createdAt)
   return {
     id: activity.id,
     kind: activity.type === 'assignee_changed' ? 'assignment' : activity.type === 'created' ? 'comment' : 'status',
-    title: activityTitle(activity),
+    title: ticket ? `${activityTitle(activity)} · #${ticket.number} ${ticket.subject}` : activityTitle(activity),
     at,
     timeLabel: formatDateTime(at, now, timeZone),
   }
