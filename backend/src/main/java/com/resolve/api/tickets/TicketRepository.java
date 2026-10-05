@@ -33,9 +33,12 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 	Optional<Ticket> findForCustomer(UUID organizationId, UUID customerId, long number);
 
 	/**
-	 * Como {@link #findInOrganization} pero con {@code SELECT … FOR UPDATE}: la fila queda bloqueada hasta el final de
-	 * la transacción. Sin {@code join fetch}: PostgreSQL no admite {@code FOR UPDATE} sobre el lado nullable de un
-	 * outer join; cliente y responsable se cargan después, de forma perezosa, dentro de la transacción.
+	 * Como {@link #findInOrganization} pero con {@code PESSIMISTIC_WRITE}, que Hibernate emite en PostgreSQL como
+	 * {@code SELECT … FOR NO KEY UPDATE}: la fila queda bloqueada hasta el final de la transacción. Choca con otro
+	 * bloqueo igual y con el {@code UPDATE} de {@link #touchPublicActivity}, pero no con el {@code FOR KEY SHARE} del
+	 * {@code INSERT} de un mensaje: una nota interna no espera al PATCH y una respuesta pública solo espera en el
+	 * {@code UPDATE}. Sin {@code join fetch}: PostgreSQL no admite bloqueo de filas sobre el lado nullable de un outer
+	 * join; cliente y responsable se cargan después, de forma perezosa, dentro de la transacción.
 	 */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("""
