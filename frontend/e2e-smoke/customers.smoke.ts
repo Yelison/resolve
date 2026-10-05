@@ -5,7 +5,7 @@ import { demoUsers, loginAs } from './fixtures'
  * Contra el backend real: crear un cliente y usarlo enseguida en un ticket nuevo. Nombre y correo llevan la marca de
  * tiempo, así que la prueba no depende de lo que dejaron otras ejecuciones.
  */
-test('un agente crea un cliente y lo usa en un ticket nuevo', async ({ page }) => {
+test('un administrador crea un cliente y lo usa en un ticket nuevo', async ({ page }) => {
   test.setTimeout(60_000)
   const stamp = Date.now()
   const name = `Cliente Smoke ${stamp}`
