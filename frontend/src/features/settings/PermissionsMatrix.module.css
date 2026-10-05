@@ -1,0 +1,193 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.heading {
+  font: var(--font-section);
+  color: var(--color-ink);
+}
+
+.description {
+  font: var(--font-body);
+  color: var(--color-muted);
+}
+
+.panel {
+  container: permissions / inline-size;
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.table {
+  display: block;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table tbody,
+.table tr {
+  display: block;
+}
+
+.head {
+  display: none;
+}
+
+.sectionRow {
+  background: var(--color-bg);
+}
+
+.section {
+  display: block;
+  padding: var(--space-12) var(--space-16);
+  font: var(--font-label);
+  color: var(--color-muted);
+  text-align: start;
+  text-transform: uppercase;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-12) var(--space-16);
+  border-top: 1px solid var(--color-line);
+}
+
+.capability {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-weight: inherit;
+  text-align: start;
+}
+
+.label {
+  display: block;
+  font: var(--font-strong);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  display: block;
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  font: var(--font-body);
+  color: var(--color-ink);
+}
+
+.role {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  text-align: end;
+}
+
+.cell[data-access='allowed'] .value {
+  color: var(--color-green-ink);
+}
+
+.cell[data-access='no'] .value {
+  color: var(--color-muted);
+}
+
+.caption {
+  padding: var(--space-12) var(--space-16);
+  border-top: 1px solid var(--color-line);
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+/* Tabla completa: la capacidad y una columna por rol. */
+@container permissions (min-width: 640px) {
+  .table {
+    display: table;
+  }
+
+  .table tbody {
+    display: table-row-group;
+  }
+
+  .table tr {
+    display: table-row;
+  }
+
+  .head {
+    display: table-header-group;
+  }
+
+  .head th {
+    padding: var(--space-12) var(--space-16);
+    font: var(--font-label);
+    color: var(--color-muted);
+    text-align: start;
+    text-transform: uppercase;
+    background: var(--color-bg);
+  }
+
+  .head th:first-child {
+    border-start-start-radius: var(--radius-panel);
+  }
+
+  .head th:last-child {
+    border-start-end-radius: var(--radius-panel);
+  }
+
+  .sectionRow {
+    background: transparent;
+  }
+
+  .section {
+    display: table-cell;
+    border-top: 1px solid var(--color-line);
+    background: var(--color-bg);
+  }
+
+  .row {
+    padding: 0;
+  }
+
+  .row > th,
+  .row > td {
+    display: table-cell;
+    padding: var(--space-12) var(--space-16);
+    border-top: 1px solid var(--color-line);
+    vertical-align: middle;
+  }
+
+  .capability {
+    width: 44%;
+  }
+
+  .cell {
+    width: 18.6%;
+  }
+
+  .role {
+    display: none;
+  }
+}
