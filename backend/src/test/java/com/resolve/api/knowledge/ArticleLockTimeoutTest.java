@@ -21,7 +21,7 @@ class ArticleLockTimeoutTest extends KnowledgeFixture {
 	private DataSource dataSource;
 
 	@Test
-	void editAndPublishAnswer503WhileTheRowIsHeld() throws Exception {
+	void editPublishAndUnpublishAnswer503WhileTheRowIsHeld() throws Exception {
 		try (RowLock lock = RowLock.hold(this.dataSource,
 				"select id from articles where organization_id = ? and slug = ? for no key update", this.acme,
 				RECOVER)) {
@@ -33,6 +33,10 @@ class ArticleLockTimeoutTest extends KnowledgeFixture {
 			MvcResult publish = assertTimeoutPreemptively(LIMIT, () -> publish(LAURA, RECOVER));
 			assertThat(publish.getResponse().getStatus()).isEqualTo(503);
 			matchesContract("publishArticle").match(publish);
+			MvcResult unpublish = assertTimeoutPreemptively(LIMIT, () -> unpublish(LAURA, RECOVER));
+			assertThat(unpublish.getResponse().getStatus()).isEqualTo(503);
+			assertThat(unpublish.getResponse().getHeader("Retry-After")).isEqualTo("1");
+			matchesContract("unpublishArticle").match(unpublish);
 		}
 
 		assertThat(patchArticle(LAURA, RECOVER, "0", "{\"title\": \"Nuevo título\"}").getResponse().getStatus())
