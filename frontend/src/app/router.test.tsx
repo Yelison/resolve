@@ -5,7 +5,7 @@ import { adminMe, customerMe, mockApi } from '../test/api'
 import { renderWithProviders } from '../test/render'
 import { metrics, page } from '../test/ticketFixtures'
 import { mainNavigation } from './navigation'
-import { appRoutes } from './router'
+import { appRoutes, hasFeatureRoutes } from './router'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -57,10 +57,8 @@ describe('rutas de la aplicación', () => {
     },
   )
 
-  // /clientes, /equipo y /reportes ya tienen su vista; se prueban aparte.
-  const pendingSections = staffSections.filter(
-    (item) => item.to !== '/clientes' && item.to !== '/equipo' && item.to !== '/reportes',
-  )
+  // Las secciones con feature registrada se prueban en su carpeta; aquí quedan las que muestran la vista pendiente.
+  const pendingSections = staffSections.filter((item) => !hasFeatureRoutes(item.to))
 
   it.each(pendingSections.flatMap((item) => staffMes.map(([role, me]) => [item.to, item.label, role, me] as const)))(
     'deja al personal abrir %s («%s») como %s',
