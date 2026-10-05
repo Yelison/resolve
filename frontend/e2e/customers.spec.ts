@@ -25,11 +25,144 @@ test.describe('clientes', () => {
     await expect(table.getByText('Archivado')).toBeVisible()
   })
 
-  test('«Nuevo cliente» enlaza a /clientes/nuevo', async ({ page }) => {
+  test('«Nuevo cliente» abre el diálogo sobre la lista y Escape devuelve el foco con los filtros', async ({ page }) => {
+    await page.goto('/clientes?company=Northstar')
+    const link = page.getByRole('link', { name: 'Nuevo cliente' })
+    await link.click()
+    await expect(page).toHaveURL(/\/clientes\/nuevo\?company=Northstar$/)
+    const dialog = page.getByRole('dialog', { name: 'Nuevo cliente' })
+    await expect(dialog).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(/\/clientes\?company=Northstar$/)
+    await expect(link).toBeFocused()
+  })
+
+  test('la lista abre el detalle, se edita el nombre y se ve en la lista y en la bandeja', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/clientes')
+    await page.getByRole('table', { name: 'Clientes' }).getByRole('link', { name: 'María Pérez' }).click()
+    await expect(page).toHaveURL(/\/clientes\/c-maria$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'María Pérez' })).toBeVisible()
+    await expect(page.getByText('9 tickets · 2 abiertos · 7 resueltos')).toBeVisible()
+    // La pestaña de tickets lista solo los de este cliente y enlaza a su detalle.
+    const tickets = page.getByRole('table', { name: 'Tickets de María Pérez' })
+    await expect(tickets.getByRole('link', { name: /No puedo acceder a mi cuenta/ })).toHaveAttribute(
+      'href',
+      '/tickets/1048',
+    )
+
+    await page.getByRole('button', { name: 'Editar' }).click()
+    const name = page.getByRole('textbox', { name: 'Nombre' })
+    await name.fill('María Pérez Ruiz')
+    await page.getByRole('button', { name: 'Guardar cambios' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'María Pérez Ruiz' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Notificaciones' }).getByText('Cambios guardados')).toBeVisible()
+
+    await page.getByRole('link', { name: 'Clientes', exact: true }).first().click()
+    await expect(
+      page.getByRole('table', { name: 'Clientes' }).getByRole('link', { name: 'María Pérez Ruiz' }),
+    ).toBeVisible()
+    await page.getByRole('link', { name: 'Tickets', exact: true }).first().click()
+    await expect(page.getByText('María Pérez Ruiz').first()).toBeVisible()
+  })
+
+  test('crear un cliente lleva a su ficha y un correo duplicado se asocia al campo', async ({ page }) => {
     await page.goto('/clientes')
     await page.getByRole('link', { name: 'Nuevo cliente' }).click()
-    await expect(page).toHaveURL(/\/clientes\/nuevo$/)
+    const dialog = page.getByRole('dialog', { name: 'Nuevo cliente' })
+    await dialog.getByRole('textbox', { name: 'Nombre' }).fill('Duplicado')
+    await dialog.getByRole('textbox', { name: 'Correo' }).fill('maria@cliente.example')
+    await dialog.getByRole('button', { name: 'Crear cliente' }).click()
+    const email = dialog.getByRole('textbox', { name: 'Correo' })
+    await expect(email).toHaveAccessibleDescription(/Ya existe un cliente con ese correo/)
+    await expect(email).toBeFocused()
+
+    await email.fill('nuevo@cliente.example')
+    await dialog.getByRole('button', { name: 'Crear cliente' }).click()
+    await expect(page).toHaveURL(/\/clientes\/c-nuevo-1$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Duplicado' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Notificaciones' }).getByText('Cliente creado')).toBeVisible()
   })
+
+  test('archivar y restaurar desde la ficha', async ({ page }) => {
+    await page.goto('/clientes/c-carlos')
+    await page.getByRole('button', { name: 'Archivar' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Archivar cliente' }).click()
+    await expect(page.getByRole('button', { name: 'Restaurar' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Editar' })).toBeDisabled()
+    await page.getByRole('button', { name: 'Restaurar' }).click()
+    await expect(page.getByRole('button', { name: 'Archivar' })).toBeVisible()
+  })
+
+  test('un cliente inexistente dice que no existe', async ({ page }) => {
+    await page.goto('/clientes/no-existe')
+    await expect(page.getByText('No existe el cliente')).toBeVisible()
+  })
+
+  test('los tickets simulados solo llevan las claves de Customer en su cliente', async ({ page }) => {
+    await page.goto('/clientes')
+    const customers = await page.evaluate(async () => {
+      const response = await fetch('/api/tickets')
+      const body = (await response.json()) as { items: { customer: object }[] }
+      return body.items.map((ticket) => Object.keys(ticket.customer).sort())
+    })
+    expect(customers.length).toBeGreaterThan(0)
+    for (const keys of customers) expect(keys).toEqual(['company', 'email', 'id', 'name'])
+  })
+
+  test('a 1024 px la fila de la tabla llega al borde del panel', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await page.goto('/clientes')
+    const table = page.getByRole('table', { name: 'Clientes' })
+    await expect(table.getByRole('link', { name: 'María Pérez' })).toBeVisible()
+    const panel = (await page.getByRole('region', { name: 'Lista de clientes' }).boundingBox())!
+    const box = (await table.boundingBox())!
+    const row = (await table.getByRole('row').nth(1).boundingBox())!
+    // La fila ocupa todo el ancho de la tabla y esta, todo el panel salvo su borde de 1 px.
+    expect(Math.abs(row.x + row.width - (box.x + box.width))).toBeLessThanOrEqual(1)
+    expect(Math.abs(panel.x + panel.width - 1 - (box.x + box.width))).toBeLessThanOrEqual(1)
+    expect(Math.abs(box.x - (panel.x + 1))).toBeLessThanOrEqual(1)
+  })
+
+  test('en móvil el perfil y las pestañas van apiladas; en escritorio, en paralelo', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/clientes/c-maria')
+    const profile = page.getByRole('complementary', { name: 'Perfil' })
+    const tabs = page.getByRole('tablist', { name: 'Información del cliente' })
+    await expect(profile).toBeVisible()
+    const stacked = { profile: (await profile.boundingBox())!, tabs: (await tabs.boundingBox())! }
+    expect(stacked.tabs.y).toBeGreaterThanOrEqual(stacked.profile.y + stacked.profile.height - 1)
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const side = { profile: (await profile.boundingBox())!, tabs: (await tabs.boundingBox())! }
+    expect(side.tabs.x).toBeGreaterThanOrEqual(side.profile.x + side.profile.width - 1)
+  })
+
+  for (const width of [320, 390]) {
+    test(`el diálogo de alta cabe en el viewport y no desborda · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 640 })
+      await page.goto('/clientes/nuevo')
+      const dialog = page.getByRole('dialog', { name: 'Nuevo cliente' })
+      await expect(dialog).toBeVisible()
+      const box = (await dialog.boundingBox())!
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(width)
+      expect(box.y + box.height).toBeLessThanOrEqual(640)
+      for (const name of ['Cancelar', 'Crear cliente']) {
+        const target = dialog.getByRole('button', { name })
+        // offsetHeight ignora la transformación de la animación de entrada del diálogo.
+        expect(await target.evaluate((node) => (node as HTMLElement).offsetHeight)).toBeGreaterThanOrEqual(44)
+        const button = (await target.boundingBox())!
+        expect(button.x + button.width).toBeLessThanOrEqual(width)
+      }
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow).toBeLessThanOrEqual(0)
+    })
+  }
 
   const layouts = [
     { width: 390, columns: [] as string[], hidden: [] as string[] },
