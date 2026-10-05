@@ -31,6 +31,75 @@ export interface paths {
         patch: operations["updateMe"];
         trace?: never;
     };
+    "/session/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Organizations the caller can work in
+         * @description Organizations where the caller has a usable membership (`invited` or `active`; not `removed`, and not
+         *     a customer record that was archived), by name and then id. The one in use is `Me.organization`.
+         *     Every role can call it.
+         */
+        get: operations["listSessionOrganizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/session/organization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Work in another of the caller's organizations
+         * @description Stores the choice in the server session; later requests resolve the principal in that organization for as
+         *     long as the caller keeps a usable membership there. This is the only place where an organization id
+         *     arrives from the client, and it is never trusted: it is checked against the memberships of the verified
+         *     identity. An organization where the caller has no usable membership answers `403` exactly like one that
+         *     does not exist, so the existence of other organizations is not revealed. An `invited` membership is
+         *     activated by the first request that resolves into it, like at sign-in. A malformed id is a `400`.
+         */
+        post: operations["selectSessionOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End the session
+         * @description Only with the `oidc` profile. Invalidates the server session and answers `204`; it is idempotent, so
+         *     calling it without a session also answers `204`. It needs the CSRF header like every unsafe request
+         *     (`403` without it). It does not end the identity provider's own session.
+         */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/organization": {
         parameters: {
             query?: never;
@@ -707,9 +776,24 @@ export interface components {
         ProfilePatch: {
             name: string;
         };
+        /** @description An organization as listed for the choice of the active one. */
+        OrganizationRef: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
+        SessionOrganizationSelection: {
+            /** Format: uuid */
+            organizationId: string;
+        };
         Me: {
             user: components["schemas"]["Member"];
             organization: components["schemas"]["Organization"];
+            /**
+             * @description Organizations where the caller can work, so a client can offer the switch without another request.
+             *     Optional: it is present in responses of the API and clients may omit it in their own fixtures.
+             */
+            organizations?: components["schemas"]["OrganizationRef"][];
             role: components["schemas"]["Role"];
             /**
              * Format: uuid
@@ -1480,6 +1564,8 @@ export type Organization = components['schemas']['Organization'];
 export type OrganizationSettings = components['schemas']['OrganizationSettings'];
 export type OrganizationPatch = components['schemas']['OrganizationPatch'];
 export type ProfilePatch = components['schemas']['ProfilePatch'];
+export type OrganizationRef = components['schemas']['OrganizationRef'];
+export type SessionOrganizationSelection = components['schemas']['SessionOrganizationSelection'];
 export type Me = components['schemas']['Me'];
 export type Member = components['schemas']['Member'];
 export type MemberRef = components['schemas']['MemberRef'];
@@ -1593,6 +1679,73 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    listSessionOrganizations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The organizations of the caller. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationRef"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    selectSessionOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionOrganizationSelection"];
+            };
+        };
+        responses: {
+            /** @description The caller in the chosen organization. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The session ended. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Forbidden"];
         };
     };
     getOrganization: {

@@ -10,7 +10,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 | Ticket detail: conversation, internal notes, activity | SLA targets and SLA compliance |
 | Create ticket, change status, priority and assignee | Customer notifications by email |
 | Customers: list, search, company filter, profile, create, edit, archive, restore, portal invitation and metrics; assignee list for forms | Deleting tickets and bulk actions |
-| Inbox metrics and view counts | Authentication provider (see below) |
+| Inbox metrics and view counts | Local passwords and self-registration (the identity provider owns them, see [Authentication](#authentication)) |
 | Team: list, invite, change role, remove, team metrics | Invitation emails, agent availability and profiles |
 | Reports: created, resolved, first response, resolution time, by day, channel and agent | Satisfaction and agent availability |
 | Knowledge base: categories, Markdown articles with draft/published and internal/public visibility, search, editing with `If-Match`, publish and unpublish | Article ratings, versions, attachments and full-text search |
@@ -18,7 +18,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 
 ## Organizations, users and roles
 
-- Every request runs in the context of **one organization**, taken from the authenticated principal. The API never accepts an organization id from the client, and every query and mutation is scoped to that organization.
+- Every request runs in the context of **one organization**, taken from the authenticated principal. The API never accepts an organization id from the client, with one exception: `POST /api/session/organization` receives the id of the organization to work in and never trusts it (it is checked against the memberships of the verified identity). Every query and mutation is scoped to that organization.
 - A **user** belongs to an organization through a **membership** with one role:
 
 | Role | Tickets | Messages | Activity, metrics, reports, customers, assignees |
@@ -38,12 +38,19 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 
 ### Authentication
 
-There is no authentication provider yet. The security layer resolves the principal from a pluggable source:
+The security layer resolves the principal from a pluggable source, one per profile:
 
-- Profiles `dev` and `test` enable a **demo principal resolver** (declared in the contract as the optional `X-Demo-User` security scheme): the `X-Demo-User` header selects a seeded user by email; without the header, `dev` falls back to the demo administrator and `test` rejects the request.
-- Any other profile (including the default and production) has no resolver, so every API call returns `401`. A test guards this.
-- A membership has a **status**: `invited` (bound to an email that has not signed in), `active` or `removed`. A `removed` membership does not resolve a principal (`401`); if the same user has another membership that is usable, that one is used. An `invited` membership is **activated on the first request** of that user, in its own transaction, with a conditional `UPDATE` so a removal committed in between is not undone. With several usable memberships the resolver picks the first by id; choosing an organization arrives with real authentication.
-- A `customer` membership whose customer is **archived** does not resolve a principal either: the member gets `401` until an admin restores the customer. If the same user has another membership that is not archived, that one is used.
+- **`oidc` profile: a backend-for-frontend with OpenID Connect.** The browser signs in by navigating to `/api/oauth2/authorization/resolve`; the API runs the authorization code flow with PKCE against the identity provider (Keycloak in local development, any compliant provider by changing three properties: `RESOLVE_OIDC_ISSUER`, `RESOLVE_OIDC_CLIENT_ID`, `RESOLVE_OIDC_CLIENT_SECRET`), keeps the tokens **on the server** and answers with an `HttpOnly`, `SameSite=Lax` session cookie (`Secure` unless `RESOLVE_SESSION_COOKIE_SECURE=false`). The frontend manages no tokens. After signing in the browser returns to `RESOLVE_PUBLIC_URL`; if the provider rejects the sign-in it returns to `RESOLVE_PUBLIC_URL/entrar?error=oidc`.
+  - **Identity.** The email the provider verified is matched, without regard to case, against the memberships. A token whose `email_verified` is not `true` authenticates nobody: otherwise, with another provider, registering someone else's address would activate their invitation. The principal is resolved on **every request** from that email and is never stored in the session, so removing a member or archiving their customer takes effect on their next request even if their session is still alive. A person without memberships gets `401` and no user is created.
+  - **First access.** An `invited` membership is activated by the first authenticated request that resolves into it, and only that one: an invitation to another organization, or another person's, is untouched. The provider's name replaces `users.name` only when the stored name is empty or equals the local part of the email (what an invitation leaves); it never overwrites a name the person chose.
+  - **CSRF.** Requests authenticated by the cookie must prove they come from the application. The API sets a readable `XSRF-TOKEN` cookie (`Path=/`, `SameSite=Lax`) on every response, including `401` ones, and expects its value in the `X-XSRF-TOKEN` header on every `POST`, `PATCH`, `PUT` and `DELETE`; without it the answer is a `403` Problem whose `detail` is "Falta el token CSRF o no es válido." (not the role message). Signing in discards the previous token, so a client reads the cookie again after its first `GET /api/me`. A request without a session but with a valid token gets `401`, not `403`.
+  - **401 is a Problem, never a redirect**, whatever the `Accept` header: the only redirects are the ones of the sign-in flow itself.
+  - **Sign out.** `POST /api/logout` invalidates the server session and answers `204` (idempotent, and it needs the CSRF header). It does not end the provider's own session, so the next sign-in with the same browser can complete without asking for credentials.
+  - **Organization.** A person with usable memberships in several organizations works in the one stored in their session (`POST /api/session/organization`, listed by `GET /api/session/organizations` and by `Me.organizations`), or in the first by id when nothing is stored or the stored one stopped being usable. An organization where the caller has no usable membership answers `403`, exactly like one that does not exist.
+- **`dev` and `test` profiles (without `oidc`): a demo principal resolver** (declared in the contract as the optional `X-Demo-User` security scheme): the `X-Demo-User` header selects a seeded user by email; without the header, `dev` falls back to the demo administrator and `test` rejects the request. There is no session and no CSRF here, so the demo frontend and the full-stack smoke test work as before. The resolver also honours the organization stored in the session by `POST /api/session/organization`.
+- **Any other profile** (the default, `prod`) has no demo resolver, and the demo resolver is also off whenever `oidc` is active, even next to `dev`: `X-Demo-User` does nothing. Without `oidc` every API call returns `401`. Tests guard both cases (`ProdProfileHasNoDemoLoginTest`, `ProdProfileWithOidcHasNoDemoLoginTest`).
+- A membership has a **status**: `invited` (bound to an email that has not signed in), `active` or `removed`. A `removed` membership does not resolve a principal (`401`); if the same user has another membership that is usable, that one is used. An `invited` membership is **activated on the first request** of that user, in its own transaction, with a conditional `UPDATE` so a removal committed in between is not undone. The read, the activation and the name update are successive transactional calls, never nested: a request does not hold a connection of the pool while asking for another (issue #37).
+- A `customer` membership whose customer is **archived** does not resolve a principal either: the member gets `401` until an admin restores the customer. If the same user has another membership that is not archived, that one is used. When the identity exists but has no usable membership left, the `401` `detail` is "Tu acceso a esta organización fue desactivado" (otherwise "Inicia sesión para usar la API.").
 
 ## Identifiers
 
@@ -137,6 +144,9 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | Method and path | Roles | Purpose |
 | --- | --- | --- |
 | `GET /api/me` | all | Current user, organization and role |
+| `GET /api/session/organizations` | all | Organizations where the caller has a usable membership, by name |
+| `POST /api/session/organization` | all | Work in another of those organizations (`{ organizationId }`); `403` for any other, existing or not; answers the new `Me` |
+| `POST /api/logout` | `oidc` profile | End the server session (`204`); needs the CSRF header |
 | `PATCH /api/me` | all | Change your own display name (`name` is the only field); no `If-Match`: a resource with a single owner, last write wins |
 | `GET /api/organization` | admin, agent | Settings of the organization (name, support email, time zone, first-response target) with `ETag` |
 | `PATCH /api/organization` | admin | Edit the settings (`If-Match`); `403` for agents, before anything is read |

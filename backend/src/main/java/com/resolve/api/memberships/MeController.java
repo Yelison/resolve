@@ -1,5 +1,6 @@
 package com.resolve.api.memberships;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.resolve.api.common.security.CurrentMember;
@@ -21,9 +22,12 @@ class MeController {
 
 	private final UserAccountRepository users;
 
-	MeController(OrganizationRepository organizations, UserAccountRepository users) {
+	private final MemberPrincipals principals;
+
+	MeController(OrganizationRepository organizations, UserAccountRepository users, MemberPrincipals principals) {
 		this.organizations = organizations;
 		this.users = users;
+		this.principals = principals;
 	}
 
 	@GetMapping("/me")
@@ -31,7 +35,8 @@ class MeController {
 	MeResponse me(@AuthenticationPrincipal CurrentMember member) {
 		Organization organization = this.organizations.getReferenceById(member.organizationId());
 		return new MeResponse(new MemberDto(member.userId(), member.name(), member.email()),
-				organizationDto(organization), member.role(), member.customerId());
+				organizationDto(organization), this.principals.organizationsOf(member.email()), member.role(),
+				member.customerId());
 	}
 
 	/**
@@ -46,15 +51,18 @@ class MeController {
 		user.rename(name);
 		this.users.flush();
 		Organization organization = this.organizations.getReferenceById(member.organizationId());
-		return new MeResponse(MemberDto.from(user), organizationDto(organization), member.role(), member.customerId());
+		return new MeResponse(MemberDto.from(user), organizationDto(organization),
+				this.principals.organizationsOf(member.email()), member.role(), member.customerId());
 	}
 
-	private static OrganizationDto organizationDto(Organization organization) {
+	static OrganizationDto organizationDto(Organization organization) {
 		return new OrganizationDto(organization.getId(), organization.getName(), organization.getTimeZone(),
 				organization.getSupportEmail());
 	}
 
-	record MeResponse(MemberDto user, OrganizationDto organization, Role role, @Nullable UUID customerId) {
+	/** {@code organizations} lista dónde puede trabajar quien llama; el contrato lo declara opcional. */
+	record MeResponse(MemberDto user, OrganizationDto organization, List<OrganizationRefDto> organizations, Role role,
+			@Nullable UUID customerId) {
 	}
 
 	record OrganizationDto(UUID id, String name, String timeZone, @Nullable String supportEmail) {

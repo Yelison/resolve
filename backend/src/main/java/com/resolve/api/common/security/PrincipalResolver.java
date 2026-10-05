@@ -5,10 +5,16 @@ import java.util.Optional;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * Obtiene el miembro autenticado de una petición. Hoy solo existe la implementación de demostración
- * (perfiles dev y test); sin ninguna, toda llamada a la API responde 401.
+ * Obtiene el miembro autenticado de una petición. Hay una implementación por perfil: la de demostración (dev y test,
+ * nunca con oidc) y la de OpenID Connect (oidc); sin ninguna, toda llamada a la API responde 401.
  */
 public interface PrincipalResolver {
+
+	/**
+	 * Atributo de la petición que un resolvedor activa cuando la identidad existe pero ya no tiene acceso (membresía
+	 * retirada o cliente archivado): el 401 lo dice en su {@code detail}.
+	 */
+	String DEACTIVATED_ATTRIBUTE = PrincipalResolver.class.getName() + ".DEACTIVATED";
 
 	Optional<CurrentMember> resolve(HttpServletRequest request);
 

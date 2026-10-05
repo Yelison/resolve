@@ -11,11 +11,12 @@ info:
 servers:
   - url: /api
 security:
+  - sessionCookie: []
   - demoUser: []
   - {}
 tags:
   - name: Session
-    description: The authenticated member and their organization.
+    description: The authenticated member, their organization, the choice of organization and sign-out.
   - name: Organization
     description: Settings of the organization (name, support address, time zone, first-response target).
   - name: Tickets
@@ -71,6 +72,66 @@ paths:
               schema: { $ref: '#/components/schemas/Me' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /session/organizations:
+    get:
+      tags: [Session]
+      operationId: listSessionOrganizations
+      summary: Organizations the caller can work in
+      description: |
+        Organizations where the caller has a usable membership (`invited` or `active`; not `removed`, and not
+        a customer record that was archived), by name and then id. The one in use is `Me.organization`.
+        Every role can call it.
+      responses:
+        '200':
+          description: The organizations of the caller.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OrganizationRef' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /session/organization:
+    post:
+      tags: [Session]
+      operationId: selectSessionOrganization
+      summary: Work in another of the caller's organizations
+      description: |
+        Stores the choice in the server session; later requests resolve the principal in that organization for as
+        long as the caller keeps a usable membership there. This is the only place where an organization id
+        arrives from the client, and it is never trusted: it is checked against the memberships of the verified
+        identity. An organization where the caller has no usable membership answers `403` exactly like one that
+        does not exist, so the existence of other organizations is not revealed. An `invited` membership is
+        activated by the first request that resolves into it, like at sign-in. A malformed id is a `400`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SessionOrganizationSelection' }
+      responses:
+        '200':
+          description: The caller in the chosen organization.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /logout:
+    post:
+      tags: [Session]
+      operationId: logout
+      summary: End the session
+      description: |
+        Only with the `oidc` profile. Invalidates the server session and answers `204`; it is idempotent, so
+        calling it without a session also answers `204`. It needs the CSRF header like every unsafe request
+        (`403` without it). It does not end the identity provider's own session.
+      responses:
+        '204':
+          description: The session ended.
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /organization:
     get:
@@ -971,13 +1032,24 @@ paths:
 
 components:
   securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+      description: |
+        Only with the `oidc` profile. The browser signs in by navigating to `/api/oauth2/authorization/resolve`
+        (OpenID Connect, authorization code with PKCE); the API keeps the tokens on the server and answers with an
+        `HttpOnly`, `SameSite=Lax` session cookie. Requests authenticated by that cookie must also send the CSRF
+        token: the API sets a readable `XSRF-TOKEN` cookie and expects its value in the `X-XSRF-TOKEN` header on
+        every `POST`, `PATCH`, `PUT` and `DELETE`; without it the answer is `403`. A missing or expired session
+        is a `401` Problem, never a redirect.
     demoUser:
       type: apiKey
       in: header
       name: X-Demo-User
       description: |
-        Only in the `dev` and `test` profiles: email of a seeded user. Other profiles have no
-        authentication provider yet and answer 401.
+        Only in the `dev` and `test` profiles, and never together with `oidc`: email of a seeded user.
+        Any other profile answers 401 to this header.
 
   parameters:
     TicketNumber:
@@ -1135,6 +1207,22 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
 
+    OrganizationRef:
+      description: An organization as listed for the choice of the active one.
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    SessionOrganizationSelection:
+      type: object
+      additionalProperties: false
+      required: [organizationId]
+      properties:
+        organizationId: { type: string, format: uuid }
+
     Me:
       type: object
       additionalProperties: false
@@ -1142,6 +1230,12 @@ components:
       properties:
         user: { $ref: '#/components/schemas/Member' }
         organization: { $ref: '#/components/schemas/Organization' }
+        organizations:
+          description: |
+            Organizations where the caller can work, so a client can offer the switch without another request.
+            Optional: it is present in responses of the API and clients may omit it in their own fixtures.
+          type: array
+          items: { $ref: '#/components/schemas/OrganizationRef' }
         role: { $ref: '#/components/schemas/Role' }
         customerId:
           description: Customer record of a `customer` member; null for admins and agents.
