@@ -1,0 +1,412 @@
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react'
+import { Link, useNavigate, useParams } from 'react-router'
+import { isApiError } from '../../api/client'
+import {
+  Alert,
+  Button,
+  buttonClassName,
+  Editor,
+  EmptyState,
+  Input,
+  Skeleton,
+  Tabs,
+  useToast,
+} from '../../components/ui'
+import type { Article, ArticleCreate, ArticlePatch, ArticleVisibility } from '../../domain/article'
+import { clearDraft, useDraft } from '../../lib/useDraft'
+import { mutationErrorDetail } from '../../lib/mutationError'
+import { PageHeader } from '../../app/pages/PageHeader'
+import pageStyles from '../../app/pages/Page.module.css'
+import { draftKey, parseDraft, serializeDraft, type ArticleDraft } from './articleDraft'
+import { PublishPanel } from './PublishPanel'
+import {
+  useArticle,
+  useCategories,
+  useCreateArticle,
+  usePublishArticle,
+  useUnpublishArticle,
+  useUpdateArticle,
+} from './queries'
+import styles from './ArticleEditorPage.module.css'
+
+/** La vista previa es el único trozo del editor que importa `react-markdown`: no se descarga hasta que se abre. */
+const ArticlePreview = lazy(() => import('./ArticlePreview'))
+
+/**
+ * Editor de artículos para `conocimiento/nuevo` (sin slug) y `conocimiento/:slug/editar`. La guardia de rol la pone la
+ * ruta. Nada de lo que escribes se pierde: se guarda como borrador en este navegador mientras haya cambios sin enviar.
+ */
+export function ArticleEditorPage() {
+  const slug = useParams().slug
+  if (slug === undefined) return <ArticleForm key="nuevo" />
+  return <ExistingArticle key={slug} slug={slug} />
+}
+
+function ExistingArticle({ slug }: { slug: string }) {
+  const article = useArticle(slug)
+  if (article.isPending) {
+    return (
+      <div className={pageStyles.page}>
+        <Skeleton lines={2} label="Cargando artículo…" />
+        <Skeleton lines={6} label="" />
+      </div>
+    )
+  }
+  if (article.isError && !article.data) {
+    const missing = isApiError(article.error, 404)
+    return (
+      <div className={pageStyles.page}>
+        <PageHeader title={missing ? 'Artículo no encontrado' : 'No pudimos cargar el artículo'} />
+        <EmptyState
+          kind={missing ? 'noResults' : 'error'}
+          title={missing ? 'No existe el artículo' : 'Revisa tu conexión'}
+          description={missing ? 'Puede que el enlace sea incorrecto.' : 'Vuelve a intentarlo.'}
+          action={
+            missing ? (
+              <Link to="/conocimiento" className={buttonClassName({ variant: 'secondary' })}>
+                Volver a la base de conocimiento
+              </Link>
+            ) : (
+              <Button variant="secondary" onClick={() => void article.refetch()}>
+                Reintentar
+              </Button>
+            )
+          }
+        />
+      </div>
+    )
+  }
+  return <ArticleForm key={article.data.id} article={article.data} reload={() => article.refetch()} />
+}
+
+interface Fields {
+  title: string
+  body: string
+  categoryId: string
+  visibility: ArticleVisibility
+  allowFeedback: boolean
+}
+
+type FieldName = 'title' | 'body' | 'categoryId'
+type FieldErrors = Partial<Record<FieldName, string>>
+
+const emptyFields: Fields = { title: '', body: '', categoryId: '', visibility: 'public', allowFeedback: true }
+
+const fieldsOf = (article: Article | undefined): Fields =>
+  article
+    ? {
+        title: article.title,
+        body: article.body,
+        categoryId: article.category.id,
+        visibility: article.visibility,
+        allowFeedback: article.allowFeedback,
+      }
+    : emptyFields
+
+function validate(fields: Fields): FieldErrors {
+  const errors: FieldErrors = {}
+  if (!fields.title.trim()) errors.title = 'Escribe un título.'
+  if (!fields.body.trim()) errors.body = 'Escribe el contenido del artículo.'
+  if (!fields.categoryId) errors.categoryId = 'Elige una categoría.'
+  return errors
+}
+
+interface ArticleFormProps {
+  /** Ausente al crear. */
+  article?: Article
+  reload?: () => Promise<unknown>
+}
+
+function ArticleForm({ article, reload }: ArticleFormProps) {
+  const navigate = useNavigate()
+  const toast = useToast()
+  const key = draftKey(article?.slug)
+  const [rawDraft, setRawDraft] = useDraft(key)
+  const server = fieldsOf(article)
+  const version = article?.version ?? 0
+
+  // Un borrador del navegador se aplica si se escribió sobre esta misma versión (una recarga a mitad de edición). Si el
+  // servidor ya va por otra (p. ej. tras un 412 y recargar), se enseña la del servidor y se ofrece restaurar el borrador.
+  const [initial] = useState(() => {
+    const stored = parseDraft(rawDraft)
+    const differs = stored !== null && (stored.title !== server.title || stored.body !== server.body)
+    if (!stored || !differs) return { fields: server, offered: null }
+    if (stored.version === version)
+      return { fields: { ...server, title: stored.title, body: stored.body }, offered: null }
+    return { fields: server, offered: stored }
+  })
+  const [fields, setFields] = useState<Fields>(initial.fields)
+  const [offered, setOffered] = useState<ArticleDraft | null>(initial.offered)
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const [attempt, setAttempt] = useState(0)
+  const [tab, setTab] = useState('edit')
+  const formRef = useRef<HTMLFormElement>(null)
+
+  const categories = useCategories()
+  const create = useCreateArticle()
+  const update = useUpdateArticle(article?.slug ?? '')
+  const publish = usePublishArticle(article?.slug ?? '')
+  const unpublish = useUnpublishArticle(article?.slug ?? '')
+  const saving = create.isPending || update.isPending
+
+  const textDirty = fields.title !== server.title || fields.body !== server.body
+  const settingsDirty =
+    fields.categoryId !== server.categoryId ||
+    fields.visibility !== server.visibility ||
+    fields.allowFeedback !== server.allowFeedback
+  const dirty = textDirty || settingsDirty
+
+  // Mantiene el borrador del navegador mientras haya texto sin guardar. Con un borrador pendiente de restaurar no
+  // escribe: el guardado es el del usuario y no debe pisarse con el texto del servidor.
+  useEffect(() => {
+    if (offered) return
+    setRawDraft(textDirty ? serializeDraft({ title: fields.title, body: fields.body, version }) : '')
+  }, [offered, textDirty, fields.title, fields.body, version, setRawDraft])
+
+  // Tras un intento fallido, el foco va al primer campo con error.
+  useEffect(() => {
+    if (attempt > 0) formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  }, [attempt])
+
+  function change(changes: Partial<Fields>) {
+    setFields((current) => ({ ...current, ...changes }))
+    setErrors((current) => {
+      const next = { ...current }
+      for (const name of Object.keys(changes) as (keyof Fields)[]) delete next[name as FieldName]
+      return next
+    })
+  }
+
+  const serverErrors: FieldErrors = {}
+  for (const error of [create.error, update.error]) {
+    if (!isApiError(error, 400)) continue
+    for (const name of ['title', 'body', 'categoryId'] as const) {
+      serverErrors[name] ??= error.fieldError(name)
+    }
+  }
+  const shown: FieldErrors = { ...serverErrors, ...errors }
+
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    if (saving) return
+    const found = validate(fields)
+    setErrors(found)
+    if (Object.keys(found).length > 0) {
+      setTab('edit')
+      setAttempt((count) => count + 1)
+      return
+    }
+    if (!article) {
+      const body: ArticleCreate = {
+        title: fields.title.trim(),
+        body: fields.body,
+        categoryId: fields.categoryId,
+        visibility: fields.visibility,
+        allowFeedback: fields.allowFeedback,
+      }
+      create.mutate(body, {
+        onSuccess: (created) => {
+          // Se borra el borrador antes de navegar: el siguiente «Nuevo artículo» no debe abrirse con este texto.
+          clearDraft(key)
+          toast.show({ title: 'Borrador creado' })
+          void navigate(`/conocimiento/${created.slug}/editar`, { replace: true })
+        },
+        onError: () => setAttempt((count) => count + 1),
+      })
+      return
+    }
+    const changes: ArticlePatch = {}
+    if (fields.title !== server.title) changes.title = fields.title.trim()
+    if (fields.body !== server.body) changes.body = fields.body
+    if (fields.categoryId !== server.categoryId) changes.categoryId = fields.categoryId
+    if (fields.visibility !== server.visibility) changes.visibility = fields.visibility
+    if (fields.allowFeedback !== server.allowFeedback) changes.allowFeedback = fields.allowFeedback
+    if (Object.keys(changes).length === 0) return
+    const mine: ArticleDraft = { title: fields.title, body: fields.body, version }
+    update.mutate(
+      { version, changes },
+      {
+        onSuccess: (saved) => {
+          setFields(fieldsOf(saved))
+          toast.show({ title: 'Cambios guardados' })
+        },
+        onError: (error) => {
+          if (isApiError(error, 412)) {
+            // Se retiene el texto propio antes de recargar: el servidor manda y el borrador queda para restaurarlo.
+            setOffered(mine)
+            void reload?.()
+          } else setAttempt((count) => count + 1)
+        },
+      },
+    )
+  }
+
+  // Tras un 412 llega una versión nueva: se muestra el texto del servidor y el propio sigue en `offered`. Un cambio de
+  // versión sin borrador pendiente (un guardado o una publicación propios) no toca el formulario.
+  const [seenVersion, setSeenVersion] = useState(version)
+  if (version !== seenVersion) {
+    setSeenVersion(version)
+    if (offered) setFields((current) => ({ ...current, title: server.title, body: server.body }))
+  }
+
+  function restoreDraft() {
+    if (!offered) return
+    change({ title: offered.title, body: offered.body })
+    setOffered(null)
+  }
+
+  function discardDraft() {
+    setOffered(null)
+  }
+
+  const conflict = isApiError(update.error, 412)
+  const slugTaken = isApiError(create.error, 409)
+  const blockedReason = !article
+    ? 'Guarda el borrador para poder publicarlo.'
+    : dirty
+      ? 'Guarda los cambios antes de cambiar el estado.'
+      : null
+
+  function changeState(action: 'publish' | 'unpublish') {
+    const mutation = action === 'publish' ? publish : unpublish
+    if (mutation.isPending) return
+    mutation.mutate(undefined, {
+      onSuccess: () => toast.show({ title: action === 'publish' ? 'Artículo publicado' : 'Artículo despublicado' }),
+      onError: (error) => {
+        if (isApiError(error, 409)) {
+          toast.show({
+            tone: 'error',
+            title: action === 'publish' ? 'El artículo ya estaba publicado' : 'El artículo ya era un borrador',
+          })
+        }
+      },
+    })
+  }
+  const stateError = [publish.error, unpublish.error].find((error) => error && !isApiError(error, 409))
+
+  const bodyErrorId = 'article-body-error'
+  const bodyEmpty = fields.body.trim() === ''
+
+  return (
+    <div className={pageStyles.page}>
+      <PageHeader
+        title={article ? 'Editar artículo' : 'Nuevo artículo'}
+        description="Crea una respuesta útil y mantenla actualizada."
+        actions={
+          article && (
+            <Link to={`/conocimiento/${article.slug}`} className={buttonClassName({ variant: 'secondary' })}>
+              Ver artículo
+            </Link>
+          )
+        }
+      />
+
+      {offered && (
+        <Alert tone="amber" title="Hay un borrador tuyo sin guardar" live={conflict}>
+          <p>
+            {conflict
+              ? 'Alguien guardó este artículo mientras lo editabas. Mostramos su versión y conservamos tu texto en este navegador.'
+              : 'Escribiste cambios en este navegador sobre una versión anterior del artículo. Mostramos la versión guardada.'}
+          </p>
+          <div className={styles.alertActions}>
+            <Button variant="secondary" onClick={restoreDraft}>
+              Restaurar mi borrador
+            </Button>
+            <Button variant="secondary" onClick={discardDraft}>
+              Descartar
+            </Button>
+          </div>
+        </Alert>
+      )}
+      {slugTaken && (
+        <Alert tone="red" title="Ya existe un artículo con ese título" live>
+          Cambia el título para que la dirección del artículo sea distinta.
+        </Alert>
+      )}
+      {(update.error && !conflict && !isApiError(update.error, 400)) ||
+      (create.error && !slugTaken && !isApiError(create.error, 400)) ? (
+        <Alert tone="red" title="No se pudo guardar el artículo" live>
+          {mutationErrorDetail(update.error ?? create.error)}
+        </Alert>
+      ) : null}
+
+      <div className={styles.layout}>
+        <form ref={formRef} className={styles.card} noValidate onSubmit={submit}>
+          <Input
+            id="article-title"
+            label="Título"
+            value={fields.title}
+            error={shown.title}
+            onChange={(event) => change({ title: event.target.value })}
+          />
+
+          <Tabs
+            label="Contenido del artículo"
+            value={tab}
+            onChange={setTab}
+            items={[
+              {
+                id: 'edit',
+                label: 'Escribir',
+                content: (
+                  <div className={styles.bodyField}>
+                    <Editor
+                      variant="article"
+                      label="Contenido"
+                      value={fields.body}
+                      onChange={(body) => change({ body })}
+                      invalid={Boolean(shown.body)}
+                      describedBy={shown.body ? bodyErrorId : undefined}
+                    />
+                    {shown.body && (
+                      <p id={bodyErrorId} className={styles.error} role="alert">
+                        {shown.body}
+                      </p>
+                    )}
+                  </div>
+                ),
+              },
+              {
+                id: 'preview',
+                label: 'Vista previa',
+                content: bodyEmpty ? (
+                  <p className={styles.empty}>Escribe algo en el contenido para ver cómo quedará.</p>
+                ) : (
+                  <Suspense fallback={<Skeleton lines={4} label="Cargando vista previa…" />}>
+                    <ArticlePreview source={fields.body} />
+                  </Suspense>
+                ),
+              },
+            ]}
+          />
+
+          <div className={styles.actions}>
+            <Button type="submit" loading={saving} loadingLabel="Guardando…" disabled={Boolean(article) && !dirty}>
+              {article ? 'Guardar' : 'Guardar borrador'}
+            </Button>
+            {textDirty && <p className={styles.draftNote}>Borrador guardado en este navegador</p>}
+          </div>
+        </form>
+
+        <PublishPanel
+          categories={categories.data}
+          categoriesFailed={categories.isError}
+          categoryId={fields.categoryId}
+          categoryError={shown.categoryId}
+          onCategoryChange={(categoryId) => change({ categoryId })}
+          visibility={fields.visibility}
+          onVisibilityChange={(visibility) => change({ visibility })}
+          allowFeedback={fields.allowFeedback}
+          onAllowFeedbackChange={(allowFeedback) => change({ allowFeedback })}
+          status={article?.status ?? null}
+          blockedReason={blockedReason}
+          publishing={publish.isPending}
+          unpublishing={unpublish.isPending}
+          stateError={stateError ? mutationErrorDetail(stateError) : undefined}
+          onPublish={() => changeState('publish')}
+          onUnpublish={() => changeState('unpublish')}
+        />
+      </div>
+    </div>
+  )
+}

@@ -244,11 +244,25 @@ describe('rutas de la aplicación', () => {
     expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 
-  it('/conocimiento/nuevo muestra la vista pendiente al personal', async () => {
-    mockApi({ 'GET /api/me': { body: adminMe } })
+  it('/conocimiento/nuevo abre el editor al personal', async () => {
+    mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/knowledge/categories': { body: [] },
+    })
     renderApp('/conocimiento/nuevo')
     expect(await screen.findByRole('heading', { level: 1, name: 'Nuevo artículo' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'Título' })).toBeInTheDocument()
+  })
+
+  it('/conocimiento/:slug/editar abre el editor al personal con el artículo cargado', async () => {
+    mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/knowledge/categories': { body: [] },
+      'GET /api/knowledge/articles/como-recuperar-el-acceso-a-tu-cuenta': { body: article() },
+    })
+    renderApp('/conocimiento/como-recuperar-el-acceso-a-tu-cuenta/editar')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Editar artículo' })).toBeInTheDocument()
+    expect(await screen.findByRole('textbox', { name: 'Título' })).toHaveValue('Cómo recuperar el acceso a tu cuenta')
   })
 
   it.each(staffMes)('deja al personal abrir los reportes como %s', async (_role, me) => {

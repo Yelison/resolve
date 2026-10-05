@@ -93,50 +93,48 @@ const customerChildren: RouteObject[] = [
 
 /**
  * Las vistas de conocimiento se cargan bajo demanda: así `react-markdown` queda fuera del paquete principal. `nuevo` y
- * `editar` son estáticos y el servidor reserva esos slugs, de modo que no pueden chocar con un artículo. Mientras el
- * editor no exista, ambos muestran la vista pendiente.
+ * `editar` son estáticos y el servidor reserva esos slugs, de modo que no pueden chocar con un artículo. La guardia de
+ * personal envuelve al editor sin cargarlo: un cliente no descarga su paquete.
  */
-const knowledgeChildren = (item: NavigationItem): RouteObject[] => [
-  lazyRoute(async () => ({ Component: (await import('../features/knowledge/KnowledgePage')).KnowledgePage }), {
-    index: true,
-  }),
-  {
-    path: 'nuevo',
+const knowledgeChildren = (): RouteObject[] => {
+  const editor = (title: string, crumb: string) => ({
     element: (
       <RequireRole
         roles={staff}
-        title="Nuevo artículo"
+        title={title}
         description="Solo los agentes y administradores pueden escribir artículos."
       >
-        <PendingPage title="Nuevo artículo" icon={item.icon} />
+        <Outlet />
       </RequireRole>
     ),
-    handle: { crumb: 'Nuevo artículo' } satisfies RouteHandle,
-  },
-  {
-    path: ':slug',
-    // El `crumb` recibe solo los parámetros de la ruta, no el artículo cargado: el título no está disponible aquí.
-    handle: { crumb: 'Artículo' } satisfies RouteHandle,
+    handle: { crumb } satisfies RouteHandle,
     children: [
-      lazyRoute(async () => ({ Component: (await import('../features/knowledge/ArticlePage')).ArticlePage }), {
-        index: true,
-      }),
-      {
-        path: 'editar',
-        element: (
-          <RequireRole
-            roles={staff}
-            title="Editar artículo"
-            description="Solo los agentes y administradores pueden editar artículos."
-          >
-            <PendingPage title="Editar artículo" icon={item.icon} />
-          </RequireRole>
-        ),
-        handle: { crumb: 'Editar' } satisfies RouteHandle,
-      },
+      lazyRoute(
+        async () => ({ Component: (await import('../features/knowledge/ArticleEditorPage')).ArticleEditorPage }),
+        {
+          index: true,
+        },
+      ),
     ],
-  },
-]
+  })
+  return [
+    lazyRoute(async () => ({ Component: (await import('../features/knowledge/KnowledgePage')).KnowledgePage }), {
+      index: true,
+    }),
+    { path: 'nuevo', ...editor('Nuevo artículo', 'Nuevo artículo') },
+    {
+      path: ':slug',
+      // El `crumb` recibe solo los parámetros de la ruta, no el artículo cargado: el título no está disponible aquí.
+      handle: { crumb: 'Artículo' } satisfies RouteHandle,
+      children: [
+        lazyRoute(async () => ({ Component: (await import('../features/knowledge/ArticlePage')).ArticlePage }), {
+          index: true,
+        }),
+        { path: 'editar', ...editor('Editar artículo', 'Editar') },
+      ],
+    },
+  ]
+}
 
 /**
  * `/configuracion/permisos` es el destino del aviso «Permisos por rol» de Equipo. La página aún no existe: muestra la
@@ -162,7 +160,7 @@ const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
         : item.to === '/equipo'
           ? sectionRoute(item, { element: <TeamPage /> })
           : item.to === '/conocimiento'
-            ? sectionRoute(item, { children: knowledgeChildren(item) })
+            ? sectionRoute(item, { children: knowledgeChildren() })
             : item.to === '/reportes'
               ? sectionRoute(item, { element: <ReportsPage /> })
               : item.to === '/configuracion'
