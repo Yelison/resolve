@@ -6,6 +6,7 @@ import { Alert, Button, EmptyState, Skeleton } from '../../components/ui'
 import { DemoUserPicker } from './DemoUserPicker'
 import { useMe } from './queries'
 import styles from './session.module.css'
+import { subscribeSessionMessages } from './sessionChannel'
 import { LOGIN_PATH, navigation } from './sessionLifecycle'
 
 /**
@@ -23,6 +24,9 @@ export function LoginPage() {
   useEffect(() => {
     document.title = 'Entrar · Resolve'
   }, [])
+  // Otra pestaña acaba de entrar: aquí se vuelve a comprobar la sesión (con ella, esta pantalla redirige al resumen).
+  const { refetch } = me
+  useEffect(() => subscribeSessionMessages((type) => type === 'signed-in' && void refetch()), [refetch])
   useEffect(() => {
     if (unauthenticated) heading.current?.focus({ preventScroll: true })
   }, [unauthenticated])

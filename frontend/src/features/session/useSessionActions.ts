@@ -4,6 +4,7 @@ import { api, isApiError, unwrap } from '../../api/client'
 import type { Me } from '../../api/schema'
 import { useToast } from '../../components/ui'
 import { refreshSessionOnForbidden, sessionKeys } from './queries'
+import { postSessionMessage } from './sessionChannel'
 import { clearSessionData, navigation, sessionState } from './sessionLifecycle'
 
 /**
@@ -33,6 +34,8 @@ export function useSessionActions() {
     },
     onSuccess: async ({ logoutUrl }) => {
       await clearSessionData(queryClient)
+      // Las demás pestañas comparten la sesión: se les avisa justo antes de salir hacia el proveedor.
+      postSessionMessage('logout')
       navigation.assign(logoutUrl)
     },
     onError: () => {
@@ -54,6 +57,7 @@ export function useSessionActions() {
     onSuccess: async (me: Me) => {
       await clearSessionData(queryClient)
       queryClient.setQueryData(sessionKeys.me, me)
+      postSessionMessage('organization-changed')
       void navigate('/', { replace: true })
       toast.show({ title: `Ahora trabajas en ${me.organization.name}` })
     },

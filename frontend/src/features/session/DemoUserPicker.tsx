@@ -5,6 +5,7 @@ import { DEMO_USER_STORAGE_KEY, setDemoUser } from '../../api/client'
 import { Button, Select } from '../../components/ui'
 import { demoUsers } from './demoUsers'
 import styles from './session.module.css'
+import { postSessionMessage } from './sessionChannel'
 import { clearSessionData, focusContentWhenReady } from './sessionLifecycle'
 
 function storedDemoUser() {
@@ -43,6 +44,7 @@ export function DemoUserPicker({ onSwitched, submitLabel = 'Usar este usuario' }
       // Los datos del usuario anterior se descartan antes de cambiar la cabecera, y se vuelve al resumen.
       await clearSessionData(queryClient)
       setDemoUser(email)
+      postSessionMessage('signed-in')
       void navigate('/', { replace: true })
       // Desde el diálogo del menú, `Modal` devuelve el foco al botón de la cuenta; desde /entrar el selector desaparece.
       if (onSwitched) onSwitched()
