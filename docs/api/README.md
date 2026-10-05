@@ -9,11 +9,12 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 | Ticket inbox with views, filters, search, sorting and pagination | Tags, attachments and file storage |
 | Ticket detail: conversation, internal notes, activity | SLA targets and SLA compliance |
 | Create ticket, change status, priority and assignee | Customer notifications by email |
-| Customers: list, search, profile, create, edit, archive, restore and portal invitation; assignee list for forms | Deleting tickets and bulk actions |
+| Customers: list, search, company filter, profile, create, edit, archive, restore, portal invitation and metrics; assignee list for forms | Deleting tickets and bulk actions |
 | Inbox metrics and view counts | Authentication provider (see below) |
 | Team: list, invite, change role, remove, team metrics | Invitation emails, agent availability and profiles |
 | Reports: created, resolved, first response, resolution time, by day, channel and agent | Satisfaction and agent availability |
 | Knowledge base: categories, Markdown articles with draft/published and internal/public visibility, search, editing with `If-Match`, publish and unpublish | Article ratings, versions, attachments and full-text search |
+| Recent activity feed: the latest entries of every ticket's log, newest first | Editing roles and permissions (roles are fixed; the server decides) |
 
 ## Organizations, users and roles
 
