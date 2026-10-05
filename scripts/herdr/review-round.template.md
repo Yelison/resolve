@@ -26,14 +26,20 @@ Commands to run in your worktree:
 {{COMMANDS}}
 ```
 
-The machine is shared by three or four agents: run Vitest with `npm test -- --maxWorkers=3` and Playwright with
-`--workers=3`. If a test times out under load, rerun it alone before drawing conclusions.
+The machine (12 cores) is shared by three or four agents; without limits the load reaches 30:
+
+- Run Vitest with `npm test -- --maxWorkers=3` and Playwright always with `--workers=3`.
+- Do not run the whole Playwright suite on the base commit (`main` is green in CI); run the specs of the feature while
+  you iterate and the whole suite once, at the reviewed commit, only if the change reaches shared UI.
+- If a test times out or fails only under load, rerun it alone before drawing conclusions, and say so in the report.
 {{EXTRA_POINTS}}
 
 ## Delivery
 
 Write `{{REVIEW_FILE}}` in the same format as the previous report (verdict, acceptance table, findings by severity
 with file, line, failing scenario and suggested fix, doubts, commands and results, effort level), covering this round.
+**When every finding is low** (or you have none), also write `{{FIXES_PROPOSAL}}` exactly as your first brief
+describes (one numbered decision per finding, in Spanish, in the format of the coordinator's `fixes-N.md`).
 Do not edit tracked files (restore anything you reverted and leave `git status --short` empty), no commits, no push, no
 branch switches, never run `/effort` with a level.
 
