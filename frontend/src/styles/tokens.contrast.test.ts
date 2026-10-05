@@ -38,14 +38,7 @@ interface Pair {
 }
 
 const PAIRS: readonly Pair[] = [
-  ...(['ink', 'muted'] as const).flatMap((text) =>
-    GENERAL_BACKGROUNDS.map((background): Pair => {
-      const failsToday = text === 'muted' && background !== 'surface'
-      return failsToday
-        ? { text, background, pending: { light: '#14: muted #6a778d no llega a 4,5:1' } }
-        : { text, background }
-    }),
-  ),
+  ...(['ink', 'muted'] as const).flatMap((text) => GENERAL_BACKGROUNDS.map((background) => ({ text, background }))),
   ...(['blue-ink', 'green-ink', 'amber-ink', 'red-ink'] as const).flatMap((text) =>
     (['bg', 'surface', 'surface-hover'] as const).map((background) => ({ text, background })),
   ),

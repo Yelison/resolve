@@ -33,7 +33,7 @@
   --color-bg: #f5f7fb; /* light/bg */
   --color-surface: #ffffff; /* light/surface */
   --color-ink: #17243d; /* light/ink */
-  --color-muted: #6a778d; /* light/muted */
+  --color-muted: #616d81; /* light/muted — ajustado a AA, pendiente de sincronizar en Figma (#14) */
   --color-line: #e4e9f1; /* light/line */
   --color-nav: #111e35; /* light/nav */
   --color-nav-active: #263b5d; /* light/navActive */
