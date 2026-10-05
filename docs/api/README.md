@@ -62,7 +62,7 @@ There is no authentication provider yet. The security layer resolves the princip
 
 ### References to other records
 
-`customerId` and `assigneeId` in requests must belong to the caller's organization, and the assignee must be an admin or agent. Unknown and foreign ids get the **same** `400` field error, so the API never reveals data of other organizations.
+`customerId` and `assigneeId` in request **bodies** must belong to the caller's organization, and the assignee must be an admin or agent. Unknown and foreign ids get the **same** `400` field error, so the API never reveals data of other organizations. List filters never fail on foreign or unknown ids: they return an empty page (see [Ticket list filters](#ticket-list-filters)).
 
 ## Pagination and sorting
 
