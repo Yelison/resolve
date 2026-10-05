@@ -8,6 +8,15 @@ removed() { [ "$(jq -r .removed_at "$T/root/tasks/$1/task.json")" != null ]; }
 echo "== clean task"
 new left-a; out=$("$HERDR/remove-task.sh" --id left-a 2>&1); check "clean: rc 0" test $? -eq 0; check "clean: retired" removed left-a
 
+echo "== T2: a dirty worktree is refused before any docker compose down"
+new left-w; echo "# local edit" >>"$T/root/worktrees/left-w/.gitignore"; rm -f "$T/state/docker.log"; echo resolve-left-w >"$T/state/compose-projects"
+out=$("$HERDR/remove-task.sh" --id left-w --volumes 2>&1); rc=$?
+check "dirty: refused" test $rc -ne 0; check "dirty: says uncommitted" says x 'uncommitted'
+check "dirty: no docker down" bash -c "! grep -q 'down' '$T/state/docker.log' 2>/dev/null"
+check "dirty: the worktree stays" test -d "$T/root/worktrees/left-w"; check "dirty: not retired" bash -c "[ \"\$(jq -r .removed_at '$T/root/tasks/left-w/task.json')\" = null ]"
+git -C "$T/root/worktrees/left-w" checkout -q -- .gitignore; rm -f "$T/state/compose-projects"
+out=$("$HERDR/remove-task.sh" --id left-w --volumes 2>&1); check "dirty fixed: retired" removed left-w
+
 echo "== a process listening on the slot's port"
 new left-b; mkdir -p "$T/srv"
 (cd "$T/srv" && exec python3 -m http.server "$PORT" --bind 127.0.0.1 >/dev/null 2>&1) & PID=$!
@@ -18,7 +27,7 @@ check "listener: shows the cwd" says x "cwd $T/srv"; check "listener: nothing re
 kill "$PID"; wait "$PID" 2>/dev/null
 
 echo "== a container of the project"
-echo "abc123 resolve-left-b-postgres-1 (Exited (0) 2 minutes ago)" >"$T/state/containers"
+rm -f "$T/state/docker.log"; echo "abc123 resolve-left-b-postgres-1 (Exited (0) 2 minutes ago)" >"$T/state/containers"
 out=$("$HERDR/remove-task.sh" --id left-b 2>&1); rc=$?
 check "container: refused" test $rc -ne 0; check "container: listed" says x 'container abc123 resolve-left-b-postgres-1'
 check "container: nothing stopped by the script" bash -c "! grep -q 'down' '$T/state/docker.log'"
