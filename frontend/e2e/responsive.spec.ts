@@ -14,6 +14,9 @@ const routes = [
   '/clientes/nuevo',
   '/equipo',
   '/conocimiento',
+  '/reportes',
+  '/reportes?period=30d',
+  '/reportes?period=90d',
 ] as const
 
 for (const route of routes) {
