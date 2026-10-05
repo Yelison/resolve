@@ -10,6 +10,15 @@
   background: var(--color-surface);
 }
 
+.details {
+  /* Cerrado, el resumen es lo único: el aire bajo él solo existe con la lista visible (margen del nav). */
+  gap: 0;
+}
+
+.details > nav {
+  margin-top: var(--space-12);
+}
+
 .title,
 .summary {
   font: var(--font-section);
