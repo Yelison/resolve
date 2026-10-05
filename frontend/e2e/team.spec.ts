@@ -110,4 +110,17 @@ test.describe('equipo', () => {
     )
     expect(overflow).toBeLessThanOrEqual(0)
   })
+
+  test('un administrador da acceso al portal a un cliente y la insignia cambia', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/clientes/c-carlos')
+    await expect(page.getByText('Sin acceso')).toBeVisible()
+    await page.getByRole('button', { name: 'Dar acceso al portal' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Dar acceso al portal' })
+    await dialog.getByRole('button', { name: 'Dar acceso' }).click()
+    await expect(page.getByText('Invitación creada')).toBeVisible()
+    await expect(dialog).toBeHidden()
+    await expect(page.getByText('Invitación pendiente')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Dar acceso al portal' })).toHaveCount(0)
+  })
 })

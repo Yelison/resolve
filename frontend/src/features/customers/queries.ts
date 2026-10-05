@@ -180,3 +180,20 @@ export function useArchiveCustomer(id: string) {
 export function useRestoreCustomer(id: string) {
   return useCustomerStateChange(id, () => unwrap(api.POST('/customers/{id}/restore', { params: { path: { id } } })))
 }
+
+/**
+ * Invita al cliente al portal (admin). La respuesta es el miembro invitado, no el cliente: `portalAccess` se lee de
+ * nuevo del servidor en lugar de parchearse a mano. Un 409 (ya tiene acceso, está archivado, su correo es de un
+ * miembro del equipo) también relee el detalle, que puede haber cambiado desde que se abrió.
+ */
+export function useInviteCustomer(id: string) {
+  const queryClient = useQueryClient()
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: customerKeys.detail(id), exact: true })
+  }
+  return useMutation({
+    mutationFn: () => unwrap(api.POST('/customers/{id}/invite', { params: { path: { id } } })),
+    onSuccess: refresh,
+    onError: refresh,
+  })
+}

@@ -24,7 +24,7 @@ import { customerSince } from './customerSince'
 import { ticketContext } from './ticketContext'
 import { CustomerFormDialog } from './CustomerFormDialog'
 import { CustomerTickets } from './CustomerTickets'
-import { useArchiveCustomer, useCustomer, useRestoreCustomer, useUpdateCustomer } from './queries'
+import { useArchiveCustomer, useCustomer, useInviteCustomer, useRestoreCustomer, useUpdateCustomer } from './queries'
 import styles from './CustomerDetailPage.module.css'
 
 const MAX_NOTES = 2000
@@ -83,16 +83,33 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
   const toast = useToast()
   const [editing, setEditing] = useState(false)
   const [confirmingArchive, setConfirmingArchive] = useState(false)
+  const [invitingToPortal, setInvitingToPortal] = useState(false)
   // El borrador de notas vive aquí: la pestaña desmonta su contenido al cambiar y no debe perder lo escrito.
   const [notesDraft, setNotesDraft] = useState<string | null>(null)
   const archive = useArchiveCustomer(customer.id)
   const restore = useRestoreCustomer(customer.id)
+  const invite = useInviteCustomer(customer.id)
   const access = portalAccessLabels[customer.portalAccess]
   // Un cliente archivado tiene el acceso suspendido, diga lo que diga `portalAccess` (ver el contrato).
   const portal = customer.archived ? { label: 'Acceso suspendido', tone: 'neutral' as BadgeTone } : access
   const subtitle = ['Cliente', customer.company, `cliente desde ${customerSince(customer.createdAt, timeZone)}`]
     .filter(Boolean)
     .join(' · ')
+
+  function closePortalInvite() {
+    setInvitingToPortal(false)
+    invite.reset()
+  }
+
+  function inviteToPortal() {
+    if (invite.isPending) return
+    invite.mutate(undefined, {
+      onSuccess: () => {
+        closePortalInvite()
+        toast.show({ title: 'Invitación creada', description: `${customer.email} podrá entrar al portal.` })
+      },
+    })
+  }
 
   function restoreCustomer() {
     restore.mutate(undefined, {
@@ -133,6 +150,11 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
             <Button variant="secondary" disabled={customer.archived} onClick={() => setEditing(true)}>
               Editar cliente
             </Button>
+            {isAdmin && !customer.archived && customer.portalAccess === 'none' && (
+              <Button variant="secondary" onClick={() => setInvitingToPortal(true)}>
+                Dar acceso al portal
+              </Button>
+            )}
             {isAdmin &&
               (customer.archived ? (
                 <Button loading={restore.isPending} loadingLabel="Restaurando…" onClick={restoreCustomer}>
@@ -200,6 +222,30 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
       </div>
 
       <CustomerFormDialog mode="edit" customer={customer} open={editing} onClose={() => setEditing(false)} />
+      <Modal
+        open={invitingToPortal}
+        onClose={closePortalInvite}
+        title="Dar acceso al portal"
+        description={`${customer.name} entrará al portal con ${customer.email}; todavía no enviamos correos de invitación.`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={closePortalInvite}>
+              Cancelar
+            </Button>
+            <Button loading={invite.isPending} loadingLabel="Invitando…" onClick={inviteToPortal}>
+              Dar acceso
+            </Button>
+          </>
+        }
+      >
+        {invite.error && (
+          <Alert tone="red" title="No se pudo dar acceso al portal" live>
+            {isApiError(invite.error, 409) || isApiError(invite.error, 400) || isApiError(invite.error, 404)
+              ? (invite.error.problem.detail ?? invite.error.problem.title)
+              : 'Revisa tu conexión e inténtalo de nuevo.'}
+          </Alert>
+        )}
+      </Modal>
       <Modal
         open={confirmingArchive}
         onClose={() => setConfirmingArchive(false)}

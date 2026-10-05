@@ -385,4 +385,79 @@ describe('CustomerDetailPage', () => {
       for (const key of seeded) expect(queryClient.getQueryState(key)?.isInvalidated, JSON.stringify(key)).toBe(true)
     })
   })
+  describe('dar acceso al portal', () => {
+    const none = () => customerDetail({ portalAccess: 'none' })
+
+    it('un administrador ve el botón solo si el cliente no tiene acceso', async () => {
+      api({ 'GET /api/customers/c-maria': { body: none() } })
+      renderDetail()
+      expect(await screen.findByRole('button', { name: 'Dar acceso al portal' })).toBeInTheDocument()
+    })
+
+    it.each([
+      ['con la invitación pendiente', customerDetail({ portalAccess: 'invited' })],
+      ['con el acceso activo', customerDetail({ portalAccess: 'active' })],
+      ['archivado', customerDetail({ portalAccess: 'none', archived: true, archivedAt: '2026-10-05T10:00:00Z' })],
+    ])('no lo ofrece %s', async (_case, customer) => {
+      api({ 'GET /api/customers/c-maria': { body: customer } })
+      renderDetail()
+      await screen.findByRole('heading', { level: 1, name: 'María Pérez' })
+      expect(screen.queryByRole('button', { name: 'Dar acceso al portal' })).not.toBeInTheDocument()
+    })
+
+    it('un agente no lo ve', async () => {
+      api({ 'GET /api/me': { body: agentMe }, 'GET /api/customers/c-maria': { body: none() } })
+      renderDetail()
+      await screen.findByRole('heading', { level: 1, name: 'María Pérez' })
+      expect(screen.queryByRole('button', { name: 'Dar acceso al portal' })).not.toBeInTheDocument()
+    })
+
+    it('pide confirmación, avisa solo tras la respuesta y actualiza la insignia desde el servidor', async () => {
+      let detail = none()
+      const fetchSpy = api({
+        'GET /api/customers/c-maria': () => ({ body: detail }),
+        'POST /api/customers/c-maria/invite': () => {
+          detail = customerDetail({ portalAccess: 'invited', version: 4 })
+          return {
+            status: 201,
+            body: {
+              id: 'u-maria',
+              name: 'María Pérez',
+              email: 'maria@cliente.example',
+              role: 'customer',
+              status: 'invited',
+              openTickets: 0,
+              joinedAt: null,
+              invitedAt: '2026-10-05T10:00:00Z',
+            },
+          }
+        },
+      })
+      renderDetail()
+      await userEvent.click(await screen.findByRole('button', { name: 'Dar acceso al portal' }))
+      const dialog = screen.getByRole('dialog', { name: 'Dar acceso al portal' })
+      expect(dialog).toHaveTextContent('todavía no enviamos correos de invitación')
+      expect(sent(fetchSpy, 'POST')).toBeUndefined()
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Dar acceso' }))
+      expect(await screen.findByText('Invitación creada')).toBeInTheDocument()
+      expect(await screen.findByText('Invitación pendiente')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Dar acceso al portal' })).not.toBeInTheDocument()
+    })
+
+    it('un 409 muestra su detalle en el diálogo, sin avisar de éxito', async () => {
+      api({
+        'GET /api/customers/c-maria': { body: none() },
+        'POST /api/customers/c-maria/invite': {
+          status: 409,
+          body: { status: 409, title: 'Conflicto', detail: 'El correo pertenece a un miembro del equipo.' },
+        },
+      })
+      renderDetail()
+      await userEvent.click(await screen.findByRole('button', { name: 'Dar acceso al portal' }))
+      const dialog = screen.getByRole('dialog', { name: 'Dar acceso al portal' })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Dar acceso' }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('El correo pertenece a un miembro del equipo.')
+      expect(screen.queryByText('Invitación creada')).not.toBeInTheDocument()
+    })
+  })
 })
