@@ -15,6 +15,10 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Autorización por rol a nivel de URL, antes de cualquier lectura o validación: así un cliente recibe 403
  * en una escritura sea cual sea el cuerpo o el número de ticket.
+ *
+ * <p>
+ * La cadena base no tiene sesión ni CSRF (la demostración se autentica con una cabecera en cada petición); el perfil
+ * {@code oidc} las activa con un {@link HttpSecurityCustomizer} sobre las mismas reglas.
  */
 @Configuration(proxyBeanMethods = false)
 class SecurityConfiguration {
@@ -22,8 +26,8 @@ class SecurityConfiguration {
 	private static final String[] STAFF = { "ADMIN", "AGENT" };
 
 	@Bean
-	SecurityFilterChain apiSecurity(HttpSecurity http, ObjectProvider<PrincipalResolver> resolver, JsonMapper jsonMapper)
-			throws Exception {
+	SecurityFilterChain apiSecurity(HttpSecurity http, ObjectProvider<PrincipalResolver> resolver,
+			ObjectProvider<HttpSecurityCustomizer> customizers, JsonMapper jsonMapper) throws Exception {
 		ProblemResponses problems = new ProblemResponses(jsonMapper);
 		http.csrf(AbstractHttpConfigurer::disable)
 			.httpBasic(AbstractHttpConfigurer::disable)
@@ -67,12 +71,22 @@ class SecurityConfiguration {
 				// Cada persona edita su propio nombre, sea cual sea su rol; sin esta regla la final lo limitaría al personal.
 				.requestMatchers(HttpMethod.PATCH, "/me")
 				.authenticated()
+				// Cada persona lista y elige sus organizaciones, sea cual sea su rol: la elección se valida contra sus
+				// membresías, no contra su rol.
+				.requestMatchers(HttpMethod.GET, "/session/organizations")
+				.authenticated()
+				.requestMatchers(HttpMethod.POST, "/session/organization")
+				.authenticated()
 				.requestMatchers(HttpMethod.GET, "/me", "/tickets", "/tickets/{number}", "/tickets/{number}/messages")
 				.authenticated()
 				.anyRequest()
 				.hasAnyRole(STAFF));
 		resolver.ifAvailable((available) -> http.addFilterBefore(new PrincipalResolverFilter(available),
 				AuthorizationFilter.class));
+		// Los perfiles añaden lo suyo (oidc: sesión, CSRF, inicio y cierre de sesión) sobre estas mismas reglas.
+		for (HttpSecurityCustomizer customizer : customizers.orderedStream().toList()) {
+			customizer.customize(http);
+		}
 		return http.build();
 	}
 

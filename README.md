@@ -106,16 +106,23 @@ To try other roles in development, call `setDemoUser` from the browser console, 
 
 ### Sign in locally
 
-`docker compose up -d` also starts a local [Keycloak](https://www.keycloak.org/) (image `quay.io/keycloak/keycloak:26.7.5`, pinned to the last patch of the 26.7 series when this was written; never `latest`) that imports the realm in [`deploy/keycloak/resolve-realm.json`](deploy/keycloak/resolve-realm.json). It is the identity provider the backend will use with the `oidc` profile and it is for local development only.
+`docker compose up -d` also starts a local [Keycloak](https://www.keycloak.org/) (image `quay.io/keycloak/keycloak:26.7.5`, pinned to the last patch of the 26.7 series when this was written; never `latest`) that imports the realm in [`deploy/keycloak/resolve-realm.json`](deploy/keycloak/resolve-realm.json). It is the identity provider of the backend's `oidc` profile and it is for local development only.
 
 ```sh
 docker compose up -d keycloak   # KEYCLOAK_PORT=8182 if 8180 is taken
 curl http://localhost:8180/realms/resolve/.well-known/openid-configuration
+
+# Backend as an OpenID Connect BFF with the demo data (dev) and Keycloak (oidc)
+cd backend
+SPRING_PROFILES_ACTIVE=dev,oidc ./mvnw spring-boot:run   # RESOLVE_OIDC_ISSUER=http://localhost:8182/realms/resolve with another KEYCLOAK_PORT
 ```
+
+Then open `http://localhost:8080/api/oauth2/authorization/resolve` in a browser, sign in as `laura.mendez@acme.example` / `demo` and call `/api/me`. With `oidc` the demo login (`X-Demo-User`) is off even next to `dev`; the session is an `HttpOnly` cookie and every `POST`, `PATCH` and `DELETE` must send the `XSRF-TOKEN` cookie's value in `X-XSRF-TOKEN`. `POST /api/logout` ends the session but not Keycloak's, so the next sign-in with the same browser needs no password. The API contract has the details: [Authentication](docs/api/README.md#authentication).
 
 - **Port.** `KEYCLOAK_PORT` (default `8180`) is the host port; the admin console is at `http://localhost:8180` with `admin` / `admin`.
 - **Demo users.** The realm has `yelisson.ortiz@acme.example` (admin), `laura.mendez@acme.example` (agent), `maria.perez@cliente.example` (customer) and `jordi.puig@northwind.example` (agent of the second organization), all with the password `demo` and a verified email, the same emails as the demo data.
 - **Development values, not secrets.** The `demo` passwords and the client secret of `resolve-api` (`resolve-dev-secret`) only exist in this local realm. Override the secret with `RESOLVE_OIDC_CLIENT_SECRET` before the first start; the realm is imported once, so run `docker compose down --volumes` to import it again after changing the file or the variable.
+- **Backend variables.** `RESOLVE_OIDC_ISSUER` (default `http://localhost:8180/realms/resolve`), `RESOLVE_OIDC_CLIENT_ID` (`resolve-api`), `RESOLVE_OIDC_CLIENT_SECRET`, `RESOLVE_PUBLIC_URL` (where the browser lands after signing in, default `http://localhost:5173`) and `RESOLVE_SESSION_COOKIE_SECURE` (default `true`; browsers treat `localhost` as secure, so it only matters for other hosts over plain HTTP).
 - **Redirect URIs.** Keycloak only accepts a wildcard at the end of a redirect URI, so the client lists the local ports one by one: `8080`-`8089` (API) and `5173`/`4173` (Vite). Another port needs its `http://localhost:<port>/api/login/oauth2/code/resolve` entry in the realm file.
 
 ### Frontend scripts

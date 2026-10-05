@@ -199,10 +199,30 @@ public class TestData {
 		insertMembership(organizationId, userId, role, null, status);
 	}
 
+	/** Membresía de cliente activa de un usuario que ya existe, enlazada a un registro de cliente. */
+	public void customerMembership(UUID organizationId, UUID userId, UUID customerId) {
+		insertMembership(organizationId, userId, "customer", customerId, "active");
+	}
+
 	public UUID membershipId(UUID organizationId, UUID userId) {
 		return this.jdbc.sql("SELECT id FROM memberships WHERE organization_id = ? AND user_id = ?")
 			.params(organizationId, userId)
 			.query(UUID.class)
+			.single();
+	}
+
+	public String userName(UUID userId) {
+		return this.jdbc.sql("SELECT name FROM users WHERE id = ?").params(userId).query(String.class).single();
+	}
+
+	public void renameUser(UUID userId, String name) {
+		this.jdbc.sql("UPDATE users SET name = ? WHERE id = ?").params(name, userId).update();
+	}
+
+	public long usersWithEmail(String email) {
+		return this.jdbc.sql("SELECT count(*) FROM users WHERE lower(email) = lower(?)")
+			.params(email)
+			.query(Long.class)
 			.single();
 	}
 

@@ -2,6 +2,7 @@ package com.resolve.api.memberships;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -90,6 +91,36 @@ final class MemberRequestParser {
 		String name = body.has("name") ? parser.name(body.get("name")) : parser.invalid("name", "Es obligatorio.");
 		parser.throwIfInvalid();
 		return name;
+	}
+
+	/** Cambio de organización de la sesión: un objeto con solo {@code organizationId}, un UUID. */
+	static UUID sessionOrganization(@Nullable JsonNode body) {
+		MemberRequestParser parser = new MemberRequestParser();
+		if (body == null || !body.isObject()) {
+			throw new ApiValidationException("body", "Envía un objeto con organizationId.");
+		}
+		for (String field : body.propertyNames()) {
+			if (!"organizationId".equals(field)) {
+				parser.error(field, "Campo no permitido.");
+			}
+		}
+		@Nullable UUID id = null;
+		if (!body.has("organizationId")) {
+			parser.error("organizationId", "Es obligatorio.");
+		}
+		else if (!body.get("organizationId").isString()) {
+			parser.error("organizationId", body.get("organizationId").isNull() ? "No admite null." : "Debe ser un texto.");
+		}
+		else {
+			try {
+				id = UUID.fromString(body.get("organizationId").asString().trim());
+			}
+			catch (IllegalArgumentException exception) {
+				parser.error("organizationId", "Debe ser un identificador de organización válido.");
+			}
+		}
+		parser.throwIfInvalid();
+		return Objects.requireNonNull(id);
 	}
 
 	private @Nullable Role role(JsonNode node) {

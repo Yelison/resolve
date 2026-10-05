@@ -17,6 +17,7 @@ import com.resolve.api.memberships.MemberDtos.TeamMemberDto;
 import com.resolve.api.memberships.MemberDtos.TeamMetricsDto;
 import com.resolve.api.memberships.MemberRequestParser.NewInvite;
 import com.resolve.api.organizations.OrganizationRepository;
+import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -83,6 +84,38 @@ class MemberService {
 			return MemberStatus.ACTIVE;
 		}
 		return this.memberships.statusOf(membershipId).orElse(MemberStatus.REMOVED);
+	}
+
+	/**
+	 * Toma el nombre del proveedor de identidad solo cuando el guardado es un marcador de posición (vacío o la parte
+	 * local del correo, como deja una invitación): nunca pisa un nombre que la persona eligió. El {@code UPDATE} repite
+	 * la condición, así que un cambio de nombre concurrente gana.
+	 * @return el nombre que queda guardado
+	 */
+	String adoptIdentityName(UserAccount user, @Nullable String identityName) {
+		String candidate = cleanIdentityName(identityName);
+		String current = user.getName();
+		String localPart = user.getEmail().substring(0, Math.max(0, user.getEmail().indexOf('@')));
+		if (candidate == null || candidate.equals(current) || !(current.isBlank() || current.equalsIgnoreCase(localPart))) {
+			return current;
+		}
+		int updated = this.jdbc
+			.sql("UPDATE users SET name = ? WHERE id = ? AND (name = '' OR lower(name) = lower(?))")
+			.params(candidate, user.getId(), localPart)
+			.update();
+		return (updated == 1) ? candidate : current;
+	}
+
+	private static @Nullable String cleanIdentityName(@Nullable String name) {
+		if (name == null) {
+			return null;
+		}
+		String trimmed = name.strip();
+		if (trimmed.isEmpty() || trimmed.codePoints().anyMatch(Character::isISOControl)) {
+			return null;
+		}
+		return (trimmed.length() > MemberRequestParser.MAX_NAME_LENGTH)
+				? trimmed.substring(0, MemberRequestParser.MAX_NAME_LENGTH).strip() : trimmed;
 	}
 
 	@Transactional(readOnly = true)
