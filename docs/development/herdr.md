@@ -437,6 +437,10 @@ Parallel tasks should not edit the same shared files, so each feature declares i
 
 ## Notes and decisions
 
+- The scripts never write permission rules. If you want a task's agent to run Docker Compose without asking, add
+  `Bash(docker compose -p resolve-<id> *)` to that worktree's `.claude/settings.local.json` yourself; it only matches
+  commands with `-p` right after `compose` (not `docker compose -f x.yml -p …`), and `permissions.allow` lists merge
+  with the global ones.
 - `CLAUDE.md`, `tools/` and `design/` are git-ignored on purpose; `new-task.sh` copies only `CLAUDE.md`, because the
   design rules in it apply to every task. Nothing else local (secrets, exports, editor settings) is copied.
 - `.env.herdr` holds ports only, never secrets. It keeps the `.env.*` name so the existing `.gitignore` rule covers it;
