@@ -78,6 +78,11 @@
   margin-inline: var(--space-16);
 }
 
+/* El panel ocupa todo el ancho y `.tabs` recorta: el contorno de foco se dibuja hacia dentro para verse entero. */
+.tabs [role='tabpanel']:focus-visible {
+  outline-offset: -2px;
+}
+
 .tabsPanelPadded {
   padding-inline: var(--space-16);
 }
