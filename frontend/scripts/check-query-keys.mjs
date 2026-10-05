@@ -1,7 +1,7 @@
 // Rechaza un array literal como valor de `queryKey` fuera de las fábricas de claves (ticketKeys, customerKeys…).
 // Las fábricas no usan la propiedad `queryKey`, así que cualquier array literal en ella es una clave suelta.
-// Cubre comillas simples y dobles, varias líneas, spread, `as const`, `satisfies` y paréntesis.
-import { readdirSync, readFileSync } from 'node:fs'
+// Cubre comillas simples y dobles, varias líneas, spread, `as const`, `satisfies`, `<const>`, paréntesis, ramas de `?:` y lados de `||`/`??`.
+import { readdirSync, readFileSync, realpathSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
@@ -11,11 +11,27 @@ function unwrap(node) {
     ts.isParenthesizedExpression(node) ||
     ts.isAsExpression(node) ||
     ts.isSatisfiesExpression(node) ||
-    ts.isNonNullExpression(node)
+    ts.isNonNullExpression(node) ||
+    ts.isTypeAssertionExpression(node)
   ) {
     node = node.expression
   }
   return node
+}
+
+/** Un array literal, directo o en una rama de `cond ? a : b` o en un lado de `||`, `??`. */
+function isLooseKey(node) {
+  node = unwrap(node)
+  if (ts.isArrayLiteralExpression(node)) return true
+  if (ts.isConditionalExpression(node)) return isLooseKey(node.whenTrue) || isLooseKey(node.whenFalse)
+  if (
+    ts.isBinaryExpression(node) &&
+    (node.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      node.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+  ) {
+    return isLooseKey(node.left) || isLooseKey(node.right)
+  }
+  return false
 }
 
 function propertyName(name) {
@@ -29,11 +45,7 @@ export function findLooseQueryKeys(source, fileName = 'file.ts') {
   const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, kind)
   const found = []
   const visit = (node) => {
-    if (
-      ts.isPropertyAssignment(node) &&
-      propertyName(node.name) === 'queryKey' &&
-      ts.isArrayLiteralExpression(unwrap(node.initializer))
-    ) {
+    if (ts.isPropertyAssignment(node) && propertyName(node.name) === 'queryKey' && isLooseKey(node.initializer)) {
       const { line, character } = file.getLineAndCharacterOfPosition(node.getStart(file))
       found.push({ line: line + 1, column: character + 1 })
     }
@@ -75,4 +87,4 @@ function main() {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) main()
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) main()
