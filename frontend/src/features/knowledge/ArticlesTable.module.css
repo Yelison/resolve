@@ -77,7 +77,9 @@
   .titleLink {
     display: block;
     font: var(--font-body);
-    min-height: 0;
+    /* La línea mide una zona táctil: por debajo de 768 px el enlace sigue siendo de 44 px aunque ya haya columnas. */
+    min-height: var(--touch-target);
+    line-height: var(--touch-target);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -97,6 +99,15 @@
   .updated {
     grid-area: updated;
     font: var(--font-body);
+  }
+}
+
+@media (min-width: 768px) {
+  @container table (min-width: 560px) {
+    .titleLink {
+      min-height: 0;
+      font: var(--font-body);
+    }
   }
 }
 

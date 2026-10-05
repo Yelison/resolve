@@ -76,9 +76,11 @@
     display: contents;
   }
 
+  /* La línea mide una zona táctil: por debajo de 768 px el enlace sigue siendo de 44 px aunque ya haya columnas. */
   .nameLink {
     display: block;
-    min-height: 0;
+    min-height: var(--touch-target);
+    line-height: var(--touch-target);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -114,6 +116,15 @@
 
   .status {
     grid-area: status;
+  }
+}
+
+@media (min-width: 768px) {
+  @container table (min-width: 560px) {
+    .nameLink {
+      min-height: 0;
+      font: var(--font-strong);
+    }
   }
 }
 
