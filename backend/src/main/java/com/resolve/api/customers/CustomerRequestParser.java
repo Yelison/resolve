@@ -8,6 +8,7 @@ import java.util.regex.Pattern;
 
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
+import com.resolve.api.common.web.ControlCharacters;
 import com.resolve.api.common.web.Uuids;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
@@ -25,7 +26,7 @@ final class CustomerRequestParser {
 
 	static final int MAX_NOTES_LENGTH = 2000;
 
-	private static final String CONTROL_CHARACTERS = "No admite caracteres de control.";
+	private static final String CONTROL_CHARACTERS = ControlCharacters.MESSAGE;
 
 	private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
@@ -39,15 +40,24 @@ final class CustomerRequestParser {
 	static CustomerFilters filters(@Nullable String q, @Nullable String company, @Nullable String archived) {
 		CustomerRequestParser parser = new CustomerRequestParser();
 		String text = null;
-		if (q != null && !q.isBlank()) {
+		if (q != null && ControlCharacters.in(q, false)) {
+			parser.error("q", CONTROL_CHARACTERS);
+		}
+		else if (q != null && !q.isBlank()) {
 			text = q.trim();
 			if (text.length() > MAX_QUERY_LENGTH) {
 				parser.error("q", "La búsqueda admite como máximo " + MAX_QUERY_LENGTH + " caracteres.");
 			}
 		}
-		String companyFilter = (company == null || company.isBlank()) ? null : company.trim();
-		if (companyFilter != null && companyFilter.length() > MAX_COMPANY_LENGTH) {
-			parser.error("company", "La empresa admite como máximo " + MAX_COMPANY_LENGTH + " caracteres.");
+		String companyFilter = null;
+		if (company != null && ControlCharacters.in(company, false)) {
+			parser.error("company", CONTROL_CHARACTERS);
+		}
+		else if (company != null && !company.isBlank()) {
+			companyFilter = company.trim();
+			if (companyFilter.length() > MAX_COMPANY_LENGTH) {
+				parser.error("company", "La empresa admite como máximo " + MAX_COMPANY_LENGTH + " caracteres.");
+			}
 		}
 		boolean archivedOnly = false;
 		if (archived != null && !archived.isBlank()) {
@@ -150,7 +160,7 @@ final class CustomerRequestParser {
 		if (trimmed.isEmpty()) {
 			return invalid(field, "Es obligatorio.");
 		}
-		if (hasControlCharacters(trimmed, false)) {
+		if (ControlCharacters.in(trimmed, false)) {
 			return invalid(field, CONTROL_CHARACTERS);
 		}
 		if (trimmed.length() > maxLength) {
@@ -165,7 +175,7 @@ final class CustomerRequestParser {
 		if (trimmed.isEmpty()) {
 			return null;
 		}
-		if (hasControlCharacters(trimmed, "notes".equals(field))) {
+		if (ControlCharacters.in(trimmed, "notes".equals(field))) {
 			return invalid(field, CONTROL_CHARACTERS);
 		}
 		if (trimmed.length() > maxLength) {
@@ -179,23 +189,13 @@ final class CustomerRequestParser {
 		if (trimmed.isEmpty()) {
 			return invalid("email", "Es obligatorio.");
 		}
-		if (hasControlCharacters(trimmed, false)) {
+		if (ControlCharacters.in(trimmed, false)) {
 			return invalid("email", CONTROL_CHARACTERS);
 		}
 		if (trimmed.length() > MAX_EMAIL_LENGTH || !EMAIL.matcher(trimmed).matches()) {
 			return invalid("email", "Escribe un correo válido de hasta " + MAX_EMAIL_LENGTH + " caracteres.");
 		}
 		return trimmed;
-	}
-
-	/**
-	 * PostgreSQL rechaza el byte 0 y el resto de controles no tienen sentido en un nombre, un correo o una empresa;
-	 * las notas admiten saltos de línea y tabuladores.
-	 */
-	private static boolean hasControlCharacters(String text, boolean allowLayout) {
-		return text.chars()
-			.anyMatch((character) -> Character.isISOControl(character)
-					&& !(allowLayout && (character == '\n' || character == '\r' || character == '\t')));
 	}
 
 	private <T> @Nullable T invalid(String field, String message) {

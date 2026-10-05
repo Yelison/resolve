@@ -250,4 +250,18 @@ class CustomersApiTest extends ApiIntegrationTest {
 		return this.data.customerIdByEmail(this.acme, email);
 	}
 
+	@Test
+	void controlCharactersInTheFiltersAreFieldErrors() throws Exception {
+		for (String filter : new String[] { "q", "company" }) {
+			// En el medio, al final y solo: recortar el texto no puede esconderlos.
+			for (String value : new String[] { "a\u0000b", "a\u0000", "\u0000", "a\tb", "a\u001fb" }) {
+				this.mvc.perform(get("/customers").param(filter, value).with(as("laura@acme.example")))
+					.andExpect(status().isBadRequest())
+					.andExpect(matchesContract("listCustomers"))
+					.andExpect(jsonPath("$.errors[*].field", contains(filter)))
+					.andExpect(jsonPath("$.errors[0].message").value("No admite caracteres de control."));
+			}
+		}
+	}
+
 }

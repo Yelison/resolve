@@ -174,4 +174,15 @@ class TicketInboxApiTest extends TicketsFixture {
 		this.mvc.perform(get("/tickets").param("assigneeId", "none").with(as(ADMIN))).andExpect(status().isOk());
 	}
 
+	@Test
+	void controlCharactersInTheSearchAreAFieldError() throws Exception {
+		for (String value : new String[] { "a\u0000b", "a\u0000", "\u0000", "a\nb" }) {
+			this.mvc.perform(get("/tickets").param("q", value).with(as(ADMIN)))
+				.andExpect(status().isBadRequest())
+				.andExpect(matchesContract("listTickets"))
+				.andExpect(jsonPath("$.errors[*].field", contains("q")))
+				.andExpect(jsonPath("$.errors[0].message").value("No admite caracteres de control."));
+		}
+	}
+
 }

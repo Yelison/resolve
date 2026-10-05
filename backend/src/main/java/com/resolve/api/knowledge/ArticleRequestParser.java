@@ -8,6 +8,7 @@ import java.util.UUID;
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
 import com.resolve.api.common.persistence.WireEnum;
+import com.resolve.api.common.web.ControlCharacters;
 import com.resolve.api.common.web.Uuids;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
@@ -32,7 +33,7 @@ final class ArticleRequestParser {
 
 	static final int MAX_CATEGORY_DESCRIPTION_LENGTH = 160;
 
-	private static final String CONTROL_CHARACTERS = "No admite caracteres de control.";
+	private static final String CONTROL_CHARACTERS = ControlCharacters.MESSAGE;
 
 	private static final String TEXT_EXPECTED = "Debe ser un texto.";
 
@@ -53,16 +54,25 @@ final class ArticleRequestParser {
 	static ArticleFilters filters(@Nullable String q, @Nullable String category, @Nullable String status) {
 		ArticleRequestParser parser = new ArticleRequestParser();
 		String text = null;
-		if (q != null && !q.isBlank()) {
+		if (q != null && ControlCharacters.in(q, false)) {
+			parser.error("q", CONTROL_CHARACTERS);
+		}
+		else if (q != null && !q.isBlank()) {
 			text = q.trim();
 			if (text.codePointCount(0, text.length()) > MAX_QUERY_LENGTH) {
 				parser.error("q", "La búsqueda admite como máximo " + MAX_QUERY_LENGTH + " caracteres.");
 			}
 		}
-		String categorySlug = (category == null || category.isBlank()) ? null : category.trim();
-		if (categorySlug != null
-				&& categorySlug.codePointCount(0, categorySlug.length()) > MAX_CATEGORY_FILTER_LENGTH) {
-			parser.error("category", "La categoría admite como máximo " + MAX_CATEGORY_FILTER_LENGTH + " caracteres.");
+		String categorySlug = null;
+		if (category != null && ControlCharacters.in(category, false)) {
+			parser.error("category", CONTROL_CHARACTERS);
+		}
+		else if (category != null && !category.isBlank()) {
+			categorySlug = category.trim();
+			if (categorySlug.codePointCount(0, categorySlug.length()) > MAX_CATEGORY_FILTER_LENGTH) {
+				parser.error("category",
+						"La categoría admite como máximo " + MAX_CATEGORY_FILTER_LENGTH + " caracteres.");
+			}
 		}
 		ArticleStatus statusFilter = null;
 		if (status != null && !status.isBlank()) {
@@ -159,7 +169,7 @@ final class ArticleRequestParser {
 		if (value.isBlank()) {
 			return invalid("body", REQUIRED);
 		}
-		if (hasControlCharacters(value, true)) {
+		if (ControlCharacters.in(value, true)) {
 			return invalid("body", CONTROL_CHARACTERS);
 		}
 		if (value.codePointCount(0, value.length()) > MAX_BODY_LENGTH) {
@@ -216,19 +226,13 @@ final class ArticleRequestParser {
 	}
 
 	private @Nullable String checkedLine(String field, String trimmed, int maxLength) {
-		if (hasControlCharacters(trimmed, false)) {
+		if (ControlCharacters.in(trimmed, false)) {
 			return invalid(field, CONTROL_CHARACTERS);
 		}
 		if (trimmed.codePointCount(0, trimmed.length()) > maxLength) {
 			return invalid(field, "Admite como máximo " + maxLength + " caracteres.");
 		}
 		return trimmed;
-	}
-
-	private static boolean hasControlCharacters(String text, boolean allowLayout) {
-		return text.chars()
-			.anyMatch((character) -> Character.isISOControl(character)
-					&& !(allowLayout && (character == '\n' || character == '\r' || character == '\t')));
 	}
 
 	private <T> @Nullable T invalid(String field, String message) {

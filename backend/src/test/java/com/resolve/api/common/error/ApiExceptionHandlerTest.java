@@ -3,6 +3,7 @@ package com.resolve.api.common.error;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -49,8 +50,34 @@ class ApiExceptionHandlerTest {
 			.andExpect(jsonPath("$.detail").value("El recurso cambió mientras se guardaba. Vuelve a cargarlo e inténtalo de nuevo."));
 	}
 
+	@Test
+	void invalidByteSequenceFromPostgresqlIsA400() throws Exception {
+		this.mvc.perform(get("/nul"))
+			.andExpect(status().isBadRequest())
+			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+			.andExpect(jsonPath("$.title").value("Petición no válida"));
+	}
+
+	@Test
+	void otherIntegrityViolationsAreNotHiddenAsClientErrors() {
+		org.assertj.core.api.Assertions.assertThatThrownBy(() -> this.mvc.perform(get("/integrity")))
+			.hasRootCauseInstanceOf(java.sql.SQLException.class);
+	}
+
 	@RestController
 	static class Thrower {
+
+		@GetMapping("/nul")
+		String nul() {
+			throw new DataIntegrityViolationException("could not execute statement",
+					new java.sql.SQLException("invalid byte sequence for encoding \"UTF8\": 0x00", "22021"));
+		}
+
+		@GetMapping("/integrity")
+		String integrity() {
+			throw new DataIntegrityViolationException("could not execute statement",
+					new java.sql.SQLException("duplicate key", "23505"));
+		}
 
 		@GetMapping("/conflict")
 		String conflict() {
