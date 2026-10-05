@@ -133,7 +133,8 @@ write_effort_settings() {
 }
 
 # write_model_settings WORKTREE MODEL ADVISOR: sets `model` and `advisorModel` in the worktree's local settings.
-# An empty value removes the key, so the session falls back to the owner's own default.
+# An empty value removes the key, so the session falls back to the owner's own default; ADVISOR=none turns the
+# advisor off for that worktree through the settings `env` key (CLAUDE_CODE_DISABLE_ADVISOR_TOOL=1).
 write_model_settings() {
   local worktree=$1 model=$2 advisor=$3 file tmp
   file="$worktree/.claude/settings.local.json"
@@ -142,7 +143,11 @@ write_model_settings() {
   tmp=$(mktemp "$file.XXXXXX")
   if jq --arg model "$model" --arg advisor "$advisor" '
       (if $model == "" then del(.model) else .model = $model end)
-      | (if $advisor == "" then del(.advisorModel) else .advisorModel = $advisor end)
+      | (if $advisor == "" then del(.advisorModel)
+         elif $advisor == "none" then (del(.advisorModel) | .env = ((.env // {}) + { CLAUDE_CODE_DISABLE_ADVISOR_TOOL: "1" }))
+         else .advisorModel = $advisor end)
+      | (if $advisor != "none" and .env then .env |= del(.CLAUDE_CODE_DISABLE_ADVISOR_TOOL) else . end)
+      | (if .env == {} then del(.env) else . end)
     ' "$file" >"$tmp"; then
     mv "$tmp" "$file"
   else
