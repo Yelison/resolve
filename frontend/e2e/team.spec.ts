@@ -68,7 +68,7 @@ test.describe('equipo', () => {
     await page.getByRole('menuitem', { name: 'Retirar del equipo' }).click()
     const dialog = page.getByRole('dialog', { name: '¿Retirar a este miembro del equipo?' })
     await expect(dialog).toContainText('Daniel Santos dejará de poder entrar')
-    await dialog.getByRole('button', { name: 'Retirar a Daniel Santos' }).click()
+    await dialog.getByRole('button', { name: 'Retirar del equipo' }).click()
     await expect(page.getByText('Miembro retirado')).toBeVisible()
     const table = page.getByRole('table', { name: 'Equipo' })
     await expect(table.getByText('Daniel Santos')).toHaveCount(0)
@@ -123,4 +123,59 @@ test.describe('equipo', () => {
     await expect(page.getByText('Invitación pendiente')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Dar acceso al portal' })).toHaveCount(0)
   })
+
+  test('en el rango intermedio cada fila tiene tantas cabeceras como celdas', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await page.goto('/equipo')
+    const table = page.getByRole('table', { name: 'Equipo' })
+    await expect(table).toBeVisible()
+    const headers = await table.getByRole('columnheader').count()
+    expect(headers).toBe(5)
+    for (const row of (await table.getByRole('row').all()).slice(1)) {
+      expect(await row.getByRole('cell').count()).toBe(headers)
+    }
+    // Una sola fila de cabecera: los títulos visibles comparten la misma línea.
+    const tops = await Promise.all(
+      ['Agente', 'Estado', 'Carga'].map(
+        async (name) => (await table.getByRole('columnheader', { name }).boundingBox())!.y,
+      ),
+    )
+    expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(1)
+  })
+
+  for (const width of [320, 1440]) {
+    test(`un nombre de 120 caracteres no se recorta en los diálogos · ${width}px`, async ({ page }) => {
+      const name = 'A'.repeat(120)
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/equipo')
+      await page.getByRole('button', { name: 'Invitar agente' }).click()
+      const invite = page.getByRole('dialog', { name: 'Invitar agente' })
+      await invite.getByRole('textbox', { name: 'Correo' }).fill('largo@acme.example')
+      await invite.getByRole('textbox', { name: 'Nombre' }).fill(name)
+      await invite.getByRole('button', { name: 'Invitar' }).click()
+      await expect(invite).toBeHidden()
+
+      const fits = async (dialog: ReturnType<typeof page.getByRole>) => {
+        const box = (await dialog.boundingBox())!
+        expect(box.x).toBeGreaterThanOrEqual(0)
+        expect(box.x + box.width).toBeLessThanOrEqual(width)
+        const clipped = await dialog.evaluate((element) => {
+          const all = [element, ...element.querySelectorAll<HTMLElement>('*')]
+          return all.filter((node) => node.scrollWidth > node.clientWidth + 1).map((node) => node.tagName)
+        })
+        expect(clipped, 'ningún elemento del diálogo desborda').toEqual([])
+      }
+
+      await page.getByRole('button', { name: `Acciones de ${name}` }).click()
+      await page.getByRole('menuitem', { name: 'Retirar del equipo' }).click()
+      const remove = page.getByRole('dialog', { name: '¿Retirar a este miembro del equipo?' })
+      await expect(remove).toContainText(name)
+      await fits(remove)
+      await remove.getByRole('button', { name: 'Cancelar' }).click()
+
+      await page.getByRole('button', { name: `Acciones de ${name}` }).click()
+      await page.getByRole('menuitem', { name: 'Cambiar rol' }).click()
+      await fits(page.getByRole('dialog', { name: 'Cambiar rol' }))
+    })
+  }
 })
