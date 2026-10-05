@@ -68,9 +68,18 @@
   background: var(--color-brand);
 }
 
+/*
+ * Segunda serie: relleno claro con contorno de marca. Se distingue de la primera por luminancia (relleno
+ * brand/blue-bg: 4,12:1 en claro y 3,6:1 en oscuro) y por la forma (contorno), y frente al fondo la delimita el
+ * contorno (brand/surface: 4,66:1 y 4,28:1), no solo el tono.
+ */
 .muted {
-  fill: var(--color-muted);
-  background: var(--color-muted);
+  fill: var(--color-blue-bg);
+  stroke: var(--color-brand);
+  stroke-width: 1.5px;
+  vector-effect: non-scaling-stroke;
+  background: var(--color-blue-bg);
+  border: 1.5px solid var(--color-brand);
 }
 
 .axisRow {

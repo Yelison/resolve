@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from 're
 import { cx } from '../../../lib/cx'
 import styles from './BarChart.module.css'
 
+/** `brand`: relleno sólido de marca. `muted`: relleno claro con contorno de marca (distinguible sin depender del tono). */
 export type BarChartColor = 'brand' | 'muted'
 
 export interface BarChartSeries {
