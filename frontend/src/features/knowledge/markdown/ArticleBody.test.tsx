@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { ArticleBody } from './ArticleBody'
+import { outline } from './outline'
 
 function renderBody(source: string) {
   return render(<ArticleBody source={source} />)
@@ -52,12 +53,19 @@ describe('ArticleBody', () => {
     expect(container).toHaveTextContent('Adiós')
   })
 
-  it('no deja pasar HTML en línea y descarta las imágenes de Markdown', () => {
-    const { container } = renderBody('texto <b onclick="x()">negrita</b> ![logo](https://x.example/a.png)')
+  it('no deja pasar HTML en línea y dibuja las imágenes como su texto alternativo', () => {
+    const { container } = renderBody('texto <b onclick="x()">negrita</b> ![logo de Resolve](https://x.example/a.png)')
     expect(container.querySelector('b, img, [onclick]')).toBeNull()
-    // Una imagen no tiene hijos que mostrar como texto: desaparece, y el resto del párrafo se conserva.
-    expect(container).toHaveTextContent('texto negrita')
-    expect(container).not.toHaveTextContent('logo')
+    expect(container).toHaveTextContent('texto negrita logo de Resolve')
+    expect(container.innerHTML).not.toContain('x.example/a.png')
+  })
+
+  it('dibuja como texto una imagen con un esquema peligroso o con atributos en el alt', () => {
+    const { container } = renderBody(
+      '![x" onerror="alert(1)](javascript:alert(1)) ![ref][r]\n\n[r]: data:image/png;base64,AAAA',
+    )
+    expect(container.querySelector('img, a, [onerror]')).toBeNull()
+    expect(container.innerHTML).not.toMatch(/javascript:|data:/i)
   })
 
   it('dibuja un encabezado de nivel 1 y un bloque de código como texto', () => {
@@ -67,14 +75,48 @@ describe('ArticleBody', () => {
     expect(container).toHaveTextContent('const x = 1')
   })
 
-  it('asigna ids únicos a los encabezados ## y ###, los mismos que el índice', () => {
-    renderBody('## Pasos\n\ntexto\n\n### Detalle\n\n## Pasos\n\n## ¿Qué hacer?')
+  it('asigna ids con prefijo, únicos por documento y los mismos que el índice', () => {
+    const source = '## Pasos\n\ntexto\n\n### Detalle\n\n## Pasos\n\n## ¿Qué hacer?'
+    renderBody(source)
     const ids = screen.getAllByRole('heading').map((heading) => [heading.tagName, heading.id])
     expect(ids).toEqual([
-      ['H2', 'pasos'],
-      ['H3', 'detalle'],
-      ['H2', 'pasos-2'],
-      ['H2', 'que-hacer'],
+      ['H2', 'seccion-pasos'],
+      ['H3', 'seccion-detalle'],
+      ['H2', 'seccion-pasos-2'],
+      ['H2', 'seccion-que-hacer'],
     ])
+    expect(outline(source).map((entry) => entry.id)).toEqual(ids.map(([, id]) => id))
+  })
+
+  it.each([
+    ['## Pasos\n## Pasos\n## Pasos 2', ['seccion-pasos', 'seccion-pasos-2', 'seccion-pasos-2-2']],
+    ['## Paso 2\n## Paso\n## Paso', ['seccion-paso-2', 'seccion-paso', 'seccion-paso-3']],
+  ])('un título repetido no repite el id de otro título: %j', (source, expected) => {
+    const { container } = renderBody(source)
+    const ids = [...container.querySelectorAll('h2')].map((heading) => heading.id)
+    expect(ids).toEqual(expected)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('un encabezado «Contenido» o «Root» no toma el id de la aplicación', () => {
+    const { container } = renderBody('## Contenido\n\n## Root')
+    expect([...container.querySelectorAll('h2')].map((heading) => heading.id)).toEqual([
+      'seccion-contenido',
+      'seccion-root',
+    ])
+    expect(container.querySelector('#contenido, #root')).toBeNull()
+  })
+
+  it('un encabezado dentro de código o de HTML descartado no se dibuja ni se indexa', () => {
+    const source = '````\n```js\n## dentro\n```\n````\n\n<div>\n## en html\n</div>\n\n## Real'
+    const { container } = renderBody(source)
+    expect([...container.querySelectorAll('h2')].map((heading) => heading.textContent)).toEqual(['Real'])
+    expect(outline(source).map((entry) => entry.text)).toEqual(['Real'])
+  })
+
+  it('los enlaces //host se abren en otra pestaña, como los absolutos', () => {
+    renderBody('[fuera](//otro.example/p) [aquí](/equipo)')
+    expect(screen.getByRole('link', { name: 'fuera' })).toHaveAttribute('target', '_blank')
+    expect(screen.getByRole('link', { name: 'aquí' })).not.toHaveAttribute('target')
   })
 })
