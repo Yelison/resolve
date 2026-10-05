@@ -4,6 +4,7 @@ import { iconPaths, type IconName } from './paths'
 export type { IconName }
 
 export interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'children' | 'name'> {
+  /** Nombre del icono del conjunto. */
   name: IconName
   /** Tamaño en px. El trazo mantiene 1,7 px en cualquier tamaño, como en Figma. */
   size?: number

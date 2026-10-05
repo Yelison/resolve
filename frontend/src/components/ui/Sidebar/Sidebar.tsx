@@ -8,28 +8,41 @@ import { Tooltip } from '../Tooltip/Tooltip'
 import styles from './Sidebar.module.css'
 
 export interface SidebarNavItem {
+  /** Ruta a la que navega el elemento. */
   to: string
+  /** Texto de la sección; en modo colapsado pasa a aria-label y tooltip. */
   label: string
+  /** Icono del elemento. */
   icon: IconName
+  /** Marca activa solo la ruta exacta (para la raíz). */
   end?: boolean
 }
 
 export interface SidebarAction {
+  /** Texto del botón; en modo colapsado pasa a aria-label y tooltip. */
   label: string
+  /** Icono del botón. */
   icon: IconName
+  /** Se llama al pulsar el botón. */
   onClick: () => void
 }
 
 export interface SidebarProps {
+  /** Secciones de la navegación principal. */
   items: SidebarNavItem[]
+  /** Título visible sobre la lista de secciones; se oculta si el sidebar está colapsado. */
   sectionLabel: string
+  /** Nombre del espacio de trabajo; colapsado se muestra solo con sus iniciales. */
   workspace: string
+  /** Nombre y rol del perfil que se muestra al final; colapsado solo se ve el avatar. */
   user: { name: string; role: string }
+  /** Muestra solo iconos con tooltip. Por defecto, `false`. */
   collapsed?: boolean
   /** Botón inferior: colapsar o expandir en escritorio, cerrar en el drawer móvil. Sin él no se muestra. */
   action?: SidebarAction
   /** Se llama al elegir una sección, p. ej. para cerrar el drawer. */
   onNavigate?: () => void
+  /** Clase adicional del contenedor. */
   className?: string
 }
 

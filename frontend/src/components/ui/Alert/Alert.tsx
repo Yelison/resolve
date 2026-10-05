@@ -5,7 +5,9 @@ import styles from './Alert.module.css'
 export type AlertTone = 'blue' | 'green' | 'amber' | 'red'
 
 export interface AlertProps extends Omit<ComponentProps<'div'>, 'title'> {
+  /** Color del aviso; por defecto 'blue' */
   tone?: AlertTone
+  /** Título del aviso, siempre visible */
   title: ReactNode
   /**
    * Anuncia el aviso al aparecer. Úsalo solo para mensajes que surgen tras una acción;

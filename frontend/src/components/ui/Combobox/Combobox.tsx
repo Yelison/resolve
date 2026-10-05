@@ -6,23 +6,34 @@ import { Icon } from '../Icon/Icon'
 import styles from './Combobox.module.css'
 
 export interface ComboboxOption {
+  /** Valor único de la opción; se usa como clave y para marcar la elegida */
   value: string
+  /** Texto principal de la opción; también se muestra en el campo cuando está elegida */
   label: string
+  /** Texto secundario bajo la etiqueta en la lista */
   description?: string
 }
 
 export interface ComboboxProps {
+  /** Etiqueta del campo; es su nombre accesible */
   label: ReactNode
   /** Texto escrito; el componente que lo usa decide cómo buscar con él. */
   query: string
+  /** Se llama al escribir con el nuevo texto, y con una cadena vacía al elegir una opción o al perder el foco */
   onQueryChange: (query: string) => void
+  /** Opciones de la lista desplegable; se muestran tal cual, sin filtrar */
   options: ComboboxOption[]
   /** Opción elegida (su valor y etiqueta, para mostrarla aunque la búsqueda cambie). */
   selected: ComboboxOption | null
+  /** Se llama con la opción elegida con clic o con Enter */
   onSelect: (option: ComboboxOption) => void
+  /** Si es true y no hay opciones, la lista muestra «Buscando…»; por defecto false */
   loading?: boolean
+  /** Texto de ayuda del campo vacío */
   placeholder?: string
+  /** Texto de ayuda asociado al campo */
   hint?: ReactNode
+  /** Mensaje de error asociado al campo */
   error?: ReactNode
   /** Texto cuando la búsqueda no encuentra nada. */
   emptyText?: string

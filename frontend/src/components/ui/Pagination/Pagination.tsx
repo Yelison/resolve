@@ -6,9 +6,13 @@ import { clampPage, pageRange } from './pageRange'
 export interface PaginationProps {
   /** Página actual, empezando en 1. */
   page: number
+  /** Resultados por página. */
   pageSize: number
+  /** Total de resultados. */
   total: number
+  /** Se llama con la página elegida. */
   onPageChange: (page: number) => void
+  /** Clase del contenedor. */
   className?: string
 }
 

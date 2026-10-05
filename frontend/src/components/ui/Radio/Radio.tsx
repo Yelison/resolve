@@ -4,6 +4,7 @@ import choice from '../shared/choice.module.css'
 import styles from './Radio.module.css'
 
 export interface RadioProps extends Omit<ComponentProps<'input'>, 'type' | 'children'> {
+  /** Texto de la opción. */
   label: ReactNode
 }
 

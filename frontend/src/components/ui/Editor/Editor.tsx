@@ -16,10 +16,15 @@ interface EditorBaseProps {
 
 /** Respuesta o nota interna de un ticket: selector de modo y botón de envío. */
 export interface TicketEditorProps extends EditorBaseProps {
+  /** Discriminante del tipo de editor; 'ticket' es el valor por defecto */
   variant?: 'ticket'
+  /** Modo actual: 'reply' (respuesta al cliente) o 'note' (nota interna) */
   mode: EditorMode
+  /** Se llama con el modo elegido al cambiar el selector */
   onModeChange: (mode: EditorMode) => void
+  /** Se ejecuta al pulsar el botón de envío o con Ctrl/⌘ + Enter; solo si hay texto y no se está enviando */
   onSubmit: () => void
+  /** Estado del envío; por defecto 'idle'. 'sending' muestra el botón en carga y 'error' muestra `error` */
   status?: EditorStatus
   /** Mensaje cuando falla el envío; el borrador se conserva. */
   error?: ReactNode
@@ -29,10 +34,13 @@ export interface TicketEditorProps extends EditorBaseProps {
 
 /** Cuerpo de un artículo: solo barra de formato y texto; guardar y publicar son del formulario que lo contiene. */
 export interface ArticleEditorProps extends EditorBaseProps {
+  /** Discriminante del tipo de editor; 'article' muestra solo barra de formato y texto */
   variant: 'article'
   /** Etiqueta accesible del campo de texto. */
   label: string
+  /** Texto de ayuda del campo vacío; por defecto «Escribe el artículo en Markdown…» */
   placeholder?: string
+  /** Marca el campo como inválido (estilo y `aria-invalid`) */
   invalid?: boolean
   /** Id del mensaje de error o ayuda que describe el campo. */
   describedBy?: string

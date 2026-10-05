@@ -6,12 +6,16 @@ import styles from './BarChart.module.css'
 export type BarChartColor = 'brand' | 'muted'
 
 export interface BarChartSeries {
+  /** Identificador de la serie; es la clave que se busca en `values` de cada punto */
   id: string
+  /** Nombre de la serie; aparece en la leyenda, en los títulos de las barras y en la cabecera de la tabla */
   label: string
+  /** Estilo de relleno; si falta se asigna por posición: 'brand' a la primera serie y 'muted' a la segunda */
   color?: BarChartColor
 }
 
 export interface BarChartPoint {
+  /** Clave única del punto para React */
   key: string
   /** Nombre completo del punto: es el que leen la tabla alternativa y los títulos de las barras. */
   label: string
@@ -20,15 +24,20 @@ export interface BarChartPoint {
    * Conviene darla cuando `label` es largo: sin ella el eje solo puede mostrar una etiqueta cada varios puntos.
    */
   shortLabel?: string
+  /** Valor numérico por `id` de serie; una serie ausente cuenta como 0 */
   values: Record<string, number>
 }
 
 export interface BarChartProps {
   /** Nombre accesible del gráfico; también es el título de la tabla alternativa. */
   label: string
+  /** Series que se dibujan; con una sola se muestran cifras sobre las barras si caben, con varias aparece la leyenda */
   series: BarChartSeries[]
+  /** Puntos del eje horizontal; sin puntos se muestra un mensaje de «sin datos» */
   points: BarChartPoint[]
+  /** Formatea los valores en cifras, títulos y tabla; por defecto `toLocaleString('es')` */
   valueFormatter?: (n: number) => string
+  /** Clase adicional para el contenedor */
   className?: string
 }
 

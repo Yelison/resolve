@@ -7,21 +7,30 @@ import { Icon } from '../Icon/Icon'
 import styles from './Topbar.module.css'
 
 export interface TopbarMenuButton {
+  /** Indica si el menú lateral está abierto (aria-expanded). */
   expanded: boolean
+  /** Id del menú lateral que controla el botón (aria-controls). */
   controls: string
+  /** Se llama al pulsar el botón. */
   onClick: () => void
 }
 
 export interface TopbarProps {
   /** Ruta de la página; se oculta en la barra móvil. */
   breadcrumb?: ReactNode
+  /** Tema activo; determina el icono y la etiqueta del botón de tema. */
   theme: 'light' | 'dark'
+  /** Se llama al pulsar el botón de tema. */
   onToggleTheme: () => void
+  /** Se llama al pulsar el botón de búsqueda; no se muestra en la barra móvil. */
   onSearch: () => void
+  /** Se llama al pulsar el botón de notificaciones; no se muestra en la barra móvil. */
   onNotifications: () => void
+  /** Nombre del usuario para el avatar. */
   userName: string
   /** Presente en la barra móvil: abre el menú lateral y muestra la marca. */
   menuButton?: TopbarMenuButton
+  /** Clase adicional del encabezado. */
   className?: string
 }
 

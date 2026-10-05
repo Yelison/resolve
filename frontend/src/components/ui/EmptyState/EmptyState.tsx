@@ -13,9 +13,13 @@ const defaultIcons: Record<EmptyStateKind, IconName> = {
 }
 
 export interface EmptyStateProps {
+  /** Tipo de estado: 'empty', 'noResults', 'error' o 'restricted'; por defecto 'empty'. Decide el icono por defecto */
   kind?: EmptyStateKind
+  /** Título del estado, mostrado como encabezado */
   title: ReactNode
+  /** Texto explicativo bajo el título */
   description?: ReactNode
+  /** Icono; si falta se usa el propio de `kind` */
   icon?: IconName
   /** Acción principal, normalmente un Button. */
   action?: ReactNode
@@ -23,6 +27,7 @@ export interface EmptyStateProps {
   headingLevel?: 2 | 3 | 4
   /** Anuncia el estado al aparecer, por ejemplo cuando falla una recarga. No lo uses en la carga inicial. */
   live?: boolean
+  /** Clase adicional para el contenedor */
   className?: string
 }
 

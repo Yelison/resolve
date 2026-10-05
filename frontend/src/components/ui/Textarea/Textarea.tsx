@@ -5,9 +5,13 @@ import fieldStyles from '../Field/Field.module.css'
 import styles from './Textarea.module.css'
 
 export interface TextareaProps extends Omit<ComponentProps<'textarea'>, 'children'> {
+  /** Etiqueta del campo. */
   label: ReactNode
+  /** Ayuda permanente bajo el control. */
   hint?: ReactNode
+  /** Mensaje de error; marca el control como inválido y se anuncia al aparecer. */
   error?: ReactNode
+  /** Clase adicional del contenedor del campo; `className` va al `textarea`. */
   fieldClassName?: string
 }
 

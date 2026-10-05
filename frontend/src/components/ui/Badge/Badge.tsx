@@ -5,6 +5,7 @@ import styles from './Badge.module.css'
 export type BadgeTone = 'blue' | 'green' | 'amber' | 'red' | 'neutral'
 
 export interface BadgeProps extends ComponentProps<'span'> {
+  /** Color de la insignia; por defecto 'neutral' */
   tone?: BadgeTone
 }
 

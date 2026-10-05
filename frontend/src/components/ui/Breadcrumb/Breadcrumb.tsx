@@ -3,13 +3,16 @@ import { cx } from '../../../lib/cx'
 import styles from './Breadcrumb.module.css'
 
 export interface BreadcrumbItem {
+  /** Texto visible del elemento */
   label: string
   /** Ruta del enlace; el último elemento es la página actual y no lo necesita. */
   to?: string
 }
 
 export interface BreadcrumbProps {
+  /** Elementos de la ruta en orden; el último se marca como página actual */
   items: BreadcrumbItem[]
+  /** Clase adicional para el elemento `nav` */
   className?: string
 }
 

@@ -6,6 +6,7 @@ export interface SkeletonProps {
   lines?: number
   /** Texto que oyen los lectores de pantalla mientras carga. */
   label?: string
+  /** Clase adicional del contenedor. */
   className?: string
 }
 

@@ -8,10 +8,13 @@ export type AvatarSize = 'small' | 'medium' | 'large'
 export interface AvatarProps {
   /** Nombre completo; se usa para las iniciales y como texto alternativo. */
   name: string
+  /** Tamaño del avatar; por defecto 'medium' */
   size?: AvatarSize
+  /** URL de la imagen; si falta o falla la carga se muestran las iniciales */
   src?: string
   /** Oculta el avatar a lectores de pantalla cuando el nombre ya aparece al lado. */
   decorative?: boolean
+  /** Clase adicional para el contenedor */
   className?: string
 }
 

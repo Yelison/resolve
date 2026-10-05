@@ -12,16 +12,22 @@ const icons: Record<TimelineEventKind, IconName> = {
 }
 
 export interface TimelineEvent {
+  /** Identificador del evento. */
   id: string
+  /** Tipo de evento; determina su icono. */
   kind: TimelineEventKind
+  /** Descripción del evento. */
   title: ReactNode
   /** Fecha del evento y su texto visible, p. ej. «Hoy · 10:24». */
   at: Date
+  /** Texto visible de la fecha. */
   timeLabel: string
 }
 
 export interface TimelineProps {
+  /** Eventos en el orden en que se muestran. */
   events: TimelineEvent[]
+  /** Clase adicional de la lista. */
   className?: string
 }
 

@@ -5,13 +5,17 @@ import { Tooltip } from '../Tooltip/Tooltip'
 import styles from './NavItem.module.css'
 
 export interface NavItemProps {
+  /** Ruta de destino. */
   to: string
+  /** Texto del enlace. */
   label: string
+  /** Icono del enlace. */
   icon: IconName
   /** Solo icono, con el nombre en aria-label y en un tooltip visible con puntero y foco. */
   collapsed?: boolean
   /** Marca activa solo la ruta exacta (para la raíz). */
   end?: boolean
+  /** Se llama al pulsar el enlace. */
   onNavigate?: () => void
 }
 

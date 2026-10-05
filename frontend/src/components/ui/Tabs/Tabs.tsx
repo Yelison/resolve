@@ -2,19 +2,26 @@ import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'rea
 import styles from './Tabs.module.css'
 
 export interface TabItem {
+  /** Identificador de la pestaña. */
   id: string
+  /** Contenido del botón de la pestaña. */
   label: ReactNode
+  /** Contenido del panel; solo se renderiza el de la pestaña activa. */
   content: ReactNode
 }
 
 export interface TabsProps {
   /** Nombre accesible de la lista de pestañas. */
   label: string
+  /** Pestañas y sus paneles. */
   items: TabItem[]
   /** Pestaña activa (controlado). */
   value?: string
+  /** Pestaña activa inicial cuando no es controlado; por defecto, la primera. */
   defaultValue?: string
+  /** Se llama con el id de la pestaña al seleccionarla. */
   onChange?: (id: string) => void
+  /** Clase adicional del contenedor. */
   className?: string
 }
 

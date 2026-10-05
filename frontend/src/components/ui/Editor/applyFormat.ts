@@ -1,8 +1,11 @@
 export type TextFormat = 'heading' | 'bold' | 'italic' | 'list' | 'link'
 
 export interface TextEdit {
+  /** Texto completo resultante */
   value: string
+  /** Posición inicial de la selección en `value` */
   selectionStart: number
+  /** Posición final de la selección en `value` */
   selectionEnd: number
 }
 

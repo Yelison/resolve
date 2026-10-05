@@ -11,12 +11,17 @@ const DEFAULT_MAX_SIZE = 10 * 1024 * 1024
 export interface UploadProps {
   /** Recibe solo los archivos válidos; los rechazados se explican bajo la zona. */
   onFiles: (files: File[]) => void
+  /** Tipos MIME admitidos. Por defecto, PNG, JPEG y PDF. */
   accept?: readonly string[]
+  /** Tamaño máximo por archivo en bytes. Por defecto, 10 MB. */
   maxSize?: number
+  /** Permite elegir varios archivos; si es `false` solo se usa el primero. Por defecto, `true`. */
   multiple?: boolean
+  /** Desactiva la zona. Por defecto, `false`. */
   disabled?: boolean
   /** Texto de formatos admitidos. */
   hint?: string
+  /** Clase adicional del contenedor. */
   className?: string
 }
 

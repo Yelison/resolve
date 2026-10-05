@@ -13,9 +13,13 @@ const roleLabels: Record<MessageKind, string> = {
 }
 
 export interface MessageProps {
+  /** Tipo de mensaje: cliente, agente o nota interna. */
   kind: MessageKind
+  /** Nombre del autor. */
   author: string
+  /** Fecha y hora de envío. */
   sentAt: Date
+  /** Contenido del mensaje. */
   children: ReactNode
   /** Canal o aviso al pie, p. ej. «Correo electrónico». Las notas internas indican que solo las ve el equipo. */
   footer?: ReactNode
@@ -23,6 +27,7 @@ export interface MessageProps {
   now?: Date
   /** Zona IANA en la que se leen «Hoy», «Ayer» y la hora; por defecto, la del navegador. */
   timeZone?: string
+  /** Clase del contenedor. */
   className?: string
 }
 

@@ -16,28 +16,43 @@ import { useFloating } from '../shared/useFloating'
 import styles from './Menu.module.css'
 
 export interface MenuItem {
+  /** Identificador estable del elemento. */
   id: string
+  /** Texto del elemento. */
   label: string
+  /** Icono opcional junto al texto. */
   icon?: IconName
+  /** Tono visual; `danger` resalta acciones destructivas. */
   tone?: 'default' | 'danger'
+  /** Si es `true`, el elemento no se puede seleccionar. */
   disabled?: boolean
+  /** Se llama al seleccionar el elemento. */
   onSelect: () => void
 }
 
 export interface MenuTriggerProps {
+  /** Registra el elemento que ancla el menú. */
   ref: (node: HTMLElement | null) => void
+  /** Indica que el disparador abre un menú. */
   'aria-haspopup': 'menu'
+  /** Si el menú está abierto. */
   'aria-expanded': boolean
+  /** Id del menú mientras está abierto. */
   'aria-controls'?: string
+  /** Abre o cierra el menú. */
   onClick: (event: MouseEvent<HTMLElement>) => void
+  /** Abre el menú con flecha abajo (primer elemento) o arriba (último). */
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void
 }
 
 export interface MenuProps {
   /** Nombre accesible del menú. */
   label: string
+  /** Elementos del menú, en orden. */
   items: MenuItem[]
+  /** Posición respecto al disparador; por defecto `bottom-end`. */
   placement?: Extract<Placement, 'bottom-start' | 'bottom-end'>
+  /** Función que recibe las props del disparador y devuelve su elemento. */
   children: (trigger: MenuTriggerProps) => ReactNode
 }
 
