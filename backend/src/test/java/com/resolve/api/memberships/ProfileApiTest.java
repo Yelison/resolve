@@ -85,6 +85,9 @@ class ProfileApiTest extends ApiIntegrationTest {
 		this.mvc.perform(get("/tickets/1/activity").with(as(ADMIN)))
 			.andExpect(matchesContract("listActivity"))
 			.andExpect(jsonPath("$[0].actor.name").value("Laura Méndez"));
+		this.mvc.perform(get("/tickets/activity").with(as(ADMIN)))
+			.andExpect(matchesContract("listRecentActivity"))
+			.andExpect(jsonPath("$[0].activity.actor.name").value("Laura Méndez"));
 	}
 
 	@Test
