@@ -240,6 +240,10 @@ Rules, all `409` and leaving the membership untouched:
 - removing the last **active** admin, or changing its role (an invited admin does not count as active);
 - changing the role of, or removing, a member who is already `removed`.
 
+A resolved ticket keeps its assignee even if that person is removed; **reopening** it (status out of `resolved`) unassigns a removed assignee in the same transaction, with an `assignee_changed` activity whose actor is the caller, unless the same `PATCH` brings a new valid assignee. A `PATCH` that merely resends the unchanged assignee is not revalidated.
+
+A request already in flight from an admin who is demoted or removed meanwhile finishes with the authority it had when its principal was resolved; the last-admin rule is always evaluated on committed state.
+
 Changing a role to the one the member already has is a no-op `200`. Error order: `403` (URL), `404`, `400` (body), `409`.
 
 Role changes, removals and invitations of an organization are serialized with a per-organization advisory lock, so two admins who remove or demote each other at the same time cannot both succeed and leave the organization without an admin. Assigning a ticket takes a shared lock on the assignee's membership: a removal that races an assignment either waits and then unassigns that ticket, or finds the assignee already removed and the assignment is a `400`.
