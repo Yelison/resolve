@@ -53,7 +53,7 @@ test.describe('clientes', () => {
       '/tickets/1048',
     )
 
-    await page.getByRole('button', { name: 'Editar' }).click()
+    await page.getByRole('button', { name: 'Editar cliente' }).click()
     const name = page.getByRole('textbox', { name: 'Nombre' })
     await name.fill('María Pérez Ruiz')
     await page.getByRole('button', { name: 'Guardar cambios' }).click()
@@ -91,7 +91,7 @@ test.describe('clientes', () => {
     await page.getByRole('button', { name: 'Archivar' }).click()
     await page.getByRole('dialog').getByRole('button', { name: 'Archivar cliente' }).click()
     await expect(page.getByRole('button', { name: 'Restaurar' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Editar' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Editar cliente' })).toBeDisabled()
     await page.getByRole('button', { name: 'Restaurar' }).click()
     await expect(page.getByRole('button', { name: 'Archivar' })).toBeVisible()
   })
@@ -126,18 +126,47 @@ test.describe('clientes', () => {
     expect(Math.abs(box.x - (panel.x + 1))).toBeLessThanOrEqual(1)
   })
 
-  test('en móvil el perfil y las pestañas van apiladas; en escritorio, en paralelo', async ({ page }) => {
+  test('en móvil el perfil, el contexto y las pestañas van apilados', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/clientes/c-maria')
     const profile = page.getByRole('complementary', { name: 'Perfil' })
+    const context = page.getByRole('region', { name: 'Contexto de atención' })
     const tabs = page.getByRole('tablist', { name: 'Información del cliente' })
     await expect(profile).toBeVisible()
-    const stacked = { profile: (await profile.boundingBox())!, tabs: (await tabs.boundingBox())! }
-    expect(stacked.tabs.y).toBeGreaterThanOrEqual(stacked.profile.y + stacked.profile.height - 1)
+    const boxes = {
+      profile: (await profile.boundingBox())!,
+      context: (await context.boundingBox())!,
+      tabs: (await tabs.boundingBox())!,
+    }
+    expect(boxes.context.y).toBeGreaterThanOrEqual(boxes.profile.y + boxes.profile.height - 1)
+    expect(boxes.tabs.y).toBeGreaterThanOrEqual(boxes.context.y + boxes.context.height - 1)
+  })
 
+  test('a 1440 px el perfil (1/3) y el contexto (2/3) van en paralelo y la tabla, debajo con todas sus columnas', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
-    const side = { profile: (await profile.boundingBox())!, tabs: (await tabs.boundingBox())! }
-    expect(side.tabs.x).toBeGreaterThanOrEqual(side.profile.x + side.profile.width - 1)
+    await page.goto('/clientes/c-maria')
+    const profile = (await page.getByRole('complementary', { name: 'Perfil' }).boundingBox())!
+    const context = (await page.getByRole('region', { name: 'Contexto de atención' }).boundingBox())!
+    expect(context.x).toBeGreaterThanOrEqual(profile.x + profile.width - 1)
+    expect(Math.abs(context.y - profile.y)).toBeLessThanOrEqual(1)
+    expect(Math.round(context.width / profile.width)).toBe(2)
+    const table = page.getByRole('table', { name: 'Tickets de María Pérez' })
+    for (const name of ['Asunto / cliente', 'Estado', 'Prioridad', 'Responsable', 'Actualizado']) {
+      await expect(table.getByRole('columnheader', { name })).toBeVisible()
+    }
+    const box = (await table.boundingBox())!
+    expect(box.y).toBeGreaterThanOrEqual(profile.y + profile.height - 1)
+    expect(box.width).toBeGreaterThan(profile.width + context.width - 80)
+  })
+
+  test('a 1200 px la tabla de tickets del detalle no está en tarjetas', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 900 })
+    await page.goto('/clientes/c-maria')
+    const table = page.getByRole('table', { name: 'Tickets de María Pérez' })
+    await expect(table.getByRole('columnheader', { name: 'Estado' })).toBeVisible()
+    expect((await table.getByRole('row').first().boundingBox())!.width).toBeGreaterThan(300)
   })
 
   for (const width of [320, 390]) {
