@@ -1,15 +1,6 @@
 import type { TeamMember, TeamMetrics } from '../../src/api/schema'
-import { daniel, json, laura, minutesAgo, problem, type MockFeature, type MockHandler } from './shared'
+import { daniel, json, laura, minutesAgo, problem, teamMember, type MockFeature, type MockHandler } from './shared'
 import { me } from './session'
-
-export const teamMember = (member: Partial<TeamMember> & Pick<TeamMember, 'id' | 'name' | 'email'>): TeamMember => ({
-  role: 'agent',
-  status: 'active',
-  openTickets: 0,
-  joinedAt: minutesAgo(60 * 24 * 30),
-  invitedAt: null,
-  ...member,
-})
 
 /** Equipo de demostración con el contrato de lista (`TeamMember`): activos, una invitación y un retirado. */
 export const team: TeamMember[] = [

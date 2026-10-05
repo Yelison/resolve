@@ -1,5 +1,5 @@
 import type { Route } from '@playwright/test'
-import type { Member } from '../../src/api/schema'
+import type { Member, TeamMember } from '../../src/api/schema'
 
 /** Petición que el despachador de `fixtures.ts` ofrece a cada feature: ya lleva la ruta de la API sin el prefijo. */
 export interface MockRequest {
@@ -36,3 +36,12 @@ export const json = (route: Route, body: unknown, status = 200) =>
 
 export const problem = (route: Route, status: number, title: string, errors?: { field: string; message: string }[]) =>
   json(route, { status, title, ...(errors && { errors }) }, status)
+
+export const teamMember = (member: Partial<TeamMember> & Pick<TeamMember, 'id' | 'name' | 'email'>): TeamMember => ({
+  role: 'agent',
+  status: 'active',
+  openTickets: 0,
+  joinedAt: minutesAgo(60 * 24 * 30),
+  invitedAt: null,
+  ...member,
+})
