@@ -34,4 +34,11 @@ describe('toTimelineEvent', () => {
     expect(event.kind).toBe('assignment')
     expect(event.timeLabel).toBe('Hoy, 15:14')
   })
+
+  it('formatea la fecha en la zona indicada', () => {
+    const created = { ...base, type: 'created' as const, createdAt: '2026-10-04T05:30:00Z' }
+    const now = new Date('2026-10-04T12:00:00Z')
+    expect(toTimelineEvent(created, now, 'America/Mexico_City').timeLabel).toBe('Ayer, 23:30')
+    expect(toTimelineEvent(created, now, 'Asia/Tokyo').timeLabel).toBe('Hoy, 14:30')
+  })
 })

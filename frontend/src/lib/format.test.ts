@@ -54,6 +54,8 @@ describe('formatDateTime en la zona de la organización', () => {
   it('compara el año en la zona: 31 dic en Tokio ya es 1 ene del año siguiente', () => {
     const date = new Date('2025-12-31T20:00:00Z')
     expect(formatDateTime(date, new Date('2027-06-01T00:00:00Z'), 'Asia/Tokyo')).toBe('1 ene 2026, 05:00')
+    // Mismo año en la zona (2026) aunque en el navegador (UTC) la fecha sea de 2025: no lleva año.
+    expect(formatDateTime(date, new Date('2026-03-01T00:00:00Z'), 'Asia/Tokyo')).toBe('1 ene, 05:00')
     expect(formatDateTime(date, new Date('2026-01-01T12:00:00Z'), 'Asia/Tokyo')).toBe('Hoy, 05:00')
     expect(formatDateTime(date, new Date('2026-01-01T12:00:00Z'), 'UTC')).toBe('Ayer, 20:00')
   })

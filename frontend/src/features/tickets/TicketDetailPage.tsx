@@ -364,12 +364,7 @@ function History({ number }: { number: number }) {
   }
   return (
     <div className={styles.history}>
-      <Timeline
-        events={activity.data.map((entry) => {
-          const event = toTimelineEvent(entry)
-          return { ...event, timeLabel: formatDateTime(event.at, undefined, timeZone) }
-        })}
-      />
+      <Timeline events={activity.data.map((entry) => toTimelineEvent(entry, undefined, timeZone))} />
     </div>
   )
 }
