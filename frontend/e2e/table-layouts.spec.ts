@@ -5,7 +5,7 @@ import { expect, test } from './fixtures'
  * §2.1: columnas prioritarias de 768 a 1199 px y tabla completa desde 1200 px, con el sidebar expandido o colapsado.
  * El contenedor mide ~894 px a 1200 px (sidebar de 240 px) y ~898 px a 1024 px (sidebar de 76 px), así que ningún
  * umbral de contenedor distingue los dos: la tabla completa se decide con el breakpoint de 1200 px del viewport y un
- * suelo de contenedor de 860 px. `TicketTable` tiene su propio comportamiento y no se comprueba aquí a menos de 1200 px.
+ * suelo de contenedor de 860 px. `TicketTable` usa los mismos umbrales con sus propias reglas de contenedor.
  */
 const tables = [
   {
@@ -15,6 +15,12 @@ const tables = [
     priority: ['Correo'],
   },
   { route: '/equipo', name: 'Equipo', full: ['Agente', 'Rol', 'Estado', 'Carga'], priority: ['Rol'] },
+  {
+    route: '/tickets',
+    name: 'Tickets',
+    full: ['Estado', 'Prioridad', 'Responsable', 'Actualizado'],
+    priority: ['Responsable', 'Actualizado'],
+  },
 ]
 
 /** Cabecera medida: ancho y posición; `null` si no se pinta o queda reducida a 1 px solo para lectores de pantalla. */
@@ -58,6 +64,18 @@ for (const { route, name, full, priority } of tables) {
     })
   }
 
+  for (const width of [1024, 1199, 1200]) {
+    test(`${name}: a ${width} px la página no desborda en horizontal`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto(route)
+      await expect(page.getByRole('table', { name }).getByRole('columnheader').first()).toBeVisible()
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      )
+      expect(overflow).toBe(false)
+    })
+  }
+
   for (const width of [1024, 1100, 1199]) {
     test(`${name}: a ${width} px (sidebar de 76 px) la tabla conserva las columnas prioritarias`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
@@ -68,10 +86,3 @@ for (const { route, name, full, priority } of tables) {
     })
   }
 }
-
-test('Tickets: a 1200 px con el sidebar expandido la tabla está completa y en una sola fila', async ({ page }) => {
-  await page.setViewportSize({ width: 1200, height: 900 })
-  await page.goto('/tickets')
-  const table = page.getByRole('table', { name: 'Tickets' })
-  await expectOneRowInOrder(table, ['Estado', 'Prioridad', 'Responsable', 'Actualizado'])
-})

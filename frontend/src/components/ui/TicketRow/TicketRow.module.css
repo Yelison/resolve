@@ -1,6 +1,10 @@
 /*
- * La disposición depende del ancho del contenedor, no del viewport:
- * tarjetas por debajo de 560 px, columnas prioritarias hasta 880 px y tabla completa por encima.
+ * Mismos umbrales que `components/ui/Table` (§2.1): tarjetas en contenedores de menos de 560 px, columnas prioritarias
+ * por encima y tabla completa solo desde 1200 px de viewport con un contenedor de al menos 860 px. El contenedor mide
+ * ~894 px a 1200 px con el sidebar expandido y ~898 px a 1024 px con el de 76 px: ningún umbral de contenedor por sí
+ * solo los distingue, así que decide el breakpoint de viewport y el suelo de 860 px protege los paneles estrechos.
+ * No usa `Table` porque la fila de ticket tiene selección opcional y un grupo `meta` que se aplana en la tabla
+ * (`display: contents`), algo que el `Table` compartido no modela.
  */
 .table {
   container: tickets / inline-size;
@@ -217,36 +221,41 @@
   }
 }
 
-@container tickets (min-width: 880px) {
-  .header,
-  .row {
-    grid-template-columns: 20px minmax(0, 1fr) 120px 90px minmax(120px, 170px) 120px var(--touch-target);
-    grid-template-areas: 'check subject status priority assignee updated actions';
-  }
+@media (min-width: 1200px) {
+  @container tickets (min-width: 860px) {
+    .header,
+    .row {
+      grid-template-columns: 20px minmax(0, 1fr) 120px 90px minmax(120px, 170px) 120px var(--touch-target);
+      grid-template-areas: 'check subject status priority assignee updated actions';
+    }
 
-  .plain .header,
-  .plain .row {
-    grid-template-columns: minmax(0, 1fr) 120px 90px minmax(120px, 170px) 120px var(--touch-target);
-    grid-template-areas: 'subject status priority assignee updated actions';
-  }
+    .plain .header,
+    .plain .row {
+      grid-template-columns: minmax(0, 1fr) 120px 90px minmax(120px, 170px) 120px var(--touch-target);
+      grid-template-areas: 'subject status priority assignee updated actions';
+    }
 
-  .assignee,
-  .assigneeHeader {
-    display: block;
-    grid-area: assignee;
-    font: var(--font-body);
-    color: var(--color-ink);
-  }
+    .assignee,
+    .assigneeHeader {
+      display: block;
+      grid-area: assignee;
+      overflow: hidden;
+      font: var(--font-body);
+      color: var(--color-ink);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
 
-  .updated,
-  .updatedHeader {
-    display: block;
-    grid-area: updated;
-  }
+    .updated,
+    .updatedHeader {
+      display: block;
+      grid-area: updated;
+    }
 
-  .assigneeHeader,
-  .updatedHeader {
-    font: var(--font-caption);
-    color: var(--color-muted);
+    .assigneeHeader,
+    .updatedHeader {
+      font: var(--font-caption);
+      color: var(--color-muted);
+    }
   }
 }
