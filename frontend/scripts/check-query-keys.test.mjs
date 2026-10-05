@@ -8,6 +8,11 @@ const loose = {
   multilínea: "useQuery({\n  queryKey: [\n    'tickets',\n    'x',\n  ],\n})",
   spread: "useQuery({ queryKey: [...ticketKeys.all, 'x'] })",
   'as const': "useQuery({ queryKey: ['tickets'] as const })",
+  '<const>': "useQuery({ queryKey: <const>['tickets'] })",
+  'rama del condicional': "useQuery({ queryKey: ok ? ticketKeys.all : ['x'] })",
+  'rama verdadera': "useQuery({ queryKey: ok ? ['x'] : ticketKeys.all })",
+  'lado derecho de ||': "useQuery({ queryKey: key || ['x'] })",
+  'lado derecho de ??': "useQuery({ queryKey: key ?? ['x'] })",
   paréntesis: "useQuery({ queryKey: (['tickets']) })",
   'propiedad entrecomillada': "useQuery({ 'queryKey': ['tickets'] })",
   invalidateQueries: "queryClient.invalidateQueries({ queryKey: ['tickets'] })",
@@ -19,6 +24,7 @@ for (const [name, code] of Object.entries(loose)) {
 const allowed = {
   'uso de la fábrica': 'useQuery({ queryKey: ticketKeys.list(params) })',
   'propiedad de la fábrica': 'useQuery({ queryKey: sessionKeys.me })',
+  'condicional con fábricas': 'useQuery({ queryKey: ok ? ticketKeys.all : sessionKeys.me })',
   variable: 'useQuery({ queryKey: key })',
   'fábrica con spread':
     "export const ticketKeys = { all: ['tickets'] as const, lists: () => [...ticketKeys.all, 'list'] as const }",
