@@ -41,10 +41,10 @@ import styles from './TicketsPage.module.css'
 const PAGE_SIZE = 20
 
 const sortLabels: Record<TicketSort, string> = {
-  'updatedAt,desc': 'Actualización: más reciente primero',
-  'updatedAt,asc': 'Actualización: más antigua primero',
-  'createdAt,desc': 'Creación: más reciente primero',
-  'createdAt,asc': 'Creación: más antigua primero',
+  'updatedAt,desc': 'Actualización: más reciente',
+  'updatedAt,asc': 'Actualización: más antigua',
+  'createdAt,desc': 'Creación: más reciente',
+  'createdAt,asc': 'Creación: más antigua',
   'number,desc': 'Número: mayor primero',
   'number,asc': 'Número: menor primero',
   'priority,desc': 'Prioridad: urgente primero',
