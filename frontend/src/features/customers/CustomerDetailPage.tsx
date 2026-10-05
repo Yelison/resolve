@@ -279,7 +279,7 @@ function Notes({ customer, draft, onDraftChange: setDraft }: NotesProps) {
         </Alert>
       )}
       {(customer.archived || archivedError) && (
-        <Alert tone="red" title="El cliente está archivado" live={Boolean(archivedError)}>
+        <Alert tone="red" title="El cliente está archivado" live={Boolean(archivedError) || draft !== null}>
           Ya no se pueden editar sus notas. Solo un administrador puede restaurarlo.
         </Alert>
       )}

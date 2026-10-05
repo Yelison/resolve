@@ -236,6 +236,65 @@ describe('CustomerFormDialog', () => {
       expect(screen.getByRole('textbox', { name: 'Empresa' })).toHaveValue('Empresa C')
     })
 
+    it('tras un 412, volver a escribir el valor original de un campo que cambió otra persona lo envía y no cierra sin guardar', async () => {
+      let reads = 0
+      let patches = 0
+      const onClose = vi.fn()
+      const fetchSpy = mockApi({
+        'GET /api/customers/c-maria': () => {
+          reads += 1
+          return { body: customerDetail(reads === 1 ? {} : { company: 'Empresa B', version: 4 }) }
+        },
+        'PATCH /api/customers/c-maria': () => {
+          patches += 1
+          return patches === 1
+            ? { status: 412, body: { status: 412, title: 'El recurso cambió' } }
+            : { body: customerDetail({ company: 'Acme Studio', version: 5 }) }
+        },
+      })
+      function Closing() {
+        const customer = useCustomer('c-maria')
+        return customer.data ? <CustomerFormDialog open onClose={onClose} mode="edit" customer={customer.data} /> : null
+      }
+      renderWithProviders(<Closing />)
+      const company = await screen.findByRole('textbox', { name: 'Empresa' })
+      await userEvent.clear(company)
+      await userEvent.type(company, 'Empresa C')
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+      await waitFor(() =>
+        expect(screen.getByRole('textbox', { name: 'Empresa' })).toHaveAccessibleDescription('Ahora: Empresa B'),
+      )
+
+      // Vuelve al valor original, que es el que quiere conservar aunque el servidor tenga otro.
+      await userEvent.clear(screen.getByRole('textbox', { name: 'Empresa' }))
+      await userEvent.type(screen.getByRole('textbox', { name: 'Empresa' }), 'Acme Studio')
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+      await waitFor(() => expect(patchesTo(fetchSpy)).toHaveLength(2))
+      expect(await patchesTo(fetchSpy)[1]!.clone().json()).toEqual({ company: 'Acme Studio' })
+      expect(patchesTo(fetchSpy)[1]!.headers.get('If-Match')).toBe('"4"')
+      await waitFor(() => expect(onClose).toHaveBeenCalled())
+    })
+
+    it('el aviso ámbar nombra los campos que cambió otra persona', async () => {
+      let reads = 0
+      mockApi({
+        'GET /api/customers/c-maria': () => {
+          reads += 1
+          return {
+            body: customerDetail(
+              reads === 1 ? {} : { company: 'Empresa B', email: 'maria.b@cliente.example', version: 4 },
+            ),
+          }
+        },
+        'PATCH /api/customers/c-maria': { status: 412, body: { status: 412, title: 'El recurso cambió' } },
+      })
+      renderWithProviders(<Harness />)
+      await userEvent.type(await screen.findByRole('textbox', { name: 'Nombre' }), ' Ruiz')
+      await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+      const alert = await screen.findByRole('status')
+      await waitFor(() => expect(alert).toHaveTextContent('Cambió: Correo, Empresa.'))
+    })
+
     it('si el cliente pasa a archivado durante la edición muestra el aviso de archivado y no deja guardar', async () => {
       let reads = 0
       mockApi({
