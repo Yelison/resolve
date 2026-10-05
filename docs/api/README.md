@@ -144,3 +144,17 @@ The `description` belongs to the ticket and is shown above the conversation; it 
 ## Demo data
 
 Demo organizations, users, customers and tickets live in a Flyway location (`db/demo`) that only the `dev` profile loads, with its own version range, so they never reach other environments.
+
+## How the contract is enforced
+
+Three checks keep the backend, the frontend and [`openapi.yaml`](openapi.yaml) in step. All of them run in CI on every pull request and on `main`.
+
+1. **Every response is validated.** API tests call `.andExpect(matchesContract("<operationId>"))` (`backend/src/test/java/com/resolve/api/support/OpenApiContract.java`). The status must be declared by that operation, and the body must match its schema for the returned media type. Response schemas reject extra properties, so an exposed entity field or an internal note fails the test. A response without declared content must have an empty body.
+2. **Every operation is covered.** `ContractCoverageListener`, a JUnit `LauncherSessionListener` in the same package, fails `./mvnw -B verify` when an operation in the contract was never validated by `matchesContract`, and lists the missing `operationId`s. It only acts when the run includes every concrete subclass of `ApiIntegrationTest`, so a partial run such as `./mvnw -B -Dtest=MembershipsApiTest test` is not affected. A full run that passes prints a `Cobertura del contrato: …` line with the number of validated operations.
+3. **Frontend types are generated from the contract.** `npm run api:types` regenerates `frontend/src/api/schema.ts` with `openapi-typescript`. CI runs it and fails on `git diff --exit-code src/api/schema.ts` when the committed types are out of date. The frontend API client compiles against these types.
+
+What these checks do not cover:
+
+- Coverage is counted per operation, not per declared response: an operation counts once any of its statuses is validated.
+- Request bodies and parameters are not validated against the contract by these tests. Their rules (validation errors, `If-Match`, sorting and paging limits) are covered by the behaviour tests.
+- The coverage check runs within one test JVM. If Surefire is configured to split the tests across several forks (`forkCount` greater than 1), no fork sees the whole suite and the check stays inactive. Today the default single reused fork is used.
