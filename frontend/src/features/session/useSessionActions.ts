@@ -17,8 +17,16 @@ export function organizationErrorText(error: unknown) {
   return 'Revisa tu conexión e inténtalo de nuevo.'
 }
 
+export interface SessionActionsOptions {
+  /**
+   * Se llama cuando `/logout` responde 403 o 404: la operación no existe en este backend (dev sin oidc). Solo se pasa
+   * donde existe una alternativa (el selector de demostración); sin ella el fallo se avisa como cualquier otro.
+   */
+  onLogoutUnavailable?: () => void
+}
+
 /** Acciones de la sesión del usuario: cerrar sesión y cambiar de organización. */
-export function useSessionActions() {
+export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions = {}) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const toast = useToast()
@@ -38,8 +46,12 @@ export function useSessionActions() {
       postSessionMessage('logout')
       navigation.assign(logoutUrl)
     },
-    onError: () => {
+    onError: (error) => {
       sessionState.ending = false
+      if (onLogoutUnavailable && (isApiError(error, 403) || isApiError(error, 404))) {
+        onLogoutUnavailable()
+        return
+      }
       toast.show({
         tone: 'error',
         title: 'No pudimos cerrar la sesión',

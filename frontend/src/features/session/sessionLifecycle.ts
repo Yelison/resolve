@@ -80,15 +80,23 @@ export async function clearSessionData(queryClient: QueryClient) {
 }
 
 /**
- * Lleva el foco al contenido principal en cuanto la shell lo pinta (tras un cambio que desmonta quien lo tenía). La
- * navegación a `/` puede tardar en montar la shell; se reintenta unos instantes y se abandona si el foco ya está en otro
- * elemento.
+ * Lleva el foco al contenido principal cuando la shell lo pinta y el foco puede moverse allí: tras un cambio que
+ * desmonta a quien lo tenía (el selector de usuario de demostración). Tres trampas, por eso no basta un `focus()`:
+ * mientras un `<dialog>` modal sigue abierto el resto de la página es inerte y `focus()` no hace nada sin avisar; la
+ * shell puede tardar en montarse tras navegar; y al cerrarse, `Modal` devuelve el foco a su disparador, que puede
+ * ocurrir justo después. Se reintenta hasta que el foco llega y se confirma una vez más poco después.
  */
-export function focusContentWhenReady(attempts = 40) {
-  const content = document.getElementById('contenido')
-  if (content) {
-    content.focus({ preventScroll: true })
-    return
-  }
-  if (attempts > 0) window.setTimeout(() => focusContentWhenReady(attempts - 1), 50)
+export function focusContentWhenReady(attempts = 40, delay = 0, confirming = false) {
+  window.setTimeout(() => {
+    const content = document.getElementById('contenido')
+    if (content && !document.querySelector('dialog[open]')) {
+      if (document.activeElement === content && confirming) return
+      content.focus({ preventScroll: true })
+      if (document.activeElement === content) {
+        focusContentWhenReady(attempts, 100, true)
+        return
+      }
+    }
+    if (attempts > 0) focusContentWhenReady(attempts - 1, 50)
+  }, delay)
 }

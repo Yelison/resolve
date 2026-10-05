@@ -46,9 +46,10 @@ export function DemoUserPicker({ onSwitched, submitLabel = 'Usar este usuario' }
       setDemoUser(email)
       postSessionMessage('signed-in')
       void navigate('/', { replace: true })
-      // Desde el diálogo del menú, `Modal` devuelve el foco al botón de la cuenta; desde /entrar el selector desaparece.
-      if (onSwitched) onSwitched()
-      else focusContentWhenReady()
+      onSwitched?.()
+      // El selector (en /entrar) o el botón de la cuenta al que `Modal` devolvería el foco desaparecen con el cambio de
+      // usuario: el foco va al contenido de la shell cuando el diálogo ya no está.
+      focusContentWhenReady()
     } finally {
       setPending(false)
     }
