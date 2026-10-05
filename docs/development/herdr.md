@@ -322,6 +322,22 @@ commits that are not pushed, and only deletes the branch when `git branch -d` ag
 | A prompt timed out | Read the agent (`herdr agent read`) before deciding whether to resend. |
 | Ports are busy | `ss -ltnp` shows the owner; pick another slot rather than killing processes you do not own. |
 
+## Where a feature registers itself
+
+Parallel tasks should not edit the same shared files, so each feature declares its own pieces in its own folder:
+
+- **Routes.** `frontend/src/features/<feature>/routes.tsx` exports a `FeatureRoutes` function that returns the section's
+  `element` or its `children`. Add one line to the `featureRoutes` registry in `frontend/src/app/router.tsx`, keyed by the
+  entry's `to` in `navigation.ts`; a section with no entry shows the pending page. `lazyRoute` arrives as a parameter,
+  so the feature never imports from the router at runtime. Route tests for the feature go in
+  `features/<feature>/routes.test.tsx`; `router.test.tsx` keeps only the cross-cutting cases.
+- **Responsive sweep widths.** `frontend/e2e/routes/<feature>.ts` exports the `SweepRoute[]` that `responsive.spec.ts`
+  measures (with an optional `ready` to wait for data), and `e2e/routes/index.ts` gathers it. The widths and themes stay in
+  the spec.
+- **E2E mocks.** `frontend/e2e/mocks/<feature>.ts` exports its demo data and a `<feature>Mock()` factory returning a
+  `handle` function; `e2e/fixtures.ts` lists the factory in `mockApi`. Keep state inside the factory, never at module
+  level, so tests do not leak into each other.
+
 ## Notes and decisions
 
 - `CLAUDE.md`, `tools/` and `design/` are git-ignored on purpose; `new-task.sh` copies only `CLAUDE.md`, because the
