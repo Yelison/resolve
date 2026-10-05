@@ -637,6 +637,11 @@ export interface components {
             name: string;
             /** @example America/Bogota */
             timeZone: string;
+            /**
+             * Format: email
+             * @description Public support address shown in the knowledge base footer; null when not set.
+             */
+            supportEmail: string | null;
         };
         Me: {
             user: components["schemas"]["Member"];

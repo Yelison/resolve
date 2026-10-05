@@ -37,6 +37,10 @@ public class TestData {
 		return id;
 	}
 
+	public void supportEmail(UUID organizationId, String email) {
+		this.jdbc.sql("UPDATE organizations SET support_email = ? WHERE id = ?").params(email, organizationId).update();
+	}
+
 	public UUID user(String name, String email) {
 		UUID id = Ids.newId();
 		this.jdbc.sql("INSERT INTO users (id, name, email) VALUES (?, ?, ?)").params(id, name, email).update();

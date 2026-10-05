@@ -1012,11 +1012,15 @@ components:
     Organization:
       type: object
       additionalProperties: false
-      required: [id, name, timeZone]
+      required: [id, name, timeZone, supportEmail]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         timeZone: { type: string, examples: [America/Bogota] }
+        supportEmail:
+          description: Public support address shown in the knowledge base footer; null when not set.
+          type: [string, 'null']
+          format: email
 
     Me:
       type: object

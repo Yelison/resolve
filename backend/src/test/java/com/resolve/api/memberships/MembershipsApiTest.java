@@ -43,6 +43,19 @@ class MembershipsApiTest extends ApiIntegrationTest {
 	}
 
 	@Test
+	void meExposesTheSupportEmailOrNullWhenTheOrganizationHasNone() throws Exception {
+		this.mvc.perform(get("/me").with(as("laura@acme.example")))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("getMe"))
+			.andExpect(jsonPath("$.organization.supportEmail").isEmpty());
+		this.data.supportEmail(this.acme, "ayuda@acme.example");
+		this.mvc.perform(get("/me").with(as("maria@cliente.example")))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("getMe"))
+			.andExpect(jsonPath("$.organization.supportEmail").value("ayuda@acme.example"));
+	}
+
+	@Test
 	void meLinksCustomersToTheirCustomerRecord() throws Exception {
 		this.mvc.perform(get("/me").with(as("maria@cliente.example")))
 			.andExpect(status().isOk())
