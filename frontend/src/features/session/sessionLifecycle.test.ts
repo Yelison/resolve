@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { sessionKeys } from './queries'
-import { clearDrafts, clearSessionData, navigation } from './sessionLifecycle'
+import { clearDrafts, clearSessionData, focusContentWhenReady, navigation } from './sessionLifecycle'
 
 afterEach(() => {
   sessionStorage.clear()
@@ -60,5 +60,62 @@ describe('navigation.openInNewTab', () => {
     const assign = vi.spyOn(navigation, 'assign').mockImplementation(() => {})
     navigation.openInNewTab('/api/oauth2/authorization/resolve')
     expect(assign).toHaveBeenCalledWith('/api/oauth2/authorization/resolve')
+  })
+})
+
+describe('focusContentWhenReady', () => {
+  function page() {
+    document.body.innerHTML = '<main id="contenido" tabindex="-1"></main><button id="otro">Otro</button>'
+    return { main: document.getElementById('contenido')!, other: document.getElementById('otro')! }
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
+  })
+
+  it('lleva el foco al contenido y lo confirma poco después', () => {
+    vi.useFakeTimers()
+    const { main } = page()
+    focusContentWhenReady()
+    vi.advanceTimersByTime(0)
+    expect(main).toHaveFocus()
+    vi.advanceTimersByTime(100)
+    expect(main).toHaveFocus()
+  })
+
+  it('si se lo quitan (cae en body, como al devolverlo el diálogo a un disparador que ya no existe) lo recupera', () => {
+    vi.useFakeTimers()
+    const { main } = page()
+    focusContentWhenReady()
+    vi.advanceTimersByTime(0)
+    main.blur()
+    vi.advanceTimersByTime(100)
+    expect(main).toHaveFocus()
+  })
+
+  it('si la persona ya lo movió a otro elemento, no se lo quita', () => {
+    vi.useFakeTimers()
+    const { main, other } = page()
+    focusContentWhenReady()
+    vi.advanceTimersByTime(0)
+    expect(main).toHaveFocus()
+    other.focus()
+    vi.advanceTimersByTime(100)
+    expect(other).toHaveFocus()
+  })
+
+  it('espera a que se cierre un diálogo modal abierto', () => {
+    vi.useFakeTimers()
+    const { main } = page()
+    const dialog = document.createElement('dialog')
+    dialog.setAttribute('open', '')
+    document.body.append(dialog)
+    focusContentWhenReady()
+    vi.advanceTimersByTime(120)
+    expect(main).not.toHaveFocus()
+    dialog.removeAttribute('open')
+    vi.advanceTimersByTime(60)
+    expect(main).toHaveFocus()
   })
 })
