@@ -101,7 +101,8 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
       {
         onSuccess: () => toast.show({ title: success }),
         onError: (error) => {
-          if (!isApiError(error, 412)) {
+          // Un 412 lo explica el aviso de conflicto y un 401, el aviso global «Tu sesión caducó»: otro toast sería ruido.
+          if (!isApiError(error, 412) && !isApiError(error, 401)) {
             toast.show({ tone: 'error', title: 'No se pudo guardar el cambio', description: 'Inténtalo de nuevo.' })
           }
         },

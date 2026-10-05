@@ -221,7 +221,7 @@ describe('TicketDetailPage con la sesión caducada (foco de revisión 5)', () =>
     expect(posts).toHaveLength(1)
   })
 
-  it('un 401 al cambiar un campo editable (PATCH) muestra el aviso y el campo vuelve al valor guardado', async () => {
+  it('un 401 al cambiar un campo editable (PATCH) muestra solo el aviso de sesión y el campo vuelve al valor guardado', async () => {
     staffApi({ 'PATCH /api/tickets/1048': { status: 401, body: { status: 401, title: 'No autenticado' } } })
     renderDetailInShell()
     const status = await screen.findByRole('combobox', { name: 'Estado' })
@@ -234,8 +234,8 @@ describe('TicketDetailPage con la sesión caducada (foco de revisión 5)', () =>
     // borradores: tras el 401 el campo muestra el valor guardado y se vuelve a elegir al repetir la acción. Lo que
     // sí se escribe a mano (la respuesta) conserva su borrador (test anterior).
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Estado' })).toHaveValue('open'))
-    // Y se avisa dos veces: el de la página («No se pudo guardar el cambio») y el de la sesión.
-    expect(within(region).getByText('No se pudo guardar el cambio')).toBeInTheDocument()
+    // Un solo aviso: el de la sesión lo explica y la página no añade su «No se pudo guardar el cambio».
+    expect(within(region).queryByText('No se pudo guardar el cambio')).not.toBeInTheDocument()
   })
 })
 
