@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Profile("test")
-class TicketUpdateBarrier implements Runnable {
+class TicketUpdateBarrier implements TicketUpdateHook {
 
 	private static final long PARK_SECONDS = 15;
 
@@ -46,7 +46,7 @@ class TicketUpdateBarrier implements Runnable {
 	}
 
 	@Override
-	public void run() {
+	public void afterVersionCheck() {
 		if (!this.armed.compareAndSet(true, false)) {
 			return;
 		}
