@@ -1,3 +1,4 @@
+import type { ComboboxOption } from '../../components/ui'
 import type { TicketSummary } from '../../domain/ticket'
 
 /** Momento de referencia de los datos de demostración, fijado al cargar el módulo. */
@@ -81,4 +82,11 @@ export const demoChannelShare = [
   { label: 'Correo', value: 62 },
   { label: 'Portal', value: 28 },
   { label: 'Chat', value: 10 },
+]
+
+/** Agentes ficticios para el `Combobox` del catálogo. */
+export const demoAgents: ComboboxOption[] = [
+  { value: 'u-1', label: 'Laura Méndez', description: 'Administradora' },
+  { value: 'u-2', label: 'Daniel Santos', description: 'Agente' },
+  { value: 'u-3', label: 'Ana Ruiz', description: 'Agente' },
 ]

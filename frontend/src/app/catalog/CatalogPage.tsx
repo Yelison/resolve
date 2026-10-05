@@ -8,6 +8,7 @@ import {
   Breadcrumb,
   Button,
   Checkbox,
+  Combobox,
   Editor,
   EmptyState,
   FilterChip,
@@ -22,7 +23,9 @@ import {
   Pagination,
   ProgressBar,
   Radio,
+  SearchField,
   Select,
+  Sidebar,
   Skeleton,
   Switch,
   Table,
@@ -35,8 +38,10 @@ import {
   TicketTable,
   Timeline,
   Tooltip,
+  Topbar,
   Upload,
   useToast,
+  type ComboboxOption,
   type EditorMode,
   type IconName,
 } from '../../components/ui'
@@ -44,6 +49,7 @@ import { iconPaths } from '../../components/ui/Icon/paths'
 import { cx } from '../../lib/cx'
 import { useTheme } from '../theme/useTheme'
 import {
+  demoAgents,
   demoChannelShare,
   demoChartPoints,
   demoChartSeries,
@@ -96,6 +102,15 @@ export default function CatalogPage() {
   const [draft, setDraft] = useState('')
   const [mode, setMode] = useState<EditorMode>('reply')
   const [articleDraft, setArticleDraft] = useState('')
+  const [search, setSearch] = useState('')
+  const [agentQuery, setAgentQuery] = useState('')
+  const [agent, setAgent] = useState<ComboboxOption | null>(null)
+  const [statesDraft, setStatesDraft] = useState('Hola María, vamos a ayudarte a recuperar el acceso.')
+  const [statesMode, setStatesMode] = useState<EditorMode>('reply')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const agentOptions = demoAgents.filter((option) =>
+    option.label.toLowerCase().includes(agentQuery.trim().toLowerCase()),
+  )
 
   const selection = selected.size === 0 ? 'none' : selected.size === demoTickets.length ? 'all' : 'some'
   const toggleAll = () => setSelected(selection === 'all' ? new Set() : new Set(demoTickets.map((ticket) => ticket.id)))
@@ -244,6 +259,20 @@ export default function CatalogPage() {
             <option value="high">Alta</option>
           </Select>
         </div>
+        <div className={styles.grid}>
+          <SearchField label="Buscar en el catálogo" placeholder="Buscar…" value={search} onValueChange={setSearch} />
+          <Combobox
+            label="Responsable"
+            placeholder="Busca un agente…"
+            hint="Datos de demostración."
+            query={agentQuery}
+            onQueryChange={setAgentQuery}
+            options={agentOptions}
+            selected={agent}
+            onSelect={setAgent}
+            emptyText="Ningún agente coincide"
+          />
+        </div>
         <Textarea label="Descripción" placeholder="Cuéntanos qué ocurre…" />
         <div className={styles.row}>
           <Checkbox label="Recordarme" defaultChecked />
@@ -326,6 +355,38 @@ export default function CatalogPage() {
         <Skeleton lines={3} />
       </Section>
 
+      <Section title="Estados">
+        <p className={styles.demo}>
+          Estados de carga y guardado con datos de demostración: ninguno envía nada a un servidor.
+        </p>
+        <div className={styles.grid}>
+          <Button variant="secondary" loading loadingLabel="Guardando…">
+            Guardar
+          </Button>
+          <Alert tone="green" title="Cambios guardados">
+            Tu equipo verá la actualización.
+          </Alert>
+        </div>
+        <div className={styles.grid}>
+          <Editor
+            value={statesDraft}
+            onChange={setStatesDraft}
+            mode={statesMode}
+            onModeChange={setStatesMode}
+            onSubmit={() => {}}
+            status="sending"
+          />
+          <Editor
+            value={statesDraft}
+            onChange={setStatesDraft}
+            mode={statesMode}
+            onModeChange={setStatesMode}
+            onSubmit={() => {}}
+            status="error"
+          />
+        </div>
+      </Section>
+
       <Section title="Superposiciones">
         <div className={styles.row}>
           <Tooltip content="Tooltip junto al disparador">
@@ -389,6 +450,60 @@ export default function CatalogPage() {
               <NavItem key={item.to} {...item} collapsed />
             ))}
           </nav>
+        </div>
+      </Section>
+
+      <Section title="Estructura">
+        <p className={styles.demo}>
+          Barra superior y barra lateral con datos de demostración; los botones no hacen nada. Cada marco las limita a
+          su ancho.
+        </p>
+        <div className={cx(styles.frame, styles.shellFrame)}>
+          <p className={styles.frameLabel}>Barra lateral</p>
+          <Sidebar
+            className={styles.demoSidebar}
+            items={navItems}
+            sectionLabel="Soporte"
+            workspace="Acme Studio"
+            user={{ name: 'Laura Méndez', role: 'Administradora' }}
+            collapsed={sidebarCollapsed}
+            action={{
+              label: sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú',
+              icon: sidebarCollapsed ? 'expand' : 'collapse',
+              onClick: () => setSidebarCollapsed((value) => !value),
+            }}
+          />
+        </div>
+        <div className={styles.frame}>
+          <p className={styles.frameLabel}>Barra superior de escritorio</p>
+          <div
+            className={styles.topbarScroll}
+            role="region"
+            aria-label="Barra superior de escritorio de ejemplo"
+            tabIndex={0}
+          >
+            <Topbar
+              className={cx(styles.demoTopbar, styles.demoTopbarWide)}
+              breadcrumb={<Breadcrumb items={[{ label: 'Tickets', to: '/catalogo' }, { label: '#1048' }]} />}
+              theme={resolved}
+              onToggleTheme={toggle}
+              onSearch={() => {}}
+              onNotifications={() => {}}
+              userName="Laura Méndez"
+            />
+          </div>
+        </div>
+        <div className={cx(styles.frame, styles.narrow)}>
+          <p className={styles.frameLabel}>Barra superior móvil</p>
+          <Topbar
+            className={styles.demoTopbar}
+            theme={resolved}
+            onToggleTheme={toggle}
+            onSearch={() => {}}
+            onNotifications={() => {}}
+            userName="Laura Méndez"
+            menuButton={{ expanded: false, controls: 'catalog-demo-menu', onClick: () => {} }}
+          />
         </div>
       </Section>
 
