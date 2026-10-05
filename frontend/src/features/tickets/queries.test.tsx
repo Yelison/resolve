@@ -6,7 +6,15 @@ import type { Ticket } from '../../domain/ticket'
 import { mockApi } from '../../test/api'
 import { createTestQueryClient } from '../../test/render'
 import { ticket } from '../../test/ticketFixtures'
-import { ticketKeys, useAddMessage, useQuickTicketUpdate } from './queries'
+import {
+  ticketKeys,
+  useAddMessage,
+  useQuickTicketUpdate,
+  useTicket,
+  useTicketList,
+  useTicketMessages,
+  useTicketMetrics,
+} from './queries'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -49,33 +57,47 @@ describe('useQuickTicketUpdate', () => {
 })
 
 describe('useAddMessage', () => {
-  async function addMessage(visibility: 'public' | 'internal') {
-    mockApi({ 'POST /api/tickets/1048/messages': { status: 201, body: { id: 'm-1', body: 'Hola', visibility } } })
+  /** Peticiones de lectura que provoca una respuesta, con detalle, mensajes, una lista y las métricas montados. */
+  async function readsAfterAdding(visibility: 'public' | 'internal') {
+    const reads: Record<string, number> = {}
+    const read = (path: string, body: unknown) => () => {
+      reads[path] = (reads[path] ?? 0) + 1
+      return { body }
+    }
+    mockApi({
+      'GET /api/tickets/1048': read('detail', ticket()),
+      'GET /api/tickets/1048/messages': read('messages', []),
+      'GET /api/tickets': read('list', { items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 }),
+      'GET /api/tickets/metrics': read('metrics', {}),
+      'POST /api/tickets/1048/messages': { status: 201, body: { id: 'm-1', body: 'Hola', visibility } },
+    })
     const queryClient = createTestQueryClient()
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     )
-    const { result } = renderHook(() => useAddMessage(1048), { wrapper })
+    const { result } = renderHook(
+      () => {
+        useTicket(1048)
+        useTicketMessages(1048)
+        useTicketList({ view: 'all', status: [], priority: [], page: 1, pageSize: 20, sort: 'updated' })
+        useTicketMetrics()
+        return useAddMessage(1048)
+      },
+      { wrapper },
+    )
+    await waitFor(() => expect(Object.keys(reads)).toHaveLength(4))
+    const before = { ...reads }
     act(() => result.current.mutate({ body: 'Hola', visibility }))
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
-    return invalidate.mock.calls.map(([filters]) => filters?.queryKey)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    return Object.fromEntries(Object.entries(reads).map(([path, count]) => [path, count - (before[path] ?? 0)]))
   }
 
-  it('una nota interna solo invalida los mensajes del ticket', async () => {
-    expect(await addMessage('internal')).toEqual([ticketKeys.messages(1048)])
+  it('una nota interna solo vuelve a pedir los mensajes del ticket', async () => {
+    expect(await readsAfterAdding('internal')).toEqual({ detail: 0, messages: 1, list: 0, metrics: 0 })
   })
 
-  it('una respuesta pública invalida detalle, mensajes, listas y métricas', async () => {
-    const keys = await addMessage('public')
-    expect(keys).toHaveLength(4)
-    expect(keys).toEqual(
-      expect.arrayContaining([
-        ticketKeys.detail(1048),
-        ticketKeys.messages(1048),
-        ticketKeys.lists(),
-        ticketKeys.metrics(),
-      ]),
-    )
+  it('una respuesta pública vuelve a pedir detalle, mensajes, lista y métricas, una vez cada uno', async () => {
+    expect(await readsAfterAdding('public')).toEqual({ detail: 1, messages: 1, list: 1, metrics: 1 })
   })
 })

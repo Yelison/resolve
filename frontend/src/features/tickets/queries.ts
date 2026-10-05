@@ -146,10 +146,13 @@ export function useAddMessage(number: number) {
     mutationFn: (message: { body: string; visibility: MessageVisibility }) =>
       unwrap(api.POST('/tickets/{number}/messages', { params: { path: { number } }, body: message })),
     onSuccess: (_message, { visibility }) => {
-      void queryClient.invalidateQueries({ queryKey: ticketKeys.messages(number) })
-      // Una nota interna no cambia nada visible fuera de la conversación; una respuesta pública mueve la fecha de
-      // actualización y puede fijar la primera respuesta.
-      if (visibility === 'internal') return
+      // Una nota interna no cambia nada visible fuera de la conversación.
+      if (visibility === 'internal') {
+        void queryClient.invalidateQueries({ queryKey: ticketKeys.messages(number) })
+        return
+      }
+      // Una respuesta pública mueve la fecha de actualización y puede fijar la primera respuesta. El detalle es
+      // prefijo de los mensajes: invalidarlos aparte los pediría dos veces.
       void queryClient.invalidateQueries({ queryKey: ticketKeys.detail(number) })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
