@@ -1,28 +1,10 @@
 import { expect, test } from './fixtures'
+import { sweepRoutes } from './routes'
 
 /** Anchos de revisión y fronteras de breakpoint definidos en la guía de diseño. */
 const widths = [320, 390, 767, 768, 1024, 1199, 1200, 1440]
 const themes = ['light', 'dark'] as const
-const routes = [
-  '/',
-  '/catalogo',
-  '/tickets',
-  '/tickets/1047',
-  '/tickets/nuevo',
-  '/clientes',
-  '/clientes/c-maria',
-  '/clientes/nuevo',
-  '/equipo',
-  '/conocimiento',
-  '/reportes',
-  '/reportes?period=30d',
-  '/reportes?period=90d',
-  '/conocimiento/como-recuperar-el-acceso-a-tu-cuenta',
-  '/conocimiento/como-recuperar-el-acceso-a-tu-cuenta/editar',
-  '/conocimiento/nuevo',
-] as const
-
-for (const route of routes) {
+for (const { path: route, ready } of sweepRoutes) {
   for (const theme of themes) {
     for (const width of widths) {
       test(`${route} sin desbordamiento horizontal · ${theme} · ${width}px`, async ({ page }, testInfo) => {
@@ -30,10 +12,8 @@ for (const route of routes) {
         await page.setViewportSize({ width, height: 900 })
         await page.goto(route)
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-        // El informe llega después del título: se mide con los datos, no con el esqueleto.
-        if (route.startsWith('/reportes')) {
-          await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
-        }
+        // Cada ruta declara si espera a algo más que el título (p. ej. los datos tras el esqueleto).
+        await ready?.(page)
 
         const overflow = await page.evaluate(
           () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
