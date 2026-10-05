@@ -24,6 +24,11 @@ describe('compareCount', () => {
     expect(compareCount(150, 200, 30).text).toBe('50 menos (25 %) frente a los 30 días anteriores')
   })
 
+  it('agrupa los miles como el resto de la página', () => {
+    expect(compareCount(13000, 1000, 90).text).toBe('12.000 más (1200 %) frente a los 90 días anteriores')
+    expect(channelValueText({ channel: 'email', created: 12000, share: 80 })).toBe('80 % · 12.000 tickets')
+  })
+
   it('no inventa un porcentaje si el periodo anterior fue 0', () => {
     const comparison = compareCount(12, 0, 90)
     expect(comparison.text).toBe('12 más frente a los 90 días anteriores')

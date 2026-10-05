@@ -73,6 +73,19 @@ describe('ReportsPage', () => {
     expect(screen.queryByText(/semana pasada|mes pasado/)).not.toBeInTheDocument()
   })
 
+  it('agrupa los miles en las cifras de las tarjetas', async () => {
+    mockApi({
+      ...baseRoutes,
+      'GET /api/reports/summary': byPeriod({
+        created: { value: 12000, previous: 10000 },
+        resolved: { value: 95000, previous: 0 },
+      }),
+    })
+    renderReports()
+    expect(within(await findMetricCard('Solicitudes')).getByText('12.000')).toBeInTheDocument()
+    expect(within(metricCard('Resueltos')).getByText('95.000')).toBeInTheDocument()
+  })
+
   it('con el periodo anterior a 0 no calcula un porcentaje', async () => {
     mockApi({ ...baseRoutes, 'GET /api/reports/summary': byPeriod({ created: { value: 12, previous: 0 } }) })
     renderReports()
