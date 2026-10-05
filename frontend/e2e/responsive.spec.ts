@@ -17,6 +17,9 @@ const routes = [
   '/reportes',
   '/reportes?period=30d',
   '/reportes?period=90d',
+  '/conocimiento/como-recuperar-el-acceso-a-tu-cuenta',
+  '/conocimiento/como-recuperar-el-acceso-a-tu-cuenta/editar',
+  '/conocimiento/nuevo',
 ] as const
 
 for (const route of routes) {
