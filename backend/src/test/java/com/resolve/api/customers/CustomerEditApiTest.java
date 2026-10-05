@@ -323,6 +323,10 @@ class CustomerEditApiTest extends CustomersFixture {
 		assertThat(result.getResponse().getStatus()).isEqualTo(404);
 		MvcResult unknown = patchCustomer(LAURA, UUID.randomUUID(), "0", "{\"company\": \"Intruso\"}");
 		assertThat(body(result).path("detail")).isEqualTo(body(unknown).path("detail"));
+		// Ni con una versión antigua ni con un cuerpo inválido se distingue de uno inexistente: sigue siendo un 404.
+		assertThat(patchCustomer(LAURA, this.northwindCustomer, "9", "{\"company\": \"X\"}").getResponse()
+			.getStatus()).isEqualTo(404);
+		assertThat(patchCustomer(LAURA, this.northwindCustomer, "0", "{}").getResponse().getStatus()).isEqualTo(404);
 		this.mvc.perform(get("/customers/" + this.northwindCustomer).with(as(NORTHWIND_AGENT)))
 			.andExpect(jsonPath("$.company").value("Soler"))
 			.andExpect(jsonPath("$.version").value(0));
@@ -382,6 +386,40 @@ class CustomerEditApiTest extends CustomersFixture {
 			assertThat(statuses).containsOnly(201, 400);
 			assertThat(statuses.stream().filter((status) -> status == 201).count()).isEqualTo(1);
 			assertThat(listAs(LAURA, "?q=lucia@vega.example").path("totalItems").asInt()).isEqualTo(1);
+		}
+		finally {
+			executor.shutdownNow();
+		}
+	}
+
+	@Test
+	@Timeout(40)
+	void simultaneousPatchesToTheSameEmailYieldOne200AndTheRestFieldErrors() throws Exception {
+		int attempts = 6;
+		List<UUID> customers = new ArrayList<>();
+		for (int i = 0; i < attempts; i++) {
+			customers.add(this.data.customer(this.acme, "Carrera " + i, "carrera" + i + "@example.com", null));
+		}
+		ExecutorService executor = Executors.newFixedThreadPool(attempts);
+		try {
+			CountDownLatch start = new CountDownLatch(1);
+			List<Future<Integer>> results = new ArrayList<>();
+			for (UUID customer : customers) {
+				results.add(executor.submit(() -> {
+					start.await();
+					return patchCustomer(LAURA, customer, "0", "{\"email\": \"destino@example.com\"}").getResponse()
+						.getStatus();
+				}));
+			}
+			start.countDown();
+			List<Integer> statuses = new ArrayList<>();
+			for (Future<Integer> result : results) {
+				statuses.add(result.get(30, TimeUnit.SECONDS));
+			}
+			// Nunca un 500: quien pierde la carrera recibe el mismo 400 que un duplicado detectado antes.
+			assertThat(statuses).containsOnly(200, 400);
+			assertThat(statuses.stream().filter((status) -> status == 200).count()).isEqualTo(1);
+			assertThat(listAs(LAURA, "?q=destino@example.com").path("totalItems").asInt()).isEqualTo(1);
 		}
 		finally {
 			executor.shutdownNow();
