@@ -2,12 +2,19 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+// Several checkouts of this repository can run side by side (see docs/development/herdr.md): each one takes its
+// own ports from the environment, and without those variables the defaults are the usual single-checkout ones.
+const devServerPort = process.env.DEV_SERVER_PORT
+const apiProxyTarget = process.env.API_PROXY_TARGET || 'http://localhost:8080'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: devServerPort ? Number(devServerPort) : undefined,
+    strictPort: Boolean(devServerPort),
     proxy: {
-      '/api': 'http://localhost:8080',
+      '/api': apiProxyTarget,
     },
   },
   test: {
