@@ -26,6 +26,8 @@ tags:
     description: Members who can own tickets.
   - name: Team
     description: Members of the organization, their invitations, roles and removal.
+  - name: Reports
+    description: Aggregated figures of the organization over a period.
 
 paths:
   /me:
@@ -628,6 +630,28 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /reports/summary:
+    get:
+      tags: [Reports]
+      operationId: getReportSummary
+      summary: Report of the organization over a period, with the previous period of the same length
+      description: |
+        Staff only. Everything is computed on the server, per organization, in the organization time zone.
+        The period covers the last `days` calendar days of the organization, today included: it starts at
+        00:00 of `today - (days - 1)` and ends now. `previous` figures cover the adjacent period of the same
+        duration (`[from - (to - from), from)`). Without data the counts are `0` and the medians `null`.
+      parameters:
+        - $ref: '#/components/parameters/ReportPeriod'
+      responses:
+        '200':
+          description: The report.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportSummary' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
 components:
   securitySchemes:
     demoUser:
@@ -664,6 +688,11 @@ components:
       name: size
       in: query
       schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    ReportPeriod:
+      name: period
+      in: query
+      description: Length of the report period, in calendar days of the organization time zone.
+      schema: { type: string, enum: [7d, 30d, 90d], default: 7d }
 
   headers:
     ETag:
@@ -1206,6 +1235,170 @@ components:
             - $ref: '#/components/schemas/MemberRef'
             - type: 'null'
         createdAt: { type: string, format: date-time }
+
+    ReportSummary:
+      type: object
+      additionalProperties: false
+      required: [period, created, resolved, firstResponseMinutes, resolutionHours, byDay, byChannel, byAgent]
+      properties:
+        period: { $ref: '#/components/schemas/ReportRange' }
+        created: { $ref: '#/components/schemas/ReportCount' }
+        resolved: { $ref: '#/components/schemas/ReportCount' }
+        firstResponseMinutes: { $ref: '#/components/schemas/ReportFirstResponse' }
+        resolutionHours: { $ref: '#/components/schemas/ReportResolution' }
+        byDay:
+          description: One entry per calendar day of the period, oldest first; days without data are `0`.
+          type: array
+          items: { $ref: '#/components/schemas/ReportDay' }
+        byChannel:
+          description: |
+            Channels with at least one ticket created in the period, largest first (ties by channel name);
+            empty without data. The `share` values add up to exactly `100`.
+          type: array
+          items: { $ref: '#/components/schemas/ReportChannel' }
+        byAgent:
+          description: |
+            Every active admin and agent, plus removed members who resolved tickets in the period, most
+            resolved first (ties by name, then id).
+          type: array
+          items: { $ref: '#/components/schemas/ReportAgent' }
+      examples:
+        - period: { from: '2026-09-28T05:00:00Z', to: '2026-10-04T15:00:00Z', days: 7, timeZone: America/Bogota }
+          created: { value: 42, previous: 38 }
+          resolved: { value: 35, previous: 31 }
+          firstResponseMinutes: { value: 18, previous: 22, target: 30 }
+          resolutionHours: { value: 6.5, previous: null }
+          byDay:
+            - { date: '2026-09-28', created: 6, resolved: 5 }
+          byChannel:
+            - { channel: email, created: 30, share: 71.4 }
+            - { channel: chat, created: 12, share: 28.6 }
+          byAgent:
+            - member: { id: 3f0c2f9a-6a56-4d1f-9c3e-1f4b0a7d2c11, name: Laura Méndez }
+              resolved: 20
+              firstResponseMinutes: 15
+              openAssigned: 4
+
+    ReportRange:
+      description: |
+        The window the report covers. `from` is the start of the first day in the organization time zone and
+        `to` is the moment of the request.
+      type: object
+      additionalProperties: false
+      required: [from, to, days, timeZone]
+      properties:
+        from: { type: string, format: date-time, examples: ['2026-09-28T05:00:00Z'] }
+        to: { type: string, format: date-time, examples: ['2026-10-04T15:00:00Z'] }
+        days: { type: integer, enum: [7, 30, 90], examples: [7] }
+        timeZone: { type: string, examples: [America/Bogota] }
+
+    ReportCount:
+      type: object
+      additionalProperties: false
+      required: [value, previous]
+      properties:
+        value:
+          description: Count in the period.
+          type: integer
+          minimum: 0
+          examples: [42]
+        previous:
+          description: Count in the previous period of the same duration.
+          type: integer
+          minimum: 0
+          examples: [38]
+
+    ReportFirstResponse:
+      description: |
+        Median minutes, rounded to the nearest integer, from creation to the first public agent message, over
+        the tickets created in the period that have one; `null` when there are none.
+      type: object
+      additionalProperties: false
+      required: [value, previous, target]
+      properties:
+        value: { type: [integer, 'null'], minimum: 0, examples: [18] }
+        previous: { type: [integer, 'null'], minimum: 0, examples: [22] }
+        target:
+          description: Organization target, in minutes.
+          type: integer
+          minimum: 1
+          examples: [30]
+
+    ReportResolution:
+      description: |
+        Median hours, with one decimal, from creation to the first time a ticket entered `resolved`, over the
+        tickets created in the period that were resolved; `null` when there are none.
+      type: object
+      additionalProperties: false
+      required: [value, previous]
+      properties:
+        value: { type: [number, 'null'], minimum: 0, examples: [6.5] }
+        previous: { type: [number, 'null'], minimum: 0, examples: [null] }
+
+    ReportDay:
+      type: object
+      additionalProperties: false
+      required: [date, created, resolved]
+      properties:
+        date:
+          description: Calendar day in the organization time zone.
+          type: string
+          format: date
+          examples: ['2026-09-28']
+        created:
+          description: Tickets created that day.
+          type: integer
+          minimum: 0
+          examples: [6]
+        resolved:
+          description: |
+            Distinct tickets that entered `resolved` that day. A ticket resolved, reopened and resolved again on
+            different days counts on each of them, so the days can add up to more than `resolved.value`.
+          type: integer
+          minimum: 0
+          examples: [5]
+
+    ReportChannel:
+      type: object
+      additionalProperties: false
+      required: [channel, created, share]
+      properties:
+        channel: { $ref: '#/components/schemas/TicketChannel' }
+        created:
+          description: Tickets created in the period through this channel.
+          type: integer
+          minimum: 1
+          examples: [30]
+        share:
+          description: Percentage of the tickets created in the period, one decimal.
+          type: number
+          minimum: 0
+          maximum: 100
+          examples: [71.4]
+
+    ReportAgent:
+      type: object
+      additionalProperties: false
+      required: [member, resolved, firstResponseMinutes, openAssigned]
+      properties:
+        member: { $ref: '#/components/schemas/MemberRef' }
+        resolved:
+          description: Distinct tickets this member moved to `resolved` in the period (the actor of the activity).
+          type: integer
+          minimum: 0
+          examples: [20]
+        firstResponseMinutes:
+          description: |
+            Median first response of the tickets created in the period whose first public message is theirs;
+            `null` without data.
+          type: [integer, 'null']
+          minimum: 0
+          examples: [15]
+        openAssigned:
+          description: Tickets assigned to this member that are not `resolved`, as of now.
+          type: integer
+          minimum: 0
+          examples: [4]
 
     Problem:
       description: RFC 9457 Problem Details. An absent `type` means `about:blank`, as the RFC defines.

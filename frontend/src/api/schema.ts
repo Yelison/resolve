@@ -428,6 +428,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/reports/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Report of the organization over a period, with the previous period of the same length
+         * @description Staff only. Everything is computed on the server, per organization, in the organization time zone.
+         *     The period covers the last `days` calendar days of the organization, today included: it starts at
+         *     00:00 of `today - (days - 1)` and ends now. `previous` figures cover the adjacent period of the same
+         *     duration (`[from - (to - from), from)`). Without data the counts are `0` and the medians `null`.
+         */
+        get: operations["getReportSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -797,6 +820,193 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        /**
+         * @example {
+         *       "period": {
+         *         "from": "2026-09-28T05:00:00Z",
+         *         "to": "2026-10-04T15:00:00Z",
+         *         "days": 7,
+         *         "timeZone": "America/Bogota"
+         *       },
+         *       "created": {
+         *         "value": 42,
+         *         "previous": 38
+         *       },
+         *       "resolved": {
+         *         "value": 35,
+         *         "previous": 31
+         *       },
+         *       "firstResponseMinutes": {
+         *         "value": 18,
+         *         "previous": 22,
+         *         "target": 30
+         *       },
+         *       "resolutionHours": {
+         *         "value": 6.5,
+         *         "previous": null
+         *       },
+         *       "byDay": [
+         *         {
+         *           "date": "2026-09-28",
+         *           "created": 6,
+         *           "resolved": 5
+         *         }
+         *       ],
+         *       "byChannel": [
+         *         {
+         *           "channel": "email",
+         *           "created": 30,
+         *           "share": 71.4
+         *         },
+         *         {
+         *           "channel": "chat",
+         *           "created": 12,
+         *           "share": 28.6
+         *         }
+         *       ],
+         *       "byAgent": [
+         *         {
+         *           "member": {
+         *             "id": "3f0c2f9a-6a56-4d1f-9c3e-1f4b0a7d2c11",
+         *             "name": "Laura Méndez"
+         *           },
+         *           "resolved": 20,
+         *           "firstResponseMinutes": 15,
+         *           "openAssigned": 4
+         *         }
+         *       ]
+         *     }
+         */
+        ReportSummary: {
+            period: components["schemas"]["ReportRange"];
+            created: components["schemas"]["ReportCount"];
+            resolved: components["schemas"]["ReportCount"];
+            firstResponseMinutes: components["schemas"]["ReportFirstResponse"];
+            resolutionHours: components["schemas"]["ReportResolution"];
+            /** @description One entry per calendar day of the period, oldest first; days without data are `0`. */
+            byDay: components["schemas"]["ReportDay"][];
+            /**
+             * @description Channels with at least one ticket created in the period, largest first (ties by channel name);
+             *     empty without data. The `share` values add up to exactly `100`.
+             */
+            byChannel: components["schemas"]["ReportChannel"][];
+            /**
+             * @description Every active admin and agent, plus removed members who resolved tickets in the period, most
+             *     resolved first (ties by name, then id).
+             */
+            byAgent: components["schemas"]["ReportAgent"][];
+        };
+        /**
+         * @description The window the report covers. `from` is the start of the first day in the organization time zone and
+         *     `to` is the moment of the request.
+         */
+        ReportRange: {
+            /**
+             * Format: date-time
+             * @example 2026-09-28T05:00:00Z
+             */
+            from: string;
+            /**
+             * Format: date-time
+             * @example 2026-10-04T15:00:00Z
+             */
+            to: string;
+            /**
+             * @example 7
+             * @enum {integer}
+             */
+            days: 7 | 30 | 90;
+            /** @example America/Bogota */
+            timeZone: string;
+        };
+        ReportCount: {
+            /**
+             * @description Count in the period.
+             * @example 42
+             */
+            value: number;
+            /**
+             * @description Count in the previous period of the same duration.
+             * @example 38
+             */
+            previous: number;
+        };
+        /**
+         * @description Median minutes, rounded to the nearest integer, from creation to the first public agent message, over
+         *     the tickets created in the period that have one; `null` when there are none.
+         */
+        ReportFirstResponse: {
+            /** @example 18 */
+            value: number | null;
+            /** @example 22 */
+            previous: number | null;
+            /**
+             * @description Organization target, in minutes.
+             * @example 30
+             */
+            target: number;
+        };
+        /**
+         * @description Median hours, with one decimal, from creation to the first time a ticket entered `resolved`, over the
+         *     tickets created in the period that were resolved; `null` when there are none.
+         */
+        ReportResolution: {
+            /** @example 6.5 */
+            value: number | null;
+            /** @example null */
+            previous: number | null;
+        };
+        ReportDay: {
+            /**
+             * Format: date
+             * @description Calendar day in the organization time zone.
+             * @example 2026-09-28
+             */
+            date: string;
+            /**
+             * @description Tickets created that day.
+             * @example 6
+             */
+            created: number;
+            /**
+             * @description Distinct tickets that entered `resolved` that day. A ticket resolved, reopened and resolved again on
+             *     different days counts on each of them, so the days can add up to more than `resolved.value`.
+             * @example 5
+             */
+            resolved: number;
+        };
+        ReportChannel: {
+            channel: components["schemas"]["TicketChannel"];
+            /**
+             * @description Tickets created in the period through this channel.
+             * @example 30
+             */
+            created: number;
+            /**
+             * @description Percentage of the tickets created in the period, one decimal.
+             * @example 71.4
+             */
+            share: number;
+        };
+        ReportAgent: {
+            member: components["schemas"]["MemberRef"];
+            /**
+             * @description Distinct tickets this member moved to `resolved` in the period (the actor of the activity).
+             * @example 20
+             */
+            resolved: number;
+            /**
+             * @description Median first response of the tickets created in the period whose first public message is theirs;
+             *     `null` without data.
+             * @example 15
+             */
+            firstResponseMinutes: number | null;
+            /**
+             * @description Tickets assigned to this member that are not `resolved`, as of now.
+             * @example 4
+             */
+            openAssigned: number;
+        };
         /** @description RFC 9457 Problem Details. An absent `type` means `about:blank`, as the RFC defines. */
         Problem: {
             /** @default about:blank */
@@ -885,6 +1095,8 @@ export interface components {
         /** @description Zero-based page index. */
         Page: number;
         Size: number;
+        /** @description Length of the report period, in calendar days of the organization time zone. */
+        ReportPeriod: "7d" | "30d" | "90d";
     };
     requestBodies: never;
     headers: {
@@ -930,6 +1142,14 @@ export type TicketCreatedActivity = components['schemas']['TicketCreatedActivity
 export type StatusChangedActivity = components['schemas']['StatusChangedActivity'];
 export type PriorityChangedActivity = components['schemas']['PriorityChangedActivity'];
 export type AssigneeChangedActivity = components['schemas']['AssigneeChangedActivity'];
+export type ReportSummary = components['schemas']['ReportSummary'];
+export type ReportRange = components['schemas']['ReportRange'];
+export type ReportCount = components['schemas']['ReportCount'];
+export type ReportFirstResponse = components['schemas']['ReportFirstResponse'];
+export type ReportResolution = components['schemas']['ReportResolution'];
+export type ReportDay = components['schemas']['ReportDay'];
+export type ReportChannel = components['schemas']['ReportChannel'];
+export type ReportAgent = components['schemas']['ReportAgent'];
 export type Problem = components['schemas']['Problem'];
 export type ResponseBadRequest = components['responses']['BadRequest'];
 export type ResponseUnauthorized = components['responses']['Unauthorized'];
@@ -943,6 +1163,7 @@ export type ParameterCustomerId = components['parameters']['CustomerId'];
 export type ParameterMemberUserId = components['parameters']['MemberUserId'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterSize = components['parameters']['Size'];
+export type ParameterReportPeriod = components['parameters']['ReportPeriod'];
 export type HeaderETag = components['headers']['ETag'];
 export type $defs = Record<string, never>;
 export interface operations {
@@ -1632,6 +1853,32 @@ export interface operations {
             403: components["responses"]["Forbidden"];
         };
     };
+    getReportSummary: {
+        parameters: {
+            query?: {
+                /** @description Length of the report period, in calendar days of the organization time zone. */
+                period?: components["parameters"]["ReportPeriod"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The report. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportSummary"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
 }
 type FlattenedDeepRequired<T> = {
     [K in keyof T]-?: FlattenedDeepRequired<T[K] extends unknown[] | undefined | null ? Extract<T[K], unknown[]>[number] : T[K]>;
@@ -1656,3 +1903,5 @@ export const ticketCreatedActivityTypeValues: ReadonlyArray<FlattenedDeepRequire
 export const statusChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StatusChangedActivity"]["type"]> = ["status_changed"];
 export const priorityChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PriorityChangedActivity"]["type"]> = ["priority_changed"];
 export const assigneeChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AssigneeChangedActivity"]["type"]> = ["assignee_changed"];
+export const reportRangeDaysValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportRange"]["days"]> = [7, 30, 90];
+export const componentsParametersReportPeriodValues: ReadonlyArray<FlattenedDeepRequired<components>["parameters"]["ReportPeriod"]> = ["7d", "30d", "90d"];
