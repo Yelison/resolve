@@ -119,6 +119,36 @@ describe('TicketDetailPage para agentes', () => {
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(screen.getByRole('combobox', { name: 'Estado' })).toHaveValue('in_progress')
     expect(queryClient.getQueryData<Ticket>(ticketKeys.detail(1048))?.version).toBe(1)
+    // La lectura tardía se canceló: solo escribieron la carga inicial y el PATCH.
+    expect(queryClient.getQueryState(ticketKeys.detail(1048))?.dataUpdateCount).toBe(2)
+  })
+
+  it('un refetch que empieza durante el PATCH y llega después no hace retroceder el detalle', async () => {
+    let reads = 0
+    staffApi({
+      'GET /api/tickets/1048': async () => {
+        reads += 1
+        // El servidor leyó el ticket antes de guardar el cambio, pero la respuesta llega después de la del PATCH.
+        if (reads > 1) await new Promise((resolve) => setTimeout(resolve, 400))
+        return { body: ticket({ version: 0 }) }
+      },
+      'PATCH /api/tickets/1048': async () => {
+        await new Promise((resolve) => setTimeout(resolve, 200))
+        return { body: ticket({ status: 'in_progress', version: 1 }) }
+      },
+    })
+    const { queryClient } = renderDetail()
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Estado' }), 'in_progress')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    void queryClient.refetchQueries({ queryKey: ticketKeys.detail(1048), exact: true })
+    await waitFor(() => expect(queryClient.getQueryData<Ticket>(ticketKeys.detail(1048))?.version).toBe(1))
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    expect(reads).toBe(2)
+    expect(queryClient.getQueryData<Ticket>(ticketKeys.detail(1048))).toMatchObject({
+      status: 'in_progress',
+      version: 1,
+    })
+    expect(screen.getByRole('combobox', { name: 'Estado' })).toHaveValue('in_progress')
   })
 
   it('no guarda la respuesta de un PATCH más antigua que el ticket en caché', async () => {
