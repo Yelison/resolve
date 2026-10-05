@@ -40,17 +40,20 @@ function imagesToText(node: ArticleNode) {
   })
 }
 
-function headings(node: ArticleNode, visit: (heading: ArticleNode) => void) {
-  for (const child of node.children ?? []) {
-    if (child.type === 'heading' && (child.depth === 2 || child.depth === 3)) visit(child)
+/** Recorre en orden los encabezados `##`/`###`; `visit` devuelve `false` para descartar el que no tiene texto. */
+function headings(node: ArticleNode, visit: (heading: ArticleNode) => boolean) {
+  node.children = node.children?.filter((child) => {
+    if (child.type === 'heading' && (child.depth === 2 || child.depth === 3) && !visit(child)) return false
     headings(child, visit)
-  }
+    return true
+  })
 }
 
 /**
  * Plugin remark del artículo: convierte las imágenes en su texto alternativo y da a cada `##`/`###` un id único por
  * documento (`seccion-` + slug; si el id ya está tomado, se añade `-2`, `-3`… hasta uno libre). `ArticleBody` y
- * `outline()` pasan por este mismo plugin, así que el índice coincide con lo que se dibuja.
+ * `outline()` pasan por este mismo plugin, así que el índice coincide con lo que se dibuja. Un encabezado que se queda
+ * sin texto (`## ![](x)`) se descarta: no se dibuja un `h2` vacío ni se indexa.
  */
 export function remarkArticle({ onHeading }: RemarkArticleOptions = {}) {
   return (tree: unknown) => {
@@ -59,13 +62,14 @@ export function remarkArticle({ onHeading }: RemarkArticleOptions = {}) {
     const used = new Set<string>()
     headings(root, (heading) => {
       const text = textOf(heading).trim()
-      if (!text) return
+      if (!text) return false
       const base = `${ID_PREFIX}${slugify(text)}`
       let id = base
       for (let n = 2; used.has(id); n++) id = `${base}-${n}`
       used.add(id)
       heading.data = { ...heading.data, hProperties: { ...heading.data?.hProperties, id } }
       onHeading?.({ id, level: heading.depth as 2 | 3, text })
+      return true
     })
   }
 }

@@ -114,6 +114,13 @@ describe('ArticleBody', () => {
     expect(outline(source).map((entry) => entry.text)).toEqual(['Real'])
   })
 
+  it('no dibuja un encabezado vacío, y el índice tampoco lo lista', () => {
+    const source = '## ![](https://x.example/a.png)\n\n##\n\n## Real'
+    const { container } = renderBody(source)
+    expect([...container.querySelectorAll('h2')].map((heading) => heading.id)).toEqual(['seccion-real'])
+    expect(outline(source).map((entry) => entry.id)).toEqual(['seccion-real'])
+  })
+
   it('los enlaces //host se abren en otra pestaña, como los absolutos', () => {
     renderBody('[fuera](//otro.example/p) [aquí](/equipo)')
     expect(screen.getByRole('link', { name: 'fuera' })).toHaveAttribute('target', '_blank')

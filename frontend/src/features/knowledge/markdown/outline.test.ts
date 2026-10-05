@@ -78,6 +78,12 @@ describe('outline', () => {
     expect(outline('## ![Logo](https://x.example/l.png)').map((entry) => entry.text)).toEqual(['Logo'])
   })
 
+  it('descarta un encabezado que se queda sin texto', () => {
+    expect(outline('## ![](x)\n\n##\n\n## ![ ](x)\n\n## Real')).toEqual([
+      { id: 'seccion-real', level: 2, text: 'Real' },
+    ])
+  })
+
   it('está vacío sin encabezados', () => {
     expect(outline('solo texto')).toEqual([])
   })
