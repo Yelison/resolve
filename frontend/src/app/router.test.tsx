@@ -103,7 +103,10 @@ describe('rutas de la aplicación', () => {
     },
   )
 
-  it.each(staffSections.flatMap((item) => staffMes.map(([role, me]) => [item.to, item.label, role, me] as const)))(
+  // /clientes ya tiene su vista; se prueba aparte.
+  const pendingSections = staffSections.filter((item) => item.to !== '/clientes')
+
+  it.each(pendingSections.flatMap((item) => staffMes.map(([role, me]) => [item.to, item.label, role, me] as const)))(
     'deja al personal abrir %s («%s») como %s',
     async (path, label, _role, me) => {
       mockApi({ 'GET /api/me': { body: me } })
@@ -113,6 +116,24 @@ describe('rutas de la aplicación', () => {
       expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
     },
   )
+
+  it.each(staffMes)('deja al personal abrir la lista de clientes como %s', async (_role, me) => {
+    mockApi({
+      'GET /api/me': { body: me },
+      'GET /api/customers': { body: { items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 } },
+      'GET /api/customers/metrics': { body: { total: 0, companies: 0, withOpenTickets: 0, newThisMonth: 0 } },
+      'GET /api/customers/companies': { body: [] },
+    })
+    renderApp('/clientes')
+    expect(await screen.findByText('Todavía no hay clientes')).toBeInTheDocument()
+    expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
+  })
+
+  it('«Nuevo cliente» lleva a la vista pendiente hasta que exista el diálogo de alta', async () => {
+    mockApi({ 'GET /api/me': { body: adminMe } })
+    renderApp('/clientes/nuevo')
+    expect(await screen.findByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
+  })
 
   it('cubre todas las secciones de personal', () => {
     expect(staffSections.map((item) => item.to)).toEqual([

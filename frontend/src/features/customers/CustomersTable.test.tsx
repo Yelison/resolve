@@ -53,6 +53,11 @@ describe('CustomersTable', () => {
     expect(within(row).getByText('Activo')).toBeInTheDocument()
   })
 
+  it('usa el singular con un solo ticket abierto', () => {
+    renderTable({ customers: [customer({ openTickets: 1 })] })
+    expect(screen.getByText(/1 abierto/)).toHaveTextContent('1 abierto, 12 en total')
+  })
+
   it('marca a los clientes archivados y nombra la falta de empresa', () => {
     renderTable({ customers: [customer({ archived: true, company: null })] })
     const row = screen.getAllByRole('row')[1]!

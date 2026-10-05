@@ -80,7 +80,7 @@ function CustomerRow({ customer, actions }: { customer: CustomerSummary; actions
       </span>
       <span role="none" className={styles.chips}>
         <span role="cell" className={styles.tickets}>
-          {customer.openTickets} abiertos
+          {customer.openTickets === 1 ? '1 abierto' : `${customer.openTickets} abiertos`}
           <span className="visually-hidden">, {customer.totalTickets} en total</span>
         </span>
         <span role="cell" className={styles.status}>
