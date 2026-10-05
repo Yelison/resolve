@@ -119,9 +119,13 @@ done
 
 # Smoke first. gh pr checks exits non-zero while checks are pending or failed, so read its JSON and decide here.
 smoke_bucket() {
-  # The most recent run if the check ran more than once (reruns).
+  # The most recent run if the check ran more than once (reruns); but a run that has not started (pending, or no
+  # start time, or Go's zero time) is a rerun in the queue, which counts as the newest: wait for it.
   gh pr checks "$PR" --json name,bucket,startedAt 2>/dev/null \
-    | jq -r '[.[]? | select(.name == "Full-stack smoke")] | sort_by(.startedAt // "") | last | .bucket // "absent"' 2>/dev/null || true
+    | jq -r '[.[]? | select(.name == "Full-stack smoke")] as $r
+        | if ($r | length) == 0 then "absent"
+          elif any($r[]; .bucket == "pending" or ((.startedAt // "") == "") or ((.startedAt // "") | startswith("0001-"))) then "pending"
+          else ($r | sort_by(.startedAt) | last | .bucket) end' 2>/dev/null || true
 }
 SECONDS=0
 while :; do

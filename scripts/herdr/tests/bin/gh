@@ -2,6 +2,8 @@
 # Fake gh for the scripts/herdr/ship.sh tests; it never talks to GitHub. State lives in $FAKE_STATE/gh, $FAKE_REMOTE is
 # the bare "origin", every call is logged to calls.log. Knobs (files in $FAKE_STATE/gh):
 #   checks   pass | fail | absent | pending:N (N polls pending, then pass) | multi (an older failed run, a newer passed one)
+#            | queued (an older passed run and a rerun that has not started, with Go's zero time) | queued-null (same, startedAt null)
+#            | requeue:N (N polls like queued, then pass)
 #   stale    N: `pr view --json headRefOid` shows an old head for the first N polls
 set -euo pipefail
 G=${FAKE_STATE:?}/gh; mkdir -p "$G"
@@ -19,6 +21,7 @@ case $cmd in
   "pr checks")
     mode=$(cat "$G/checks" 2>/dev/null || echo pass); bucket=$mode; rc=0
     case $mode in
+      requeue:*) rc=8 ;;
       pending:*) n=${mode#pending:}; c=$(cat "$G/polls" 2>/dev/null || echo 0); echo $((c + 1)) >"$G/polls"
         if [ "$c" -lt "$n" ]; then bucket=pending; rc=8; else bucket=pass; fi ;;
       absent) rc=1 ;;
@@ -27,6 +30,11 @@ case $cmd in
     if has --json "$@"; then
       case $mode in
         absent) echo '[{"name":"Other","bucket":"pass","startedAt":"2026-01-01T00:00:00Z"}]' ;;
+        queued) echo '[{"name":"Full-stack smoke","bucket":"pass","startedAt":"2026-01-01T00:00:00Z"},{"name":"Full-stack smoke","bucket":"pending","startedAt":"0001-01-01T00:00:00Z"}]' ;;
+        queued-null) echo '[{"name":"Full-stack smoke","bucket":"pass","startedAt":"2026-01-01T00:00:00Z"},{"name":"Full-stack smoke","bucket":"pending","startedAt":null}]' ;;
+        requeue:*) n=${mode#requeue:}; c=$(cat "$G/polls" 2>/dev/null || echo 0); echo $((c + 1)) >"$G/polls"
+          if [ "$c" -lt "$n" ]; then echo '[{"name":"Full-stack smoke","bucket":"pass","startedAt":"2026-01-01T00:00:00Z"},{"name":"Full-stack smoke","bucket":"pending","startedAt":null}]'
+          else echo '[{"name":"Full-stack smoke","bucket":"pass","startedAt":"2026-01-01T00:00:00Z"},{"name":"Full-stack smoke","bucket":"pass","startedAt":"2026-01-01T02:00:00Z"}]'; fi ;;
         multi) echo '[{"name":"Full-stack smoke","bucket":"fail","startedAt":"2026-01-01T00:00:00Z"},{"name":"Full-stack smoke","bucket":"pass","startedAt":"2026-01-01T01:00:00Z"}]' ;;
         *) jq -n --arg b "$bucket" '[{name:"Full-stack smoke",bucket:$b,startedAt:"2026-01-01T00:00:00Z"},{name:"Other",bucket:"pass",startedAt:"2026-01-01T00:00:00Z"}]' ;;
       esac

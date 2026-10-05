@@ -50,6 +50,14 @@ s_absent() { mk; echo absent >"$T/state/gh/checks"; out=$(HERDR_SHIP_TIMEOUT_SEC
   check "absent smoke: times out" test $? -ne 0; check "absent smoke: no merge" bash -c "! grep -q 'pr merge' '$T/state/gh/calls.log'"; }
 s_multi() { mk; echo multi >"$T/state/gh/checks"; out=$(ship --no-cleanup)
   check "latest run counts: an old failure does not stop a newer pass" test $? -eq 0; check "latest run: merge scheduled" grep -q 'pr merge' "$T/state/gh/calls.log"; }
+# B6: a rerun that is still in the queue counts as the newest run, whatever its start time looks like.
+s_queued() { mk; local mode
+  for mode in queued queued-null; do
+    rm -f "$T/state/gh/calls.log"; echo "$mode" >"$T/state/gh/checks"; out=$(HERDR_SHIP_TIMEOUT_SECONDS=1 ship --no-cleanup)
+    check "$mode: waits, then gives up" test $? -ne 0; check "$mode: says it did not finish" says x 'did not finish'; check "$mode: no merge scheduled" bash -c "! grep -q 'pr merge' '$T/state/gh/calls.log'"
+  done
+  echo requeue:2 >"$T/state/gh/checks"; rm -f "$T/state/gh/polls"; out=$(ship --no-cleanup)
+  check "requeue: waits for the rerun and then merges" test $? -eq 0; check "requeue: merge scheduled after waiting" grep -q 'pr merge' "$T/state/gh/calls.log"; }
 s_stale() { mk; echo 2 >"$T/state/gh/stale"; out=$(ship --no-cleanup); rc=$?
   check "stale head: rc 0" test $rc -eq 0; check "stale head: waited" says x 'Waiting for #41 to show'
   check "stale head: no checks read before the head matched" test "$(grep -n 'headRefOid' "$T/state/gh/calls.log" | tail -1 | cut -d: -f1)" -lt "$(grep -n 'pr checks' "$T/state/gh/calls.log" | head -1 | cut -d: -f1)"
@@ -79,6 +87,6 @@ s_working() { mk; jq '.agent_status="working"' "$T/state/agents/rev-impl-a" >"$T
   out=$(ship); check "working agent: stops" test $? -ne 0; check "working agent: says so" says x 'is working, so it was not sent /exit'; check "working agent: no /exit sent" bash -c "! grep -q '/exit' '$T/state/prompts.log' 2>/dev/null"
   check "working agent: the merge is reported" says x "merged "; check "working agent: reviewer still live" test -e "$T/state/agents/rev-impl-a"; }
 
-scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin happy reuse red absent multi stale lease foreign ahead race working)
+scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin happy reuse red absent multi queued stale lease foreign ahead race working)
 for s in "${scen[@]}"; do echo "== $s"; "s_$s"; done
 finish
