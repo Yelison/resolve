@@ -252,6 +252,8 @@ test.describe('lectura de un artículo', () => {
       await expect(summary).toBeVisible()
       const links = page.getByRole('navigation', { name: 'En este artículo' }).getByRole('link')
       await expect(links.first()).toBeHidden()
+      // Cerrado, el panel mide el resumen más su relleno (44 + 2 × 16 + 2 de borde), sin hueco extra bajo el resumen.
+      expect((await page.locator('details').boundingBox())!.height).toBeLessThanOrEqual(44 + 32 + 2 + 1)
       await summary.click()
       await expect(links.first()).toBeVisible()
       await links.nth(2).click()
@@ -378,7 +380,7 @@ test.describe('editor de artículos', () => {
     })
   }
 
-  test('el teclado recorre la barra con flechas y el diálogo de despublicar atrapa el foco y cierra con Escape', async ({
+  test('el teclado recorre la barra con flechas y el diálogo de despublicar no deja salir el foco con Tab y cierra con Escape', async ({
     page,
   }) => {
     await page.goto(`/conocimiento/${SLUG}/editar`)
@@ -388,6 +390,22 @@ test.describe('editor de artículos', () => {
     await page.getByRole('button', { name: 'Despublicar' }).click()
     const dialog = page.getByRole('dialog', { name: '¿Despublicar este artículo?' })
     await expect(dialog).toBeVisible()
+    // El diálogo es modal nativo: con Tab y Mayús + Tab el foco nunca llega al contenido de detrás. Al pasar del último
+    // control al primero hace una parada en la interfaz del navegador (`body`), así que se acepta el diálogo o `body`.
+    const seen = new Set<string>()
+    for (const key of ['Tab', 'Tab', 'Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
+      await page.keyboard.press(key)
+      const where = await dialog.evaluate((element) =>
+        element.contains(document.activeElement)
+          ? `dentro: ${document.activeElement?.textContent}`
+          : document.activeElement === document.body
+            ? 'navegador'
+            : `fuera: ${document.activeElement?.tagName}`,
+      )
+      seen.add(where)
+      expect(where).not.toMatch(/^fuera/)
+    }
+    expect([...seen].some((where) => where.startsWith('dentro'))).toBe(true)
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
   })
