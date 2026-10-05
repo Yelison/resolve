@@ -38,8 +38,9 @@ class SecurityConfiguration {
 				.permitAll()
 				.requestMatchers("/actuator/health", "/actuator/health/**")
 				.permitAll()
-				// Archivar y restaurar clientes es solo de administradores (Q-02); va antes de la regla general de staff.
-				.requestMatchers(HttpMethod.POST, "/customers/{id}/archive", "/customers/{id}/restore")
+				// Archivar, restaurar e invitar clientes es solo de administradores (Q-02); va antes de la regla general.
+				.requestMatchers(HttpMethod.POST, "/customers/{id}/archive", "/customers/{id}/restore",
+						"/customers/{id}/invite")
 				.hasRole("ADMIN")
 				// Invitar, cambiar el rol y retirar miembros es solo de administradores; el equipo lo lee el personal.
 				.requestMatchers(HttpMethod.POST, "/members", "/members/{userId}/role", "/members/{userId}/remove")

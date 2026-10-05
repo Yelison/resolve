@@ -17,7 +17,9 @@ import com.resolve.api.common.web.SortSpec;
 import com.resolve.api.customers.CustomerDtos.CustomerDetailDto;
 import com.resolve.api.customers.CustomerDtos.CustomerMetricsDto;
 import com.resolve.api.customers.CustomerDtos.CustomerSummaryDto;
+import com.resolve.api.memberships.MemberDtos.TeamMemberDto;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -125,6 +127,12 @@ class CustomersController {
 			@PathVariable String id) {
 		CustomerDetailDto customer = this.service.restore(member, CustomerRequestParser.customerId(id));
 		return ResponseEntity.ok().eTag(String.valueOf(customer.version())).body(customer);
+	}
+
+	@PostMapping("/customers/{id}/invite")
+	ResponseEntity<TeamMemberDto> invite(@AuthenticationPrincipal CurrentMember member, @PathVariable String id) {
+		TeamMemberDto invited = this.service.invite(member, CustomerRequestParser.customerId(id));
+		return ResponseEntity.status(HttpStatus.CREATED).body(invited);
 	}
 
 }

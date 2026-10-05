@@ -67,6 +67,13 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 			""")
 	Optional<Membership> findByOrganizationAndUser(UUID organizationId, UUID userId);
 
+	/** Membresías que enlazan a un cliente, sea cual sea su estado. */
+	@Query("""
+			select m from Membership m
+			where m.organization.id = :organizationId and m.customerId = :customerId
+			""")
+	List<Membership> findByCustomer(UUID organizationId, UUID customerId);
+
 	@Query("""
 			select count(m) from Membership m
 			where m.organization.id = :organizationId and m.role = com.resolve.api.memberships.Role.ADMIN
