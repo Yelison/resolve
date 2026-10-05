@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient, type QueryObserverOptions } from '@tanstack/react-query'
-import { api, unwrap } from '../../api/client'
+import { useQuery, useQueryClient, type QueryClient, type QueryObserverOptions } from '@tanstack/react-query'
+import { api, isApiError, unwrap } from '../../api/client'
 import { shouldRetry } from '../../lib/queryClient'
 
 /** Tiempo máximo de una petición de /me antes de abortarla. */
@@ -40,6 +40,14 @@ export const sessionKeys = {
 }
 
 /** Usuario, organización y rol actuales. Cambia rara vez, así que no se revalida solo. */
+/**
+ * Un 403 significa que el rol de la sesión ya no permite la acción (p. ej. otra persona degradó a quien la hace): la
+ * sesión se lee de nuevo para que las acciones de administración desaparezcan en lugar de repetir el 403.
+ */
+export function refreshSessionOnForbidden(queryClient: QueryClient, error: unknown) {
+  if (isApiError(error, 403)) void queryClient.invalidateQueries({ queryKey: sessionKeys.me })
+}
+
 export function useMe() {
   const defaultRetry = useQueryClient().getDefaultOptions().queries?.retry
   return useQuery({

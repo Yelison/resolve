@@ -1,6 +1,6 @@
 import { Alert, Button, Modal, useToast } from '../../components/ui'
 import type { TeamMember } from '../../domain/member'
-import { mutationErrorDetail } from './errorDetail'
+import { mutationErrorDetail } from '../../lib/mutationError'
 import { useRemoveMember } from './queries'
 import styles from './TeamDialogs.module.css'
 

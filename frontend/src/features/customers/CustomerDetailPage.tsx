@@ -18,7 +18,8 @@ import { isApiError } from '../../api/client'
 import type { CustomerDetail } from '../../domain/customer'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
-import { mutationErrorDetail } from '../team/errorDetail'
+import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
+import { mutationErrorDetail } from '../../lib/mutationError'
 import { useMe } from '../session/queries'
 import { useTimeZone } from '../session/useTimeZone'
 import { customerSince } from './customerSince'
@@ -97,9 +98,21 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
     .filter(Boolean)
     .join(' · ')
 
+  // Si el disparador ya no existe al cerrar (un 403 ocultó las acciones), el foco no se pierde en el body.
   function closePortalInvite() {
     setInvitingToPortal(false)
     invite.reset()
+    focusPageHeadingIfFocusLost()
+  }
+
+  function closeEdit() {
+    setEditing(false)
+    focusPageHeadingIfFocusLost()
+  }
+
+  function closeArchive() {
+    setConfirmingArchive(false)
+    focusPageHeadingIfFocusLost()
   }
 
   function inviteToPortal() {
@@ -127,7 +140,7 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
   function archiveCustomer() {
     archive.mutate(undefined, {
       onSuccess: () => {
-        setConfirmingArchive(false)
+        closeArchive()
         toast.show({ title: 'Cliente archivado' })
       },
       onError: (error) => {
@@ -222,7 +235,7 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
         />
       </div>
 
-      <CustomerFormDialog mode="edit" customer={customer} open={editing} onClose={() => setEditing(false)} />
+      <CustomerFormDialog mode="edit" customer={customer} open={editing} onClose={closeEdit} />
       <Modal
         open={invitingToPortal}
         onClose={closePortalInvite}
@@ -249,12 +262,12 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
       </Modal>
       <Modal
         open={confirmingArchive}
-        onClose={() => setConfirmingArchive(false)}
+        onClose={closeArchive}
         title="¿Archivar a este cliente?"
         description={`${customer.name} dejará de aparecer en la lista y su acceso al portal se suspenderá. Podrás restaurarlo cuando quieras.`}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setConfirmingArchive(false)}>
+            <Button variant="secondary" onClick={closeArchive}>
               Cancelar
             </Button>
             <Button variant="danger" loading={archive.isPending} loadingLabel="Archivando…" onClick={archiveCustomer}>

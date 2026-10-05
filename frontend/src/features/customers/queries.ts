@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, toApiPage, unwrap } from '../../api/client'
 import type { CustomerCreate, CustomerDetail, CustomerPatch } from '../../domain/customer'
-import { refreshSessionOnForbidden } from '../team/queries'
+import { refreshSessionOnForbidden } from '../session/queries'
 import { ticketKeys } from '../tickets/queries'
 
 export interface CustomerListParams {
