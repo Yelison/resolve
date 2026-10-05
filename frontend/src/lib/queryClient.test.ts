@@ -1,6 +1,8 @@
+import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
-import { ApiError } from '../api/client'
-import { shouldRetry } from './queryClient'
+import { ApiError, setDemoUser } from '../api/client'
+import { sessionKeys } from '../features/session/queries'
+import { clearCacheOnDemoUserChange, shouldRetry } from './queryClient'
 
 describe('shouldRetry', () => {
   it('no reintenta errores del cliente', () => {
@@ -12,5 +14,25 @@ describe('shouldRetry', () => {
     expect(shouldRetry(0, serverError)).toBe(true)
     expect(shouldRetry(1, new TypeError('Failed to fetch'))).toBe(true)
     expect(shouldRetry(2, serverError)).toBe(false)
+  })
+})
+
+describe('clearCacheOnDemoUserChange', () => {
+  it('vacía la caché al cambiar el usuario de demostración', () => {
+    const queryClient = new QueryClient()
+    const stop = clearCacheOnDemoUserChange(queryClient)
+    queryClient.setQueryData(sessionKeys.me, { role: 'admin' })
+    queryClient.setQueryData(['tickets', 'list'], [])
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(2)
+
+    setDemoUser('maria.perez@cliente.example')
+    expect(localStorage.getItem('resolve-demo-user')).toBe('maria.perez@cliente.example')
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
+
+    stop()
+    queryClient.setQueryData(sessionKeys.me, { role: 'customer' })
+    setDemoUser(null)
+    expect(localStorage.getItem('resolve-demo-user')).toBeNull()
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(1)
   })
 })

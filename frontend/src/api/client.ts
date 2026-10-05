@@ -26,6 +26,23 @@ export function isApiError(error: unknown, status?: number): error is ApiError {
 /** Clave de almacenamiento del usuario de demostración (solo en desarrollo, ver docs/api). */
 export const DEMO_USER_STORAGE_KEY = 'resolve-demo-user'
 
+/** Evento de `window` que avisa de un cambio de usuario de demostración. */
+export const DEMO_USER_EVENT = 'resolve:demo-user'
+
+/**
+ * Elige el usuario de demostración (`null` vuelve al predeterminado del backend) y avisa del cambio para que la
+ * caché de consultas del usuario anterior no se mezcle con la del nuevo. Solo tiene efecto en desarrollo.
+ */
+export function setDemoUser(email: string | null) {
+  try {
+    if (email) localStorage.setItem(DEMO_USER_STORAGE_KEY, email)
+    else localStorage.removeItem(DEMO_USER_STORAGE_KEY)
+  } catch {
+    // Sin almacenamiento no hay usuario que recordar; el evento se emite igualmente.
+  }
+  window.dispatchEvent(new Event(DEMO_USER_EVENT))
+}
+
 /**
  * En desarrollo, el backend acepta X-Demo-User para elegir un usuario sembrado. En producción no existe
  * autenticación todavía y la API responde 401.

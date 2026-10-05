@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { RequireRole } from '../../app/pages/RequireRole'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { ticket } from '../../test/ticketFixtures'
@@ -19,7 +20,14 @@ const assignees = [{ id: 'u-laura', name: 'Laura Méndez', email: 'laura@acme.ex
 function renderForm() {
   const router = createMemoryRouter(
     [
-      { path: '/tickets/nuevo', element: <NewTicketPage /> },
+      {
+        path: '/tickets/nuevo',
+        element: (
+          <RequireRole roles={['admin', 'agent']}>
+            <NewTicketPage />
+          </RequireRole>
+        ),
+      },
       { path: '/tickets/:number', element: <p>Detalle</p> },
       { path: '/tickets', element: <p>Bandeja</p> },
     ],
