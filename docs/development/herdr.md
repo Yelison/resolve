@@ -334,11 +334,39 @@ browsers and two databases fit on a 16 GB machine, three usually do not.
 
 1. Read the delivery file, then the diff: `git -C <worktree> diff main...HEAD` and `git log --oneline main..HEAD`.
 2. Check the acceptance criteria yourself: run the commands of the brief in the worktree, not only trust the report.
-3. Push the branch and open the pull request from the coordinator (`gh pr create --assignee Yelison`); wait for the
-   four required checks; merge with rebase to keep the small commits. Never merge locally into `main`.
+3. Push the branch and open the pull request from the coordinator with `ship.sh` (below); never merge locally into
+   `main`.
 4. When two tasks depend on each other, integrate the first one, then rebase the second on `main` inside its own
    worktree before reviewing it. If an integration branch is ever needed, give it its own worktree too.
-5. After the merge, update the coordinator checkout (`git pull --ff-only`) and retire the worktree.
+5. `ship.sh` also updates the coordinator checkout after the merge and retires the task and its review.
+
+### Ship a task with `ship.sh`
+
+```sh
+scripts/herdr/ship.sh --task <id> --title "feat(scope): summary" --body ~/resolver-herdr/tasks/<id>/pr-body.md [--no-cleanup]
+```
+
+In order, stopping at the first problem and saying what it did and did not do:
+
+1. The task worktree and the main checkout are clean, the main checkout is on `main`, and the branch **contains
+   `origin/main`** (after `git fetch origin main`); otherwise it stops before pushing and tells you to rebase.
+2. **Push.** A new branch is pushed with `-u`; a branch already on origin at the same commit is left alone; a
+   fast-forward is a normal push. If the remote tip diverged because the branch was rebased (the rebase is the
+   authorisation: you ran `ship.sh` on a rebased branch), it pushes with
+   `--force-with-lease=refs/heads/<branch>:<remote sha>`, so the push fails if the remote moved after it was read. It
+   never pushes without a lease, and it stops instead of forcing when the remote tip is a commit this repository has
+   never seen (someone else's work), is ahead of the local branch, or shares no history with it.
+3. **Pull request.** Opens one against `main` (assigned to `HERDR_PR_ASSIGNEE` when it is set; there is no default
+   owner) or reuses the open one for the branch, whose title and description it leaves alone.
+4. **Smoke.** Polls `gh pr checks --json` until the check named exactly `Full-stack smoke` passes. If it fails, is
+   cancelled or skipped, it prints the checks and stops **without scheduling the merge**; if it never shows up it gives
+   up after `HERDR_SHIP_TIMEOUT_SECONDS` (default 1800). `HERDR_POLL_SECONDS` (default 20) sets the interval.
+5. `gh pr merge --auto --rebase`, then waits for the merge (it stops if the PR is closed or another check fails), runs
+   `git fetch origin main && git merge --ff-only origin/main` in the main checkout and prints `merged <sha>`.
+6. Unless `--no-cleanup`: sends `/exit` to the agents of the task and of `review-<id>` and runs
+   `remove-task.sh --id <id> --volumes` for each (the review first). It never passes `--force-leftovers`: if
+   `remove-task.sh` finds processes or containers it stops there, after the merge, and tells you the command to rerun.
+   The branches are kept (a rebase merge leaves `git branch -d` unable to see them as merged).
 
 ## Retire a worktree
 
