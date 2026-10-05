@@ -4,10 +4,11 @@
 #   checks   pass | fail | absent | pending:N (N polls pending, then pass) | multi (an older failed run, a newer passed one)
 #            | queued (an older passed run and a rerun that has not started, with Go's zero time) | queued-null (same, startedAt null)
 #            | requeue:N (N polls like queued, then pass)
+#   merge    (absent) | never (the PR stays OPEN after the auto-merge is scheduled) | closed (it ends CLOSED, unmerged)
 #   stale    N: `pr view --json headRefOid` shows an old head for the first N polls
 set -euo pipefail
 G=${FAKE_STATE:?}/gh; mkdir -p "$G"
-echo "gh $*" >>"$G/calls.log"
+echo "gh $*" >>"$G/calls.log"; echo "gh $*" >>"$FAKE_STATE/events.log"
 cmd="$1 $2"; shift 2
 jqopt() { local a; while [ $# -gt 0 ]; do [ "$1" = "--jq" ] && { printf '%s' "$2"; return; }; shift; done; }
 emit() { local f; f=$(jqopt "$@"); if [ -n "$f" ]; then jq -r "$f"; else cat; fi; }
@@ -40,17 +41,20 @@ case $cmd in
       esac
     else printf 'Full-stack smoke\t%s\n' "$bucket"; fi
     exit "$rc" ;;
-  "pr merge") : >"$G/auto" ;;
+  # Scheduling the auto-merge is what merges (like GitHub, once the required checks pass); `pr view` only reports.
+  "pr merge") : >"$G/auto"
+    if [ "$(cat "$G/merge" 2>/dev/null || echo merged)" = merged ]; then
+      git --git-dir "${FAKE_REMOTE:?}" update-ref refs/heads/main "$(git --git-dir "$FAKE_REMOTE" rev-parse "refs/heads/$(jq -r .head "$G/pr.json")")"
+    fi ;;
   "pr view")
     head=$(jq -r .head "$G/pr.json")
     if has headRefOid "$@"; then
       n=$(cat "$G/stale" 2>/dev/null || echo 0)
       if [ "$n" -gt 0 ]; then echo $((n - 1)) >"$G/stale"; echo 0000000000000000000000000000000000000000
       else git --git-dir "${FAKE_REMOTE:?}" rev-parse "refs/heads/$head"; fi
-    elif [ -f "$G/auto" ]; then
-      sha=$(git --git-dir "${FAKE_REMOTE:?}" rev-parse "refs/heads/$head")
-      git --git-dir "$FAKE_REMOTE" update-ref refs/heads/main "$sha"
-      jq -n --arg s "$sha" '{state:"MERGED",mergeCommit:{oid:$s}}' | emit "$@"
+    elif [ -f "$G/auto" ] && [ "$(cat "$G/merge" 2>/dev/null || echo merged)" = merged ]; then
+      jq -n --arg s "$(git --git-dir "${FAKE_REMOTE:?}" rev-parse refs/heads/main)" '{state:"MERGED",mergeCommit:{oid:$s}}' | emit "$@"
+    elif [ -f "$G/auto" ] && [ "$(cat "$G/merge")" = closed ]; then jq -n '{state:"CLOSED",mergeCommit:null}' | emit "$@"
     else jq -n '{state:"OPEN",mergeCommit:null}' | emit "$@"; fi ;;
   *) echo "fake gh: unsupported $cmd" >&2; exit 2 ;;
 esac

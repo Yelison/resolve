@@ -33,9 +33,11 @@ s_happy() { mk; echo pending:2 >"$T/state/gh/checks"
   check "happy: assignee" grep -q -- '--assignee Yelison' <<<"$(gh_calls)"
   head=$(git --git-dir "$T/remote.git" rev-parse refs/heads/feat/impl-a)
   check "happy: merge scheduled with --auto --rebase and the pushed head" grep -q "pr merge 41 --auto --rebase --match-head-commit $head" <<<"$(gh_calls)"
+  check "happy: origin/main contains the pushed head" git --git-dir "$T/remote.git" merge-base --is-ancestor "$head" refs/heads/main
+  check "happy: the state of the PR is read before the first /exit" test "$(grep -n 'pr view 41 --json state' "$T/state/events.log" | head -1 | cut -d: -f1)" -lt "$(grep -n '^exit ' "$T/state/events.log" | head -1 | cut -d: -f1)"
   check "happy: merge after the smoke polls" test "$(grep -n 'pr merge' "$T/state/gh/calls.log" | cut -d: -f1)" -gt "$(grep -n 'pr checks' "$T/state/gh/calls.log" | tail -1 | cut -d: -f1)"
-  want=$(git --git-dir "$T/remote.git" rev-parse refs/heads/main)
-  check "happy: prints merged sha" grep -qx "merged $want" <<<"$out"
+  want=$head
+  check "happy: prints the pushed commit as merged" grep -qx "merged $want" <<<"$out"
   check "happy: main checkout fast-forwarded" test "$(git -C "$T/repo" rev-parse HEAD)" = "$want"
   check "happy: task retired" retired impl-a; check "happy: review retired" retired review-impl-a
   check "happy: worktrees gone" bash -c "! test -e '$W' && ! test -e '$T/root/worktrees/review-impl-a'"
@@ -58,6 +60,24 @@ s_queued() { mk; local mode
   done
   echo requeue:2 >"$T/state/gh/checks"; rm -f "$T/state/gh/polls"; out=$(ship --no-cleanup)
   check "requeue: waits for the rerun and then merges" test $? -eq 0; check "requeue: merge scheduled after waiting" grep -q 'pr merge' "$T/state/gh/calls.log"; }
+# T1: cleanup only after a confirmed merge. A PR that never merges, or is closed, retires nothing and touches no agent.
+not_merged() { # mode timeout message
+  mk; echo "$1" >"$T/state/gh/merge"; before=$(git -C "$T/repo" rev-parse HEAD)
+  out=$(HERDR_SHIP_TIMEOUT_SECONDS=$2 ship); check "$1: refused" test $? -ne 0; check "$1: says why" says x "$3"
+  check "$1: no /exit sent" bash -c "! grep -q '^exit ' '$T/state/events.log' 2>/dev/null"
+  check "$1: the tasks are not retired" bash -c "[ \"\$(jq -r .removed_at '$T/root/tasks/impl-a/task.json')\" = null ] && [ \"\$(jq -r .removed_at '$T/root/tasks/review-impl-a/task.json')\" = null ]"
+  check "$1: worktrees kept" bash -c "test -d '$W' && test -d '$T/root/worktrees/review-impl-a'"
+  check "$1: no volumes removed" bash -c "! grep -q 'down' '$T/state/docker.log' 2>/dev/null"
+  check "$1: nothing printed as merged" bash -c "! grep -q '^merged ' <<<'$out'"
+  check "$1: the main checkout did not move" test "$(git -C "$T/repo" rev-parse HEAD)" = "$before"; }
+s_closed() { not_merged closed 5 'closed without merging'; }
+s_open() { not_merged never 1 'was not merged in'; }
+# A dirty review worktree makes remove-task.sh refuse after the merge: reported, merged sha printed, nothing removed.
+s_dirtyreview() { mk; touch "$T/root/worktrees/review-impl-a/stray"; out=$(ship); rc=$?
+  check "dirty review: stops" test $rc -ne 0; check "dirty review: the merge is reported first" says x 'merged '; check "dirty review: says what to run" says x 'was not retired'
+  check "dirty review: refused as uncommitted" says x 'uncommitted'
+  check "dirty review: review kept" test -d "$T/root/worktrees/review-impl-a"; check "dirty review: no volumes removed" bash -c "! grep -q 'down' '$T/state/docker.log' 2>/dev/null"
+  check "dirty review: the task is not retired either" bash -c "[ \"\$(jq -r .removed_at '$T/root/tasks/impl-a/task.json')\" = null ]"; }
 s_stale() { mk; echo 2 >"$T/state/gh/stale"; out=$(ship --no-cleanup); rc=$?
   check "stale head: rc 0" test $rc -eq 0; check "stale head: waited" says x 'Waiting for #41 to show'
   check "stale head: no checks read before the head matched" test "$(grep -n 'headRefOid' "$T/state/gh/calls.log" | tail -1 | cut -d: -f1)" -lt "$(grep -n 'pr checks' "$T/state/gh/calls.log" | head -1 | cut -d: -f1)"
@@ -87,6 +107,6 @@ s_working() { mk; jq '.agent_status="working"' "$T/state/agents/rev-impl-a" >"$T
   out=$(ship); check "working agent: stops" test $? -ne 0; check "working agent: says so" says x 'is working, so it was not sent /exit'; check "working agent: no /exit sent" bash -c "! grep -q '/exit' '$T/state/prompts.log' 2>/dev/null"
   check "working agent: the merge is reported" says x "merged "; check "working agent: reviewer still live" test -e "$T/state/agents/rev-impl-a"; }
 
-scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin happy reuse red absent multi queued stale lease foreign ahead race working)
+scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin happy reuse red absent multi queued closed open dirtyreview stale lease foreign ahead race working)
 for s in "${scen[@]}"; do echo "== $s"; "s_$s"; done
 finish
