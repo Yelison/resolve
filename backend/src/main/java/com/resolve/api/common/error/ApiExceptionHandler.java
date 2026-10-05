@@ -1,13 +1,16 @@
 package com.resolve.api.common.error;
 
+import java.sql.SQLException;
 import java.util.List;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -18,6 +21,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 /** Traduce las excepciones de la API a Problem Details (RFC 9457). */
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+	/** SQLSTATE 22021: secuencia de bytes no válida para la codificación (el byte 0 en un texto). */
+	private static final String INVALID_BYTE_SEQUENCE = "22021";
 
 	@ExceptionHandler
 	ProblemDetail handleValidation(ApiValidationException exception) {
@@ -49,6 +55,33 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	@ExceptionHandler
 	ProblemDetail handleOptimisticLock(ObjectOptimisticLockingFailureException exception) {
 		return preconditionFailed("El recurso cambió mientras se guardaba. Vuelve a cargarlo e inténtalo de nuevo.");
+	}
+
+	/**
+	 * Red de seguridad: un texto con el byte 0 que se escapó de la validación explícita. PostgreSQL lo rechaza con
+	 * SQLSTATE 22021 y es un error del cliente. Solo se traduce ese estado: otras violaciones de integridad siguen
+	 * siendo un 500, porque delatan un fallo del servidor.
+	 */
+	@ExceptionHandler
+	ResponseEntity<ProblemDetail> handleDataIntegrity(DataIntegrityViolationException exception) {
+		if (!hasSqlState(exception, INVALID_BYTE_SEQUENCE)) {
+			throw exception;
+		}
+		return ResponseEntity.badRequest()
+			.contentType(MediaType.APPLICATION_PROBLEM_JSON)
+			.body(problem(HttpStatus.BAD_REQUEST, "Petición no válida", "La petición contiene caracteres que no se pueden guardar."));
+	}
+
+	private static boolean hasSqlState(Throwable exception, String sqlState) {
+		for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+			if (cause instanceof SQLException sql && sqlState.equals(sql.getSQLState())) {
+				return true;
+			}
+			if (cause.getCause() == cause) {
+				break;
+			}
+		}
+		return false;
 	}
 
 	@Override

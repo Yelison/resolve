@@ -13,6 +13,7 @@ import java.util.regex.Pattern;
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
 import com.resolve.api.common.persistence.WireEnum;
+import com.resolve.api.common.web.ControlCharacters;
 import com.resolve.api.common.web.Uuids;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
@@ -26,7 +27,7 @@ final class TicketRequestParser {
 
 	static final int MAX_TEXT_LENGTH = 5000;
 
-	private static final String CONTROL_CHARACTERS = "No admite caracteres de control.";
+	private static final String CONTROL_CHARACTERS = ControlCharacters.MESSAGE;
 
 	private static final String TEXT_EXPECTED = "Debe ser un texto.";
 
@@ -60,7 +61,10 @@ final class TicketRequestParser {
 				: parser.uuid("customerId", customerId).orElse(null);
 		Long number = null;
 		String text = null;
-		if (q != null && !q.isBlank()) {
+		if (q != null && ControlCharacters.in(q, false)) {
+			parser.error("q", CONTROL_CHARACTERS);
+		}
+		else if (q != null && !q.isBlank()) {
 			String trimmed = q.trim();
 			if (trimmed.length() > MAX_QUERY_LENGTH) {
 				parser.error("q", "La búsqueda admite como máximo " + MAX_QUERY_LENGTH + " caracteres.");
@@ -233,23 +237,13 @@ final class TicketRequestParser {
 		if (trimmed.isEmpty()) {
 			return invalid(field, REQUIRED);
 		}
-		if (hasControlCharacters(trimmed, allowLayout)) {
+		if (ControlCharacters.in(trimmed, allowLayout)) {
 			return invalid(field, CONTROL_CHARACTERS);
 		}
 		if (trimmed.length() > maxLength) {
 			return invalid(field, "Admite como máximo " + maxLength + " caracteres.");
 		}
 		return trimmed;
-	}
-
-	/**
-	 * PostgreSQL rechaza el byte 0 y el resto de controles no tienen sentido en un asunto; la descripción y los
-	 * mensajes admiten saltos de línea y tabuladores.
-	 */
-	static boolean hasControlCharacters(String text, boolean allowLayout) {
-		return text.chars()
-			.anyMatch((character) -> Character.isISOControl(character)
-					&& !(allowLayout && (character == '\n' || character == '\r' || character == '\t')));
 	}
 
 	private static <E extends Enum<E> & WireEnum> String allowed(Class<E> type) {

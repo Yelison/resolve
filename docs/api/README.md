@@ -70,6 +70,7 @@ The security layer resolves the principal from a pluggable source, one per profi
   - `visibility`: `public`, `internal`
   - `channel`: `email`, `chat`, `phone`, `web`
   - `role`: `admin`, `agent`, `customer`
+- Text filters (`q` and `company` on customers, `q` on tickets, `q` and `category` on articles) are single lines: a control character, the NUL that PostgreSQL cannot store included, is a `400` on that parameter ("No admite caracteres de control."), exactly as in request bodies. It is checked on the value as received, so a trailing NUL is not silently trimmed away. As a safety net, a database error with SQLSTATE `22021` that escapes the validation is also a `400` Problem; any other integrity error stays a `500`.
 - Errors use **Problem Details** (RFC 9457, `application/problem+json`). Validation errors add `errors: [{ field, message }]`.
 
 | Status | When |

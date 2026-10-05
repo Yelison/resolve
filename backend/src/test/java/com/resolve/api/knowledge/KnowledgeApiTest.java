@@ -690,4 +690,23 @@ class KnowledgeApiTest extends KnowledgeFixture {
 		}
 	}
 
+	@Test
+	void controlCharactersInTheArticleFiltersAreFieldErrors() throws Exception {
+		for (String filter : new String[] { "q", "category" }) {
+			for (String value : new String[] { "a\u0000b", "a\u0000", "\u0000", "a\tb" }) {
+				this.mvc.perform(get("/knowledge/articles").param(filter, value).with(as(LAURA)))
+					.andExpect(status().isBadRequest())
+					.andExpect(matchesContract("listArticles"))
+					.andExpect(jsonPath("$.errors[*].field", org.hamcrest.Matchers.contains(filter)))
+					.andExpect(jsonPath("$.errors[0].message").value("No admite caracteres de control."));
+			}
+		}
+	}
+
+	@Test
+	void aNulInTheSlugOfTheRouteIsNotAServerError() throws Exception {
+		this.mvc.perform(get("/knowledge/articles/a%00b").with(as(LAURA)))
+			.andExpect(status().is4xxClientError());
+	}
+
 }
