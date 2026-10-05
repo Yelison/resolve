@@ -18,11 +18,13 @@ describe('BarChart', () => {
     expect(within(table).getByRole('cell', { hidden: true, name: '61' })).toBeInTheDocument()
   })
 
-  it('expone el gráfico como imagen descrita por la tabla', () => {
+  it('describe el gráfico con un resumen y enlaza la tabla como detalle', () => {
     render(<BarChart label="Solicitudes por día" series={series} points={points} />)
     const chart = screen.getByRole('img', { name: 'Solicitudes por día' })
+    expect(chart).toHaveAccessibleDescription(/2 valores\. Máximo 61 en Martes\..*tabla alternativa/)
     const table = screen.getByRole('table', { hidden: true })
-    expect(chart.getAttribute('aria-describedby')).toBe(table.parentElement?.id)
+    expect(chart.getAttribute('aria-details')).toBe(table.parentElement?.id)
+    expect(chart).not.toHaveAttribute('aria-describedby', table.parentElement?.id)
   })
 
   it('el botón muestra y oculta la tabla', async () => {
@@ -43,7 +45,7 @@ describe('BarChart', () => {
 
   it('muestra un mensaje cuando no hay puntos', () => {
     render(<BarChart label="Solicitudes por día" series={series} points={[]} />)
-    expect(screen.getByText('Sin datos en este periodo')).toBeInTheDocument()
+    expect(screen.getByText('Solicitudes por día: sin datos en este periodo')).toBeInTheDocument()
     expect(screen.queryByRole('table', { hidden: true })).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })

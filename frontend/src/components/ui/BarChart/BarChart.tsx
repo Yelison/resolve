@@ -80,19 +80,26 @@ function useElementWidth<T extends HTMLElement>() {
  */
 export function BarChart({ label, series, points, valueFormatter = defaultFormatter, className }: BarChartProps) {
   const tableId = useId()
+  const summaryId = useId()
   const [tableVisible, setTableVisible] = useState(false)
   const [plotRef, plotWidth] = useElementWidth<HTMLDivElement>()
 
   if (points.length === 0) {
     return (
       <p className={cx(styles.empty, className)} role="status">
-        Sin datos en este periodo
+        {label}: sin datos en este periodo
       </p>
     )
   }
 
   const max = Math.max(1, ...points.flatMap((point) => series.map((item) => point.values[item.id] ?? 0)))
   const single = series.length === 1
+  const peakValue = points
+    .flatMap((point) => series.map((item) => ({ point, item, value: point.values[item.id] ?? 0 })))
+    .reduce((best, entry) => (entry.value > best.value ? entry : best))
+  const summary = `${points.length} ${single ? 'valores' : `periodos y ${series.length} series`}. Máximo ${valueFormatter(
+    peakValue.value,
+  )}${single ? '' : `, ${peakValue.item.label}`} en ${peakValue.point.label}. El detalle completo está en la tabla alternativa que sigue al gráfico, junto al botón «Ver como tabla».`
   const colorOf = (index: number): BarChartColor =>
     series[index]?.color ?? defaultColors[index % defaultColors.length] ?? 'brand'
   const viewWidth = series.length * BAR_WIDTH + (series.length - 1) * BAR_GAP
@@ -119,7 +126,17 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
 
   return (
     <figure className={cx(styles.chart, className)}>
-      <div ref={plotRef} className={styles.plot} role="img" aria-label={label} aria-describedby={tableId}>
+      <span id={summaryId} className="visually-hidden">
+        {summary}
+      </span>
+      <div
+        ref={plotRef}
+        className={styles.plot}
+        role="img"
+        aria-label={label}
+        aria-describedby={summaryId}
+        aria-details={tableId}
+      >
         <div className={styles.columns} style={gridStyle}>
           {points.map((point) => {
             const peak = Math.max(...series.map((item) => point.values[item.id] ?? 0))
