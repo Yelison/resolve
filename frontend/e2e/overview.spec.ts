@@ -36,3 +36,27 @@ test.describe('resumen', () => {
     await expect(page.getByRole('table', { name: 'Tickets que necesitan atención' })).toBeVisible()
   })
 })
+
+test.describe('resumen · sin saltos de layout', () => {
+  for (const width of [320, 768, 1440]) {
+    test(`el panel siguiente a las métricas empieza a la misma altura cargando y con datos · ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      let release!: () => void
+      const held = new Promise<void>((resolve) => (release = resolve))
+      await page.route('**/api/tickets/metrics', async (route) => {
+        await held
+        await route.fallback()
+      })
+      await page.goto('/')
+      const panel = page.getByRole('region', { name: /Solicitudes/ })
+      await expect(page.getByText('Cargando métricas…')).toBeAttached()
+      const loading = (await panel.boundingBox())!.y
+      release()
+      await expect(page.getByText('Tickets abiertos')).toBeVisible()
+      const loaded = (await panel.boundingBox())!.y
+      expect(Math.abs(loaded - loading), `cargando ${loading}, con datos ${loaded}`).toBeLessThanOrEqual(4)
+    })
+  }
+})
