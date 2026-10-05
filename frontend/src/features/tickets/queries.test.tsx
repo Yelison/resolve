@@ -6,7 +6,7 @@ import type { Ticket } from '../../domain/ticket'
 import { mockApi } from '../../test/api'
 import { createTestQueryClient } from '../../test/render'
 import { ticket } from '../../test/ticketFixtures'
-import { ticketKeys, useQuickTicketUpdate } from './queries'
+import { ticketKeys, useAddMessage, useQuickTicketUpdate } from './queries'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -45,5 +45,37 @@ describe('useQuickTicketUpdate', () => {
     expect(queryClient.getQueryData<Ticket>(key)).toMatchObject({ status: 'in_progress', version: 1 })
     // La lectura tardía se canceló: solo escribieron la lectura de la versión y el PATCH.
     expect(queryClient.getQueryState(key)?.dataUpdateCount).toBe(2)
+  })
+})
+
+describe('useAddMessage', () => {
+  async function addMessage(visibility: 'public' | 'internal') {
+    mockApi({ 'POST /api/tickets/1048/messages': { status: 201, body: { id: 'm-1', body: 'Hola', visibility } } })
+    const queryClient = createTestQueryClient()
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const { result } = renderHook(() => useAddMessage(1048), { wrapper })
+    act(() => result.current.mutate({ body: 'Hola', visibility }))
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    return invalidate.mock.calls.map(([filters]) => filters?.queryKey)
+  }
+
+  it('una nota interna solo invalida los mensajes del ticket', async () => {
+    expect(await addMessage('internal')).toEqual([ticketKeys.messages(1048)])
+  })
+
+  it('una respuesta pública invalida detalle, mensajes, listas y métricas', async () => {
+    const keys = await addMessage('public')
+    expect(keys).toHaveLength(4)
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        ticketKeys.detail(1048),
+        ticketKeys.messages(1048),
+        ticketKeys.lists(),
+        ticketKeys.metrics(),
+      ]),
+    )
   })
 })
