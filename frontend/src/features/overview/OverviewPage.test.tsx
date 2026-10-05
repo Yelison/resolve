@@ -160,6 +160,23 @@ describe('OverviewPage', () => {
     expect(request.searchParams.get('size')).toBe('5')
   })
 
+  it('pide los 5 eventos más recientes de la actividad', async () => {
+    const fetchSpy = mockApi(baseRoutes)
+    renderOverview()
+    await screen.findByRole('link', { name: /Laura Méndez cambió el estado/ })
+    const request = fetchSpy.mock.calls
+      .map(([input]) => new URL((input as Request).url))
+      .find((url) => url.pathname === '/api/tickets/activity')!
+    expect(request.searchParams.get('size')).toBe('5')
+  })
+
+  it('el esqueleto de las métricas tiene una sola etiqueta de carga y no repite los textos reales', () => {
+    mockApi({ ...baseRoutes, 'GET /api/tickets/metrics': never })
+    renderOverview()
+    expect(screen.getAllByText('Cargando métricas…')).toHaveLength(1)
+    expect(screen.queryByText('Tickets abiertos')).not.toBeInTheDocument()
+  })
+
   describe('vacío', () => {
     it('muestra un estado vacío en la actividad y en la tabla', async () => {
       mockApi({

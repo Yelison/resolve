@@ -60,7 +60,8 @@ test.describe('resumen', () => {
 })
 
 test.describe('resumen · sin saltos de layout', () => {
-  for (const width of [320, 768, 1440]) {
+  // 1200 y 1280 px con el menú expandido: las tarjetas son estrechas y el detalle puede ocupar dos líneas.
+  for (const width of [320, 390, 768, 1200, 1280, 1440]) {
     test(`el panel siguiente a las métricas empieza a la misma altura cargando y con datos · ${width}px`, async ({
       page,
     }) => {
@@ -74,6 +75,8 @@ test.describe('resumen · sin saltos de layout', () => {
       await page.goto('/')
       const panel = page.getByRole('region', { name: /Solicitudes/ })
       await expect(page.getByText('Cargando métricas…')).toBeAttached()
+      // Las tarjetas ocultas que fijan la altura no se leen ni se pueden enfocar.
+      await expect(page.getByRole('link', { name: 'Ver sin asignar' })).toHaveCount(0)
       const loading = (await panel.boundingBox())!.y
       release()
       await expect(page.getByText('Tickets abiertos')).toBeVisible()

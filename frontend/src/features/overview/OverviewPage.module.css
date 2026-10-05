@@ -6,22 +6,35 @@
 }
 
 /*
- * Altura de un `Metric` con datos (medida en Chromium): 129 px desde 768 px. Por debajo, 119 px y, en la última
- * tarjeta, 146 px porque su detalle es un enlace con el área táctil de 44 px.
+ * Esqueleto de las métricas: las tarjetas reales, ocultas (`visibility: hidden` las quita también de la lectura de
+ * pantalla), fijan la altura; el esqueleto visible las cubre.
  */
-.metricSkeleton {
-  min-height: 119px;
+.ghost {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.ghostContent {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  visibility: hidden;
+}
+
+.ghostContent > * {
+  flex: 1;
+}
+
+.ghostSkeleton {
+  position: absolute;
+  inset: 0;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-panel);
 }
 
-.metricSkeleton:last-child {
-  min-height: 146px;
-}
-
 .metricsError {
   grid-column: 1 / -1;
-  min-height: 119px;
 }
 
 .panels {
@@ -98,12 +111,6 @@
 }
 
 @media (min-width: 768px) {
-  .metricSkeleton,
-  .metricSkeleton:last-child,
-  .metricsError {
-    min-height: 129px;
-  }
-
   .metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

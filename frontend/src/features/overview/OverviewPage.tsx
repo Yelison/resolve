@@ -11,6 +11,7 @@ import {
   TicketRow,
   TicketTable,
 } from '../../components/ui'
+import type { TicketMetrics } from '../../domain/ticket'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useReportSummary } from '../reports/queries'
@@ -20,7 +21,7 @@ import { useRecentActivity, useTicketList, useTicketMetrics } from '../tickets/q
 import { compareResolved, newToday, requestPoints } from './overviewData'
 import styles from './OverviewPage.module.css'
 
-// La ficha dice 10; con 5 la actividad y el gráfico quedan casi a la misma altura.
+// La ficha dice 10; con 5 se reduce la diferencia de altura entre la actividad y el gráfico.
 const ACTIVITY_SIZE = 5
 const ATTENTION_PAGE_SIZE = 5
 
@@ -51,15 +52,74 @@ export function OverviewPage() {
   )
 }
 
+/** Valores representativos para el esqueleto: solo fijan la altura de las tarjetas, nunca se muestran ni se leen. */
+const ghostMetrics: MetricsData = {
+  open: 24,
+  openedToday: 8,
+  // «4 más que ayer (100 %)»: la comparación más larga habitual (porcentaje de tres cifras).
+  resolvedToday: 8,
+  resolvedYesterday: 4,
+  firstResponseMinutes: 18,
+  firstResponseTargetMinutes: 30,
+  views: { unassigned: 6 },
+}
+
+type MetricsData = Pick<
+  TicketMetrics,
+  'open' | 'openedToday' | 'resolvedToday' | 'resolvedYesterday' | 'firstResponseMinutes' | 'firstResponseTargetMinutes'
+> & { views: Pick<TicketMetrics['views'], 'unassigned'> }
+
+/** Las cuatro tarjetas. Con `ghost` llevan una etiqueta vacía: el esqueleto no debe duplicar ningún texto real. */
+function metricCards(data: MetricsData, ghost = false) {
+  const resolved = compareResolved(data.resolvedToday, data.resolvedYesterday)
+  const label = (text: string) => (ghost ? '\u00a0' : text)
+  return [
+    <Metric key="open" label={label('Tickets abiertos')} value={data.open} detail={newToday(data.openedToday)} />,
+    <Metric
+      key="resolved"
+      label={label('Resueltos hoy')}
+      value={data.resolvedToday}
+      trend={resolved.trend}
+      detail={
+        <>
+          {resolved.arrow && <span aria-hidden="true">{resolved.arrow} </span>}
+          {resolved.text}
+        </>
+      }
+    />,
+    <Metric
+      key="firstResponse"
+      label={label('Primera respuesta')}
+      value={data.firstResponseMinutes === null ? 'Sin datos' : `${data.firstResponseMinutes} min`}
+      // La ventana es la de `/tickets/metrics` (168 h móviles), no la del informe. Espacios duros: el objetivo no se
+      // parte entre líneas en tarjetas estrechas.
+      detail={`Mediana de 7 días · Objetivo:\u00a0${data.firstResponseTargetMinutes}\u00a0min`}
+    />,
+    <Metric
+      key="unassigned"
+      label={label('Sin responsable')}
+      value={data.views.unassigned}
+      detail={
+        <Link to="/tickets?view=unassigned" className={styles.link}>
+          Ver sin asignar
+        </Link>
+      }
+    />,
+  ]
+}
+
 function MetricsSection() {
   const metrics = useTicketMetrics()
-  // El esqueleto y el error ocupan la misma rejilla que las tarjetas: así las columnas cambian con el ancho igual que
-  // con datos y lo de debajo no salta cuando llegan.
+  // El esqueleto dibuja las mismas tarjetas, ocultas, con valores representativos: ocupan lo mismo que las reales en
+  // cualquier ancho y fuente, y lo de debajo no salta cuando llegan los datos. Encima va el esqueleto visible.
   if (metrics.isPending) {
     return (
       <div className={styles.metrics}>
-        {['Cargando métricas…', '', '', ''].map((label, index) => (
-          <Skeleton key={index} lines={3} label={label} className={styles.metricSkeleton} />
+        {metricCards(ghostMetrics, true).map((card, index) => (
+          <div key={card.key} className={styles.ghost}>
+            <div className={styles.ghostContent}>{card}</div>
+            <Skeleton lines={3} label={index === 0 ? 'Cargando métricas…' : ''} className={styles.ghostSkeleton} />
+          </div>
         ))}
       </div>
     )
@@ -81,39 +141,7 @@ function MetricsSection() {
       </div>
     )
   }
-  const data = metrics.data
-  const resolved = compareResolved(data.resolvedToday, data.resolvedYesterday)
-  return (
-    <div className={styles.metrics}>
-      <Metric label="Tickets abiertos" value={data.open} detail={newToday(data.openedToday)} />
-      <Metric
-        label="Resueltos hoy"
-        value={data.resolvedToday}
-        trend={resolved.trend}
-        detail={
-          <>
-            {resolved.arrow && <span aria-hidden="true">{resolved.arrow} </span>}
-            {resolved.text}
-          </>
-        }
-      />
-      <Metric
-        label="Primera respuesta"
-        value={data.firstResponseMinutes === null ? 'Sin datos' : `${data.firstResponseMinutes} min`}
-        // La ventana es la de `/tickets/metrics` (168 h móviles), no la del informe.
-        detail={`Mediana de 7 días · Objetivo: ${data.firstResponseTargetMinutes} min`}
-      />
-      <Metric
-        label="Sin responsable"
-        value={data.views.unassigned}
-        detail={
-          <Link to="/tickets?view=unassigned" className={styles.link}>
-            Ver sin asignar
-          </Link>
-        }
-      />
-    </div>
-  )
+  return <div className={styles.metrics}>{metricCards(metrics.data)}</div>
 }
 
 function RequestsPanel() {
