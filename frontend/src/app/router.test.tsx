@@ -49,6 +49,11 @@ describe('rutas de la aplicación', () => {
     expect(await screen.findByRole('button', { name: 'Crear ticket' })).toBeInTheDocument()
   })
 
+  const staffMes = [
+    ['admin', adminMe],
+    ['agent', { ...adminMe, role: 'agent' }],
+  ] as const
+
   const staffSections = mainNavigation.filter((item) => item.to !== '/' && !item.roles.includes('customer'))
 
   it.each(staffSections.map((item) => [item.to, item.label]))(
@@ -62,13 +67,16 @@ describe('rutas de la aplicación', () => {
     },
   )
 
-  it.each(staffSections.map((item) => [item.to, item.label]))('deja al personal abrir %s', async (path, label) => {
-    mockApi({ 'GET /api/me': { body: adminMe } })
-    renderApp(path)
-    expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
-    expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
-  })
+  it.each(staffSections.flatMap((item) => staffMes.map(([role, me]) => [item.to, item.label, role, me] as const)))(
+    'deja al personal abrir %s («%s») como %s',
+    async (path, label, _role, me) => {
+      mockApi({ 'GET /api/me': { body: me } })
+      renderApp(path)
+      expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
+      expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
+    },
+  )
 
   it('cubre todas las secciones de personal', () => {
     expect(staffSections.map((item) => item.to)).toEqual([
