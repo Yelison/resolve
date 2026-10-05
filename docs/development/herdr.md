@@ -373,10 +373,15 @@ In order, stopping at the first problem and saying what it did and did not do:
 ```sh
 scripts/herdr/remove-task.sh --id t0-1-tickets-follow-ups            # keeps the branch
 scripts/herdr/remove-task.sh --id t0-1-tickets-follow-ups --delete-branch --volumes
+scripts/herdr/remove-task.sh --id t0-1-tickets-follow-ups --force-leftovers   # only after reading what it listed
 ```
 
-The script stops the task's Compose project, runs `herdr worktree remove` (which also closes the workspace) and
-marks the task as removed. It refuses while the checkout has uncommitted changes or a live agent, warns about
+Before anything else the script lists **leftovers**: processes listening on the slot's five ports (PID, command
+line and working directory; a listener whose PID `ss` cannot show, such as `docker-proxy`, is listed as such, never
+taken for a free port) and containers, in any state, of the task's Compose project. If there are any it stops and
+removes nothing, and never kills a process itself: stop them yourself, or rerun with `--force-leftovers` to retire the
+task anyway (the processes stay; only the Compose project is stopped, as below). Then it stops the task's Compose
+project, runs `herdr worktree remove` (which also closes the workspace) and marks the task as removed. It refuses while the checkout has uncommitted changes or a live agent, warns about
 commits that are not pushed, and only deletes the branch when `git branch -d` agrees that it is merged. Logs stay in
 `logs/<id>/`.
 
@@ -389,7 +394,7 @@ commits that are not pushed, and only deletes the branch when `git branch -d` ag
 | The workspace was closed but the worktree exists | `herdr worktree open --cwd ~/resolver --path ~/resolver-herdr/worktrees/<id> --no-focus`, then put the new ids in `task.json`. |
 | `task.json` is missing | Recreate it from `git worktree list`, `herdr worktree list` and `.env.herdr`; the scripts only need those fields. |
 | A prompt timed out | Read the agent (`herdr agent read`) before deciding whether to resend. |
-| Ports are busy | `ss -ltnp` shows the owner; pick another slot rather than killing processes you do not own. |
+| Ports are busy | `ss -ltnp` shows the owner; pick another slot rather than killing processes you do not own. `remove-task.sh` lists the same owners for the slot it retires. |
 
 ## Where a feature registers itself
 
