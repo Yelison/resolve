@@ -108,6 +108,16 @@ cd backend
 SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run   # http://localhost:8080/api, proxied by Vite at /api
 ```
 
+To run the web app and the API as one process on one origin (what a deployment does), build the frontend, copy it into the backend's static resources and package without `clean`:
+
+```sh
+cd frontend && npm run build
+mkdir -p ../backend/target/classes/static && cp -r dist/. ../backend/target/classes/static/
+cd ../backend && ./mvnw -B -DskipTests package && SPRING_PROFILES_ACTIVE=dev java -jar target/*.jar   # app at http://localhost:8080/, API at /api
+```
+
+Any path that is not a file and does not start with `api/` or `actuator/` answers `index.html`, so reloading `/tickets/1047` works; `/assets/**` (hashed files) is cached for a year and `index.html` is never cached. `frontend/dist` is not committed. During development nothing changes: Vite serves the app and proxies `/api`.
+
 The API reads `DATABASE_URL`, `DATABASE_USERNAME` and `DATABASE_PASSWORD`, with defaults that match `docker-compose.yml` (development only). There is no authentication provider yet: the `dev` profile loads demo data and a demo login (the `X-Demo-User` header, defaulting to the demo admin), and any other profile answers `401`. See the [API contract](docs/api/README.md).
 
 To try other roles in development, call `setDemoUser` from the browser console, for example for the customer María Pérez: `setDemoUser('maria.perez@cliente.example')` (agents: `laura.mendez@acme.example`; `setDemoUser(null)` goes back to the admin). It replaces setting `resolve-demo-user` in `localStorage` by hand and also empties the query cache so data from the previous user never shows; reload the page to load the new session.
