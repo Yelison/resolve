@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, unwrap } from '../../api/client'
 import type { Me, OrganizationPatch, OrganizationSettings } from '../../api/schema'
+import { customerKeys } from '../customers/queries'
 import { memberKeys } from '../team/queries'
 import { reportKeys } from '../reports/queries'
 import { refreshSessionOnForbidden, sessionKeys } from '../session/queries'
@@ -33,7 +34,7 @@ function writeSettingsIfNewer(queryClient: QueryClient, settings: OrganizationSe
  * Edita la organización (admin) con `If-Match` y merge-patch: solo viajan los campos cambiados, así repetir el envío
  * tras un 412 no pisa lo que cambió otra persona. Al guardar se actualizan los ajustes y `/me` (el sidebar muestra el
  * nombre del espacio) y se leen de nuevo lo que depende de la zona y del objetivo: los informes (`byDay`, `period`) y
- * las métricas de tickets y de equipo, que llevan el objetivo de primera respuesta.
+ * las métricas de tickets y de equipo (llevan el objetivo de primera respuesta) y las de clientes (el mes se cuenta en la zona).
  */
 export function useUpdateOrganization() {
   const queryClient = useQueryClient()
@@ -67,6 +68,8 @@ export function useUpdateOrganization() {
       void queryClient.invalidateQueries({ queryKey: reportKeys.all })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
       void queryClient.invalidateQueries({ queryKey: memberKeys.metrics() })
+      // «Nuevos este mes» se calcula en la zona de la organización.
+      void queryClient.invalidateQueries({ queryKey: customerKeys.metrics() })
     },
     // Tras un 412 se lee de nuevo para mostrar lo real; un 403 significa que el rol cambió y se relee la sesión.
     onError: (error) => {

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, mockApi, type MockRoute } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
+import { customerKeys } from '../customers/queries'
 import { memberKeys } from '../team/queries'
 import { reportKeys } from '../reports/queries'
 import { sessionKeys } from '../session/queries'
@@ -195,7 +196,7 @@ describe('OrganizationTab', () => {
       },
     })
     queryClient.setQueryData(sessionKeys.me, adminMe)
-    for (const key of [reportKeys.all, ticketKeys.metrics(), memberKeys.metrics()]) {
+    for (const key of [reportKeys.all, ticketKeys.metrics(), memberKeys.metrics(), customerKeys.metrics()]) {
       queryClient.setQueryData([...key, 'seed'], {})
     }
     const name = await field('Nombre del espacio')
@@ -208,7 +209,7 @@ describe('OrganizationTab', () => {
       name: 'Acme Studio SL',
       timeZone: 'Europe/Madrid',
     })
-    for (const key of [reportKeys.all, ticketKeys.metrics(), memberKeys.metrics()]) {
+    for (const key of [reportKeys.all, ticketKeys.metrics(), memberKeys.metrics(), customerKeys.metrics()]) {
       expect(queryClient.getQueryState([...key, 'seed'])?.isInvalidated, key.join('/')).toBe(true)
     }
     expect(save()).toBeDisabled()
