@@ -70,6 +70,12 @@ done
 update_task "$ID" '.agent = $name | .agent_started_at = $at' --arg name "$NAME" --arg at "$(utc_now)"
 state=$(agent_state "$NAME")
 log "Agent '$NAME' is $state."
+expected_model=$(jq -r '.model // empty' "$(task_json "$ID")")
+if [ -n "$expected_model" ]; then
+  shown=$(agent_model "$NAME")
+  log "Session model: ${shown:-unknown} (task asks for $expected_model)."
+  update_task "$ID" '.model_verified = { at: $at, header: $h }' --arg at "$(utc_now)" --arg h "$shown"
+fi
 expected=$(jq -r '.effort.level // empty' "$(task_json "$ID")")
 header=$(agent_effort "$NAME")
 if [ -n "$expected" ]; then

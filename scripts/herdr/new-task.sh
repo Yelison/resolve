@@ -19,6 +19,8 @@ Usage: scripts/herdr/new-task.sh --id ID --branch BRANCH [options]
   --effort LEVEL   Reasoning effort for the task's agent: low, medium (default), high or xhigh
   --max-effort L   Highest level the agent may run at (default: same as --effort; raise it with set-effort.sh)
   --effort-reason  One line explaining the level, stored in task.json
+  --model ID       Model for the task's agent, e.g. claude-sonnet-5-5 (default: the owner's default model)
+  --advisor ID     Advisor model, e.g. claude-opus-5-5 (default: the owner's advisor setting)
   --install        Run `npm ci` in frontend/ once the worktree exists
   --no-claude-md   Do not copy the local, git-ignored CLAUDE.md into the worktree
   -h, --help       Show this help
@@ -27,7 +29,7 @@ HERDR_TASKS_ROOT (default ~/resolver-herdr) holds worktrees/, tasks/ and logs/.
 USAGE
 }
 
-ID= BRANCH= BASE=main SLOT= LABEL= INSTALL=0 COPY_CLAUDE_MD=1 EFFORT=medium MAX_EFFORT= EFFORT_REASON=
+ID= BRANCH= BASE=main SLOT= LABEL= INSTALL=0 COPY_CLAUDE_MD=1 EFFORT=medium MAX_EFFORT= EFFORT_REASON= MODEL= ADVISOR=
 while [ $# -gt 0 ]; do
   case $1 in
     --id) need_arg "$1" $#; ID=${2:-}; shift 2 ;;
@@ -38,6 +40,8 @@ while [ $# -gt 0 ]; do
     --effort) need_arg "$1" $#; EFFORT=${2:-}; shift 2 ;;
     --max-effort) need_arg "$1" $#; MAX_EFFORT=${2:-}; shift 2 ;;
     --effort-reason) need_arg "$1" $#; EFFORT_REASON=${2:-}; shift 2 ;;
+    --model) need_arg "$1" $#; MODEL=${2:-}; shift 2 ;;
+    --advisor) need_arg "$1" $#; ADVISOR=${2:-}; shift 2 ;;
     --install) INSTALL=1; shift ;;
     --no-claude-md) COPY_CLAUDE_MD=0; shift ;;
     -h | --help) usage; exit 0 ;;
@@ -125,6 +129,7 @@ fi
 
 ensure_effort_excluded "$REPO"
 write_effort_settings "$WORKTREE" "$EFFORT" "$MAX_EFFORT"
+write_model_settings "$WORKTREE" "$MODEL" "$ADVISOR"
 
 if [ "$COPY_CLAUDE_MD" = 1 ] && [ -f "$REPO/CLAUDE.md" ]; then
   if git -C "$WORKTREE" check-ignore -q CLAUDE.md; then
@@ -138,11 +143,13 @@ fi
 jq -n --arg id "$ID" --arg branch "$BRANCH" --arg base "$BASE" --arg base_sha "$BASE_SHA" --arg worktree "$WORKTREE" \
   --arg repo "$REPO" --arg workspace "$WORKSPACE_ID" --arg tab "$TAB_ID" --arg pane "$PANE_ID" --argjson slot "$SLOT" \
   --arg compose "$COMPOSE_PROJECT" --arg log_dir "$LOG_DIR" --arg created "$(utc_now)" \
-  --arg effort "$EFFORT" --arg max_effort "$MAX_EFFORT" --arg effort_reason "$EFFORT_REASON" '{
+  --arg effort "$EFFORT" --arg max_effort "$MAX_EFFORT" --arg effort_reason "$EFFORT_REASON" \
+  --arg model "$MODEL" --arg advisor "$ADVISOR" '{
     id: $id, branch: $branch, base: $base, base_sha: $base_sha, worktree: $worktree, repo: $repo,
     workspace_id: $workspace, tab_id: $tab, pane_id: $pane, slot: $slot,
     ports: { dev_server: (5180 + $slot), playwright: (4180 + $slot), api: (8080 + $slot), postgres: (5440 + $slot) },
     compose_project: $compose, log_dir: $log_dir, agent: null, created_at: $created, removed_at: null,
+    model: (if $model == "" then null else $model end), advisor: (if $advisor == "" then null else $advisor end),
     effort: { level: $effort, max: $max_effort, reason: $effort_reason, verified: null,
               history: [{ at: $created, level: $effort, max: $max_effort, reason: $effort_reason }] }
   }' >"$TASK_DIR/task.json"

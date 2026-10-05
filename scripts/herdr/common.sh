@@ -96,7 +96,7 @@ utc_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 # Levels a settings file accepts; `max` only exists as a launch flag or environment variable, so tasks do not use it.
 EFFORT_LEVELS="low medium high xhigh"
 # Models whose per-model entry is written, so the level holds whichever of them the session resolves to.
-EFFORT_MODELS="claude-opus-5-5 claude-fable-5-1"
+EFFORT_MODELS="claude-sonnet-5-5 claude-opus-5-5 claude-fable-5-1"
 
 valid_effort() { case " $EFFORT_LEVELS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 effort_rank() { local i=0 l; for l in $EFFORT_LEVELS; do [ "$l" = "$1" ] && { echo "$i"; return; }; i=$((i + 1)); done; echo -1; }
@@ -131,6 +131,28 @@ write_effort_settings() {
     die "could not update $file"
   fi
 }
+
+# write_model_settings WORKTREE MODEL ADVISOR: sets `model` and `advisorModel` in the worktree's local settings.
+# An empty value removes the key, so the session falls back to the owner's own default.
+write_model_settings() {
+  local worktree=$1 model=$2 advisor=$3 file tmp
+  file="$worktree/.claude/settings.local.json"
+  mkdir -p "$worktree/.claude"
+  [ -f "$file" ] || printf '{}\n' >"$file"
+  tmp=$(mktemp "$file.XXXXXX")
+  if jq --arg model "$model" --arg advisor "$advisor" '
+      (if $model == "" then del(.model) else .model = $model end)
+      | (if $advisor == "" then del(.advisorModel) else .advisorModel = $advisor end)
+    ' "$file" >"$tmp"; then
+    mv "$tmp" "$file"
+  else
+    rm -f "$tmp"
+    die "could not update $file"
+  fi
+}
+
+# Model the agent's session header reports (the part before " with … effort"), or nothing.
+agent_model() { agent_effort "$1" | sed -E 's/^ +//; s/ with [a-z]+ effort$//'; }
 
 # Effort level the agent's session header reports ("… with medium effort"), or nothing.
 agent_effort() {
