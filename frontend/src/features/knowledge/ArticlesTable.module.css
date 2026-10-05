@@ -1,0 +1,118 @@
+/*
+ * Columnas y áreas de cada tramo de `Table` (tarjeta < 560 px; título con la categoría debajo, estado y fecha hasta
+ * 1199 px, y todas las columnas por encima). La última columna es la de acciones, que aquí no existe: mide 0.
+ * Sin estado (clientes) se declara la misma rejilla sin esa columna.
+ */
+.table {
+  --table-areas-card: 'name actions' 'meta .' 'chips .';
+  --table-columns-mid: minmax(0, 1fr) 110px 150px 0;
+  --table-areas-mid: 'name status updated actions' 'category status updated actions';
+  --table-header-areas-mid: 'name status updated actions';
+  --table-columns-wide: minmax(0, 2fr) minmax(0, 1fr) 110px 150px 0;
+  --table-areas-wide: 'name category status updated actions';
+}
+
+.withoutStatus {
+  --table-columns-mid: minmax(0, 1fr) 150px 0;
+  --table-areas-mid: 'name updated actions' 'category updated actions';
+  --table-header-areas-mid: 'name updated actions';
+  --table-columns-wide: minmax(0, 2fr) minmax(0, 1fr) 150px 0;
+  --table-areas-wide: 'name category updated actions';
+}
+
+/* Bajo el título en la tabla intermedia, la categoría no tiene encabezado visible. */
+.headerCategory {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.titleLink {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--color-ink);
+  font: var(--font-strong);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.titleLink:hover {
+  text-decoration: underline;
+}
+
+.meta {
+  grid-area: meta;
+  min-width: 0;
+}
+
+.chips {
+  grid-area: chips;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-12);
+  min-width: 0;
+}
+
+.category,
+.updated {
+  min-width: 0;
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.category {
+  overflow-wrap: anywhere;
+}
+
+@container table (min-width: 560px) {
+  .meta,
+  .chips {
+    display: contents;
+  }
+
+  .titleLink {
+    display: block;
+    font: var(--font-body);
+    min-height: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .category {
+    grid-area: category;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .status {
+    grid-area: status;
+  }
+
+  .updated {
+    grid-area: updated;
+    font: var(--font-body);
+  }
+}
+
+/* Mismo tramo que la tabla completa de `Table`: desde 1200 px de viewport con un contenedor de 860 px. */
+@media (min-width: 1200px) {
+  @container table (min-width: 860px) {
+    .headerCategory {
+      position: static;
+      width: auto;
+      height: auto;
+      overflow: visible;
+      clip-path: none;
+    }
+
+    .category {
+      font: var(--font-body);
+    }
+  }
+}

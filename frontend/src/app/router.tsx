@@ -70,6 +70,35 @@ const customerChildren: RouteObject[] = [
 ]
 
 /**
+ * La lista de conocimiento se carga bajo demanda, igual que el lector y el editor que vendrán: así `react-markdown`
+ * queda fuera del paquete principal. `nuevo` y los artículos muestran la vista pendiente hasta que existan.
+ */
+const knowledgeChildren = (item: NavigationItem): RouteObject[] => [
+  {
+    index: true,
+    lazy: async () => ({ Component: (await import('../features/knowledge/KnowledgePage')).KnowledgePage }),
+  },
+  {
+    path: 'nuevo',
+    element: (
+      <RequireRole
+        roles={staff}
+        title="Nuevo artículo"
+        description="Solo los agentes y administradores pueden escribir artículos."
+      >
+        <PendingPage title="Nuevo artículo" icon={item.icon} />
+      </RequireRole>
+    ),
+    handle: { crumb: 'Nuevo artículo' } satisfies RouteHandle,
+  },
+  {
+    path: ':slug',
+    element: <PendingPage title="Artículo" icon={item.icon} />,
+    handle: { crumb: 'Artículo' } satisfies RouteHandle,
+  },
+]
+
+/**
  * `/configuracion/permisos` es el destino del aviso «Permisos por rol» de Equipo. La página aún no existe: muestra la
  * misma vista pendiente que las secciones sin construir. La guardia es la de `/configuracion`.
  */
@@ -92,9 +121,11 @@ const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
         ? sectionRoute(item, { children: customerChildren })
         : item.to === '/equipo'
           ? sectionRoute(item, { element: <TeamPage /> })
-          : item.to === '/configuracion'
-            ? sectionRoute(item, { children: settingsChildren(item) })
-            : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
+          : item.to === '/conocimiento'
+            ? sectionRoute(item, { children: knowledgeChildren(item) })
+            : item.to === '/configuracion'
+              ? sectionRoute(item, { children: settingsChildren(item) })
+              : sectionRoute(item, { element: <PendingPage title={item.label} icon={item.icon} /> }),
 )
 
 /** Rutas de la aplicación; se exportan para probar el cableado real (guardias y redirecciones) sin navegador. */
