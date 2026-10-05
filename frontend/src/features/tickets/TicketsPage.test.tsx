@@ -31,10 +31,10 @@ describe('TicketsPage para agentes', () => {
       'GET /api/assignees': { body: [] },
     })
     renderInbox()
-    expect(await screen.findByRole('link', { name: '#1048 No puedo acceder a mi cuenta' })).toHaveAttribute(
-      'href',
-      '/tickets/1048',
-    )
+    // Es el primer test del archivo: al arrancar en frío la carga puede superar el segundo por defecto.
+    expect(
+      await screen.findByRole('link', { name: '#1048 No puedo acceder a mi cuenta' }, { timeout: 5000 }),
+    ).toHaveAttribute('href', '/tickets/1048')
     expect(await screen.findByText('8 nuevos hoy')).toBeInTheDocument()
     expect(screen.getByText('↑ 12 % vs. ayer')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Asignados a mí 4' })).toBeInTheDocument()
