@@ -245,6 +245,8 @@ describe('CustomerDetailPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Guardar notas' }))
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Notas internas' })).toBeDisabled())
     expect(screen.getAllByText('El cliente está archivado').length).toBeGreaterThan(0)
+    // Con el borrador abierto, el aviso de archivado se anuncia (región viva).
+    expect(screen.getByRole('alert')).toHaveTextContent('El cliente está archivado')
     expect(screen.queryByText('El cliente cambió mientras editabas las notas')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Guardar notas' })).toBeDisabled()
   })

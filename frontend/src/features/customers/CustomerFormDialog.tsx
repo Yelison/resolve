@@ -16,6 +16,7 @@ type Values = Record<FieldName, string>
 type Errors = Partial<Record<FieldName, string>>
 
 const fieldNames: readonly FieldName[] = ['name', 'email', 'company']
+const fieldLabels: Record<FieldName, string> = { name: 'Nombre', email: 'Correo', company: 'Empresa' }
 
 export type CustomerFormDialogProps = { open: boolean; onClose: () => void } & (
   | { mode: 'create'; onSaved?: (customer: CustomerDetail) => void }
@@ -93,8 +94,9 @@ function EditForm({ customer, onClose, onSaved }: FormProps & { customer: Custom
       pending={update.isPending}
       onCancel={onClose}
       save={async (values, changed) => {
-        // Solo viajan los campos que esta persona tocó y que difieren de lo que hay en el servidor: un reintento tras un
-        // 412 no pisa lo que cambió otra persona.
+        // Solo viajan los campos que difieren de lo que hay ahora en el servidor. Los no tocados ya se rebasaron a ese
+        // valor y no viajan: un reintento tras un 412 no pisa lo que cambió otra persona, y volver a escribir el valor
+        // original de un campo que cambió otra persona sí lo envía.
         const changes: CustomerPatch = {}
         if (changed.includes('name')) changes.name = values.name
         if (changed.includes('email')) changes.email = values.email
@@ -143,6 +145,8 @@ function CustomerForm({
   // Valores del servidor con los que se empezó a editar cada campo: un campo está «tocado» si difiere de su base.
   const [base, setBase] = useState<Values>(source)
   const [seenVersion, setSeenVersion] = useState(sourceVersion)
+  /** Campos que otra persona cambió en la última versión que llegó; se nombran en el aviso de conflicto. */
+  const [serverChanged, setServerChanged] = useState<FieldName[]>([])
   const [errors, setErrors] = useState<Errors>({})
   const [failure, setFailure] = useState<'conflict' | 'archived' | 'generic' | null>(null)
 
@@ -150,6 +154,7 @@ function CustomerForm({
   // servidor y los tocados conservan lo escrito.
   if (sourceVersion > seenVersion) {
     setSeenVersion(sourceVersion)
+    setServerChanged(fieldNames.filter((field) => source[field] !== base[field]))
     const untouched = fieldNames.filter((field) => values[field] === base[field])
     setValues({ ...values, ...Object.fromEntries(untouched.map((field) => [field, source[field]])) })
     setBase({ ...base, ...Object.fromEntries(untouched.map((field) => [field, source[field]])) })
@@ -197,7 +202,7 @@ function CustomerForm({
     try {
       await save(
         trimmed,
-        fieldNames.filter((field) => touched(field) && trimmed[field] !== source[field]),
+        fieldNames.filter((field) => trimmed[field] !== source[field].trim()),
       )
     } catch (error) {
       if (isApiError(error, 412)) {
@@ -231,7 +236,9 @@ function CustomerForm({
       ) : null}
       {!archived && failure === 'conflict' && (
         <Alert tone="amber" title="El cliente cambió mientras lo editabas" live>
-          Otra persona lo actualizó y ya cargamos la versión actual. Tus cambios siguen aquí: revisa y vuelve a guardar.
+          Otra persona lo actualizó y ya cargamos la versión actual.
+          {serverChanged.length > 0 && ` Cambió: ${serverChanged.map((field) => fieldLabels[field]).join(', ')}.`} Tus
+          cambios siguen aquí: revisa y vuelve a guardar.
         </Alert>
       )}
       {!archived && failure === 'archived' && (
