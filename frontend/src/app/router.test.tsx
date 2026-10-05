@@ -186,6 +186,21 @@ describe('rutas de la aplicación', () => {
     expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 
+  it.each(staffMes)('/configuracion/permisos muestra la vista pendiente, no un 404, como %s', async (_role, me) => {
+    mockApi({ 'GET /api/me': { body: me } })
+    renderApp('/configuracion/permisos')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Permisos por rol' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
+    expect(screen.queryByText('Página no encontrada')).not.toBeInTheDocument()
+  })
+
+  it('un cliente no abre /configuracion/permisos: ve el aviso sin acceso', async () => {
+    mockApi({ 'GET /api/me': { body: customerMe } })
+    renderApp('/configuracion/permisos')
+    expect(await screen.findByText('No tienes acceso a esta sección')).toBeInTheDocument()
+    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
+  })
+
   it('cubre todas las secciones de personal', () => {
     expect(staffSections.map((item) => item.to)).toEqual([
       '/clientes',
