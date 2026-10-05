@@ -244,7 +244,7 @@ export async function mockApi(page: Page) {
     const method = request.method()
     const ticketMatch = path.match(/^\/tickets\/(\d+)(\/messages|\/activity)?$/)
     const memberMatch = path.match(/^\/members\/([^/]+)\/(role|remove)$/)
-    const customerMatch = path.match(/^\/customers\/([^/]+?)(\/archive|\/restore)?$/)
+    const customerMatch = path.match(/^\/customers\/([^/]+?)(\/archive|\/restore|\/invite)?$/)
 
     if (method === 'GET' && path === '/me') return json(route, me)
     if (method === 'GET' && path === '/tickets/metrics') return json(route, metrics)
@@ -355,6 +355,25 @@ export async function mockApi(page: Page) {
         const updated = { ...current, ...patch, version: current.version + 1 }
         state.set(updated.id, updated)
         return json(route, updated)
+      }
+      if (method === 'POST' && action === '/invite') {
+        if (current.archived || current.portalAccess !== 'none') {
+          return json(route, { status: 409, title: 'Conflicto', detail: 'El cliente ya tiene acceso al portal.' }, 409)
+        }
+        state.set(current.id, { ...current, portalAccess: 'invited', version: current.version + 1 })
+        return json(
+          route,
+          teamMember({
+            id: `u-${current.id}`,
+            name: current.name,
+            email: current.email,
+            role: 'customer',
+            status: 'invited',
+            joinedAt: null,
+            invitedAt: new Date().toISOString(),
+          }),
+          201,
+        )
       }
       if (method === 'POST' && action) {
         const archive = action === '/archive'
