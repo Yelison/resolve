@@ -145,7 +145,11 @@ export function useAddMessage(number: number) {
   return useMutation({
     mutationFn: (message: { body: string; visibility: MessageVisibility }) =>
       unwrap(api.POST('/tickets/{number}/messages', { params: { path: { number } }, body: message })),
-    onSuccess: () => {
+    onSuccess: (_message, { visibility }) => {
+      void queryClient.invalidateQueries({ queryKey: ticketKeys.messages(number) })
+      // Una nota interna no cambia nada visible fuera de la conversación; una respuesta pública mueve la fecha de
+      // actualización y puede fijar la primera respuesta.
+      if (visibility === 'internal') return
       void queryClient.invalidateQueries({ queryKey: ticketKeys.detail(number) })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
