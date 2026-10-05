@@ -19,6 +19,11 @@ export interface SessionOptions {
   organizations?: OrganizationRef[]
   /** Nombres de 120 caracteres para la persona y las organizaciones. */
   longNames?: boolean
+  /**
+   * El proveedor autentica a la persona (hay sesión en el servidor) pero la aplicación no la admite: `/me` responde 401
+   * con el motivo de una cuenta desactivada hasta que cierra sesión.
+   */
+  refused?: boolean
 }
 
 /** Token que la API simulada entrega en la cookie `XSRF-TOKEN` con cada GET /me y que exige en las escrituras. */
@@ -42,6 +47,7 @@ export function sessionMock(
   base?: () => Me,
 ): MockFeature {
   let signedIn = options.signedIn ?? true
+  let refused = options.refused ?? false
   const organizations = options.organizations ?? [acme]
   let active = organizations[0] ?? acme
   const roleMe: Me = role === 'customer' ? { ...me, role, customerId: 'c-maria' } : me
@@ -66,6 +72,18 @@ export function sessionMock(
   return {
     handle: ({ route, request, url, path, method }) => {
       if (method === 'GET' && path === '/me') {
+        if (refused) {
+          return route.fulfill({
+            status: 401,
+            contentType: 'application/problem+json',
+            headers: { 'set-cookie': `XSRF-TOKEN=${CSRF_TOKEN}; Path=/; SameSite=Lax` },
+            body: JSON.stringify({
+              status: 401,
+              title: 'No autenticado',
+              detail: 'Tu acceso a esta organización fue desactivado',
+            }),
+          })
+        }
         if (!signedIn) return problem(route, 401, 'No autenticado')
         return route.fulfill({
           status: 200,
@@ -80,7 +98,7 @@ export function sessionMock(
       }
       const isWrite = method === 'POST' && (path === '/logout' || path === '/session/organization')
       if (!isWrite) return undefined
-      if (!signedIn) return problem(route, 401, 'No autenticado')
+      if (!signedIn && !refused) return problem(route, 401, 'No autenticado')
       if (request.headers()['x-xsrf-token'] !== CSRF_TOKEN) {
         return route.fulfill({
           status: 403,
@@ -90,6 +108,7 @@ export function sessionMock(
       }
       if (path === '/logout') {
         signedIn = false
+        refused = false
         // El proveedor devuelve a la aplicación: sin sesión, la shell lleva a /entrar.
         const body: LogoutResponse = { logoutUrl: `${url.origin}/entrar` }
         return json(route, body)
