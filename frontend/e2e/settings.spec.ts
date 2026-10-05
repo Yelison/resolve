@@ -125,6 +125,18 @@ test.describe('configuración', () => {
     await expect(page.getByRole('radio', { name: 'Oscuro' })).toBeChecked()
   })
 
+  test('apariencia y topbar comparten el tema: el primer clic del botón lo cambia', async ({ page }) => {
+    await page.setViewportSize(desktop)
+    await page.goto('/configuracion/apariencia')
+    await page.getByRole('radio', { name: 'Oscuro' }).check()
+    const toggle = page.getByRole('button', { name: 'Cambiar a tema claro' })
+    await expect(toggle).toBeVisible()
+    await toggle.click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await expect(page.getByRole('radio', { name: 'Claro' })).toBeChecked()
+    await expect(page.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeVisible()
+  })
+
   test('un nombre de espacio de 120 caracteres no desborda la página en móvil', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 })
     await page.goto('/configuracion/empresa')
