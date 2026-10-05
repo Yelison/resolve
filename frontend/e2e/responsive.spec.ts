@@ -3,7 +3,15 @@ import { expect, test } from './fixtures'
 /** Anchos de revisión y fronteras de breakpoint definidos en la guía de diseño. */
 const widths = [320, 390, 767, 768, 1024, 1199, 1200, 1440]
 const themes = ['light', 'dark'] as const
-const routes = ['/catalogo', '/tickets', '/tickets/1047', '/tickets/nuevo', '/clientes'] as const
+const routes = [
+  '/catalogo',
+  '/tickets',
+  '/tickets/1047',
+  '/tickets/nuevo',
+  '/clientes',
+  '/clientes/c-maria',
+  '/clientes/nuevo',
+] as const
 
 for (const route of routes) {
   for (const theme of themes) {

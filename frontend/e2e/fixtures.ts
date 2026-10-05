@@ -4,6 +4,7 @@ import type {
   Message,
   Activity,
   Customer,
+  CustomerDetail,
   CustomerMetrics,
   CustomerSummary,
   Member,
@@ -162,13 +163,39 @@ const json = (route: Route, body: unknown, status = 200) =>
     body: JSON.stringify(body),
   })
 
+const customerDetail = (summary: CustomerSummary): CustomerDetail => ({
+  ...summary,
+  notes: summary.id === 'c-maria' ? 'Prefiere que la llamen por la mañana.' : null,
+  archivedAt: summary.archived ? minutesAgo(60 * 24) : null,
+  version: 1,
+  portalAccess: summary.id === 'c-maria' ? 'active' : 'none',
+})
+
+const problem = (route: Route, status: number, title: string, errors?: { field: string; message: string }[]) =>
+  json(route, { status, title, ...(errors && { errors }) }, status)
+
 export async function mockApi(page: Page) {
+  // El estado es de cada test: un renombrado o un archivado no se filtra a los demás tests del mismo worker.
+  const state = new Map(customers.map((customer) => [customer.id, customerDetail(customer)]))
+  const summaryOf = ({
+    notes: _notes,
+    archivedAt: _archivedAt,
+    version: _version,
+    portalAccess: _access,
+    ...summary
+  }: CustomerDetail): CustomerSummary => summary
+  // Los tickets embeben el cliente tal como está ahora, así la bandeja refleja un renombrado.
+  const currentTickets = () =>
+    tickets.map((ticket) => ({ ...ticket, customer: customerRef(state.get(ticket.customer.id)!) }))
+  let nextCustomer = 1
+
   await page.route('**/api/**', async (route) => {
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname.replace(/^\/api/, '')
     const method = request.method()
     const ticketMatch = path.match(/^\/tickets\/(\d+)(\/messages|\/activity)?$/)
+    const customerMatch = path.match(/^\/customers\/([^/]+?)(\/archive|\/restore)?$/)
 
     if (method === 'GET' && path === '/me') return json(route, me)
     if (method === 'GET' && path === '/tickets/metrics') return json(route, metrics)
@@ -180,21 +207,74 @@ export async function mockApi(page: Page) {
       const q = url.searchParams.get('q')?.toLowerCase()
       const company = url.searchParams.get('company')
       const archived = url.searchParams.get('archived') === 'true'
-      const items = customers.filter(
-        (customer) =>
-          customer.archived === archived &&
-          (!company || customer.company === company) &&
-          (!q || `${customer.name} ${customer.email} ${customer.company ?? ''}`.toLowerCase().includes(q)),
-      )
+      const items = [...state.values()]
+        .map(summaryOf)
+        .filter(
+          (customer) =>
+            customer.archived === archived &&
+            (!company || customer.company === company) &&
+            (!q || `${customer.name} ${customer.email} ${customer.company ?? ''}`.toLowerCase().includes(q)),
+        )
       return json(route, { items, page: 0, size: 20, totalItems: items.length, totalPages: items.length ? 1 : 0 })
+    }
+    if (method === 'POST' && path === '/customers') {
+      const body = request.postDataJSON() as { name: string; email: string; company?: string | null }
+      if ([...state.values()].some((customer) => customer.email === body.email)) {
+        return problem(route, 400, 'Datos no válidos', [
+          { field: 'email', message: 'Ya existe un cliente con ese correo.' },
+        ])
+      }
+      const created = customerDetail(
+        customerSummary({
+          id: `c-nuevo-${nextCustomer++}`,
+          name: body.name,
+          email: body.email,
+          company: body.company ?? null,
+          openTickets: 0,
+          totalTickets: 0,
+        }),
+      )
+      state.set(created.id, created)
+      return json(route, created, 201)
+    }
+    if (customerMatch) {
+      const current = state.get(customerMatch[1]!)
+      if (!current) return problem(route, 404, 'No encontrado')
+      const action = customerMatch[2]
+      if (method === 'GET' && !action) return json(route, current)
+      if (method === 'PATCH' && !action) {
+        const ifMatch = request.headers()['if-match']
+        if (!ifMatch) return problem(route, 428, 'Falta If-Match')
+        if (ifMatch !== `"${current.version}"`) return problem(route, 412, 'El recurso cambió')
+        if (current.archived) return problem(route, 409, 'El cliente está archivado')
+        const patch = request.postDataJSON() as Partial<CustomerDetail>
+        const updated = { ...current, ...patch, version: current.version + 1 }
+        state.set(updated.id, updated)
+        return json(route, updated)
+      }
+      if (method === 'POST' && action) {
+        const archive = action === '/archive'
+        if (current.archived === archive) return problem(route, 409, 'Conflicto de estado')
+        const updated: CustomerDetail = {
+          ...current,
+          archived: archive,
+          archivedAt: archive ? new Date().toISOString() : null,
+          version: current.version + 1,
+        }
+        state.set(updated.id, updated)
+        return json(route, updated)
+      }
     }
     if (method === 'GET' && path === '/tickets') {
       const status = url.searchParams.get('status')
-      const items = tickets.filter((ticket) => !status || ticket.status === status)
+      const customerId = url.searchParams.get('customerId')
+      const items = currentTickets().filter(
+        (ticket) => (!status || ticket.status === status) && (!customerId || ticket.customer.id === customerId),
+      )
       return json(route, { items, page: 0, size: 20, totalItems: items.length, totalPages: items.length ? 1 : 0 })
     }
     if (ticketMatch) {
-      const summary = tickets.find((ticket) => ticket.number === Number(ticketMatch[1]))
+      const summary = currentTickets().find((ticket) => ticket.number === Number(ticketMatch[1]))
       if (!summary) return json(route, { status: 404, title: 'No encontrado' }, 404)
       if (ticketMatch[2] === '/messages') return json(route, messages)
       if (ticketMatch[2] === '/activity') return json(route, activity)
