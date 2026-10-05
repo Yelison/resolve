@@ -84,16 +84,20 @@ export async function clearSessionData(queryClient: QueryClient) {
  * desmonta a quien lo tenía (el selector de usuario de demostración). Tres trampas, por eso no basta un `focus()`:
  * mientras un `<dialog>` modal sigue abierto el resto de la página es inerte y `focus()` no hace nada sin avisar; la
  * shell puede tardar en montarse tras navegar; y al cerrarse, `Modal` devuelve el foco a su disparador, que puede
- * ocurrir justo después. Se reintenta hasta que el foco llega y se confirma una vez más poco después.
+ * ocurrir justo después. Se reintenta hasta que el foco llega y se confirma una vez más poco después, sin recolocarlo si la persona ya lo movió.
  */
 export function focusContentWhenReady(attempts = 40, delay = 0, confirming = false) {
   window.setTimeout(() => {
     const content = document.getElementById('contenido')
     if (content && !document.querySelector('dialog[open]')) {
-      if (document.activeElement === content && confirming) return
+      if (confirming) {
+        // Ya llegó: se vuelve a llevar solo si lo perdió (cayó en `body`). Si la persona lo movió a otro elemento, se respeta.
+        const active = document.activeElement
+        if (active && active !== document.body) return
+      }
       content.focus({ preventScroll: true })
       if (document.activeElement === content) {
-        focusContentWhenReady(attempts, 100, true)
+        if (!confirming) focusContentWhenReady(attempts, 100, true)
         return
       }
     }
