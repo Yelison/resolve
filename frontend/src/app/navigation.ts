@@ -19,8 +19,8 @@ export const mainNavigation: NavigationItem[] = [
   { to: '/clientes', label: 'Clientes', icon: 'clients', roles: staff },
   { to: '/equipo', label: 'Equipo', icon: 'team', roles: staff },
   { to: '/reportes', label: 'Reportes', icon: 'report', roles: staff },
-  // Solo personal por ahora; la Fase 5 la abrirá a los clientes cuando haya artículos publicados.
-  { to: '/conocimiento', label: 'Conocimiento', icon: 'book', roles: staff },
+  // Los clientes también la abren: el servidor solo les entrega artículos publicados y públicos.
+  { to: '/conocimiento', label: 'Conocimiento', icon: 'book', roles: [...staff, 'customer'] },
   { to: '/configuracion', label: 'Configuración', icon: 'settings', roles: staff },
 ]
 
