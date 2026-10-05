@@ -11,7 +11,6 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Autenticación de demostración, solo en los perfiles {@code dev} y {@code test}: la cabecera {@code X-Demo-User}
@@ -39,8 +38,11 @@ class DemoPrincipalResolver implements PrincipalResolver {
 		this.defaultUser = defaultUser;
 	}
 
+	/**
+	 * Sin transacción propia (issue #37): la lectura, la comprobación del cliente archivado y la activación son
+	 * llamadas transaccionales sucesivas, así que una petición nunca retiene una conexión del pool mientras pide otra.
+	 */
 	@Override
-	@Transactional(readOnly = true)
 	public Optional<CurrentMember> resolve(HttpServletRequest request) {
 		String email = request.getHeader(HEADER);
 		if (email == null || email.isBlank()) {
