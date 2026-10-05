@@ -209,13 +209,14 @@ describe('rutas de la aplicación', () => {
     expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 
+  it('deja a un cliente abrir /conocimiento, sin aviso de acceso', async () => {
+    mockApi({ 'GET /api/me': { body: customerMe } })
+    renderApp('/conocimiento')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Conocimiento' })).toBeInTheDocument()
+    expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
+  })
+
   it('cubre todas las secciones de personal', () => {
-    expect(staffSections.map((item) => item.to)).toEqual([
-      '/clientes',
-      '/equipo',
-      '/reportes',
-      '/conocimiento',
-      '/configuracion',
-    ])
+    expect(staffSections.map((item) => item.to)).toEqual(['/clientes', '/equipo', '/reportes', '/configuracion'])
   })
 })

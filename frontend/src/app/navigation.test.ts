@@ -5,8 +5,8 @@ import { mainNavigation, navigationFor } from './navigation'
 const paths = (role: Role | undefined) => navigationFor(role).map((item) => item.to)
 
 describe('navegación principal', () => {
-  it('los clientes solo ven Tickets', () => {
-    expect(paths('customer')).toEqual(['/tickets'])
+  it('los clientes solo ven Tickets y Conocimiento', () => {
+    expect(paths('customer')).toEqual(['/tickets', '/conocimiento'])
   })
 
   it('el personal ve todas las secciones', () => {
