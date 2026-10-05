@@ -64,6 +64,17 @@ test.describe('base de conocimiento', () => {
     await expect(page.getByRole('button', { name: /Primeros pasos/ })).toContainText('1 artículo')
   })
 
+  test('una carga directa de /conocimiento pinta la lista sin avisos en la consola', async ({ page }) => {
+    const messages: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') messages.push(message.text())
+    })
+    page.on('pageerror', (error) => messages.push(error.message))
+    await page.goto('/conocimiento')
+    await expect(page.getByRole('table', { name: 'Artículos' })).toBeVisible()
+    expect(messages).toEqual([])
+  })
+
   test('un cliente que abre /conocimiento/nuevo ve el aviso sin acceso', async ({ page }) => {
     await mockApi(page, 'customer')
     await page.goto('/conocimiento/nuevo')

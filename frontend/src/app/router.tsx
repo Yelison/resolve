@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
 import { createBrowserRouter, Outlet, type RouteObject } from 'react-router'
+import { Skeleton } from '../components/ui'
 import { AppShell, type RouteHandle } from './layout/AppShell'
 import { mainNavigation, staff, type NavigationItem } from './navigation'
 import { NotFoundPage } from './pages/NotFoundPage'
+import pageStyles from './pages/Page.module.css'
 import { PendingPage } from './pages/PendingPage'
 import { IndexRedirect, RequireRole } from './pages/RequireRole'
 import { CustomerDetailPage } from '../features/customers/CustomerDetailPage'
@@ -133,6 +135,12 @@ export const appRoutes: RouteObject[] = [
   {
     path: '/',
     element: <AppShell />,
+    // Una ruta `lazy` en una carga directa deja el router sin inicializar: sin esto no se pinta nada hasta que llega el chunk.
+    hydrateFallbackElement: (
+      <div className={pageStyles.page}>
+        <Skeleton lines={3} label="Cargando…" />
+      </div>
+    ),
     children: [...sectionRoutes, { path: '*', element: <NotFoundPage />, handle: { crumb: 'No encontrada' } }],
   },
   {
