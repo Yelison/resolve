@@ -18,11 +18,15 @@ for (const width of widths) {
         .locator('svg')
         .evaluateAll((svgs) => svgs.map((svg) => svg.getBoundingClientRect().width))
       expect(Math.min(...widthsOfBars), 'cada barra debe ser visible').toBeGreaterThanOrEqual(1)
-      const valueBoxes = await figure
-        .locator('[class*="value"]')
-        .evaluateAll((els) =>
-          els.map((el) => el.getBoundingClientRect()).map((r) => ({ left: r.left, right: r.right })),
-        )
+      // Se mide el texto (Range), no la caja del span: la caja ocupa la columna aunque la cifra se salga.
+      const valueBoxes = await figure.locator('[class*="value"]').evaluateAll((els) =>
+        els.map((el) => {
+          const range = document.createRange()
+          range.selectNodeContents(el)
+          const { left, right } = range.getBoundingClientRect()
+          return { left, right }
+        }),
+      )
       valueBoxes.sort((a, b) => a.left - b.left)
       valueBoxes.slice(1).forEach((box, index) => {
         expect(box.left, 'las cifras vecinas no deben cruzarse').toBeGreaterThanOrEqual(valueBoxes[index]!.right - 0.5)
