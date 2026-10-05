@@ -93,8 +93,8 @@ paths:
       operationId: updateOrganization
       summary: Edit the settings of the organization (admin only)
       description: |
-        JSON Merge Patch semantics: absent fields are unchanged; `supportEmail` accepts `null` (or an empty
-        text) to clear it and no other field does. `timeZone` must be an IANA region id that PostgreSQL also
+        JSON Merge Patch semantics: absent fields are unchanged; `supportEmail` accepts `null` to clear it
+        (the documented form; an empty or blank text is tolerated and also clears it) and no other field does. `timeZone` must be an IANA region id that PostgreSQL also
         knows, spelled exactly (`America/Bogota`); offsets, aliases such as `UTC+5` and other spellings are a
         400 on `timeZone`. Requires `If-Match` with the current version; a patch that changes nothing returns
         200 without a new version. Creating tickets does not change the version. Errors are checked in this
