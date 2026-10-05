@@ -1,6 +1,7 @@
 package com.resolve.api.tickets;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -54,6 +55,20 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 			where t.organizationId = :organizationId and t.number = :number and t.customer.id = :customerId
 			""")
 	Optional<Ticket> lockForCustomer(UUID organizationId, UUID customerId, long number);
+
+	/**
+	 * Tickets sin resolver de un responsable, con la fila bloqueada, para liberarlos al retirarlo del equipo. Sin
+	 * {@code join fetch}, por el mismo motivo que {@link #lockInOrganization}; en orden de número para que dos
+	 * transacciones que bloqueen varios tickets lo hagan siempre en el mismo orden.
+	 */
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+			select t from Ticket t
+			where t.organizationId = :organizationId and t.assignee.id = :assigneeId
+				and t.status <> com.resolve.api.tickets.TicketStatus.RESOLVED
+			order by t.number
+			""")
+	List<Ticket> lockOpenAssignedTo(UUID organizationId, UUID assigneeId);
 
 	/** Reserva el siguiente número de la organización; la fila queda bloqueada hasta el final de la transacción. */
 	@Query(value = """

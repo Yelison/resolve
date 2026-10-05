@@ -11,6 +11,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 | Create ticket, change status, priority and assignee | Customer notifications by email |
 | Customers: list, search, profile, create, edit, archive and restore; assignee list for forms | Deleting tickets and bulk actions |
 | Inbox metrics and view counts | Authentication provider (see below) |
+| Team: list, invite, change role, remove, team metrics | Invitation emails, agent availability and profiles |
 
 ## Organizations, users and roles
 
@@ -24,6 +25,7 @@ This document fixes the decisions behind the Resolve API. The machine-readable c
 | `customer` | Read only the tickets of their own customer record | Read only `public` messages | No (403) |
 
 - A `customer` membership is linked to a **customer** record of the same organization. Customers are read-only in this delivery: every write returns `403`, and so does every `/customers` endpoint.
+- The **team** (`/members`) is readable by `admin` and `agent` (`customer` gets `403`); inviting, changing a role and removing a member are **admin-only**, and the URL rule answers `403` before the member is even looked up.
 - Archiving and restoring a customer is **admin-only**: an agent gets `403`, before the customer is even looked up.
 - **Internal notes never reach customers.** The filter is applied in the database query, and no field visible to customers is derived from internal notes.
 - Resources show other members as `{ id, name }` (`MemberRef`); contact data is only in `GET /api/me` and `GET /api/assignees`, which customers cannot call.
@@ -34,6 +36,7 @@ There is no authentication provider yet. The security layer resolves the princip
 
 - Profiles `dev` and `test` enable a **demo principal resolver** (declared in the contract as the optional `X-Demo-User` security scheme): the `X-Demo-User` header selects a seeded user by email; without the header, `dev` falls back to the demo administrator and `test` rejects the request.
 - Any other profile (including the default and production) has no resolver, so every API call returns `401`. A test guards this.
+- A membership has a **status**: `invited` (bound to an email that has not signed in), `active` or `removed`. A `removed` membership does not resolve a principal (`401`); if the same user has another membership that is usable, that one is used. An `invited` membership is **activated on the first request** of that user, in its own transaction, with a conditional `UPDATE` so a removal committed in between is not undone. With several usable memberships the resolver picks the first by id; choosing an organization arrives with real authentication.
 - A `customer` membership whose customer is **archived** does not resolve a principal either: the member gets `401` until an admin restores the customer. If the same user has another membership that is not archived, that one is used.
 
 ## Identifiers
@@ -60,7 +63,7 @@ There is no authentication provider yet. The security layer resolves the princip
 | 401 | No authenticated principal |
 | 403 | The role does not allow the action |
 | 404 | Resource not found in the caller's scope (foreign and missing ids answer the same) |
-| 409 | The action is not allowed in the resource's current state (archiving an archived customer, editing an archived customer). It is a business-rule conflict, not input validation (400) and not versioning (412) |
+| 409 | The action is not allowed in the resource's current state (archiving an archived customer, editing an archived customer, removing yourself or the last active admin, changing the role of the last active admin, acting on a removed member). It is a business-rule conflict, not input validation (400) and not versioning (412) |
 | 412 | `If-Match` does not match the current version of the resource |
 | 428 | `If-Match` is missing on an update |
 
@@ -140,7 +143,12 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | `PATCH /api/customers/{id}` | admin, agent | Edit contact data and notes (`If-Match`); `409` when archived |
 | `POST /api/customers/{id}/archive` | admin | Archive a customer; `409` when already archived |
 | `POST /api/customers/{id}/restore` | admin | Restore a customer; `409` when not archived |
-| `GET /api/assignees` | admin, agent | Members who can be assigned (admins and agents) |
+| `GET /api/assignees` | admin, agent | Members who can be assigned (active admins and agents) |
+| `GET /api/members` | admin, agent | The team in any status (including `removed`), by name, with the open tickets of each |
+| `GET /api/members/metrics` | admin, agent | Team metrics of the whole organization |
+| `POST /api/members` | admin | Invite an admin or agent (`201`); `400` on the field `email` when already a member or a customer |
+| `POST /api/members/{userId}/role` | admin | Change the role (`admin` or `agent`); `409` for the last active admin or a removed member |
+| `POST /api/members/{userId}/remove` | admin | Remove from the team; `409` for yourself, the last active admin or a removed member |
 
 ### Ticket list filters
 
@@ -196,6 +204,46 @@ Customers are never deleted. **Archiving** (admin only) sets `archivedAt` and:
 - stops their portal access: a `customer` membership of an archived customer gets `401`.
 
 **Restoring** (admin only) brings the customer back to every list and resumes portal access. Archiving an archived customer and restoring an active one are `409`.
+
+### Team
+
+`TeamMember.id` is the **user id**; `/members/{userId}/…` takes that id. The team is the organization's admins and agents: customers with portal access are not listed and, for these routes, answer `404` like any unknown id (as do users of another organization).
+
+#### Invitations
+
+There is no outgoing email. **Inviting** creates an `invited` membership bound to the email (and the user, when the email is new; an existing user keeps their name) and returns `201` with `invitedAt`. The person joins by signing in with that address, which activates the membership on their first request and sets `joinedAt`. Rules, all `400` on the field `email`:
+
+- an email that belongs to a customer of the organization (also an archived one, ignoring case, or a `customer` membership) is rejected with "Este correo pertenece a un cliente.";
+- an email that is already an `active` or `invited` member is rejected with "Ya forma parte del equipo.";
+- an email whose membership was `removed` is invited again **on the same row**: it goes back to `invited` with the new role, `joinedAt` empty and a new `invitedAt`.
+
+`name` is optional and defaults to the part of the email before the `@`.
+
+#### Roles and removal
+
+Members are never deleted. **Removing** a member marks the membership `removed` (with its date) and, in the same transaction, unassigns their unresolved tickets with one `assignee_changed` activity per ticket whose actor is the admin; resolved tickets keep their assignee, and the history keeps the name at the time. A removed member leaves `/assignees` and the team metrics and gets `401`.
+
+Rules, all `409` and leaving the membership untouched:
+
+- removing yourself, even when there are other admins;
+- removing the last **active** admin, or changing its role (an invited admin does not count as active);
+- changing the role of, or removing, a member who is already `removed`.
+
+Changing a role to the one the member already has is a no-op `200`. Error order: `403` (URL), `404`, `400` (body), `409`.
+
+Role changes, removals and invitations of an organization are serialized with a per-organization advisory lock, so two admins who remove or demote each other at the same time cannot both succeed and leave the organization without an admin. Assigning a ticket takes a shared lock on the assignee's membership: a removal that races an assignment either waits and then unassigns that ticket, or finds the assignee already removed and the assignment is a `400`.
+
+#### Team metrics
+
+Computed per organization, independent of any list.
+
+| Field | Definition |
+| --- | --- |
+| `staff` | Active admins and agents (invited and removed members do not count) |
+| `assignedOpen` / `unassignedOpen` | Tickets whose status is not `resolved`, with and without an assignee |
+| `averageLoad` | `assignedOpen / staff` with one decimal; `0` without staff |
+| `firstResponseMinutes` | The same median as the ticket metrics (last 168 hours); `null` without data |
+| `firstResponseTargetMinutes` | Organization target (30 by default) |
 
 ### Partial updates
 

@@ -280,6 +280,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Members of the team (admins and agents) with their status and load
+         * @description Every admin and agent of the organization in any status, including `removed` ones (clients hide
+         *     them by default), ordered by name and then id. Customers with portal access are not part of the team.
+         *     `openTickets` counts the unresolved tickets assigned to the member.
+         */
+        get: operations["listMembers"];
+        put?: never;
+        /**
+         * Invite an admin or agent (admin only)
+         * @description Creates an `invited` membership bound to the email, creating the user when the email is new. No email is
+         *     sent: the person joins by signing in with that address, which activates the membership on their first
+         *     request. Inviting an email that was removed from the team brings the same membership back to `invited`
+         *     with the new role. An email that is already an active or invited member, or that belongs to a customer of
+         *     the organization, is a 400 on the field `email`.
+         */
+        post: operations["inviteMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/members/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Team metrics for the whole organization
+         * @description `staff` counts the active admins and agents. `assignedOpen` and `unassignedOpen` count the unresolved
+         *     tickets with and without an assignee. `averageLoad` is `assignedOpen / staff` with one decimal (`0`
+         *     without staff). `firstResponseMinutes` is the same median as in the ticket metrics.
+         */
+        get: operations["getTeamMetrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/members/{userId}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id of the member's user, as `TeamMember.id`. */
+                userId: components["parameters"]["MemberUserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the role of an admin or agent (admin only)
+         * @description Works on invited and active members. Changing the role of the last active admin is a 409, and so is
+         *     changing the role of a removed member. A user that is not an admin or agent of the organization
+         *     (unknown, from another organization or a customer) is a 404.
+         */
+        post: operations["changeMemberRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/members/{userId}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id of the member's user, as `TeamMember.id`. */
+                userId: components["parameters"]["MemberUserId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remove a member from the team (admin only)
+         * @description Marks the membership `removed`; it is never deleted. The member stops being able to sign in, leaves
+         *     `/assignees` and the team metrics, and their unresolved tickets are unassigned in the same transaction,
+         *     each with an `assignee_changed` activity whose actor is the caller; resolved tickets keep their assignee.
+         *     Removing oneself, the last active admin or an already removed member is a 409. A user that is not an
+         *     admin or agent of the organization is a 404.
+         */
+        post: operations["removeMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assignees": {
         parameters: {
             query?: never;
@@ -348,6 +452,62 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
+        };
+        /**
+         * @description `invited`: bound to an email that has not signed in yet. `active`: can use the API. `removed`: can no
+         *     longer sign in; the membership is kept for the history that references it.
+         * @enum {string}
+         */
+        MemberStatus: "invited" | "active" | "removed";
+        /** @description A member of the organization with their membership status. */
+        TeamMember: {
+            /**
+             * Format: uuid
+             * @description Id of the member's user.
+             */
+            id: string;
+            name: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["Role"];
+            status: components["schemas"]["MemberStatus"];
+            /** @description Unresolved tickets assigned to the member. */
+            openTickets: number;
+            /**
+             * Format: date-time
+             * @description When the membership became active; null while it is `invited`.
+             */
+            joinedAt: string | null;
+            /**
+             * Format: date-time
+             * @description When the current invitation was made; null for members that never were invited.
+             */
+            invitedAt: string | null;
+        };
+        MemberInvite: {
+            /** Format: email */
+            email: string;
+            /** @description Defaults to the part of the email before the `@`. Ignored when the user already exists. */
+            name?: string;
+            /** @enum {string} */
+            role: "admin" | "agent";
+        };
+        MemberRoleChange: {
+            /** @enum {string} */
+            role: "admin" | "agent";
+        };
+        TeamMetrics: {
+            /** @description Active admins and agents. */
+            staff: number;
+            /** @description Unresolved tickets with an assignee. */
+            assignedOpen: number;
+            /** @description Unresolved tickets without an assignee. */
+            unassignedOpen: number;
+            /** @description `assignedOpen / staff` with one decimal; `0` without staff. */
+            averageLoad: number;
+            /** @description Same median as `TicketMetrics.firstResponseMinutes`; null without data. */
+            firstResponseMinutes: number | null;
+            firstResponseTargetMinutes: number;
         };
         Customer: {
             /** Format: uuid */
@@ -690,6 +850,8 @@ export interface components {
     parameters: {
         TicketNumber: number;
         CustomerId: string;
+        /** @description Id of the member's user, as `TeamMember.id`. */
+        MemberUserId: string;
         /** @description Zero-based page index. */
         Page: number;
         Size: number;
@@ -711,6 +873,11 @@ export type Organization = components['schemas']['Organization'];
 export type Me = components['schemas']['Me'];
 export type Member = components['schemas']['Member'];
 export type MemberRef = components['schemas']['MemberRef'];
+export type MemberStatus = components['schemas']['MemberStatus'];
+export type TeamMember = components['schemas']['TeamMember'];
+export type MemberInvite = components['schemas']['MemberInvite'];
+export type MemberRoleChange = components['schemas']['MemberRoleChange'];
+export type TeamMetrics = components['schemas']['TeamMetrics'];
 export type Customer = components['schemas']['Customer'];
 export type CustomerSummary = components['schemas']['CustomerSummary'];
 export type CustomerDetail = components['schemas']['CustomerDetail'];
@@ -743,6 +910,7 @@ export type ResponsePreconditionRequired = components['responses']['Precondition
 export type ResponseConflict = components['responses']['Conflict'];
 export type ParameterTicketNumber = components['parameters']['TicketNumber'];
 export type ParameterCustomerId = components['parameters']['CustomerId'];
+export type ParameterMemberUserId = components['parameters']['MemberUserId'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterSize = components['parameters']['Size'];
 export type HeaderETag = components['headers']['ETag'];
@@ -1242,6 +1410,149 @@ export interface operations {
             409: components["responses"]["Conflict"];
         };
     };
+    listMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The team. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    inviteMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "email": "sofia.rios@acme.example",
+                 *       "name": "Sofía Ríos",
+                 *       "role": "agent"
+                 *     }
+                 */
+                "application/json": components["schemas"]["MemberInvite"];
+            };
+        };
+        responses: {
+            /** @description The invited member. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getTeamMetrics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Organization-wide team metrics. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMetrics"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    changeMemberRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id of the member's user, as `TeamMember.id`. */
+                userId: components["parameters"]["MemberUserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "role": "admin"
+                 *     }
+                 */
+                "application/json": components["schemas"]["MemberRoleChange"];
+            };
+        };
+        responses: {
+            /** @description The member with their new role. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    removeMember: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id of the member's user, as `TeamMember.id`. */
+                userId: components["parameters"]["MemberUserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The removed member. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamMember"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
     listAssignees: {
         parameters: {
             query?: never;
@@ -1279,6 +1590,9 @@ export const ticketPriorityValues: ReadonlyArray<FlattenedDeepRequired<component
 export const ticketChannelValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TicketChannel"]> = ["email", "chat", "phone", "web"];
 export const ticketViewValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TicketView"]> = ["all", "mine", "unassigned", "resolved"];
 export const messageVisibilityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MessageVisibility"]> = ["public", "internal"];
+export const memberStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MemberStatus"]> = ["invited", "active", "removed"];
+export const memberInviteRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MemberInvite"]["role"]> = ["admin", "agent"];
+export const memberRoleChangeRoleValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MemberRoleChange"]["role"]> = ["admin", "agent"];
 export const customerDetailPortalAccessValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["CustomerDetail"]["portalAccess"]> = ["none", "invited", "active"];
 export const messageAuthorKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["MessageAuthor"]["kind"]> = ["agent", "customer"];
 export const ticketCreatedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["TicketCreatedActivity"]["type"]> = ["created"];

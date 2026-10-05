@@ -17,6 +17,7 @@ import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.Preconditions;
 import com.resolve.api.customers.Customer;
 import com.resolve.api.customers.CustomerRepository;
+import com.resolve.api.memberships.AssignedTicketReleaser;
 import com.resolve.api.memberships.Membership;
 import com.resolve.api.memberships.MembershipRepository;
 import com.resolve.api.memberships.UserAccount;
@@ -32,6 +33,7 @@ import com.resolve.api.tickets.TicketRequestParser.TicketChanges;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -39,7 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
  * cliente, su registro de cliente. Cada cambio y su entrada de historial se guardan en la misma transacción.
  */
 @Service
-class TicketService {
+class TicketService implements AssignedTicketReleaser {
 
 	private static final String UNKNOWN_CUSTOMER = "Selecciona un cliente de tu organización.";
 
@@ -123,8 +125,10 @@ class TicketService {
 		Ticket ticket = find(member, number, true);
 		long expectedVersion = Preconditions.requireVersion(ifMatch, "ticket");
 		TicketChanges changes = body.get();
-		UserAccount newAssignee = (changes.assigneeChanged() && changes.assigneeId() != null)
-				? staffMember(member, changes.assigneeId()) : null;
+		// Un responsable que no cambia no se vuelve a validar ni a bloquear: puede ser alguien retirado de un ticket
+		// resuelto. Solo el que entra se comprueba, con su membresía bloqueada hasta el commit.
+		UserAccount newAssignee = (changes.assigneeChanged() && changes.assigneeId() != null
+				&& !isAssignee(ticket, changes.assigneeId())) ? staffMember(member, changes.assigneeId()) : null;
 		if (ticket.getVersion() != expectedVersion) {
 			throw new PreconditionFailedException(
 					"El ticket cambió desde que lo abriste. Vuelve a cargarlo para ver los cambios.");
@@ -146,7 +150,7 @@ class TicketService {
 						TicketActivity.priorityChanged(Ids.newId(), ticket, member, previous, changes.priority(), now));
 			}
 		}
-		if (changes.assigneeChanged()) {
+		if (changes.assigneeChanged() && !isAssignee(ticket, changes.assigneeId())) {
 			UserAccount previous = ticket.getAssignee();
 			if (ticket.assign(newAssignee, now)) {
 				this.activities.save(TicketActivity.assigneeChanged(Ids.newId(), ticket, member, previous, newAssignee, now));
@@ -155,6 +159,24 @@ class TicketService {
 		// El flush dentro de la transacción hace visible la nueva versión en la respuesta y detecta carreras.
 		this.tickets.flush();
 		return TicketDto.from(ticket);
+	}
+
+	/**
+	 * Quita el responsable a los tickets sin resolver de un miembro retirado, con una actividad por ticket. Cada
+	 * uno se comporta como un PATCH del administrador: sube la versión y mueve {@code updatedAt} sin retroceder.
+	 */
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public int releaseOpenTickets(CurrentMember actor, UUID userId, Instant now) {
+		List<Ticket> assigned = this.tickets.lockOpenAssignedTo(actor.organizationId(), userId);
+		for (Ticket ticket : assigned) {
+			UserAccount previous = ticket.getAssignee();
+			if (ticket.assign(null, now)) {
+				this.activities.save(TicketActivity.assigneeChanged(Ids.newId(), ticket, actor, previous, null, now));
+			}
+		}
+		this.tickets.flush();
+		return assigned.size();
 	}
 
 	@Transactional(readOnly = true)
@@ -210,9 +232,17 @@ class TicketService {
 		return ticket.orElseThrow(() -> new ResourceNotFoundException("No existe el ticket #" + number + "."));
 	}
 
-	/** Responsable válido: admin o agente de la misma organización. Ids ajenos e inexistentes dan el mismo error. */
+	private static boolean isAssignee(Ticket ticket, @Nullable UUID userId) {
+		return ticket.getAssignee() != null && ticket.getAssignee().getId().equals(userId);
+	}
+
+	/**
+	 * Responsable válido: admin o agente activo de la misma organización. Ids ajenos, inexistentes, invitados y
+	 * retirados dan el mismo error. La membresía queda bloqueada (compartida) hasta el commit: una retirada no
+	 * puede confirmarse entre esta comprobación y la asignación.
+	 */
 	private UserAccount staffMember(CurrentMember member, UUID userId) {
-		return this.memberships.findStaffMember(member.organizationId(), userId)
+		return this.memberships.findAssignableStaffMemberShared(member.organizationId(), userId)
 			.map(Membership::getUser)
 			.orElseThrow(() -> new ApiValidationException("assigneeId", UNKNOWN_ASSIGNEE));
 	}

@@ -101,6 +101,18 @@ public class TestData {
 		return id;
 	}
 
+	/** Asigna un ticket a un usuario directamente en la base, sin pasar por la API. */
+	public void assignTicket(UUID ticketId, UUID userId) {
+		this.jdbc.sql("UPDATE tickets SET assignee_id = ? WHERE id = ?").params(userId, ticketId).update();
+	}
+
+	/** Marca la primera respuesta de un ticket {@code minutes} minutos después de su creación. */
+	public void respondAfter(UUID ticketId, int minutes) {
+		this.jdbc.sql("UPDATE tickets SET first_response_at = created_at + make_interval(mins => ?) WHERE id = ?")
+			.params(minutes, ticketId)
+			.update();
+	}
+
 	/** Usuario con acceso activo de cliente enlazado a un registro de cliente. Devuelve el id del usuario. */
 	public UUID customerUser(UUID organizationId, UUID customerId, String name, String email) {
 		return customerUser(organizationId, customerId, name, email, "active");
