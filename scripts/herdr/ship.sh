@@ -63,28 +63,33 @@ if ! git -C "$TASK_WORKTREE" merge-base --is-ancestor origin/main HEAD; then
 fi
 HEAD_SHA=$(git -C "$TASK_WORKTREE" rev-parse HEAD)
 
-# Push. A rebased branch has to replace what is on the remote, but only with a lease on the exact commit this
-# repository knows: a tip it has never seen (someone else's work) or one that is ahead of this branch stops the run.
+# Push. A rebased branch has to replace what is on the remote, but only with a lease on the exact commit, and only
+# when that commit was this branch's own tip before the rebase (it is in the branch's reflog). A tip that was never
+# on this branch (someone else's push, even one that was fetched since) is not overwritten, and neither is one that is
+# ahead of the local branch.
 remote_sha=$(git -C "$TASK_WORKTREE" ls-remote --heads origin "refs/heads/$BRANCH" | awk 'NR == 1 { print $1 }')
 if [ -z "$remote_sha" ]; then
   log "Pushing $BRANCH (new on origin)…"
   git -C "$TASK_WORKTREE" push -q -u origin "$BRANCH"
 elif [ "$remote_sha" = "$HEAD_SHA" ]; then
   log "$BRANCH is already on origin at $HEAD_SHA."
-elif git -C "$TASK_WORKTREE" cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
-  if git -C "$TASK_WORKTREE" merge-base --is-ancestor "$remote_sha" HEAD; then
+else
+  known=0
+  git -C "$TASK_WORKTREE" cat-file -e "$remote_sha^{commit}" 2>/dev/null && known=1
+  if [ "$known" = 1 ] && git -C "$TASK_WORKTREE" merge-base --is-ancestor "$remote_sha" HEAD; then
     log "Pushing $BRANCH (fast-forward from $remote_sha)…"
     git -C "$TASK_WORKTREE" push -q -u origin "$BRANCH"
-  elif git -C "$TASK_WORKTREE" merge-base --is-ancestor HEAD "$remote_sha"; then
-    die "origin/$BRANCH ($remote_sha) is ahead of the local branch; nothing was pushed. Inspect it before shipping"
+  elif [ "$known" = 1 ] && git -C "$TASK_WORKTREE" merge-base --is-ancestor HEAD "$remote_sha"; then
+    die "origin/$BRANCH ($remote_sha) is ahead of the local branch; nothing was pushed. Integrate it into the branch before shipping"
   else
-    git -C "$TASK_WORKTREE" merge-base "$remote_sha" HEAD >/dev/null || die "origin/$BRANCH ($remote_sha) shares no history with the local branch; nothing was pushed"
-    log "origin/$BRANCH ($remote_sha) diverged from the local branch (rebased history): pushing with a lease on that commit…"
+    own_tips=$(git -C "$TASK_WORKTREE" reflog show --format=%H "refs/heads/$BRANCH" 2>/dev/null || true)
+    if ! grep -Fqx "$remote_sha" <<<"$own_tips"; then
+      die "origin/$BRANCH is at $remote_sha, which this branch never pointed at: it is someone else's work and ship.sh does not overwrite it. Look at it (git fetch origin $BRANCH; git log HEAD..FETCH_HEAD), integrate it into the branch (merge or rebase onto it) and rerun; nothing was pushed"
+    fi
+    log "origin/$BRANCH ($remote_sha, this branch's own earlier tip) diverged from the local branch (rebased history): pushing with a lease on that commit…"
     git -C "$TASK_WORKTREE" push -q -u --force-with-lease="refs/heads/$BRANCH:$remote_sha" origin "$BRANCH" \
       || die "the push was rejected: origin/$BRANCH moved after it was read; nothing was forced"
   fi
-else
-  die "origin/$BRANCH is at $remote_sha, a commit this repository has never seen; it is not overwritten. Fetch and inspect it (git fetch origin $BRANCH), then rerun"
 fi
 
 # Pull request: reuse the open one for this branch. gh runs in the main checkout, which outlives the task.
@@ -101,10 +106,22 @@ else
   log "Opened pull request #$PR: $url"
 fi
 
+# The PR must show the commit that was just pushed before its checks mean anything (GitHub updates it a moment
+# after the push; the checks of the previous head would otherwise count).
+SECONDS=0
+while :; do
+  pr_head=$(gh pr view "$PR" --json headRefOid --jq .headRefOid 2>/dev/null || true)
+  [ "$pr_head" != "$HEAD_SHA" ] || break
+  [ "$SECONDS" -lt "$TIMEOUT" ] || die "pull request #$PR still shows ${pr_head:-no head} instead of $HEAD_SHA after ${TIMEOUT}s; the merge was not scheduled"
+  log "Waiting for #$PR to show $HEAD_SHA (it shows ${pr_head:-nothing})…"
+  sleep "$POLL"
+done
+
 # Smoke first. gh pr checks exits non-zero while checks are pending or failed, so read its JSON and decide here.
 smoke_bucket() {
-  gh pr checks "$PR" --json name,bucket 2>/dev/null \
-    | jq -r '[.[]? | select(.name == "Full-stack smoke") | .bucket] | first // "absent"' 2>/dev/null || true
+  # The most recent run if the check ran more than once (reruns).
+  gh pr checks "$PR" --json name,bucket,startedAt 2>/dev/null \
+    | jq -r '[.[]? | select(.name == "Full-stack smoke")] | sort_by(.startedAt // "") | last | .bucket // "absent"' 2>/dev/null || true
 }
 SECONDS=0
 while :; do
@@ -120,7 +137,7 @@ while :; do
   sleep "$POLL"
 done
 
-gh pr merge "$PR" --auto --rebase >/dev/null || die "gh pr merge --auto --rebase failed for #$PR"
+gh pr merge "$PR" --auto --rebase --match-head-commit "$HEAD_SHA" >/dev/null || die "gh pr merge --auto --rebase failed for #$PR"
 log "Auto-merge (rebase) scheduled for #$PR; waiting for it…"
 SECONDS=0
 MERGED_SHA=
@@ -164,6 +181,10 @@ retire() {
   if [ -n "$occupant" ]; then
     name=$(jq -r '.name // empty' <<<"$occupant")
     [ -n "$name" ] || die "the agent in $TASK_PANE has no name; exit it by hand, then: scripts/herdr/remove-task.sh --id $id --volumes"
+    state=$(jq -r '.agent_status // "unknown"' <<<"$occupant")
+    case $state in
+      working | blocked) die "'$name' is $state, so it was not sent /exit; #$PR is merged (main at $MERGED_SHA). Let it finish, then run: scripts/herdr/remove-task.sh --id $id --volumes" ;;
+    esac
     log "Exiting '$name'…"
     herdr agent prompt "$name" "/exit" >/dev/null || true
     for _ in $(seq 1 30); do
