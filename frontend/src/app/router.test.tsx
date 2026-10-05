@@ -3,6 +3,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../test/api'
 import { renderWithProviders } from '../test/render'
+import { reportSummary } from '../features/reports/reportFixtures'
 import { metrics, page, summary, ticket } from '../test/ticketFixtures'
 import { articlePage, articleSummary } from '../features/knowledge/articleFixtures'
 import { mainNavigation } from './navigation'
@@ -112,8 +113,10 @@ describe('rutas de la aplicación', () => {
     },
   )
 
-  // /clientes y /equipo ya tienen su vista; se prueban aparte.
-  const pendingSections = staffSections.filter((item) => item.to !== '/clientes' && item.to !== '/equipo')
+  // /clientes, /equipo y /reportes ya tienen su vista; se prueban aparte.
+  const pendingSections = staffSections.filter(
+    (item) => item.to !== '/clientes' && item.to !== '/equipo' && item.to !== '/reportes',
+  )
 
   it.each(pendingSections.flatMap((item) => staffMes.map(([role, me]) => [item.to, item.label, role, me] as const)))(
     'deja al personal abrir %s («%s») como %s',
@@ -246,6 +249,27 @@ describe('rutas de la aplicación', () => {
     renderApp('/conocimiento/nuevo')
     expect(await screen.findByRole('heading', { level: 1, name: 'Nuevo artículo' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
+  })
+
+  it.each(staffMes)('deja al personal abrir los reportes como %s', async (_role, me) => {
+    mockApi({
+      'GET /api/me': { body: me },
+      'GET /api/reports/summary': { body: reportSummary() },
+    })
+    renderApp('/reportes')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Reportes' })).toBeInTheDocument()
+    expect(await screen.findByRole('table', { name: 'Rendimiento por agente' })).toBeInTheDocument()
+    expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
+    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
+  })
+
+  it('un cliente no abre /reportes y no se pide el informe', async () => {
+    const spy = mockApi({ 'GET /api/me': { body: customerMe } })
+    renderApp('/reportes')
+    expect(await screen.findByText('No tienes acceso a esta sección')).toBeInTheDocument()
+    expect(spy.mock.calls.some(([input]) => new URL((input as Request).url).pathname.startsWith('/api/reports'))).toBe(
+      false,
+    )
   })
 
   it('cubre todas las secciones de personal', () => {
