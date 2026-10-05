@@ -73,13 +73,8 @@ class CustomerService {
 		}
 		Customer customer = new Customer(Ids.newId(), member.organizationId(), request.name(), request.email(),
 				request.company(), request.notes(), this.clock.instant());
-		try {
-			this.customers.saveAndFlush(customer);
-		}
-		catch (DataIntegrityViolationException exception) {
-			// Dos altas simultáneas con el mismo correo pasaron la comprobación: la segunda pierde en el índice único.
-			throw new ApiValidationException("email", DUPLICATE_EMAIL);
-		}
+		this.customers.save(customer);
+		flushUniqueEmail();
 		return detail(member, customer.getId());
 	}
 
@@ -90,7 +85,7 @@ class CustomerService {
 	@Transactional
 	CustomerDetailDto update(CurrentMember member, UUID id, @Nullable String ifMatch,
 			Supplier<CustomerChanges> body) {
-		Customer customer = find(member, id);
+		Customer customer = findForUpdate(member, id);
 		long expectedVersion = Preconditions.requireVersion(ifMatch, "cliente");
 		CustomerChanges changes = body.get();
 		if (changes.email() != null && this.customers.emailTakenByAnother(member.organizationId(), changes.email(), id)) {
@@ -108,14 +103,14 @@ class CustomerService {
 				changes.companyChanged() ? changes.company() : customer.getCompany(),
 				changes.notesChanged() ? changes.notes() : customer.getNotes());
 		// El flush dentro de la transacción hace visible la nueva versión en la respuesta y detecta carreras.
-		this.customers.flush();
+		flushUniqueEmail();
 		return detail(member, id);
 	}
 
 	/** Archiva un cliente. No toca sus tickets; su acceso al portal deja de resolverse mientras esté archivado. */
 	@Transactional
 	CustomerDetailDto archive(CurrentMember member, UUID id) {
-		Customer customer = find(member, id);
+		Customer customer = findForUpdate(member, id);
 		if (!customer.archive(this.clock.instant())) {
 			throw new ConflictException("El cliente ya está archivado.");
 		}
@@ -125,7 +120,7 @@ class CustomerService {
 
 	@Transactional
 	CustomerDetailDto restore(CurrentMember member, UUID id) {
-		Customer customer = find(member, id);
+		Customer customer = findForUpdate(member, id);
 		if (!customer.restore()) {
 			throw new ConflictException("El cliente no está archivado.");
 		}
@@ -133,8 +128,20 @@ class CustomerService {
 		return detail(member, id);
 	}
 
-	private Customer find(CurrentMember member, UUID id) {
-		return this.customers.findByOrganizationIdAndId(member.organizationId(), id)
+	/** El único error de integridad posible al escribir un cliente es el correo repetido por una carrera. */
+	private void flushUniqueEmail() {
+		try {
+			this.customers.flush();
+		}
+		catch (DataIntegrityViolationException exception) {
+			// Dos escrituras simultáneas con el mismo correo pasaron la comprobación: la segunda pierde en el índice único.
+			throw new ApiValidationException("email", DUPLICATE_EMAIL);
+		}
+	}
+
+	/** Carga el cliente con la fila bloqueada hasta el commit; uno ajeno o inexistente responde 404. */
+	private Customer findForUpdate(CurrentMember member, UUID id) {
+		return this.customers.lockInOrganization(member.organizationId(), id)
 			.orElseThrow(() -> new ResourceNotFoundException("No existe el cliente."));
 	}
 

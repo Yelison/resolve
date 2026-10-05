@@ -1,9 +1,19 @@
 package com.resolve.api.customers;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
+import com.resolve.api.support.OpenApiContract;
 import com.resolve.api.support.TestClockConfiguration;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 import tools.jackson.databind.JsonNode;
@@ -157,6 +167,58 @@ class CustomerLifecycleApiTest extends CustomersFixture {
 			.perform(post("/tickets").with(as(ADMIN)).contentType(MediaType.APPLICATION_JSON).content("""
 					{"customerId": "%s", "subject": "%s", "description": "Detalle"}""".formatted(customerId, subject)))
 			.andReturn();
+	}
+
+	@Test
+	@Timeout(40)
+	void simultaneousArchivesYieldOne200AndTheRestDeclared409s() throws Exception {
+		List<Integer> statuses = runConcurrently(8, () -> {
+			MvcResult result = archive(ADMIN, this.carlosCustomer);
+			OpenApiContract.assertMatches("archiveCustomer", result);
+			return result.getResponse().getStatus();
+		});
+		// Quien pierde la carrera lee la fila ya archivada: un 409 declarado, nunca un 412 que la acción no tiene.
+		assertThat(statuses).containsOnly(200, 409);
+		assertThat(statuses.stream().filter((status) -> status == 200).count()).isEqualTo(1);
+		this.mvc.perform(get("/customers/" + this.carlosCustomer).with(as(ADMIN)))
+			.andExpect(jsonPath("$.version").value(1));
+	}
+
+	@Test
+	@Timeout(40)
+	void simultaneousRestoresYieldOne200AndTheRestDeclared409s() throws Exception {
+		this.data.archiveCustomer(this.carlosCustomer, TestClockConfiguration.START);
+		List<Integer> statuses = runConcurrently(8, () -> {
+			MvcResult result = restore(ADMIN, this.carlosCustomer);
+			OpenApiContract.assertMatches("restoreCustomer", result);
+			return result.getResponse().getStatus();
+		});
+		assertThat(statuses).containsOnly(200, 409);
+		assertThat(statuses.stream().filter((status) -> status == 200).count()).isEqualTo(1);
+	}
+
+	/** Lanza {@code attempts} llamadas a la vez (todas esperan la misma señal de salida) y devuelve sus estados. */
+	private static List<Integer> runConcurrently(int attempts, Callable<Integer> call) throws Exception {
+		ExecutorService executor = Executors.newFixedThreadPool(attempts);
+		try {
+			CountDownLatch start = new CountDownLatch(1);
+			List<Future<Integer>> results = new ArrayList<>();
+			for (int i = 0; i < attempts; i++) {
+				results.add(executor.submit(() -> {
+					start.await();
+					return call.call();
+				}));
+			}
+			start.countDown();
+			List<Integer> statuses = new ArrayList<>();
+			for (Future<Integer> result : results) {
+				statuses.add(result.get(30, TimeUnit.SECONDS));
+			}
+			return statuses;
+		}
+		finally {
+			executor.shutdownNow();
+		}
 	}
 
 }
