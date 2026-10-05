@@ -1,11 +1,9 @@
-.tabs {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-16);
-  min-width: 0;
+/* Separa el contenido de la pestaña de su lista, que no trae margen propio. */
+.panel {
+  margin-top: var(--space-16);
 }
 
-/* El panel de la pestaña arranca separado de la lista, que no trae margen propio. */
-.tabs [role='tablist'] {
-  margin-bottom: var(--space-16);
+/* El sitio de la lista de pestañas mientras no se sabe qué pestañas ve el rol. */
+.tabsSpace {
+  min-height: var(--button-height);
 }

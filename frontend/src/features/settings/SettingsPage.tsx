@@ -30,25 +30,43 @@ export function SettingsPage() {
     )
     return () => window.clearTimeout(timer)
   }, [pathname])
-  const items: TabItem[] = visibleTabs(me.data?.role).map((tab) => ({
+  const visible = visibleTabs(me.data?.role)
+  // Si la pestaña de la URL no es una de las visibles (un cliente en `empresa`, o `/me` aún cargando en una pestaña del
+  // personal), `Tabs` marcaría otra: el aviso o el esqueleto se dibujan fuera de las pestañas, sin ninguna marcada.
+  const activeIsVisible = visible.some((tab) => tab.id === active)
+  const items: TabItem[] = visible.map((tab) => ({
     id: tab.id,
     label: tab.label,
-    content: <Outlet />,
+    content: (
+      <div className={styles.panel}>
+        <Outlet />
+      </div>
+    ),
   }))
 
   return (
     <div className={pageStyles.page}>
       <PageHeader title="Configuración" description="Personaliza tu espacio y tus preferencias." />
-      <div ref={tabsRef} className={styles.tabs}>
-        <Tabs
-          label="Secciones de configuración"
-          items={items}
-          value={active}
-          onChange={(id) => {
-            keepTabFocus.current = true
-            void navigate(`/configuracion/${id}`, { replace: true })
-          }}
-        />
+      <div ref={tabsRef}>
+        {activeIsVisible ? (
+          <Tabs
+            label="Secciones de configuración"
+            items={items}
+            value={active}
+            onChange={(id) => {
+              keepTabFocus.current = true
+              void navigate(`/configuracion/${id}`, { replace: true })
+            }}
+          />
+        ) : (
+          <>
+            {/* Mientras `/me` carga se reserva el sitio de la lista para que el contenido no baje al llegar. */}
+            {me.isPending && <div className={styles.tabsSpace} aria-hidden="true" />}
+            <div className={styles.panel}>
+              <Outlet />
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

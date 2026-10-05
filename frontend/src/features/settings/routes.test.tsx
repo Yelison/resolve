@@ -22,9 +22,16 @@ describe('rutas de configuración', () => {
     const router = renderApp('/configuracion')
     expect(await screen.findByRole('heading', { level: 1, name: 'Configuración' })).toBeInTheDocument()
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/configuracion/empresa'))
-    expect(tabNames()).toEqual(['Empresa', 'Perfil', 'Apariencia', 'Permisos'])
     expect(await screen.findByRole('tab', { name: 'Empresa', selected: true })).toBeInTheDocument()
+    expect(tabNames()).toEqual(['Empresa', 'Perfil', 'Apariencia', 'Permisos'])
     expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
+  })
+
+  it('mientras /me carga en Perfil se ofrecen solo las pestañas del rol con menos permisos', async () => {
+    mockApi({ 'GET /api/me': () => new Promise(() => {}) as never })
+    renderApp('/configuracion/perfil')
+    expect(await screen.findByRole('tab', { name: 'Perfil', selected: true })).toBeInTheDocument()
+    expect(tabNames()).toEqual(['Perfil', 'Apariencia'])
   })
 
   it('un cliente abre Perfil y solo ve Perfil y Apariencia; los ajustes de la empresa no se piden', async () => {
@@ -44,16 +51,22 @@ describe('rutas de configuración', () => {
       expect(await screen.findByText('No tienes acceso a esta sección')).toBeInTheDocument()
       expect(screen.queryByRole('heading', { name: 'Permisos por rol' })).not.toBeInTheDocument()
       expect(screen.queryByRole('textbox', { name: 'Nombre del espacio' })).not.toBeInTheDocument()
-      expect(tabNames()).toEqual(['Perfil', 'Apariencia'])
+      // Ninguna pestaña queda marcada sobre un contenido que no es el suyo: el aviso va fuera de las pestañas.
+      expect(screen.queryAllByRole('tab')).toHaveLength(0)
+      expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Ir a tu perfil' })).toHaveAttribute('href', '/configuracion/perfil')
       expect(requestedPaths(fetchSpy)).not.toContain('/api/organization')
     },
   )
 
-  it('mientras /me carga solo se ofrecen las pestañas del rol con menos permisos y no se pide la organización', async () => {
+  it('mientras /me carga en una pestaña del personal no se marca ninguna pestaña ni se pide la organización', async () => {
     const fetchSpy = mockApi({ 'GET /api/me': () => new Promise(() => {}) as never })
     renderApp('/configuracion/empresa')
     expect(await screen.findByRole('heading', { level: 1, name: 'Configuración' })).toBeInTheDocument()
-    expect(tabNames()).toEqual(['Perfil', 'Apariencia'])
+    // Con una pestaña de personal en la URL y el rol sin conocer, no se marca ninguna otra: esqueleto sin pestañas.
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
+    expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument()
+    expect(screen.getByText('Cargando los ajustes de la empresa…')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Nombre del espacio' })).not.toBeInTheDocument()
     expect(requestedPaths(fetchSpy)).not.toContain('/api/organization')
   })
