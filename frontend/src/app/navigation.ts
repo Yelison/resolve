@@ -21,7 +21,8 @@ export const mainNavigation: NavigationItem[] = [
   { to: '/reportes', label: 'Reportes', icon: 'report', roles: staff },
   // Los clientes también la abren: el servidor solo les entrega artículos publicados y públicos.
   { to: '/conocimiento', label: 'Conocimiento', icon: 'book', roles: [...staff, 'customer'] },
-  { to: '/configuracion', label: 'Configuración', icon: 'settings', roles: staff },
+  // Los clientes abren Perfil y Apariencia; Empresa y Permisos son del personal y los guarda cada pestaña.
+  { to: '/configuracion', label: 'Configuración', icon: 'settings', roles: [...staff, 'customer'] },
 ]
 
 export const roleLabels: Record<Role, string> = {

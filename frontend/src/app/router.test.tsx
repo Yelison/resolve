@@ -3,8 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../test/api'
 import { metrics, page } from '../test/ticketFixtures'
 import { mainNavigation } from './navigation'
-import { hasFeatureRoutes } from './router'
-import { renderApp, staffMes } from '../test/renderApp'
+import { renderApp } from '../test/renderApp'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -45,36 +44,7 @@ describe('rutas de la aplicación', () => {
     },
   )
 
-  // Las secciones con feature registrada se prueban en su carpeta; aquí quedan las que muestran la vista pendiente.
-  const pendingSections = staffSections.filter((item) => !hasFeatureRoutes(item.to))
-
-  it.each(pendingSections.flatMap((item) => staffMes.map(([role, me]) => [item.to, item.label, role, me] as const)))(
-    'deja al personal abrir %s («%s») como %s',
-    async (path, label, _role, me) => {
-      mockApi({ 'GET /api/me': { body: me } })
-      renderApp(path)
-      expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument()
-      expect(screen.getByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
-      expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
-    },
-  )
-
-  it.each(staffMes)('/configuracion/permisos muestra la vista pendiente, no un 404, como %s', async (_role, me) => {
-    mockApi({ 'GET /api/me': { body: me } })
-    renderApp('/configuracion/permisos')
-    expect(await screen.findByRole('heading', { level: 1, name: 'Permisos por rol' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
-    expect(screen.queryByText('Página no encontrada')).not.toBeInTheDocument()
-  })
-
-  it('un cliente no abre /configuracion/permisos: ve el aviso sin acceso', async () => {
-    mockApi({ 'GET /api/me': { body: customerMe } })
-    renderApp('/configuracion/permisos')
-    expect(await screen.findByText('No tienes acceso a esta sección')).toBeInTheDocument()
-    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
-  })
-
   it('cubre todas las secciones de personal', () => {
-    expect(staffSections.map((item) => item.to)).toEqual(['/clientes', '/equipo', '/reportes', '/configuracion'])
+    expect(staffSections.map((item) => item.to)).toEqual(['/clientes', '/equipo', '/reportes'])
   })
 })
