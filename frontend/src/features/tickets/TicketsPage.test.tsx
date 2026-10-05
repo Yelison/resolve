@@ -215,6 +215,24 @@ describe('TicketsPage para agentes', () => {
     expect(await screen.findByRole('link', { name: '#1048 No puedo acceder a mi cuenta' })).toBeInTheDocument()
   })
 
+  it('un error en las métricas lo dice en su hueco y permite reintentar sin tocar la lista', async () => {
+    let fail = true
+    mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/tickets/metrics': () =>
+        fail ? { status: 500, body: { status: 500, title: 'Error' } } : { body: metrics },
+      'GET /api/assignees': { body: [] },
+      'GET /api/tickets': { body: page([summary()]) },
+    })
+    renderInbox()
+    expect(await screen.findByText('No pudimos cargar las métricas de la bandeja')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '#1048 No puedo acceder a mi cuenta' })).toBeInTheDocument()
+    fail = false
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar cargar las métricas de la bandeja' }))
+    expect(await screen.findByText('Tickets abiertos')).toBeInTheDocument()
+    expect(screen.queryByText('No pudimos cargar las métricas de la bandeja')).not.toBeInTheDocument()
+  })
+
   it('resuelve un ticket desde su menú usando la versión actual', async () => {
     const fetchSpy = mockApi({
       'GET /api/me': { body: adminMe },

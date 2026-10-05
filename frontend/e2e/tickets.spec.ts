@@ -53,3 +53,32 @@ test.describe('tickets', () => {
     await expect(page.getByText('Describe el problema en una frase.')).toBeVisible()
   })
 })
+
+test.describe('tickets · métricas sin saltos de layout', () => {
+  for (const width of [320, 390, 768, 1200, 1440]) {
+    test(`la bandeja empieza a la misma altura cargando, con error y con datos · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      let release!: () => void
+      const held = new Promise<void>((resolve) => (release = resolve))
+      let fail = true
+      await page.route('**/api/tickets/metrics', async (route) => {
+        await held
+        if (fail) await route.fulfill({ status: 500, json: { status: 500, title: 'Error' } })
+        else await route.fallback()
+      })
+      await page.goto('/tickets')
+      const inbox = page.getByRole('region', { name: 'Bandeja de tickets' })
+      await expect(page.getByText('Cargando métricas…')).toBeAttached()
+      const loading = (await inbox.boundingBox())!.y
+      release()
+      await expect(page.getByText('No pudimos cargar las métricas de la bandeja')).toBeVisible()
+      const failed = (await inbox.boundingBox())!.y
+      expect(Math.abs(failed - loading), `cargando ${loading}, con error ${failed}`).toBeLessThanOrEqual(4)
+      fail = false
+      await page.getByRole('button', { name: 'Reintentar cargar las métricas de la bandeja' }).click()
+      await expect(page.getByText('Tickets abiertos')).toBeVisible()
+      const loaded = (await inbox.boundingBox())!.y
+      expect(Math.abs(loaded - loading), `cargando ${loading}, con datos ${loaded}`).toBeLessThanOrEqual(4)
+    })
+  }
+})

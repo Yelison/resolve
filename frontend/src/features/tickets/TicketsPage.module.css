@@ -5,6 +5,32 @@
   gap: var(--space-12);
 }
 
+.metricsState {
+  display: grid;
+  min-width: 0;
+}
+
+.metricsGhost,
+.metricsOverlay {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.metricsGhost {
+  visibility: hidden;
+}
+
+.metricsOverlay {
+  position: relative;
+}
+
+.metricsSkeleton {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+}
+
 .inbox {
   display: flex;
   flex-direction: column;
