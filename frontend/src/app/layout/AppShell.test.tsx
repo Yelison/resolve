@@ -89,3 +89,25 @@ describe('AppShell para clientes', () => {
     expect(within(drawer).queryByRole('link', { name: 'Clientes' })).not.toBeInTheDocument()
   })
 })
+
+describe('AppShell sin sesión', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('si /me falla se muestra un aviso con reintento y no la vista de cliente', async () => {
+    const fetchSpy = mockApi({ 'GET /api/me': { status: 500, body: { status: 500, title: 'Error interno' } } })
+    renderShell()
+    expect(await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Tickets' })).not.toBeInTheDocument()
+    const meCalls = () =>
+      fetchSpy.mock.calls.filter(([input]) => new URL((input as Request).url).pathname === '/api/me').length
+    expect(meCalls()).toBe(1)
+
+    fetchSpy.mockImplementation(async () => Response.json(adminMe))
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
+    expect(await screen.findByRole('heading', { name: 'Tickets' })).toBeInTheDocument()
+    expect(meCalls()).toBe(2)
+    expect(screen.queryByRole('heading', { name: 'No pudimos cargar tu sesión' })).not.toBeInTheDocument()
+  })
+})
