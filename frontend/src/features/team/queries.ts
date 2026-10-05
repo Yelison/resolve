@@ -50,8 +50,9 @@ export function useInviteMember() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (invite: MemberInvite) => unwrap(api.POST('/members', { body: invite })),
-    // Un invitado aún no cuenta como personal ni como responsable asignable: cambia la lista y, como el informe
-    // lista al personal, el resumen y la actividad.
+    // Un invitado aún no cuenta como personal ni como responsable asignable: cambia la lista. El informe y la
+    // actividad se invalidan por la regla de §3.4 (invitar, cambiar el rol y retirar), aunque hoy invitar no cambie
+    // lo que muestra el resumen; así la regla no depende de cómo evolucione el informe.
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: memberKeys.list() })
       invalidateOverview(queryClient)

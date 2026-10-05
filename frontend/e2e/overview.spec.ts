@@ -26,15 +26,37 @@ test.describe('resumen', () => {
     await expect(page.getByRole('table', { name: 'Solicitudes por día' })).toBeVisible()
   })
 
-  test('en móvil las métricas van en dos columnas y la tabla usa tarjetas', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 900 })
+  test('en móvil la tabla usa tarjetas', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/')
-    const open = page.getByText('Tickets abiertos')
-    const resolved = page.getByText('Resueltos hoy')
-    const [a, b] = [await open.boundingBox(), await resolved.boundingBox()]
-    expect(a!.y, 'dos métricas por fila si caben').toBeCloseTo(b!.y, 0)
-    await expect(page.getByRole('table', { name: 'Tickets que necesitan atención' })).toBeVisible()
+    const firstRow = page.getByRole('table', { name: 'Tickets que necesitan atención' }).getByRole('row').nth(1)
+    await expect(firstRow).toContainText('Laura Méndez')
+    // En modo tarjeta la fila apila sus datos: la prioridad queda debajo del asunto, no a su lado.
+    const [subject, priority] = await Promise.all([
+      firstRow.getByRole('link').boundingBox(),
+      firstRow.getByText('Urgente').boundingBox(),
+    ])
+    expect(priority!.y).toBeGreaterThan(subject!.y + subject!.height - 1)
   })
+
+  for (const [width, columns] of [
+    [390, 2],
+    [768, 2],
+    [1199, 2],
+    [1200, 4],
+  ] as const) {
+    test(`las métricas van en ${columns} columnas · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/')
+      await expect(page.getByText('Tickets abiertos')).toBeVisible()
+      const tops = await Promise.all(
+        ['Tickets abiertos', 'Resueltos hoy', 'Primera respuesta', 'Sin responsable'].map(async (label) =>
+          Math.round((await page.getByText(label).boundingBox())!.y),
+        ),
+      )
+      expect(tops.filter((top) => top === tops[0])).toHaveLength(columns)
+    })
+  }
 })
 
 test.describe('resumen · sin saltos de layout', () => {
