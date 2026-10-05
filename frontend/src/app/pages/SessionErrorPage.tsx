@@ -8,13 +8,15 @@ export interface SessionErrorPageProps {
   onRetry: () => void
   /** Hay un reintento en curso: el botón lo indica y no admite más pulsaciones. */
   retrying?: boolean
+  /** El último reintento terminó en error: se anuncia a los lectores de pantalla. */
+  retryFailed?: boolean
 }
 
 /**
  * Sin sesión no se conoce el rol, así que ninguna página puede decidir qué mostrar. En lugar de caer en la vista más
  * restrictiva, el shell muestra este aviso con un reintento.
  */
-export function SessionErrorPage({ error, onRetry, retrying = false }: SessionErrorPageProps) {
+export function SessionErrorPage({ error, onRetry, retrying = false, retryFailed = false }: SessionErrorPageProps) {
   return (
     <div className={styles.page}>
       <PageHeader title="Sesión no disponible" />
@@ -26,7 +28,7 @@ export function SessionErrorPage({ error, onRetry, retrying = false }: SessionEr
             ? 'El servidor no respondió como esperábamos. Vuelve a intentarlo en unos segundos.'
             : 'Revisa tu conexión y vuelve a intentarlo.'
         }
-        live={retrying}
+        live={retryFailed}
         action={
           <Button variant="secondary" loading={retrying} loadingLabel="Reintentando…" onClick={onRetry}>
             Reintentar
