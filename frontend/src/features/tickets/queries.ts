@@ -59,10 +59,21 @@ export function useTicketMetrics(enabled = true) {
   })
 }
 
+/**
+ * Lee el detalle sin hacer retroceder la caché: si la lectura salió del servidor antes de un PATCH y llega después,
+ * trae una versión anterior a la ya guardada y se conserva la de la caché.
+ */
+async function fetchTicket(queryClient: QueryClient, number: number, signal?: AbortSignal) {
+  const fresh = await unwrap(api.GET('/tickets/{number}', { params: { path: { number } }, signal }))
+  const cached = queryClient.getQueryData<Ticket>(ticketKeys.detail(number))
+  return cached && cached.version > fresh.version ? cached : fresh
+}
+
 export function useTicket(number: number) {
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: ticketKeys.detail(number),
-    queryFn: ({ signal }) => unwrap(api.GET('/tickets/{number}', { params: { path: { number } }, signal })),
+    queryFn: ({ signal }) => fetchTicket(queryClient, number, signal),
   })
 }
 
@@ -190,7 +201,7 @@ export function useQuickTicketUpdate() {
     mutationFn: async ({ number, changes }: { number: number; changes: TicketChanges }) => {
       const current = await queryClient.fetchQuery({
         queryKey: ticketKeys.detail(number),
-        queryFn: () => unwrap(api.GET('/tickets/{number}', { params: { path: { number } } })),
+        queryFn: () => fetchTicket(queryClient, number),
         staleTime: 0,
       })
       await queryClient.cancelQueries({ queryKey: ticketKeys.detail(number), exact: true })

@@ -43,5 +43,7 @@ describe('useQuickTicketUpdate', () => {
     expect(reads).toBe(2)
     await new Promise((resolve) => setTimeout(resolve, 300))
     expect(queryClient.getQueryData<Ticket>(key)).toMatchObject({ status: 'in_progress', version: 1 })
+    // La lectura tardía se canceló: solo escribieron la lectura de la versión y el PATCH.
+    expect(queryClient.getQueryState(key)?.dataUpdateCount).toBe(2)
   })
 })
