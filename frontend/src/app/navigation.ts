@@ -1,15 +1,26 @@
 import type { Role } from '../api/schema'
 import type { SidebarNavItem } from '../components/ui'
 
-/** Secciones de la navegación principal, en el orden del diseño. */
-export const mainNavigation: SidebarNavItem[] = [
-  { to: '/', label: 'Resumen', icon: 'home', end: true },
-  { to: '/tickets', label: 'Tickets', icon: 'ticket' },
-  { to: '/clientes', label: 'Clientes', icon: 'clients' },
-  { to: '/equipo', label: 'Equipo', icon: 'team' },
-  { to: '/reportes', label: 'Reportes', icon: 'report' },
-  { to: '/conocimiento', label: 'Conocimiento', icon: 'book' },
-  { to: '/configuracion', label: 'Configuración', icon: 'settings' },
+/** Entrada de la navegación principal: el elemento del menú más los roles que pueden abrir la sección. */
+export interface NavigationItem extends SidebarNavItem {
+  roles: Role[]
+}
+
+const staff: Role[] = ['admin', 'agent']
+
+/**
+ * Secciones de la navegación principal, en el orden del diseño. Es la única fuente de qué roles ven cada sección:
+ * `navigationFor` filtra el menú con ella y `router.tsx` protege cada ruta con los mismos roles.
+ */
+export const mainNavigation: NavigationItem[] = [
+  { to: '/', label: 'Resumen', icon: 'home', end: true, roles: staff },
+  { to: '/tickets', label: 'Tickets', icon: 'ticket', roles: [...staff, 'customer'] },
+  { to: '/clientes', label: 'Clientes', icon: 'clients', roles: staff },
+  { to: '/equipo', label: 'Equipo', icon: 'team', roles: staff },
+  { to: '/reportes', label: 'Reportes', icon: 'report', roles: staff },
+  // Solo personal por ahora; la Fase 5 la abrirá a los clientes cuando existan artículos públicos publicados.
+  { to: '/conocimiento', label: 'Conocimiento', icon: 'book', roles: staff },
+  { to: '/configuracion', label: 'Configuración', icon: 'settings', roles: staff },
 ]
 
 export const roleLabels: Record<Role, string> = {
@@ -19,7 +30,7 @@ export const roleLabels: Record<Role, string> = {
 }
 
 /** Secciones visibles para cada rol: los clientes solo acceden a sus tickets. */
-export function navigationFor(role: Role | undefined): SidebarNavItem[] {
-  if (role === 'customer') return mainNavigation.filter((item) => item.to === '/tickets')
-  return mainNavigation
+export function navigationFor(role: Role | undefined): NavigationItem[] {
+  if (!role) return mainNavigation
+  return mainNavigation.filter((item) => item.roles.includes(role))
 }

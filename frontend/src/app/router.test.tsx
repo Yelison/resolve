@@ -3,6 +3,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../test/api'
 import { renderWithProviders } from '../test/render'
+import { mainNavigation } from './navigation'
 import { appRoutes } from './router'
 
 afterEach(() => {
@@ -46,5 +47,36 @@ describe('rutas de la aplicación', () => {
     })
     renderApp('/tickets/nuevo')
     expect(await screen.findByRole('button', { name: 'Crear ticket' })).toBeInTheDocument()
+  })
+
+  const staffSections = mainNavigation.filter((item) => item.to !== '/' && !item.roles.includes('customer'))
+
+  it.each(staffSections.map((item) => [item.to, item.label]))(
+    'muestra a un cliente el aviso sin acceso en %s, con el encabezado «%s»',
+    async (path, label) => {
+      mockApi({ 'GET /api/me': { body: customerMe } })
+      renderApp(path)
+      expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeInTheDocument()
+      expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
+    },
+  )
+
+  it.each(staffSections.map((item) => [item.to, item.label]))('deja al personal abrir %s', async (path, label) => {
+    mockApi({ 'GET /api/me': { body: adminMe } })
+    renderApp(path)
+    expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Vista en construcción' })).toBeInTheDocument()
+    expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
+  })
+
+  it('cubre todas las secciones de personal', () => {
+    expect(staffSections.map((item) => item.to)).toEqual([
+      '/clientes',
+      '/equipo',
+      '/reportes',
+      '/conocimiento',
+      '/configuracion',
+    ])
   })
 })
