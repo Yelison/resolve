@@ -107,8 +107,9 @@ class TicketConcurrencyTest extends TicketsFixture {
 		});
 		start.countDown();
 
-		// Uno llega al gancho y se aparca. El otro, con el bloqueo de fila, espera en el SELECT … FOR UPDATE; sin
-		// bloqueo termina antes de que el primero se suelte. Se suelta cuando uno de los dos casos ya ocurrió.
+		// Uno llega al gancho y se aparca con la fila bloqueada. El otro espera en la consulta con bloqueo (FOR NO KEY
+		// UPDATE) y, al soltarse el primero, relee la versión 1. Si el bloqueo no existiera, el otro terminaría antes
+		// y el primero perdería por el control optimista de Hibernate, con otro mensaje: lo comprueba el detail.
 		assertThat(this.barrier.awaitReached(WAIT_SECONDS)).as("un PATCH llegó al gancho").isTrue();
 		awaitOtherBlockedOrDone(status, priority);
 		this.barrier.release();
@@ -123,6 +124,9 @@ class TicketConcurrencyTest extends TicketsFixture {
 		}
 
 		boolean statusWon = statusResult.getResponse().getStatus() == 200;
+		MvcResult loser = statusWon ? priorityResult : statusResult;
+		assertThat(JSON.readTree(loser.getResponse().getContentAsString()).get("detail").asString())
+			.isEqualTo("El ticket cambió desde que lo abriste. Vuelve a cargarlo para ver los cambios.");
 		JsonNode ticket = JSON.readTree(this.mvc.perform(get("/tickets/1").with(as(ADMIN)))
 			.andExpect(status().isOk())
 			.andReturn()
