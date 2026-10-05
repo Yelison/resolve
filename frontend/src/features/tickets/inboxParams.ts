@@ -1,12 +1,21 @@
 import type { TicketPriority, TicketStatus, TicketView } from '../../domain/ticket'
 import { ticketPriorityValues, ticketStatusValues, ticketViewValues } from '../../domain/ticket'
 
-export const ticketSortFields = ['updatedAt', 'createdAt', 'number', 'priority', 'status'] as const
-export type TicketSort = `${(typeof ticketSortFields)[number]},${'asc' | 'desc'}`
-export const ticketSortValues: readonly TicketSort[] = ticketSortFields.flatMap((field) => [
-  `${field},asc` as const,
-  `${field},desc` as const,
-])
+export type TicketSort = `${'updatedAt' | 'createdAt' | 'number' | 'priority' | 'status'},${'asc' | 'desc'}`
+
+/** Órdenes admitidos, en el orden en que se muestran: el de por defecto primero y, por campo, el más útil antes. */
+export const ticketSortValues: readonly TicketSort[] = [
+  'updatedAt,desc',
+  'updatedAt,asc',
+  'createdAt,desc',
+  'createdAt,asc',
+  'number,desc',
+  'number,asc',
+  'priority,desc',
+  'priority,asc',
+  'status,asc',
+  'status,desc',
+]
 
 /** Estado de la bandeja que vive en la URL, para poder compartirla y recargarla sin perder filtros. */
 export interface InboxState {
