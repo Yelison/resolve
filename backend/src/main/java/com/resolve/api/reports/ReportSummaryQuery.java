@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import com.resolve.api.common.persistence.WireEnum;
 import com.resolve.api.memberships.MemberRefDto;
+import com.resolve.api.memberships.MemberStatus;
 import com.resolve.api.organizations.Organization;
 import com.resolve.api.organizations.OrganizationRepository;
 import com.resolve.api.reports.ReportDtos.Agent;
@@ -115,8 +116,9 @@ class ReportSummaryQuery {
 			""";
 
 	/**
-	 * Un miembro por fila. Aparecen todos los administradores y agentes activos y quien, sin serlo ya (retirado o
-	 * invitado de nuevo), resolvió tickets en el periodo, para que su trabajo no desaparezca del informe. La primera
+	 * Un miembro por fila, con el estado de su membresía. Aparecen todos los administradores y agentes activos y quien,
+	 * sin serlo ya (retirado o invitado de nuevo), resolvió tickets o dio una primera respuesta en el periodo, para que
+	 * su trabajo no desaparezca del informe. La primera
 	 * respuesta es la de los tickets creados en el periodo cuyo primer mensaje público es del miembro; las notas internas
 	 * no cuentan. Todo se acota a la organización, también las membresías: los usuarios se comparten entre organizaciones.
 	 */
@@ -145,7 +147,7 @@ class ReportSummaryQuery {
 			  FROM first_replies
 			  GROUP BY user_id
 			)
-			SELECT u.id AS id, u.name AS name, coalesce(r.resolved, 0) AS resolved, p.first_response AS first_response,
+			SELECT u.id AS id, u.name AS name, ms.status AS status, coalesce(r.resolved, 0) AS resolved, p.first_response AS first_response,
 			       coalesce(o.open_assigned, 0) AS open_assigned
 			FROM memberships ms
 			JOIN users u ON u.id = ms.user_id
@@ -153,7 +155,7 @@ class ReportSummaryQuery {
 			LEFT JOIN open_assigned o ON o.user_id = u.id
 			LEFT JOIN response p ON p.user_id = u.id
 			WHERE ms.organization_id = :organizationId AND ms.role IN ('admin', 'agent')
-			  AND (ms.status = 'active' OR coalesce(r.resolved, 0) > 0)
+			  AND (ms.status = 'active' OR coalesce(r.resolved, 0) > 0 OR p.first_response IS NOT NULL)
 			ORDER BY coalesce(r.resolved, 0) DESC, lower(u.name), u.id
 			""";
 
@@ -224,7 +226,8 @@ class ReportSummaryQuery {
 	private List<Agent> agents(Window window) {
 		return window.bind(this.jdbc.sql(BY_AGENT))
 			.query((row, index) -> new Agent(
-					new MemberRefDto(row.getObject("id", UUID.class), row.getString("name")), row.getInt("resolved"),
+					new MemberRefDto(row.getObject("id", UUID.class), row.getString("name")),
+					WireEnum.fromWire(MemberStatus.class, row.getString("status")).orElseThrow(), row.getInt("resolved"),
 					integer(row.getBigDecimal("first_response")), row.getInt("open_assigned")))
 			.list();
 	}

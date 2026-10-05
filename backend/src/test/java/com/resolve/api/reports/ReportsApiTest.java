@@ -417,9 +417,12 @@ class ReportsApiTest extends ReportsFixture {
 		assertThat(agent(summary, "Yelisson Ortiz").path("firstResponseMinutes").isNull()).isTrue();
 	}
 
-	/** Decisión: quien fue retirado aparece solo si resolvió tickets en el periodo, para que la suma cuadre. */
+	/**
+	 * Decisión: quien ya no es personal activo aparece si resolvió tickets o dio una primera respuesta en el periodo,
+	 * con su estado, para que el trabajo hecho no desaparezca del informe.
+	 */
 	@Test
-	void aRemovedMemberAppearsOnlyWithResolutionsInThePeriod() throws Exception {
+	void aMemberWhoLeftAppearsOnlyWithResolutionsOrFirstResponsesInThePeriod() throws Exception {
 		UUID rita = this.data.staff(this.acme, "agent", "Rita Vega", "rita@acme.example", "removed");
 		this.data.staff(this.acme, "agent", "Sara Gil", "sara@acme.example", "removed");
 		UUID tomas = this.data.staff(this.acme, "agent", "Tomás Ibarra", "tomas@acme.example", "removed");
@@ -432,11 +435,19 @@ class ReportsApiTest extends ReportsFixture {
 		this.data.changeStatus(this.acme, byIrene, irene, "Irene Paz", "resolved", at("2026-10-02T13:00:00Z"));
 		UUID before = ticket("email", "2026-09-01T12:00:00Z");
 		this.data.changeStatus(this.acme, before, tomas, "Tomás Ibarra", "resolved", at("2026-09-02T12:00:00Z"));
+		// Retirada que solo dio una primera respuesta en el periodo (sin resolver nada): también aparece.
+		UUID nuria = this.data.staff(this.acme, "agent", "Nuria Bel", "nuria@acme.example", "removed");
+		UUID answered = ticket("email", "2026-10-01T12:00:00Z");
+		this.data.agentMessage(this.acme, answered, nuria, "public", at("2026-10-01T12:20:00Z"));
 
 		JsonNode summary = summary(LAURA, "7d");
 
 		assertThat(names(summary.path("byAgent"))).containsExactly("Irene Paz", "Rita Vega", "Daniel Santos",
-				"Laura Méndez", "Yelisson Ortiz");
+				"Laura Méndez", "Nuria Bel", "Yelisson Ortiz");
+		assertThat(statuses(summary.path("byAgent"))).containsExactly("invited", "removed", "active", "active",
+				"removed", "active");
+		assertThat(agent(summary, "Nuria Bel").path("resolved").asInt()).isZero();
+		assertThat(agent(summary, "Nuria Bel").path("firstResponseMinutes").asInt()).isEqualTo(20);
 		assertThat(agent(summary, "Rita Vega").path("resolved").asInt()).isEqualTo(1);
 		assertThat(agent(summary, "Rita Vega").path("openAssigned").asInt()).isZero();
 		assertThat(agent(summary, "Irene Paz").path("resolved").asInt()).isEqualTo(1);
@@ -583,6 +594,10 @@ class ReportsApiTest extends ReportsFixture {
 
 	private static List<String> names(JsonNode agents) {
 		return agents.valueStream().map((agent) -> agent.path("member").path("name").asString()).toList();
+	}
+
+	private static List<String> statuses(JsonNode agents) {
+		return agents.valueStream().map((agent) -> agent.path("status").asString()).toList();
 	}
 
 	private static List<String> shares(JsonNode channels) {
