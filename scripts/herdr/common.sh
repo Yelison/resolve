@@ -91,3 +91,49 @@ agent_in_pane() { herdr agent list | jq -c --arg p "$1" '.result.agents[]? | sel
 agent_named() { herdr agent list | jq -c --arg n "$1" '.result.agents[]? | select((.name // "") == $n)'; }
 agent_state() { herdr agent get "$1" | jq -r '.result.agent.agent_status // .result.agent_status // "unknown"'; }
 utc_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# Reasoning effort per task (docs/development/herdr.md, "Reasoning effort per task").
+# Levels a settings file accepts; `max` only exists as a launch flag or environment variable, so tasks do not use it.
+EFFORT_LEVELS="low medium high xhigh"
+# Models whose per-model entry is written, so the level holds whichever of them the session resolves to.
+EFFORT_MODELS="claude-opus-5-5 claude-fable-5-1"
+
+valid_effort() { case " $EFFORT_LEVELS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+effort_rank() { local i=0 l; for l in $EFFORT_LEVELS; do [ "$l" = "$1" ] && { echo "$i"; return; }; i=$((i + 1)); done; echo -1; }
+
+# Keeps .claude/settings.local.json out of every worktree through the shared .git/info/exclude.
+ensure_effort_excluded() {
+  local repo=$1 exclude
+  exclude=$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)/info/exclude
+  mkdir -p "$(dirname "$exclude")"
+  grep -Fqx '/.claude/settings.local.json' "$exclude" 2>/dev/null || {
+    printf '%s\n' '# scripts/herdr: per-task reasoning effort' '/.claude/settings.local.json' >>"$exclude"
+  }
+}
+
+# write_effort_settings WORKTREE LEVEL MAX: merges the effort keys into WORKTREE/.claude/settings.local.json.
+write_effort_settings() {
+  local worktree=$1 level=$2 max=$3 file tmp models
+  file="$worktree/.claude/settings.local.json"
+  mkdir -p "$worktree/.claude"
+  git -C "$worktree" check-ignore -q .claude/settings.local.json \
+    || die "$file would not be ignored by git; run ensure_effort_excluded first"
+  [ -f "$file" ] || printf '{}\n' >"$file"
+  models=$(printf '%s\n' $EFFORT_MODELS | jq -R . | jq -s .)
+  tmp=$(mktemp "$file.XXXXXX")
+  if jq --arg level "$level" --arg max "$max" --argjson models "$models" '
+      .modelSettings = ((.modelSettings // {}) as $m
+        | reduce $models[] as $k ($m; .[$k] = ((.[$k] // {}) + { effortLevel: $level, maxEffortLevel: $max })))
+    ' "$file" >"$tmp"; then
+    mv "$tmp" "$file"
+  else
+    rm -f "$tmp"
+    die "could not update $file"
+  fi
+}
+
+# Effort level the agent's session header reports ("… with medium effort"), or nothing.
+agent_effort() {
+  herdr agent read "$1" --source recent-unwrapped --lines 400 2>/dev/null \
+    | grep -oE '[A-Za-z0-9. ]+ with [a-z]+ effort' | tail -n 1
+}

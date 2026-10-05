@@ -65,7 +65,8 @@ main checkout keeps the defaults (5173, 4173, 8080 and the `POSTGRES_PORT` of it
 ## Create a task
 
 ```sh
-scripts/herdr/new-task.sh --id t0-1-tickets-follow-ups --branch fix/tickets-follow-ups --base main
+scripts/herdr/new-task.sh --id t0-1-tickets-follow-ups --branch fix/tickets-follow-ups --base main \
+  --effort medium --effort-reason "Prescribed pattern, three bounded changes, tests defined up front"
 ```
 
 The script refuses to continue if the branch, the path, the task id or the slot already exist, or if a port of the
@@ -116,6 +117,72 @@ herdr agent prompt t01-tickets "Read $HOME/resolver-herdr/tasks/t0-1-tickets-fol
 
 Pass flags to Claude Code after `--` in `herdr agent start` if you need them. Never pass a permission-bypass flag:
 the agent should ask, and the coordinator should answer.
+
+## Reasoning effort per task
+
+The coordinator chooses the reasoning effort of each agent **before** it hands the agent a task, and checks that it
+was applied. Maximum effort is not a default.
+
+**What Claude Code offers (2.1.289).** Fable 5.1 and Opus 5.5 accept `low`, `medium`, `high`, `xhigh` and `max`; a
+level a model does not support falls back to the closest one below. The level comes from, in this order: the
+`CLAUDE_CODE_EFFORT_LEVEL` variable, `--effort` at launch, `/effort` in the session, then `modelSettings` and
+`effortLevel` in settings files, where a project's `.claude/settings.local.json` outranks `~/.claude/settings.json`.
+Settings files accept `low` to `xhigh` (not `max`) and a `maxEffortLevel` cap.
+
+**Mechanism.** One per task: `.claude/settings.local.json` in the task worktree, with a `modelSettings` entry for
+`claude-opus-5-5` and `claude-fable-5-1` (so the level holds whichever model the session resolves to) carrying
+`effortLevel` and `maxEffortLevel`. `new-task.sh --effort <level> [--max-effort <level>] --effort-reason "…"`
+writes it, and `scripts/herdr` adds `/.claude/settings.local.json` to the shared `.git/info/exclude` so no
+worktree can commit it. It survives Herdr restarts, which the `--effort` flag does not (the automatic resume runs
+`claude --resume` without it), and it lets an agent be adjusted later, which the environment variable does not.
+The coordinator never changes the model: the agent runs the owner's default model, and the task records which one.
+
+**Never send `/effort <level>` to an agent.** In an interactive session it saves the level as the owner's default
+for that model in `~/.claude/settings.json`, which changes every other session, the coordinator's included.
+`/effort status` only reads it.
+
+**Verification.** `start-agent.sh` reads the session header (`Opus 5.5 with medium effort`) and records it in
+`task.json` under `effort.verified`; `status.sh` shows `level/max` and a ✓ once verified. If the header disagrees,
+the file is not being read: do not hand over the task until it does.
+
+**Initial policy.** Judge each task by the complexity of its decisions, the ambiguity of its requirements, the cost
+of a mistake, the fragility of the code it touches, its reach across modules and how hard its result is to check;
+not by the number of files or the expected duration.
+
+| Level | Typical task |
+| --- | --- |
+| `low` | Mechanical changes, copy, simple adjustments following a proven pattern |
+| `medium` (starting point) | Usual components, forms, simple endpoints, tests with clear requirements |
+| `high` | Cross-module changes, contracts, complex queries, migrations, diagnosing failures |
+| `xhigh` (the highest a task file can hold) | Especially hard concurrency, isolation, authorisation or architecture problems with real uncertainty |
+
+A sensitive task does not need the top level when a proven pattern, clear requirements and tests make it checkable.
+`max` is left out: settings files cannot hold it, and the documentation warns about diminishing returns.
+
+**Task record.** `task.json` keeps `effort.model`, `level`, `max`, `reason`, `risks`, `escalate_when`, `review`,
+`verified`, `history` and, at the end, `outcome`; the brief repeats the same card for the agent.
+
+**Raising it during a task.** Agents do not change their own level; when an escalation condition appears they stop
+at a safe point and report `ESCALADO <lane>: <reason>`. Before raising it, check whether what is missing is context,
+a blocked tool or an incomplete requirement: more effort does not replace that information. Then, with the agent
+idle:
+
+```sh
+scripts/herdr/set-effort.sh --id <id> --level high --reason "flaky race test without a clear cause" --restart
+```
+
+It refuses while the agent is `working` or `blocked`, rewrites the file, appends to `effort.history`, exits the
+agent and resumes the same conversation with `claude --continue`, then verifies the header again.
+
+**Independent review.** The reviewer picks its own level from the risk of the change: an implementation done at
+`medium` may need a `high` review when it touches permissions, data or shared contracts. A review run as a Claude
+Code session in the task worktree gets its level with `claude --effort <level>` (a one-off session, nothing saved).
+Subagents started from the coordinator inherit the coordinator's level; Claude Code has no per-call setting for
+them. Acceptance criteria and tests are the same at every level.
+
+**Follow-up.** Each delivery reports the level used, the result, any rework and the reason for any escalation; the
+coordinator copies it to `effort.outcome`. Token or cost figures are not recorded: neither Herdr nor Claude Code
+reports them per task.
 
 ## Follow progress
 
@@ -219,7 +286,7 @@ commits that are not pushed, and only deletes the branch when `git branch -d` ag
 
 | Situation | What to do |
 | --- | --- |
-| The agent exited or crashed | `scripts/herdr/start-agent.sh --id <id> --name <name>` starts a new one in the same pane; the worktree keeps every file and commit. Resume the previous conversation with `herdr agent start <name> --kind claude --pane <pane> -- --resume` if you want its context. |
+| The agent exited or crashed | `scripts/herdr/start-agent.sh --id <id> --name <name> --continue` starts it again in the same pane and resumes its last conversation; drop `--continue` for a fresh one. The worktree keeps every file and commit, and the effort file keeps the level. |
 | The Herdr server restarted | Workspaces come back from `session.json`; Claude Code panes are resumed automatically. Check with `scripts/herdr/status.sh`; if a pane id changed, update `tasks/<id>/task.json`. |
 | The workspace was closed but the worktree exists | `herdr worktree open --cwd ~/resolver --path ~/resolver-herdr/worktrees/<id> --no-focus`, then put the new ids in `task.json`. |
 | `task.json` is missing | Recreate it from `git worktree list`, `herdr worktree list` and `.env.herdr`; the scripts only need those fields. |
