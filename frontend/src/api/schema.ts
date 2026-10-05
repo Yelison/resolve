@@ -942,8 +942,8 @@ export interface components {
             byChannel: components["schemas"]["ReportChannel"][];
             /**
              * @description Every active admin and agent, plus the members who are no longer active (removed, or invited again)
-             *     and resolved tickets or gave a first response in the period, most resolved first (ties by name, then
-             *     id). `status` tells them apart.
+             *     and resolved tickets in the period or gave the first response to a ticket created in the period, most
+             *     resolved first (ties by name, then id). `status` tells them apart.
              */
             byAgent: components["schemas"]["ReportAgent"][];
         };
