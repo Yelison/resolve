@@ -136,9 +136,11 @@ class TicketService implements AssignedTicketReleaser {
 
 		Instant now = this.clock.instant();
 		this.updateHook.ifAvailable(TicketUpdateHook::afterVersionCheck);
+		TicketStatus reopenedFrom = null;
 		if (changes.status() != null) {
 			TicketStatus previous = ticket.changeStatus(changes.status(), now);
 			if (previous != null) {
+				reopenedFrom = previous;
 				this.activities.save(
 						TicketActivity.statusChanged(Ids.newId(), ticket, member, previous, changes.status(), now));
 			}
@@ -155,6 +157,16 @@ class TicketService implements AssignedTicketReleaser {
 			if (ticket.assign(newAssignee, now)) {
 				this.activities.save(TicketActivity.assigneeChanged(Ids.newId(), ticket, member, previous, newAssignee, now));
 			}
+		}
+		// Un ticket resuelto conserva a su responsable aunque lo hayan retirado; al reabrirlo ya no puede seguir
+		// asignado a alguien que no es personal activo. Un responsable nuevo válido del mismo PATCH ya lo sustituyó.
+		if (reopenedFrom == TicketStatus.RESOLVED && ticket.getAssignee() != null
+				&& this.memberships
+					.findAssignableStaffMemberShared(member.organizationId(), ticket.getAssignee().getId())
+					.isEmpty()) {
+			UserAccount previous = ticket.getAssignee();
+			ticket.assign(null, now);
+			this.activities.save(TicketActivity.assigneeChanged(Ids.newId(), ticket, member, previous, null, now));
 		}
 		// El flush dentro de la transacción hace visible la nueva versión en la respuesta y detecta carreras.
 		this.tickets.flush();
