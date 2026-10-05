@@ -47,18 +47,18 @@ class TicketDeadlockTest extends TicketsFixture {
 			// La víctima es quien comprueba el ciclo primero: la otra conexión espera mucho más que la aplicación.
 			other.run("set local deadlock_timeout = '30s'");
 			Throwable thrown = catchThrowable(() -> this.transaction.executeWithoutResult((status) -> {
-				// La aplicación toma el #2 y pide el #1 (que tiene la otra conexión). Cuando ya está esperando, la otra
-				// conexión pide el #2 y cierra el ciclo. Con deadlock_timeout más corto en la aplicación, es ella
-				// quien detecta el ciclo y la víctima que elige PostgreSQL.
+				// La aplicación toma el #2 y la otra conexión (que tiene el #1) lo pide y queda esperando. Solo cuando
+				// ya se la ve esperar, la aplicación pide el #1: el ciclo existe antes de que empiece su espera, así
+				// que la comprobación de deadlock_timeout (300 ms, frente a los 30 s de la otra) siempre lo
+				// encuentra, tarde lo que tarde la otra conexión, y la víctima es la aplicación.
 				this.jdbc.sql("set local deadlock_timeout = '300ms'").update();
 				this.tickets.lockInOrganization(this.acme, 2);
-				Future<?> closing = executor.submit(() -> {
-					awaitWaiter();
+				executor.submit(() -> {
 					other.alsoLock(LOCK_TICKET, this.acme, 2);
 					return null;
 				});
+				awaitWaiter();
 				this.tickets.lockInOrganization(this.acme, 1);
-				closing.cancel(true);
 			}));
 
 			assertThat(thrown).isInstanceOf(CannotAcquireLockException.class);
