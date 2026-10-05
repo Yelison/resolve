@@ -2,6 +2,13 @@ export { Alert, type AlertProps, type AlertTone } from './Alert/Alert'
 export { Attachment, type AttachmentProps, type AttachmentStatus } from './Attachment/Attachment'
 export { Avatar, type AvatarProps, type AvatarSize } from './Avatar/Avatar'
 export { Badge, type BadgeProps, type BadgeTone } from './Badge/Badge'
+export {
+  BarChart,
+  type BarChartColor,
+  type BarChartPoint,
+  type BarChartProps,
+  type BarChartSeries,
+} from './BarChart/BarChart'
 export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from './Breadcrumb/Breadcrumb'
 export { Button, IconButton, type ButtonProps, type IconButtonProps } from './Button/Button'
 export { buttonClassName, type ButtonVariant } from './Button/buttonClassName'
