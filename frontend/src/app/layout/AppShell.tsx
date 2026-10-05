@@ -34,6 +34,8 @@ export function AppShell() {
   const sessionFailed = !me.data && me.errorUpdateCount > 0
   const [sessionError, setSessionError] = useState<unknown>(null)
   if (me.error && me.error !== sessionError) setSessionError(me.error)
+  // Solo se anuncia el fallo de un reintento que pidió el usuario; los automáticos (p. ej. al volver la conexión) no.
+  const [requestedAt, setRequestedAt] = useState<number | null>(null)
   const workspaceName = me.data?.organization.name ?? 'Resolve'
   const userName = me.data?.user.name ?? '…'
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -88,8 +90,9 @@ export function AppShell() {
   }, [openSearch])
 
   const sidebarContent = {
-    items: navigationFor(me.data?.role),
-    sectionLabel: me.data?.role === 'customer' ? 'Soporte' : 'Gestión',
+    // Sin sesión no se conoce el rol: ofrecer las secciones del personal llevaría a un cliente a avisos que no puede abrir.
+    items: sessionFailed ? [] : navigationFor(me.data?.role),
+    sectionLabel: sessionFailed ? 'Sesión no disponible' : me.data?.role === 'customer' ? 'Soporte' : 'Gestión',
     workspace: workspaceName,
     user: { name: userName, role: me.data ? roleLabels[me.data.role] : '' },
   }
@@ -154,9 +157,13 @@ export function AppShell() {
           {sessionFailed ? (
             <SessionErrorPage
               error={sessionError}
-              onRetry={() => void me.refetch()}
-              retrying={me.isFetching}
-              retryFailed={!me.isFetching && me.errorUpdateCount > 1}
+              onRetry={() => {
+                setRequestedAt(me.errorUpdateCount)
+                void me.refetch()
+              }}
+              retrying={me.fetchStatus !== 'idle'}
+              waiting={me.fetchStatus === 'paused'}
+              retryFailed={me.fetchStatus === 'idle' && requestedAt !== null && me.errorUpdateCount > requestedAt}
             />
           ) : (
             <Outlet />

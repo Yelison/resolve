@@ -11,5 +11,8 @@ export function useMe() {
     queryKey: sessionKeys.me,
     queryFn: () => unwrap(api.GET('/me')),
     staleTime: Infinity,
+    // Sin datos la consulta siempre cuenta como obsoleta: sin esto, cada vez que la pestaña recupera el foco se
+    // reintentaría /me y la página de error volvería a anunciarse. Reintentar es una acción explícita del usuario.
+    refetchOnWindowFocus: false,
   })
 }

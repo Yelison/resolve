@@ -1,4 +1,5 @@
-import { screen, within } from '@testing-library/react'
+import { focusManager, onlineManager } from '@tanstack/react-query'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -139,5 +140,84 @@ describe('AppShell sin sesión', () => {
     expect(within(alert).getByRole('heading', { name: 'No pudimos cargar tu sesión' })).toBeInTheDocument()
     expect(within(alert).getByRole('button', { name: 'Reintentar' })).toHaveFocus()
     expect(calls).toBe(2)
+  })
+
+  describe('sin acciones del usuario', () => {
+    afterEach(() => {
+      focusManager.setFocused(undefined)
+      onlineManager.setOnline(true)
+    })
+
+    const meCalls = (fetchSpy: ReturnType<typeof mockApi>) =>
+      fetchSpy.mock.calls.filter(([input]) => new URL((input as Request).url).pathname === '/api/me').length
+
+    it('recuperar el foco de la ventana no reintenta /me ni anuncia el fallo', async () => {
+      const fetchSpy = mockApi({ 'GET /api/me': { status: 500, body: { status: 500, title: 'Error interno' } } })
+      renderShell()
+      await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })
+      expect(meCalls(fetchSpy)).toBe(1)
+
+      act(() => focusManager.setFocused(false))
+      act(() => focusManager.setFocused(true))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(meCalls(fetchSpy)).toBe(1)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('un reintento automático al volver la conexión no se anuncia como pedido por el usuario', async () => {
+      const fetchSpy = mockApi({ 'GET /api/me': { status: 500, body: { status: 500, title: 'Error interno' } } })
+      renderShell()
+      await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })
+
+      act(() => onlineManager.setOnline(false))
+      act(() => onlineManager.setOnline(true))
+      await waitFor(() => expect(meCalls(fetchSpy)).toBe(2))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('sin conexión', () => {
+    afterEach(() => onlineManager.setOnline(true))
+
+    it('«Reintentar» indica que espera la conexión, conserva el foco y reintenta al volver', async () => {
+      const fetchSpy = mockApi({ 'GET /api/me': { status: 500, body: { status: 500, title: 'Error interno' } } })
+      renderShell()
+      await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })
+      const meCalls = () =>
+        fetchSpy.mock.calls.filter(([input]) => new URL((input as Request).url).pathname === '/api/me').length
+
+      act(() => onlineManager.setOnline(false))
+      screen.getByRole('button', { name: 'Reintentar' }).focus()
+      await userEvent.keyboard('{Enter}')
+      const button = await screen.findByRole('button', { name: 'Esperando conexión…' })
+      expect(button).toHaveFocus()
+      expect(meCalls()).toBe(1)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+      act(() => onlineManager.setOnline(true))
+      const alert = await screen.findByRole('alert')
+      expect(within(alert).getByRole('button', { name: 'Reintentar' })).toHaveFocus()
+      expect(meCalls()).toBe(2)
+    })
+  })
+
+  it('mientras la sesión está en error el menú no ofrece las secciones del personal', async () => {
+    mockApi({ 'GET /api/me': { status: 500, body: { status: 500, title: 'Error interno' } } })
+    renderShell()
+    await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    expect(within(within(drawer).getByRole('navigation', { name: 'Principal' })).queryAllByRole('link')).toHaveLength(0)
+    expect(within(drawer).getByText('Espacio de trabajo')).toBeInTheDocument()
+  })
+
+  it('un 401 no sugiere reintentar en unos segundos y conserva el botón', async () => {
+    mockApi({ 'GET /api/me': { status: 401, body: { status: 401, title: 'No autenticado' } } })
+    renderShell()
+    await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })
+    expect(screen.getByText('No hay una sesión activa para esta organización.')).toBeInTheDocument()
+    expect(screen.queryByText(/unos segundos/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
   })
 })
