@@ -161,6 +161,49 @@ test.describe('clientes', () => {
     expect(box.width).toBeGreaterThan(profile.width + context.width - 80)
   })
 
+  for (const theme of ['light', 'dark']) {
+    test(`el contorno de foco del panel de pestañas se ve entero y la tabla sigue de borde a borde · ${theme}`, async ({
+      page,
+    }) => {
+      await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.goto('/clientes/c-maria')
+      const table = page.getByRole('table', { name: 'Tickets de María Pérez' })
+      await expect(table.getByRole('columnheader', { name: 'Responsable' })).toBeVisible()
+      await page.getByRole('tab', { name: 'Tickets' }).focus()
+      await page.keyboard.press('Tab')
+      const panel = page.getByRole('tabpanel')
+      await expect(panel).toBeFocused()
+      const measures = await panel.evaluate((node) => {
+        const style = getComputedStyle(node)
+        // Contenedor que recorta (overflow distinto de visible): el contorno debe quedar dentro de él.
+        let clip: HTMLElement | null = node.parentElement
+        while (clip && getComputedStyle(clip).overflow === 'visible') clip = clip.parentElement
+        const inner = node.getBoundingClientRect()
+        const outer = clip!.getBoundingClientRect()
+        const reach = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth)
+        return {
+          outlineWidth: parseFloat(style.outlineWidth),
+          // Cuánto sobresale el contorno por fuera de la caja del panel (≤ 0: nada).
+          outset: reach,
+          left: inner.left - outer.left,
+          right: outer.right - inner.right,
+          top: inner.top - outer.top,
+          bottom: outer.bottom - inner.bottom,
+        }
+      })
+      expect(measures.outlineWidth).toBeGreaterThan(0)
+      expect(measures.outset).toBeLessThanOrEqual(0)
+      // El panel no deja margen lateral (la tabla va de borde a borde), pero el contorno queda dentro de su caja.
+      expect(measures.left).toBeLessThanOrEqual(1)
+      expect(measures.right).toBeLessThanOrEqual(1)
+      const box = (await table.boundingBox())!
+      const panelBox = (await panel.boundingBox())!
+      expect(Math.abs(box.x - panelBox.x)).toBeLessThanOrEqual(1)
+      expect(Math.abs(box.x + box.width - (panelBox.x + panelBox.width))).toBeLessThanOrEqual(1)
+    })
+  }
+
   for (const width of [1200, 1218]) {
     test(`a ${width} px la tabla de tickets del detalle no está en tarjetas y conserva sus columnas`, async ({
       page,
