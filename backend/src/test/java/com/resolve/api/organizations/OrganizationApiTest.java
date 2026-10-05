@@ -1,10 +1,22 @@
 package com.resolve.api.organizations;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.resolve.api.support.ApiIntegrationTest;
+import com.resolve.api.support.OpenApiContract;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.MvcResult;
@@ -172,6 +184,31 @@ class OrganizationApiTest extends ApiIntegrationTest {
 		this.mvc.perform(patchOrganization(ADMIN, "\"0\"", "{\"firstResponseTargetMinutes\": 0}"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.errors[0].field").value("firstResponseTargetMinutes"));
+	}
+
+	@Test
+	@Timeout(40)
+	void simultaneousPatchesWithTheSameVersionYieldOne200AndTheRest412() throws Exception {
+		AtomicInteger counter = new AtomicInteger();
+		List<String> losers = new CopyOnWriteArrayList<>();
+		List<Integer> statuses = runConcurrently(8, () -> {
+			MvcResult result = this.mvc
+				.perform(patchOrganization(ADMIN, "\"0\"",
+						"{\"firstResponseTargetMinutes\": %d}".formatted(10 + counter.incrementAndGet())))
+				.andReturn();
+			OpenApiContract.assertMatches("updateOrganization", result);
+			if (result.getResponse().getStatus() == 412) {
+				losers.add(JSON.readTree(result.getResponse().getContentAsString()).path("detail").asString());
+			}
+			return result.getResponse().getStatus();
+		});
+		// Quien pierde la carrera lee la versión ya confirmada y recibe el 412 de la comprobación explícita. Sin el
+		// bloqueo de fila también sería un 412 (lo traduce el fallo del bloqueo optimista de JPA), pero con otro texto:
+		// por eso se comprueba el mensaje y no solo el estado.
+		assertThat(statuses).containsOnly(200, 412);
+		assertThat(losers).hasSize(7).allSatisfy((detail) -> assertThat(detail).startsWith("Los ajustes cambiaron"));
+		assertThat(statuses.stream().filter((status) -> status == 200).count()).isEqualTo(1);
+		this.mvc.perform(get("/organization").with(as(ADMIN))).andExpect(jsonPath("$.version").value(1));
 	}
 
 	// --- Validación ----------------------------------------------------------------------------------------------
@@ -358,6 +395,30 @@ class OrganizationApiTest extends ApiIntegrationTest {
 
 	private static MockHttpServletRequestBuilder patchOrganization(String user, String ifMatch, String body) {
 		return patch("/organization").with(as(user)).contentType(MERGE_PATCH).header("If-Match", ifMatch).content(body);
+	}
+
+	/** Lanza {@code attempts} llamadas a la vez (todas esperan la misma señal de salida) y devuelve sus estados. */
+	private static List<Integer> runConcurrently(int attempts, Callable<Integer> call) throws Exception {
+		ExecutorService executor = Executors.newFixedThreadPool(attempts);
+		try {
+			CountDownLatch start = new CountDownLatch(1);
+			List<Future<Integer>> results = new ArrayList<>();
+			for (int i = 0; i < attempts; i++) {
+				results.add(executor.submit(() -> {
+					start.await();
+					return call.call();
+				}));
+			}
+			start.countDown();
+			List<Integer> statuses = new ArrayList<>();
+			for (Future<Integer> result : results) {
+				statuses.add(result.get(30, TimeUnit.SECONDS));
+			}
+			return statuses;
+		}
+		finally {
+			executor.shutdownNow();
+		}
 	}
 
 	private void patchOk(String user, String ifMatch, String body) throws Exception {
