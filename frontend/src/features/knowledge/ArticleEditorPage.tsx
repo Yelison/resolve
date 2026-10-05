@@ -362,11 +362,7 @@ function ArticleForm({ article }: ArticleFormProps) {
           </div>
         </Alert>
       )}
-      {slugTaken && (
-        <Alert tone="red" title="Ya existe un artículo con ese título" live>
-          Cambia el título para que la dirección del artículo sea distinta.
-        </Alert>
-      )}
+      {slugTaken && <Alert tone="red" title="Otro artículo acaba de tomar esa dirección; vuelve a intentarlo" live />}
       {(update.error && !isApiError(update.error, 412) && !isApiError(update.error, 400)) ||
       (create.error && !slugTaken && !isApiError(create.error, 400)) ? (
         <Alert tone="red" title="No se pudo guardar el artículo" live>

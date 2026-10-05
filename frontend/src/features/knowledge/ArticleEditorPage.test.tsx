@@ -138,7 +138,9 @@ describe('ArticleEditorPage · nuevo', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Contenido' }), 'Texto')
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Categoría' }), 'Facturación')
     await userEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }))
-    expect(await screen.findByText('Ya existe un artículo con ese título')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Otro artículo acaba de tomar esa dirección; vuelve a intentarlo'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Repetido')
   })
 
