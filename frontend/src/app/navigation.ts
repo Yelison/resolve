@@ -6,7 +6,8 @@ export interface NavigationItem extends SidebarNavItem {
   roles: Role[]
 }
 
-const staff: Role[] = ['admin', 'agent']
+/** Roles del personal: acceden a todas las secciones. */
+export const staff: Role[] = ['admin', 'agent']
 
 /**
  * Secciones de la navegación principal, en el orden del diseño. Es la única fuente de qué roles ven cada sección:
@@ -18,7 +19,7 @@ export const mainNavigation: NavigationItem[] = [
   { to: '/clientes', label: 'Clientes', icon: 'clients', roles: staff },
   { to: '/equipo', label: 'Equipo', icon: 'team', roles: staff },
   { to: '/reportes', label: 'Reportes', icon: 'report', roles: staff },
-  // Solo personal por ahora; la Fase 5 la abrirá a los clientes cuando existan artículos públicos publicados.
+  // Solo personal por ahora; la Fase 5 la abrirá a los clientes cuando haya artículos publicados.
   { to: '/conocimiento', label: 'Conocimiento', icon: 'book', roles: staff },
   { to: '/configuracion', label: 'Configuración', icon: 'settings', roles: staff },
 ]

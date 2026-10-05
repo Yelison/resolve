@@ -1,7 +1,8 @@
+import type { Role } from '../api/schema'
 import { describe, expect, it } from 'vitest'
 import { mainNavigation, navigationFor } from './navigation'
 
-const paths = (role: Parameters<typeof navigationFor>[0]) => navigationFor(role).map((item) => item.to)
+const paths = (role: Role | undefined) => navigationFor(role).map((item) => item.to)
 
 describe('navegación principal', () => {
   it('los clientes solo ven Tickets', () => {
