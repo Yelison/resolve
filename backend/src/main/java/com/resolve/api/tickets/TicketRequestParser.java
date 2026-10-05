@@ -27,8 +27,6 @@ final class TicketRequestParser {
 
 	private static final Pattern TICKET_NUMBER = Pattern.compile("^#?(\\d{1,18})$");
 
-	private static final Pattern STRONG_ETAG = Pattern.compile("^\"(\\d{1,18})\"$");
-
 	private final List<FieldErrorDetail> errors = new ArrayList<>();
 
 	static TicketFilters filters(@Nullable String view, @Nullable List<String> statuses,
@@ -77,15 +75,6 @@ final class TicketRequestParser {
 			// Se informa abajo como error de validación.
 		}
 		throw new ApiValidationException("number", "Debe ser un número de ticket positivo.");
-	}
-
-	/** Versión de una cabecera If-Match: un único validador fuerte {@code "<n>"}. */
-	static long expectedVersion(String ifMatch) {
-		Matcher matcher = STRONG_ETAG.matcher(ifMatch.trim());
-		if (!matcher.matches()) {
-			throw new ApiValidationException("If-Match", "Envía la versión entre comillas, como en la cabecera ETag.");
-		}
-		return Long.parseLong(matcher.group(1));
 	}
 
 	record NewTicket(UUID customerId, String subject, String description, TicketPriority priority,

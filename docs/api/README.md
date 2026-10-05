@@ -57,8 +57,9 @@ There is no authentication provider yet. The security layer resolves the princip
 | 401 | No authenticated principal |
 | 403 | The role does not allow the action |
 | 404 | Resource not found in the caller's scope |
-| 412 | `If-Match` does not match the current ticket version |
-| 428 | `If-Match` is missing on a ticket update |
+| 409 | The action is not allowed in the resource's current state (archiving an archived customer, editing an archived customer). It is a business-rule conflict, not input validation (400) and not versioning (412) |
+| 412 | `If-Match` does not match the current version of the resource |
+| 428 | `If-Match` is missing on an update |
 
 ### References to other records
 

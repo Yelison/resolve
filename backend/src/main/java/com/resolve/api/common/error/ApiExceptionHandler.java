@@ -36,13 +36,19 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
 	@ExceptionHandler
 	ProblemDetail handlePreconditionFailed(PreconditionFailedException exception) {
-		return conflict(exception.getMessage());
+		return preconditionFailed(exception.getMessage());
+	}
+
+	/** Reglas de negocio que el estado actual del recurso no permite; no es un error de versión (412). */
+	@ExceptionHandler
+	ProblemDetail handleConflict(ConflictException exception) {
+		return problem(HttpStatus.CONFLICT, "Conflicto", exception.getMessage());
 	}
 
 	/** Dos escrituras simultáneas pasaron la comprobación de versión: la segunda pierde igual que con If-Match. */
 	@ExceptionHandler
 	ProblemDetail handleOptimisticLock(ObjectOptimisticLockingFailureException exception) {
-		return conflict("El ticket cambió mientras se guardaba. Vuelve a cargarlo e inténtalo de nuevo.");
+		return preconditionFailed("El recurso cambió mientras se guardaba. Vuelve a cargarlo e inténtalo de nuevo.");
 	}
 
 	@Override
@@ -62,7 +68,7 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		return problem;
 	}
 
-	private static ProblemDetail conflict(String detail) {
+	private static ProblemDetail preconditionFailed(String detail) {
 		return problem(HttpStatus.PRECONDITION_FAILED, "El recurso cambió", detail);
 	}
 

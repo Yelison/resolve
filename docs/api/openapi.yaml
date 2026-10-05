@@ -332,7 +332,7 @@ components:
 
   headers:
     ETag:
-      description: Current ticket version, quoted, for `If-Match`.
+      description: Current version of the resource, quoted, for `If-Match`.
       schema: { type: string, examples: ['"3"'] }
 
   responses:
@@ -357,12 +357,17 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     PreconditionFailed:
-      description: The ticket changed since the client read it.
+      description: The resource changed since the client read it.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     PreconditionRequired:
       description: The update did not send `If-Match`.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: The action is not allowed in the current state of the resource (for example archiving twice).
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

@@ -9,12 +9,12 @@ import java.util.function.Supplier;
 
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.PreconditionFailedException;
-import com.resolve.api.common.error.PreconditionRequiredException;
 import com.resolve.api.common.error.ResourceNotFoundException;
 import com.resolve.api.common.persistence.Ids;
 import com.resolve.api.common.security.CurrentMember;
 import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
+import com.resolve.api.common.web.Preconditions;
 import com.resolve.api.customers.Customer;
 import com.resolve.api.customers.CustomerRepository;
 import com.resolve.api.memberships.Membership;
@@ -119,10 +119,7 @@ class TicketService {
 		// La fila queda bloqueada hasta el commit: la versión que se comprueba es la última confirmada y nada puede
 		// cambiar updated_at entre esta lectura y el flush, así que el máximo calculado en memoria es el guardado.
 		Ticket ticket = find(member, number, true);
-		if (ifMatch == null || ifMatch.isBlank()) {
-			throw new PreconditionRequiredException("Envía If-Match con la versión del ticket que estás editando.");
-		}
-		long expectedVersion = TicketRequestParser.expectedVersion(ifMatch);
+		long expectedVersion = Preconditions.requireVersion(ifMatch, "ticket");
 		TicketChanges changes = body.get();
 		UserAccount newAssignee = (changes.assigneeChanged() && changes.assigneeId() != null)
 				? staffMember(member, changes.assigneeId()) : null;

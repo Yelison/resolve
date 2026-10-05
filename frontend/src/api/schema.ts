@@ -459,7 +459,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description The ticket changed since the client read it. */
+        /** @description The resource changed since the client read it. */
         PreconditionFailed: {
             headers: {
                 [name: string]: unknown;
@@ -477,6 +477,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description The action is not allowed in the current state of the resource (for example archiving twice). */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
     };
     parameters: {
         TicketNumber: number;
@@ -486,7 +495,7 @@ export interface components {
     };
     requestBodies: never;
     headers: {
-        /** @description Current ticket version, quoted, for `If-Match`. */
+        /** @description Current version of the resource, quoted, for `If-Match`. */
         ETag: string;
     };
     pathItems: never;
@@ -525,6 +534,7 @@ export type ResponseForbidden = components['responses']['Forbidden'];
 export type ResponseNotFound = components['responses']['NotFound'];
 export type ResponsePreconditionFailed = components['responses']['PreconditionFailed'];
 export type ResponsePreconditionRequired = components['responses']['PreconditionRequired'];
+export type ResponseConflict = components['responses']['Conflict'];
 export type ParameterTicketNumber = components['parameters']['TicketNumber'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterSize = components['parameters']['Size'];
