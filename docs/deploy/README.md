@@ -184,10 +184,16 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
   window cannot discover the issuer and stops. The pipeline checks the discovery document, not only the health, and the
   API deploy waits for it.
 
-**Passwords of the demo users.** They are *demonstration* accounts with fictitious addresses, so the default password
-`demo` is **public on purpose**: it is the same one the development realm uses and it is written in this repository, and
-a password that a visitor must ask for would defeat the purpose of a public demo. The data behind them is reset every night. If the owner prefers another value, set
-`RESOLVE_DEMO_USER_PASSWORD` as a Fly secret **before the deployment that should use it** (the `release_command` substitutes it when it imports the realm, so a change takes effect with the next deployment of the identity provider, and it is not read at any other time). The image has no administrator at all (see below), so there is no administrator password anywhere.
+**Password of the demo users.** The password of the development realm (`demo`) is for local use and **never reaches a
+deployment**. The public demo uses its own, `RESOLVE_DEMO_USER_PASSWORD`, which **the owner chooses** and sets as a Fly secret
+on `resolve-demo-idp` **before the first deployment of the identity provider**. It is **public on purpose**: the accounts have
+fictitious addresses, their data is reset every night and a password that a visitor must ask for would defeat the purpose of
+a public demo, so the [README](../../README.md#live-demo) publishes it once the deployment exists. The `release_command`
+substitutes it when it imports the realm, so a change takes effect with the next deployment of the identity provider, and
+it is not read at any other time. **Known gap:** the realm file still writes `${RESOLVE_DEMO_USER_PASSWORD:demo}` and the
+entrypoint does not require the variable, so forgetting the secret would silently deploy the public `demo` instead of
+failing (listed in the README roadmap). The image has no administrator at all (see below), so there is no administrator
+password anywhere.
 
 **No administration surface.** The image is built with `KC_FEATURES_DISABLED=admin,admin-api,client-admin-api,account,account-api`
 (names checked with `kc.sh build --help` in 26.7.5): no administration console, no administration REST API, no account
@@ -211,7 +217,7 @@ lists the endpoint); the sign-in, the theme and the OIDC flow against the API (`
   was refused 2 of 2); a sustained attack of about 30 failures a minute leaves the visitor in 26 of 26 attempts; after 32
   consecutive failures the right one is refused, and it works again 65 s later. Only a sustained attack of more than 30
   failures in a row can keep a user out, for up to a minute at a time; that is the price of
-  having any brake with a public password. If the owner sets a private `RESOLVE_DEMO_USER_PASSWORD`, the lock protects
+  having any brake with a public password. If the owner ever makes `RESOLVE_DEMO_USER_PASSWORD` private, the lock protects
   something real: tighten the realm: `failureFactor` (five), `quickLoginCheckMilliSeconds` (for example 1000, together with its
   `minimumQuickLoginWaitSeconds` of 60 s: with the check at 0 that wait never applies) and `maxFailureWaitSeconds` (15
   minutes).
@@ -297,7 +303,7 @@ without cancellation, so a deployment is never cut in half.
 | Neon | a database for Keycloak | database | A **second database** in the same project (for example `resolve_idp`) and its own role. Not the demo database: the reset empties that one |
 | Fly (`fly secrets set -a resolve-demo-idp`) | `KC_DB_URL`, `KC_DB_USERNAME`, `KC_DB_PASSWORD` | secrets | The Keycloak database: `jdbc:postgresql://<direct-endpoint>/<database>?sslmode=require`, and its role |
 | Fly (`-a resolve-demo-idp`) | `RESOLVE_OIDC_CLIENT_SECRET` | secret | A long random value, **the same** as the API's secret of the same name. Read by the realm import, which runs on **every** deployment of the identity provider (the `release_command`); the entrypoint also requires it on every start |
-| Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret, optional | Password of the four demo users instead of the public `demo`. Takes effect with the next deployment of the identity provider (the realm import) |
+| Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret | **Set it before the first deployment.** The password of the four demo users, chosen by the owner and public on purpose (the README «Live demo» shows it). The development password `demo` is not meant for a deployment. Takes effect with the next deployment of the identity provider (the realm import) |
 | Fly (`-a resolve-demo`) | `RESOLVE_OIDC_ISSUER` | secret | **`https://resolve-demo-idp.fly.dev/realms/resolve`** (the existing row lists it with the other `RESOLVE_OIDC_*`) |
 | GitHub environment `demo` | `FLY_API_TOKEN_IDP` | secret | `fly tokens create deploy -a resolve-demo-idp` (a token per app) |
 | GitHub environment `demo` | `IDP_URL` | variable | `https://resolve-demo-idp.fly.dev` (no trailing slash) |
