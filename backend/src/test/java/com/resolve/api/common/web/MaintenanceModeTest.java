@@ -159,6 +159,19 @@ class MaintenanceModeTest extends ApiIntegrationTest {
 	}
 
 	@Test
+	void readinessGoesBackToUpAfterTheMarkIsRemovedWithoutAnyRequestToTheApi() throws Exception {
+		markFor("60 seconds");
+		this.mvc.perform(get(API + "/actuator/health/readiness")).andExpect(status().isServiceUnavailable());
+		this.jdbc.sql("DELETE FROM resolve_ops.maintenance").update();
+		this.clock.advance(Duration.ofSeconds(6));
+
+		// Solo se consulta la readiness (como hace el smoke del reinicio): relee la marca porque aún cree que hay mantenimiento.
+		this.mvc.perform(get(API + "/actuator/health/readiness"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value("UP"));
+	}
+
+	@Test
 	void aFailedReadKeepsTheLastMarkSoACutConnectionDoesNotReopenTheApiMidClean() throws Exception {
 		markFor("60 seconds");
 		this.jdbc.sql("DROP SCHEMA resolve_ops CASCADE").update();
