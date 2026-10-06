@@ -203,11 +203,14 @@ lists the endpoint); the sign-in, the theme and the OIDC flow against the API (`
 - **Brute-force detection** is on in `resolve`, tuned as a **brake, not a lock**. The demo passwords are public, so a
   lock protects no account and only lets anybody deny the demo to everyone: Keycloak locks by user, not by address, and the
   users are listed in this repository. With the usual values (five failures, a minute of wait, a quick-login check of one
-  second) two anonymous requests a minute were enough to leave a user out. The realm uses `failureFactor` 30, a
-  quick-login check of 100 ms with a 5 s wait, and waits of 30 s growing to 60 s at most, never permanent. Measured
-  against the sign-in form: two wrong passwords in a row, and eight in a minute, do **not** stop the right password
-  (it signs in); after 32 consecutive failures the right one is refused, and it works again 65 s later. A sustained
-  attack of more than 30 failures can therefore still keep a user out for up to a minute at a time; that is the price of
+  second) two anonymous requests a minute were enough to leave a user out. The realm uses `failureFactor` 30, **no
+  quick-login check** (`quickLoginCheckMilliSeconds: 0`: with 100 ms, two automated failures 35–40 ms apart locked the user
+  for 5 s, and one pair every four seconds, about 30 failures a minute, left the visitor in only 12 of 26 attempts, as measured in the review), and
+  waits of 30 s growing to 60 s at most, never permanent. Measured against the sign-in form: two failures in a row, in
+  parallel or one after the other (33–41 ms apart), do **not** stop the right password (it signs in; with the 100 ms value it
+  was refused 2 of 2); a sustained attack of about 30 failures a minute leaves the visitor in 26 of 26 attempts; after 32
+  consecutive failures the right one is refused, and it works again 65 s later. Only a sustained attack of more than 30
+  failures in a row can keep a user out, for up to a minute at a time; that is the price of
   having any brake with a public password. If the owner sets a private `RESOLVE_DEMO_USER_PASSWORD`, the lock protects
   something real: tighten `failureFactor` (five), the quick-login wait (60 s) and the maximum wait (15 minutes) in the realm.
 - **No password grant anywhere.** `admin-cli`, which Keycloak creates in every realm with direct access grants, is declared

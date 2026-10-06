@@ -20,7 +20,7 @@
   "maxFailureWaitSeconds": 60,
   "waitIncrementSeconds": 30,
   "minimumQuickLoginWaitSeconds": 5,
-  "quickLoginCheckMilliSeconds": 100,
+  "quickLoginCheckMilliSeconds": 0,
   "maxDeltaTimeSeconds": 43200,
   "permanentLockout": false,
   "clients": [
