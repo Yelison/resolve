@@ -37,12 +37,13 @@ test.describe('tickets', () => {
     expect(infoBox!.y).toBeGreaterThan(conversationBox!.y)
   })
 
-  test('el atajo de búsqueda enfoca el buscador de la bandeja', async ({ page }) => {
+  test('el atajo de búsqueda abre la búsqueda global sin salir del ticket', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/tickets/1048')
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await page.keyboard.press('Control+k')
-    await expect(page.getByRole('searchbox', { name: 'Buscar tickets' })).toBeFocused()
+    await expect(page.getByRole('combobox', { name: 'Buscar en Resolve' })).toBeFocused()
+    await expect(page).toHaveURL(/\/tickets\/1048$/)
   })
 
   test('el formulario de nuevo ticket valida antes de enviar', async ({ page }) => {

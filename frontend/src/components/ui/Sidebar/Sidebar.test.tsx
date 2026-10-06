@@ -50,7 +50,7 @@ describe('Sidebar', () => {
 })
 
 describe('Topbar', () => {
-  it('en móvil muestra el botón de menú y omite la búsqueda', () => {
+  it('en móvil muestra el botón de menú y el de búsqueda con icono', () => {
     render(
       <MemoryRouter>
         <Topbar
@@ -62,7 +62,7 @@ describe('Topbar', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('button', { name: 'Abrir menú' })).toHaveAttribute('aria-controls', 'drawer')
-    expect(screen.queryByRole('button', { name: /Buscar/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Buscar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeInTheDocument()
   })
 })

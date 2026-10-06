@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Outlet, useLocation, useMatches, useNavigate } from 'react-router'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Outlet, useLocation, useMatches } from 'react-router'
 import { Breadcrumb, Sidebar, Topbar } from '../../components/ui'
 import type { SidebarProfile } from '../../components/ui/Sidebar/Sidebar'
 import { useModalDialog } from '../../components/ui/shared/useModalDialog'
 import { useDemoMaintenance } from '../../lib/demoMaintenance'
 import { isDemoMaintenance } from '../../lib/mutationError'
 import { useMediaQuery } from '../../lib/useMediaQuery'
+import { GlobalSearch } from '../../features/search/GlobalSearch'
+import { useSearchShortcuts } from '../../features/search/useSearchShortcuts'
 import { AccountMenu, AccountMenuPlaceholder } from '../../features/session/AccountMenu'
 import { useMe } from '../../features/session/queries'
 import { SessionGate } from '../../features/session/SessionGate'
@@ -83,7 +85,6 @@ function AppFrame() {
 
   // Tras navegar, el foco pasa al contenido para que el teclado y los lectores de pantalla empiecen por la página nueva.
   const location = useLocation()
-  const navigate = useNavigate()
   const { pathname } = location
   // Cualquier navegación cierra el drawer, también las que no salen de un enlace del menú: cambiar de organización
   // desde el perfil lleva al resumen y deja ver la pantalla nueva.
@@ -97,27 +98,28 @@ function AppFrame() {
   useEffect(() => {
     if (previousPath.current === pathname) return
     previousPath.current = pathname
-    // Si la navegación pidió enfocar la búsqueda, la página ya movió el foco a su buscador.
-    if ((location.state as { focusSearch?: number } | null)?.focusSearch) return
     mainRef.current?.focus({ preventScroll: true })
-  }, [pathname, location.state])
+  }, [pathname])
 
-  // La búsqueda vive en la bandeja: el atajo lleva allí (conservando sus filtros) y enfoca el buscador.
-  const openSearch = useCallback(() => {
-    const search = location.pathname === '/tickets' ? location.search : ''
-    void navigate({ pathname: '/tickets', search }, { state: { focusSearch: Date.now() } })
-  }, [navigate, location.pathname, location.search])
-
+  // La búsqueda global se abre con el botón de la barra superior y con los atajos. Al cerrarla el foco vuelve a ese botón
+  // si no quedó en otro sitio con sentido (el diálogo lo devuelve a donde estaba, y desde el cuerpo de la página
+  // eso sería `body`). Si se cierra para navegar, el foco lo recibe el contenido de la página nueva.
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchRef = useRef<HTMLButtonElement>(null)
+  const searchWasOpen = useRef(false)
+  const openSearch = () => {
+    setDrawerOpen(false)
+    setSearchOpen(true)
+  }
+  useSearchShortcuts(searchOpen, openSearch)
   useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey) && !event.repeat) {
-        event.preventDefault()
-        openSearch()
-      }
+    if (searchOpen) searchWasOpen.current = true
+    else if (searchWasOpen.current) {
+      searchWasOpen.current = false
+      const active = document.activeElement
+      if (!active || active === document.body) searchRef.current?.focus()
     }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [openSearch])
+  }, [searchOpen])
 
   const sidebarContent = {
     // Sin sesión no se conoce el rol: ofrecer las secciones del personal llevaría a un cliente a avisos que no puede abrir.
@@ -170,6 +172,7 @@ function AppFrame() {
           theme={theme.resolved}
           onToggleTheme={theme.toggle}
           onSearch={openSearch}
+          searchRef={searchRef}
           breadcrumb={
             <Breadcrumb
               items={[
@@ -185,6 +188,7 @@ function AppFrame() {
         {(maintenance || resetting) && (
           <DemoMaintenanceNotice onRetry={() => void me.refetch()} retrying={me.isFetching} />
         )}
+        <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
         <main ref={mainRef} id="contenido" className={styles.content} tabIndex={-1}>
           {resetting ? null : sessionFailed ? (
             <SessionErrorPage

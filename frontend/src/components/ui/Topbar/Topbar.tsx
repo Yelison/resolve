@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 import { Link } from 'react-router'
 import { cx } from '../../../lib/cx'
 import { IconButton } from '../Button/Button'
@@ -21,8 +21,10 @@ export interface TopbarProps {
   theme: 'light' | 'dark'
   /** Se llama al pulsar el botón de tema. */
   onToggleTheme: () => void
-  /** Se llama al pulsar el botón de búsqueda; no se muestra en la barra móvil. */
+  /** Se llama al pulsar el botón de búsqueda; en la barra móvil es un botón de icono. */
   onSearch: () => void
+  /** Registra el botón de búsqueda (el de texto y, en la barra móvil, el de icono): a él vuelve el foco al cerrar la búsqueda. */
+  searchRef?: Ref<HTMLButtonElement>
   /** Presente en la barra móvil: abre el menú lateral y muestra la marca. */
   menuButton?: TopbarMenuButton
   /** Clase adicional del encabezado. */
@@ -32,7 +34,7 @@ export interface TopbarProps {
 /** El atajo se muestra con la tecla de cada sistema; el manejador acepta Ctrl y ⌘ en ambos. */
 const shortcutLabel = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K'
 
-export function Topbar({ breadcrumb, theme, onToggleTheme, onSearch, menuButton, className }: TopbarProps) {
+export function Topbar({ breadcrumb, theme, onToggleTheme, onSearch, searchRef, menuButton, className }: TopbarProps) {
   const compact = Boolean(menuButton)
 
   return (
@@ -56,8 +58,24 @@ export function Topbar({ breadcrumb, theme, onToggleTheme, onSearch, menuButton,
         )}
       </div>
       <div className={styles.actions}>
-        {!compact && (
-          <button type="button" className={styles.search} onClick={onSearch} aria-keyshortcuts="Control+K Meta+K">
+        {compact ? (
+          <IconButton
+            ref={searchRef}
+            icon="search"
+            label="Buscar"
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Control+K Meta+K"
+            onClick={onSearch}
+          />
+        ) : (
+          <button
+            ref={searchRef}
+            type="button"
+            className={styles.search}
+            onClick={onSearch}
+            aria-haspopup="dialog"
+            aria-keyshortcuts="Control+K Meta+K"
+          >
             <Icon name="search" />
             Buscar…<kbd className={styles.shortcut}>{shortcutLabel}</kbd>
           </button>

@@ -1,5 +1,5 @@
 import { focusManager, onlineManager, type QueryClient } from '@tanstack/react-query'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useQuery } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router'
@@ -10,6 +10,7 @@ import { setDemoMaintenance } from '../../lib/demoMaintenance'
 import { queryClient } from '../../lib/queryClient'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
+import { summary } from '../../test/ticketFixtures'
 import { AppShell } from './AppShell'
 
 /** Una vista con su propia consulta, para ver qué le pasa durante el reinicio de la demostración. */
@@ -87,12 +88,77 @@ describe('AppShell en móvil', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cerrar menú' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+})
 
-  it('el atajo de búsqueda lleva a la bandeja de tickets', async () => {
+describe('AppShell · búsqueda global', () => {
+  beforeEach(() => {
+    mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/tickets': { body: { items: [], page: 0, size: 5, totalItems: 0, totalPages: 0 } },
+      'GET /api/customers': { body: { items: [], page: 0, size: 5, totalItems: 0, totalPages: 0 } },
+      'GET /api/knowledge/articles': { body: { items: [], page: 0, size: 5, totalItems: 0, totalPages: 0 } },
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('el botón de la barra abre la búsqueda sin salir de la página y Escape devuelve el foco al botón', async () => {
     const router = renderShell('/clientes')
+    const button = screen.getByRole('button', { name: 'Buscar' })
+    await userEvent.click(button)
+    const dialog = screen.getByRole('dialog', { name: 'Buscar' })
+    expect(within(dialog).getByRole('combobox', { name: 'Buscar en Resolve' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/clientes')
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    expect(screen.queryByRole('dialog', { name: 'Buscar' })).not.toBeInTheDocument()
+    expect(button).toHaveFocus()
+  })
+
+  it('Ctrl+K abre la búsqueda y, al cerrarla desde el cuerpo de la página, el foco no se pierde en body', async () => {
+    const router = renderShell('/clientes')
+    ;(document.activeElement as HTMLElement | null)?.blur()
     await userEvent.keyboard('{Control>}k{/Control}')
-    expect(router.state.location.pathname).toBe('/tickets')
-    expect(router.state.location.state).toEqual({ focusSearch: expect.any(Number) })
+    const dialog = screen.getByRole('dialog', { name: 'Buscar' })
+    expect(router.state.location.pathname).toBe('/clientes')
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    expect(document.body).not.toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Buscar' })).toHaveFocus()
+  })
+
+  it('la barra / abre la búsqueda cuando el foco no está en un campo', async () => {
+    renderShell('/clientes')
+    await userEvent.keyboard('/')
+    expect(screen.getByRole('dialog', { name: 'Buscar' })).toBeInTheDocument()
+  })
+
+  it('al elegir un resultado cierra la búsqueda y el foco pasa al contenido de la página nueva', async () => {
+    mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/tickets': {
+        body: { items: [summary()], page: 0, size: 5, totalItems: 1, totalPages: 1 },
+      },
+      'GET /api/customers': { body: { items: [], page: 0, size: 5, totalItems: 0, totalPages: 0 } },
+      'GET /api/knowledge/articles': { body: { items: [], page: 0, size: 5, totalItems: 0, totalPages: 0 } },
+    })
+    const router = renderShell('/clientes')
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
+    await userEvent.type(screen.getByRole('combobox', { name: 'Buscar en Resolve' }), 'cuenta')
+    await userEvent.click(await screen.findByRole('option', { name: 'Ver todos los resultados de tickets' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/tickets'))
+    expect(router.state.location.search).toBe('?q=cuenta')
+    expect(screen.queryByRole('dialog', { name: 'Buscar' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('main')).toHaveFocus())
+  })
+
+  it('con el drawer abierto, Ctrl+K lo cierra y abre la búsqueda', async () => {
+    renderShell('/clientes')
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    expect(screen.getByRole('dialog', { name: 'Menú principal' })).toBeInTheDocument()
+    await userEvent.keyboard('{Control>}k{/Control}')
+    expect(screen.queryByRole('dialog', { name: 'Menú principal' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Buscar' })).toBeInTheDocument()
   })
 })
 

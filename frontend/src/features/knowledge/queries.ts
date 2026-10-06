@@ -21,25 +21,29 @@ export const articleKeys = {
   categories: () => [...articleKeys.all, 'categories'] as const,
 }
 
+/** Pide una página de artículos; la comparten el listado y la búsqueda global. */
+export function fetchArticleList(params: ArticleListParams, signal?: AbortSignal) {
+  return unwrap(
+    api.GET('/knowledge/articles', {
+      params: {
+        query: {
+          q: params.q?.trim() || undefined,
+          category: params.category || undefined,
+          status: params.status,
+          page: toApiPage(params.page),
+          size: params.pageSize,
+          sort: params.sort,
+        },
+      },
+      signal,
+    }),
+  )
+}
+
 export function useArticleList(params: ArticleListParams) {
   return useQuery({
     queryKey: articleKeys.list(params),
-    queryFn: ({ signal }) =>
-      unwrap(
-        api.GET('/knowledge/articles', {
-          params: {
-            query: {
-              q: params.q?.trim() || undefined,
-              category: params.category || undefined,
-              status: params.status,
-              page: toApiPage(params.page),
-              size: params.pageSize,
-              sort: params.sort,
-            },
-          },
-          signal,
-        }),
-      ),
+    queryFn: ({ signal }) => fetchArticleList(params, signal),
     // Mantiene la página anterior mientras llega la siguiente, sin parpadeos al filtrar o paginar.
     placeholderData: keepPreviousData,
   })
