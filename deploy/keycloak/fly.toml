@@ -18,9 +18,16 @@ primary_region = "iad"
   KC_HOSTNAME = "https://resolve-demo-idp.fly.dev"
   # Neon admite pocas conexiones en el plan gratuito y Keycloak abre hasta 100 por defecto.
   KC_DB_POOL_MAX_SIZE = "10"
-  # Se sustituyen en el realm solo cuando se importa (primer arranque): el origen de la aplicación (redirectUris y
+  # Se sustituyen en el realm cuando se importa (la release_command de [deploy], en cada despliegue): el origen de la aplicación (redirectUris y
   # post.logout.redirect.uris) y, opcionalmente, la contraseña común de los usuarios de demostración (por defecto «demo»).
   RESOLVE_PUBLIC_URL = "https://resolve-demo.fly.dev"
+
+# Cada despliegue aplica el realm del repositorio: Fly ejecuta esta orden en una máquina temporal, con la imagen nueva, el
+# entorno de [env] y los secretos de la app, y pasa los argumentos por el ENTRYPOINT de la imagen (entrypoint.sh, con su
+# guarda de variables) hacia `kc.sh`. `--override true` borra el realm si existe y lo importa de nuevo (sesiones y
+# contadores de bloqueo se reinician). Sin consola ni API de administración, nada más lo cambia.
+[deploy]
+  release_command = "import --optimized --file /opt/keycloak/data/import/resolve-realm.json --override true"
 
 [http_service]
   internal_port = 8080
