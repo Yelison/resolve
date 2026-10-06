@@ -23,7 +23,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RequiredProdConfigurationTest {
 
 	private static final List<String> ALL = List.of("DATABASE_URL", "DATABASE_USERNAME", "DATABASE_PASSWORD",
-			"RESOLVE_OIDC_ISSUER", "RESOLVE_OIDC_CLIENT_ID", "RESOLVE_OIDC_CLIENT_SECRET", "RESOLVE_PUBLIC_URL");
+			"RESOLVE_OIDC_ISSUER", "RESOLVE_OIDC_CLIENT_ID", "RESOLVE_OIDC_CLIENT_SECRET", "RESOLVE_PUBLIC_URL",
+			"RESOLVE_DEMO_ENABLED");
 
 	static Stream<String> variables() {
 		return ALL.stream();
@@ -65,6 +66,7 @@ class RequiredProdConfigurationTest {
 		environment.setProperty("spring.datasource.url", "jdbc:postgresql://db/resolve");
 		environment.setProperty("spring.datasource.username", "u");
 		environment.setProperty("spring.datasource.password", "p");
+		environment.setProperty("resolve.demo.enabled", "false");
 
 		assertThatCode(() -> RequiredProdConfiguration.check(environment)).doesNotThrowAnyException();
 	}
@@ -77,7 +79,7 @@ class RequiredProdConfigurationTest {
 
 		assertThatThrownBy(() -> application.run("--DATABASE_URL=", "--DATABASE_USERNAME=", "--DATABASE_PASSWORD=",
 				"--RESOLVE_OIDC_ISSUER=", "--RESOLVE_OIDC_CLIENT_ID=", "--RESOLVE_OIDC_CLIENT_SECRET=",
-				"--RESOLVE_PUBLIC_URL=", "--spring.main.banner-mode=off"))
+				"--RESOLVE_PUBLIC_URL=", "--RESOLVE_DEMO_ENABLED=", "--spring.main.banner-mode=off"))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("DATABASE_URL")
 			.hasMessageContaining("RESOLVE_OIDC_CLIENT_SECRET");
@@ -104,6 +106,7 @@ class RequiredProdConfigurationTest {
 			case "RESOLVE_OIDC_CLIENT_ID" -> "spring.security.oauth2.client.registration.resolve.client-id";
 			case "RESOLVE_OIDC_CLIENT_SECRET" -> "spring.security.oauth2.client.registration.resolve.client-secret";
 			case "RESOLVE_PUBLIC_URL" -> "resolve.public-url";
+			case "RESOLVE_DEMO_ENABLED" -> "resolve.demo.enabled";
 			default -> throw new IllegalArgumentException(variable);
 		};
 	}

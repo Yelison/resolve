@@ -34,7 +34,8 @@ class ProfileConfigurationTest {
 		RESOLVE_OIDC_ISSUER("https://idp.invalid/realms/resolve"),
 		RESOLVE_OIDC_CLIENT_ID("resolve-api"),
 		RESOLVE_OIDC_CLIENT_SECRET("secreto-ficticio"),
-		RESOLVE_PUBLIC_URL("https://resolve.invalid");
+		RESOLVE_PUBLIC_URL("https://resolve.invalid"),
+		RESOLVE_DEMO_ENABLED("true");
 
 		private final String dummy;
 
@@ -47,7 +48,7 @@ class ProfileConfigurationTest {
 	private static final List<String> RESOLVED_KEYS = List.of("spring.datasource.url", "spring.datasource.username",
 			"spring.datasource.password", "spring.security.oauth2.client.provider.resolve.issuer-uri",
 			"spring.security.oauth2.client.registration.resolve.client-id",
-			"spring.security.oauth2.client.registration.resolve.client-secret", "resolve.public-url");
+			"spring.security.oauth2.client.registration.resolve.client-secret", "resolve.public-url", "resolve.demo.enabled");
 
 	@Test
 	void prodWithEveryVariableResolvesThemAll() {
@@ -63,6 +64,22 @@ class ProfileConfigurationTest {
 		assertThat(environment.getProperty("spring.security.oauth2.client.registration.resolve.client-secret"))
 			.isEqualTo(Required.RESOLVE_OIDC_CLIENT_SECRET.dummy);
 		assertThat(environment.getProperty("resolve.public-url")).isEqualTo(Required.RESOLVE_PUBLIC_URL.dummy);
+		assertThat(environment.getProperty("resolve.demo.enabled")).isEqualTo(Required.RESOLVE_DEMO_ENABLED.dummy);
+	}
+
+	@Test
+	void prodNeverLetsTheApplicationRunFlywayClean() {
+		ConfigurableEnvironment environment = environment(allVariables(), "prod", "oidc");
+
+		assertThat(environment.getProperty("spring.flyway.clean-disabled")).isEqualTo("true");
+	}
+
+	@Test
+	void theDemoFlagsDefaultToOffOutsideProdAndTheLimitsToOffEverywhere() {
+		ConfigurableEnvironment dev = environment(new LinkedHashMap<>(), "dev");
+		assertThat(dev.getProperty("resolve.demo.enabled")).isEqualTo("false");
+		assertThat(dev.getProperty("resolve.demo.limits")).isEqualTo("false");
+		assertThat(environment(allVariables(), "prod", "oidc").getProperty("resolve.demo.limits")).isEqualTo("false");
 	}
 
 	@ParameterizedTest
