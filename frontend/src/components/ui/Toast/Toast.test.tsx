@@ -86,6 +86,27 @@ describe('ToastProvider', () => {
     expect(screen.queryByText('No se pudo guardar')).not.toBeInTheDocument()
   })
 
+  it('una acción con espera no se activa hasta pasado el retraso y sigue enfocable', async () => {
+    const onSelect = vi.fn()
+    const user = renderWithToast({
+      title: 'No se pudo guardar',
+      action: { label: 'Reintentar', onSelect, delay: 1000 },
+    })
+    await user.click(screen.getByRole('button', { name: 'Mostrar' }))
+    const action = screen.getByRole('button', { name: 'Reintentar' })
+    expect(action).toHaveAttribute('aria-disabled', 'true')
+    await user.click(action)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(screen.getByText('No se pudo guardar')).toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(action).not.toHaveAttribute('aria-disabled')
+    await user.click(action)
+    expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
   it('exige el proveedor', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => render(<Trigger title="Hola" />)).toThrow('useToast debe usarse dentro de <ToastProvider>')

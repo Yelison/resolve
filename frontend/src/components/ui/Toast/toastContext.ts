@@ -9,6 +9,8 @@ export interface ToastAction {
   ariaLabel?: string
   /** Se ejecuta al pulsarlo; el aviso se cierra. */
   onSelect: () => void
+  /** Milisegundos desde que aparece el aviso durante los que el botón no se activa (`aria-disabled`, sigue enfocable). */
+  delay?: number
 }
 
 export interface ToastOptions {

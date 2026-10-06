@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { inOrder, lockTimeoutRoute, type SentRequest } from '../../lib/lockTimeoutTesting'
+import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { metrics, page, summary, ticket } from '../../test/ticketFixtures'
@@ -374,7 +374,14 @@ describe('TicketsPage con un 503 de bloqueo en una acción de fila', () => {
     expect(
       within(region).getByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
     ).toBeInTheDocument()
-    await user.click(within(region).getByRole('button', { name: 'Reintentar actualizar el ticket #1048' }))
+    const retry = within(region).getByRole('button', { name: 'Reintentar actualizar el ticket #1048' })
+    // Antes de pasar Retry-After la acción no se activa y el aviso sigue ahí.
+    expect(retry).toHaveAttribute('aria-disabled', 'true')
+    await user.click(retry)
+    expect(seen).toHaveLength(1)
+    await retryAfterLockTimeout(user, 'Reintentar actualizar el ticket #1048')
+    // El foco vuelve al menú de la fila, no a `body`.
+    expect(screen.getByRole('button', { name: 'Acciones del ticket #1048' })).toHaveFocus()
 
     expect(await within(region).findByText('Ticket #1048 resuelto')).toBeInTheDocument()
     expect(seen).toHaveLength(2)
@@ -396,7 +403,7 @@ describe('TicketsPage con un 503 de bloqueo en una acción de fila', () => {
     renderInbox()
     await resolveFromMenu(user)
     const region = screen.getByRole('region', { name: 'Notificaciones' })
-    await user.click(await within(region).findByRole('button', { name: 'Reintentar actualizar el ticket #1048' }))
+    await retryAfterLockTimeout(user, 'Reintentar actualizar el ticket #1048')
 
     expect(
       await within(region).findByText('Otra persona lo cambió a la vez. Revisa los cambios e inténtalo de nuevo.'),
