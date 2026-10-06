@@ -70,6 +70,26 @@ accepts the API ports 8080-8089 and Vite's 5173 and 4173 as login redirect targe
 preview (4181-4189) ports of the slots, with 5173 and 4173, as return URLs after signing out
 (`post.logout.redirect.uris`), so no slot needs anything else.
 
+### Authentication e2e in a slot
+
+`npm run test:auth` (see [Authentication](../../README.md#authentication)) serves the app from the jar, not from Vite, so
+it needs the slot's own API on `SERVER_PORT` with `RESOLVE_PUBLIC_URL` pointing at it (`.env.herdr` points it at Vite):
+
+```sh
+set -a; . ./.env.herdr; set +a
+docker compose -p "$COMPOSE_PROJECT_NAME" up -d --wait postgres keycloak
+(cd frontend && npm run build) && mkdir -p backend/target/classes/static && cp -r frontend/dist/. backend/target/classes/static/
+(cd backend && ./mvnw -B -DskipTests package)
+RESOLVE_PUBLIC_URL="http://localhost:$SERVER_PORT" SPRING_PROFILES_ACTIVE=dev,oidc java -jar backend/target/*.jar &
+echo $! # stop it by that PID, never with pkill
+(cd frontend && npm run test:auth -- --workers=1)
+docker compose -p "$COMPOSE_PROJECT_NAME" down -v
+```
+
+The tests read `SERVER_PORT` and `KEYCLOAK_PORT` from the environment, so loading `.env.herdr` is enough. The jar needs
+`RESOLVE_PUBLIC_URL` on the API's port because the browser returns to it after signing in and out; the realm already
+lists the API ports 8080-8089 as redirect targets and the same ports as return URLs.
+
 ## Machine load limit
 
 `new-task.sh` and `start-agent.sh` (and so `new-review.sh`) refuse to start while the 1-minute load average
