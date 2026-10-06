@@ -1,7 +1,9 @@
+import { QueryClient } from '@tanstack/react-query'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, SESSION_CHANGED_DETAIL } from '../../api/client'
+import { shouldRetry } from '../../lib/queryClient'
 import { adminMe, mockApi } from '../../test/api'
 import { sessionKeys } from './queries'
 import { SESSION_TAB_ID } from './sessionChannel'
@@ -24,17 +26,20 @@ const unauthorized = { status: 401, body: { status: 401, title: 'No autenticado'
  * `server.hold` (si es una promesa, la siguiente lectura de `/me` espera a ella; la respuesta ya está decidida) y las
  * escrituras que llegaron (`PATCH /me`).
  */
-async function openShell(path = '/tickets/1046', lazyHome?: Promise<void>) {
+async function openShell(path = '/tickets/1046', lazyHome?: Promise<void>, queryClient?: QueryClient) {
   const server: {
     me: ReturnType<typeof inOrganization> | null
     reads: number
     writes: number
     hold: Promise<void> | null
     patchStatus: number
-  } = { me: inOrganization(acme), reads: 0, writes: 0, hold: null, patchStatus: 200 }
+    timeout: boolean
+  } = { me: inOrganization(acme), reads: 0, writes: 0, hold: null, patchStatus: 200, timeout: false }
   mockApi({
     'GET /api/me': async () => {
       server.reads += 1
+      // `/me` que no responde: `fetchMe` aborta a los `ME_TIMEOUT_MS` con un `TimeoutError`.
+      if (server.timeout) throw new DOMException('Tiempo agotado', 'TimeoutError')
       const answer = server.me ? { body: server.me } : unauthorized
       const hold = server.hold
       server.hold = null
@@ -49,7 +54,7 @@ async function openShell(path = '/tickets/1046', lazyHome?: Promise<void>) {
     },
   })
   sessionStorage.setItem('resolve-draft-1046', 'Respuesta a medias')
-  const shell = renderShell(path, lazyHome)
+  const shell = renderShell(path, lazyHome, queryClient)
   await screen.findByRole('button', { name: /^Cuenta/ })
   shell.queryClient.setQueryData(['tickets', 'detail', 1046], { subject: 'Ticket de la sesión anterior' })
   const reads = server.reads
@@ -169,6 +174,24 @@ describe('mensajes durante una comprobación', () => {
     await waitFor(() => expect(readsSinceOpen()).toBe(2))
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(readsSinceOpen()).toBe(2)
+  })
+})
+
+describe('/me que no responde (L-2)', () => {
+  it('la comprobación hace una sola lectura (sin los reintentos de las consultas) y la escritura no espera de más', async () => {
+    // La política real de reintentos de las consultas: dos más ante un `TimeoutError` (aquí sin esperas entre ellos).
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: shouldRetry, retryDelay: 0, gcTime: Infinity }, mutations: { retry: false } },
+    })
+    const { server, readsSinceOpen } = await openShell('/tickets/1046', undefined, client)
+    server.timeout = true
+    act(() => void window.dispatchEvent(new Event('focus')))
+    const write = api.PATCH('/me', { body: { name: 'Yelisson' } })
+
+    expect((await write).response.status).toBe(200) // sale en cuanto la comprobación termina
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(readsSinceOpen()).toBe(1)
+    expect(server.writes).toBe(1)
   })
 })
 

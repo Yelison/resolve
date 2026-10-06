@@ -1,4 +1,5 @@
 import { createMemoryRouter, RouterProvider } from 'react-router'
+import type { QueryClient } from '@tanstack/react-query'
 import { act } from '@testing-library/react'
 import { vi } from 'vitest'
 import { AppShell } from '../../app/layout/AppShell'
@@ -10,6 +11,8 @@ export function renderShell(
   path = '/tickets/1046',
   /** Si se da, la ruta `/` es perezosa y no se carga hasta que se resuelve esta promesa (el router espera antes de desmontar la pantalla anterior). */
   lazyHome?: Promise<void>,
+  /** El cliente de consultas, si el test necesita la política de reintentos real y no la de los tests (`retry: false`). */
+  queryClient?: QueryClient,
 ) {
   const router = createMemoryRouter(
     [
@@ -35,7 +38,7 @@ export function renderShell(
     ],
     { initialEntries: [path] },
   )
-  return { router, ...renderWithProviders(<RouterProvider router={router} />) }
+  return { router, ...renderWithProviders(<RouterProvider router={router} />, queryClient) }
 }
 
 /** Define la cookie de CSRF como lo haría el navegador tras el primer GET con sesión OIDC (`null` la borra). */
