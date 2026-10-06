@@ -1,12 +1,12 @@
 package com.resolve.api.common.web;
 
 import java.util.List;
-import java.util.Set;
 
 import com.resolve.api.support.ApiIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.autoconfigure.web.WebProperties;
 import org.springframework.boot.web.server.autoconfigure.ServerProperties;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -19,15 +19,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ApiPrefixTest extends ApiIntegrationTest {
 
-	/** Controladores del propio Spring Boot que no son de la API. */
-	private static final Set<String> FRAMEWORK = Set.of("/error");
-
 	@Autowired
 	@Qualifier("requestMappingHandlerMapping")
 	private RequestMappingHandlerMapping mappings;
 
 	@Autowired
 	private ServerProperties server;
+
+	@Autowired
+	private WebProperties web;
 
 	@Test
 	void everyControllerRouteHangsFromTheApiPrefix() {
@@ -36,12 +36,18 @@ class ApiPrefixTest extends ApiIntegrationTest {
 			.stream()
 			.map(RequestMappingInfo::getPathPatternsCondition)
 			.flatMap((condition) -> condition.getPatternValues().stream())
-			.filter((pattern) -> !FRAMEWORK.contains(pattern))
 			.filter((pattern) -> !pattern.startsWith(API + "/"))
 			.toList();
 
 		assertThat(outside).isEmpty();
 		assertThat(this.mappings.getHandlerMethods()).hasSizeGreaterThan(30);
+	}
+
+	@Test
+	void theErrorPageTheContainerForwardsToIsTheOneUnderTheApi() {
+		// El controlador de errores y la página de error del contenedor leen la misma propiedad: si divergieran, las
+		// redirecciones de error irían a una ruta de la aplicación web.
+		assertThat(this.web.getError().getPath()).isEqualTo(API + "/error");
 	}
 
 	@Test

@@ -195,6 +195,15 @@ abstract class SpaServingTest {
 	}
 
 	@Test
+	void theErrorPathIsARouteOfTheWebAppAndTheErrorControllerLivesUnderTheApi() throws Exception {
+		// El BasicErrorController de Spring Boot no es de la API ni de la aplicación web: bajo /api queda cerrado.
+		this.mvc.perform(get("/error")).andExpect(status().isOk()).andExpect(content().string(INDEX));
+		this.mvc.perform(get("/api/error"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("application/problem+json")));
+	}
+
+	@Test
 	void theHealthEndpointIsPublicUnderTheApiPrefix() throws Exception {
 		this.mvc.perform(get("/api/actuator/health"))
 			.andExpect(status().isOk())
