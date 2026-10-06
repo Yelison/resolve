@@ -129,6 +129,36 @@ describe('CSRF', () => {
     return { sent, at }
   }
 
+  it('la petición que llega a fetch conserva su cuerpo legible y sus cabeceras, sin clones colgando', async () => {
+    setCookie('token-1')
+    const network = stubFetch()
+    await api.PATCH('/me', { body: { name: 'Laura' } })
+    const sent = network.at(0)
+    expect(sent.method).toBe('PATCH')
+    expect(sent.headers.get('Content-Type')).toMatch(/json/)
+    expect(sent.headers.get('X-XSRF-TOKEN')).toBe('token-1')
+    await expect(sent.json()).resolves.toEqual({ name: 'Laura' })
+  })
+
+  it('una escritura sin cuerpo sale sin cuerpo', async () => {
+    const network = stubFetch()
+    await api.POST('/logout')
+    expect(network.at(0).body).toBeNull()
+  })
+
+  it('el reintento lleva el mismo cuerpo que el primer envío, leído del mismo buffer', async () => {
+    const network = stubFetch(csrfRejection(), new Response('{}', { status: 200 }), new Response('{}', { status: 200 }))
+    const respond = globalThis.fetch
+    vi.stubGlobal('fetch', (input: Request | URL) => {
+      if (urlOf(input).endsWith('/api/me')) setCookie('token-nuevo')
+      return respond(input)
+    })
+    await api.POST('/session/organization', { body: organization })
+    await expect(network.at(0).json()).resolves.toEqual(organization)
+    await expect(network.at(2).json()).resolves.toEqual(organization)
+    expect(network.at(2).headers.get('Content-Type')).toBe(network.at(0).headers.get('Content-Type'))
+  })
+
   it('lee el token de la cookie XSRF-TOKEN', () => {
     expect(readCsrfToken()).toBeNull()
     setCookie('a%2Bb')
