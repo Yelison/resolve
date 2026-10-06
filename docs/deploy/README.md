@@ -173,7 +173,7 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
   machine, from the new image and **through its entrypoint** (so the same variables and the same guard), before the
   machine is replaced. `--override true` removes the realm if it exists and imports the file again, so a change merged
   in `resolve-realm.prod.json`, a new `RESOLVE_PUBLIC_URL` or a new client secret take effect with the next deployment, and
-  the pipeline cannot be green while the realm is stale. Tested locally by simulating the command with `docker run`:
+  a green IdP deployment means the realm of that commit was applied (`idp-changes` compares with the last successful run, below). Tested locally by simulating the command with `docker run`:
   «Realm 'resolve' already exists. Removing it before import» then «Realm 'resolve' imported», the changed setting applied
   and, with another `RESOLVE_OIDC_CLIENT_SECRET`, the API with the old secret refused (`/entrar?error=oidc`) and with the
   new one signed in. The cost is that sessions end and the failure counters reset on each IdP deployment (which only
@@ -248,15 +248,17 @@ repository.
 Three more jobs do the same for the identity provider, with the same `DEPLOY_ENABLED` control (each job carries
 it), the `demo` environment and `packages: write` only on the image job:
 
-3. **`idp-changes`** compares the commit with its parent and is true when `deploy/keycloak/**` changed, or on a manual
-   run (**Run workflow** on `main`; from another branch every job is skipped). The comparison can miss a change, and the
-   consequence is silent: (a) a push of several commits where only an earlier one touched `deploy/keycloak`; (b) a run
-   that touched it and is **pending** in the `demo-deploy-and-reset` group, replaced by a later one that did not (GitHub
-   keeps one pending run per group, and the nightly reset shares it). In both cases the identity provider stays on the
-   previous image and the pipeline is green: after a change under `deploy/keycloak/**`, check that `idp-deploy` ran, and if
-   it did not, use the manual run. (Tagging the image with `git rev-parse HEAD:deploy/keycloak` and deploying whenever the
-   tag running on Fly differs would close the gap; it needs the Fly token in the detection job and could not be tested without
-   an account, so it is left as a follow-up.)
+3. **`idp-changes`** compares the commit with the one of the **last successful run** of `deploy.yml` on `main` (`gh run
+   list … --status success`, with `actions: read`) and is true when `deploy/keycloak/**` differs, when there is no previous
+   successful run, when that commit is no longer in the history, or on a manual run (**Run workflow** on `main`; from
+   another branch every job is skipped). Comparing with the last success and not with the parent covers a push of several
+   commits (a rebase merge) where only an earlier one touched `deploy/keycloak`, and a run that touched it and was left
+   **pending** in the `demo-deploy-and-reset` group, replaced by a later one: the next run that ends well sees the
+   difference. A run that fails (for example `idp-deploy`) is not a success, so the change is still pending for the next
+   one. Tested by running the script against a repository with a stubbed `gh`: rebase of three commits whose last one only
+   touches docs → `changed=true`; last success already containing the change → `false`; no previous run, unknown commit
+   or manual run → `true`. Whether the run's `headSha` of a `workflow_run`-triggered run is the commit CI tested or the tip
+   of `main` is **to verify**; both are commits of `main`, so the comparison holds either way.
 4. **`idp-image`** builds `deploy/keycloak/Dockerfile` and pushes `ghcr.io/<owner>/<repo>-idp` tagged with the SHA and
    `latest`.
 5. **`idp-deploy`** runs `flyctl deploy --config deploy/keycloak/fly.toml --image <image>:<sha>` and then requires the

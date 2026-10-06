@@ -29,37 +29,42 @@ concurrency:
 jobs:
   idp-changes:
     name: Did the identity provider change?
-    # El mismo control que el resto. `workflow_run` no admite filtro de rutas: se compara el commit probado con su padre
-    # (un push a main es un squash o una fusión, y el padre es main antes de él). Se pierde el cambio si un push de varios
-    # commits lo tocó en uno anterior, o si la ejecución que lo traía quedó pendiente en el grupo de concurrencia y la
-    # sustituyó otra posterior que no lo toca: entonces el IdP se queda en la imagen anterior y el flujo sale en verde. La
-    # salida es la ejecución manual (docs/deploy/README.md).
+    # El mismo control que el resto. `workflow_run` no admite filtro de rutas: se compara con el commit de la última ejecución
+    # CON ÉXITO de este flujo en main (no con el padre del commit probado). Así no se pierde el cambio si un push de varios
+    # commits lo tocó en uno anterior (fusión por rebase) ni si la ejecución que lo traía quedó pendiente en el grupo de
+    # concurrencia y la sustituyó otra: la siguiente que termine bien lo ve. Sin ejecución previa, se despliega.
     if: vars.DEPLOY_ENABLED == 'true' && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
+      actions: read
     outputs:
       changed: ${{ steps.diff.outputs.changed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
-      - name: Compare deploy/keycloak with the previous commit
+      - name: Compare deploy/keycloak with the last successful run of this workflow
         id: diff
         run: |
           if [ "${EVENT}" = "workflow_dispatch" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"; echo "manual run"; exit 0
           fi
-          if git diff --quiet HEAD^ HEAD -- deploy/keycloak; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "deploy/keycloak is unchanged"
+          previous="$(gh run list --workflow deploy.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')"
+          if [ -z "${previous}" ] || ! git cat-file -e "${previous}^{commit}" 2>/dev/null; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"; echo "no previous successful run (or its commit is gone): deploying"; exit 0
+          fi
+          if git diff --quiet "${previous}" HEAD -- deploy/keycloak; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "deploy/keycloak is unchanged since ${previous}"
           else
-            echo "changed=true" >> "$GITHUB_OUTPUT"; git diff --stat HEAD^ HEAD -- deploy/keycloak
+            echo "changed=true" >> "$GITHUB_OUTPUT"; git diff --stat "${previous}" HEAD -- deploy/keycloak
           fi
         env:
           EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
 
   idp-image:
     name: Build and publish the identity provider image
