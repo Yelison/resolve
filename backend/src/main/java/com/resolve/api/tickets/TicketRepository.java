@@ -76,13 +76,22 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 			""")
 	List<Ticket> lockOpenAssignedTo(UUID organizationId, UUID assigneeId);
 
-	/** Reserva el siguiente número de la organización; la fila queda bloqueada hasta el final de la transacción. */
+	/**
+	 * Reserva el siguiente número de la organización; la fila queda bloqueada hasta el final de la transacción. El
+	 * {@code UPDATE} espera la fila si otra transacción la retiene (otra alta, o un ajuste de la organización) y se
+	 * acota con {@link #limitLockWait}.
+	 */
+	default long allocateNumber(UUID organizationId) {
+		limitLockWait(LockTimeouts.MILLIS);
+		return incrementNumber(organizationId);
+	}
+
 	@Query(value = """
 			UPDATE organizations SET next_ticket_number = next_ticket_number + 1
 			WHERE id = :organizationId
 			RETURNING next_ticket_number - 1
 			""", nativeQuery = true)
-	long allocateNumber(UUID organizationId);
+	long incrementNumber(UUID organizationId);
 
 	/**
 	 * Registra actividad pública sin cambiar la versión: una respuesta no invalida un cambio de estado paralelo.

@@ -11,6 +11,7 @@ import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.ConflictException;
 import com.resolve.api.common.error.ResourceNotFoundException;
 import com.resolve.api.common.persistence.Ids;
+import com.resolve.api.common.persistence.LockTimeouts;
 import com.resolve.api.common.security.CurrentMember;
 import com.resolve.api.customers.CustomerRepository;
 import com.resolve.api.memberships.MemberDtos.TeamMemberDto;
@@ -219,13 +220,11 @@ class MemberService {
 	/**
 	 * Exclusión mutua por organización hasta el commit ({@code pg_advisory_xact_lock}): el cambio de rol, la
 	 * retirada y la invitación se evalúan uno a uno. No se usa la fila de la organización porque cada ticket nuevo
-	 * la actualiza al reservar su número.
+	 * la actualiza al reservar su número. Fija {@code lock_timeout} para el resto de la transacción: vencida la
+	 * espera responde 503, y la invitación que reactiva una membresía retenida también.
 	 */
 	private void lockTeam(UUID organizationId) {
-		this.jdbc.sql("SELECT count(*) FROM (SELECT pg_advisory_xact_lock(hashtextextended(?, 0))) AS locked")
-			.param("team:" + organizationId)
-			.query(Long.class)
-			.single();
+		LockTimeouts.lockAdvisory(this.jdbc, "team:" + organizationId);
 	}
 
 	private Membership findTeamMember(UUID organizationId, UUID userId) {
