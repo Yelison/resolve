@@ -144,6 +144,27 @@ class TicketLockTimeoutTest extends TicketsFixture {
 			.content("{\"body\": \"Hola\", \"visibility\": \"public\"}")).andExpect(status().isCreated());
 	}
 
+	@Test
+	void creatingATicketWhileTheOrganizationRowIsHeldIsA503AndTheCounterDoesNotSkip() throws Exception {
+		try (RowLock lock = RowLock.hold(this.dataSource, "select id from organizations where id = ? for no key update",
+				this.acme)) {
+			ResultActions blocked = assertTimeoutPreemptively(LIMIT, () -> this.mvc
+				.perform(post(API + "/tickets").with(as(LAURA))
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("""
+							{"customerId": "%s", "subject": "Ticket", "description": "Detalle", "priority": "urgent",
+							"assigneeId": null}
+							""".formatted(this.mariaCustomer))));
+			expectLockTimeout(blocked, "createTicket");
+		}
+
+		// Nada se creó y el número no se consumió: el primer ticket sigue siendo el 1.
+		this.mvc.perform(get(API + "/tickets/1").with(as(LAURA))).andExpect(status().isNotFound());
+		org.assertj.core.api.Assertions.assertThat(createTicket(LAURA, this.mariaCustomer, "Ticket", "urgent", null)
+			.path("number")
+			.asLong()).isEqualTo(1);
+	}
+
 	private RowLock holdMembership(UUID userId) throws Exception {
 		return RowLock.hold(this.dataSource,
 				"select id from memberships where organization_id = ? and user_id = ? for no key update", this.acme,

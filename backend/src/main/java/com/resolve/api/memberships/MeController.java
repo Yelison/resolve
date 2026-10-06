@@ -3,10 +3,12 @@ package com.resolve.api.memberships;
 import java.util.List;
 import java.util.UUID;
 
+import com.resolve.api.common.persistence.LockTimeouts;
 import com.resolve.api.common.security.CurrentMember;
 import com.resolve.api.organizations.Organization;
 import com.resolve.api.organizations.OrganizationRepository;
 import org.jspecify.annotations.Nullable;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,10 +26,14 @@ class MeController {
 
 	private final MemberPrincipals principals;
 
-	MeController(OrganizationRepository organizations, UserAccountRepository users, MemberPrincipals principals) {
+	private final JdbcClient jdbc;
+
+	MeController(OrganizationRepository organizations, UserAccountRepository users, MemberPrincipals principals,
+			JdbcClient jdbc) {
 		this.organizations = organizations;
 		this.users = users;
 		this.principals = principals;
+		this.jdbc = jdbc;
 	}
 
 	@GetMapping("/me")
@@ -49,6 +55,7 @@ class MeController {
 		String name = MemberRequestParser.profileName(body);
 		UserAccount user = this.users.findById(member.userId()).orElseThrow();
 		user.rename(name);
+		LockTimeouts.limitWait(this.jdbc);
 		this.users.flush();
 		Organization organization = this.organizations.getReferenceById(member.organizationId());
 		return new MeResponse(MemberDto.from(user), organizationDto(organization),

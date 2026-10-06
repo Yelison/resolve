@@ -7,9 +7,11 @@ import java.util.UUID;
 
 import com.resolve.api.common.error.ConflictException;
 import com.resolve.api.common.persistence.Ids;
+import com.resolve.api.common.persistence.LockTimeouts;
 import com.resolve.api.common.security.CurrentMember;
 import com.resolve.api.memberships.MemberDtos.TeamMemberDto;
 import com.resolve.api.organizations.OrganizationRepository;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,8 +31,11 @@ public class PortalInvitations {
 
 	private final Clock clock;
 
+	private final JdbcClient jdbc;
+
 	PortalInvitations(MembershipRepository memberships, OrganizationRepository organizations, UserDirectory directory,
-			Clock clock) {
+			Clock clock, JdbcClient jdbc) {
+		this.jdbc = jdbc;
 		this.memberships = memberships;
 		this.organizations = organizations;
 		this.directory = directory;
@@ -66,6 +71,8 @@ public class PortalInvitations {
 		else {
 			membership.reinvite(Role.CUSTOMER, now);
 		}
+		// El UPDATE de una membresía retirada espera la fila si otra transacción la retiene: se acota.
+		LockTimeouts.limitWait(this.jdbc);
 		this.memberships.flush();
 		return TeamMemberDto.from(membership, 0);
 	}
