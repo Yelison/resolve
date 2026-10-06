@@ -20,6 +20,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -119,6 +120,30 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Todo lo que resuelve {@link ResponseEntityExceptionHandler} pasa por aquí. Un 5xx se registra con la URI que el
+	 * cliente ve en el {@code instance} (Spring solo escribe algo si la respuesta ya estaba comprometida) y, junto con el
+	 * 405, sale con el título y el detalle en español de {@link ErrorProblems} en lugar de los de Spring («Method Not
+	 * Allowed», «Failed to write request»). La cabecera {@code Allow} del 405 se conserva. Los 400 no se tocan: sus
+	 * {@code detail} los fija el contrato.
+	 */
+	@Override
+	protected @Nullable ResponseEntity<Object> handleExceptionInternal(Exception exception, @Nullable Object body,
+			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		ResponseEntity<Object> response = super.handleExceptionInternal(exception, body, headers, status, request);
+		boolean serverError = status.is5xxServerError();
+		if (response != null && response.getBody() instanceof ProblemDetail problem
+				&& (serverError || status.value() == HttpStatus.METHOD_NOT_ALLOWED.value())) {
+			problem.setTitle(ErrorProblems.title(status));
+			problem.setDetail(ErrorProblems.detail(status));
+		}
+		if (serverError) {
+			String uri = (request instanceof ServletWebRequest servlet) ? servlet.getRequest().getRequestURI() : "?";
+			log.error("Request failed with status {} on {}", status.value(), uri, exception);
+		}
+		return response;
 	}
 
 	/**

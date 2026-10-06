@@ -95,19 +95,18 @@ class ProfileConfigurationTest {
 	}
 
 	@Test
-	void prodNeverLetsAVariableLowerTheCookieOrShowStacktraces() {
+	void prodKeepsTheCookieSecureAgainstResolvesOwnVariableAndShowsNoStacktraces() {
 		Map<String, Object> variables = allVariables();
 		variables.put("RESOLVE_SESSION_COOKIE_SECURE", "false");
-		variables.put("SPRING_WEB_ERROR_INCLUDE_STACKTRACE", "always");
 
 		ConfigurableEnvironment environment = environment(variables, "prod", "oidc");
 
+		// Ninguna variable de Resolve la baja. La de Spring, SERVER_SERVLET_SESSION_COOKIE_SECURE, sí (el entorno pesa más
+		// que los archivos): no debe definirse en prod (docs/deploy/README.md).
 		assertThat(environment.getProperty("server.servlet.session.cookie.secure")).isEqualTo("true");
-		// Las variables de entorno se mapean a propiedades de forma relajada; aquí no hay entorno de sistema, así que se
-		// comprueba el valor del perfil. La propiedad antigua (server.error...) ya no la lee Spring Boot 4.1.
-		assertThat(environment(allVariables(), "prod", "oidc").getProperty("spring.web.error.include-stacktrace"))
-			.isEqualTo("never");
-		assertThat(environment(allVariables(), "prod", "oidc").getProperty("server.error.include-stacktrace")).isNull();
+		// La propiedad antigua (server.error...) ya no la lee Spring Boot 4.1.
+		assertThat(environment.getProperty("spring.web.error.include-stacktrace")).isEqualTo("never");
+		assertThat(environment.getProperty("server.error.include-stacktrace")).isNull();
 	}
 
 	@Test

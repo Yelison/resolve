@@ -53,7 +53,9 @@ nobody has a membership until the invitation flow or a seed creates one. A publi
 must set them and must not let a client override them.
 
 - **Cookies.** The session cookie (`JSESSIONID`, `HttpOnly`, `SameSite=Lax`, path `/api`) and `XSRF-TOKEN` (readable by
-  JavaScript, `SameSite=Lax`, path `/`) are always `Secure` in `prod`; there is no variable that lowers it. Browsers
+  JavaScript, `SameSite=Lax`, path `/`) are `Secure` in `prod`, and no Resolve variable lowers it. Spring's own
+  `SERVER_SERVLET_SESSION_COOKIE_SECURE=false` does (the environment outweighs the profile file), so never define it
+  in `prod`. Browsers
   accept `Secure` cookies on `http://localhost`, which is what makes the local test below work.
 - **`XSRF-TOKEN` only under `/api`.** The files under `/assets` are served with `Cache-Control: public,
   max-age=31536000, immutable`; a `Set-Cookie` on them would let a shared cache give everyone the same token. No
@@ -84,6 +86,9 @@ redirects to the identity provider would otherwise be blocked (a link or `locati
 - **Errors.** Everything under `/api` answers errors as `application/problem+json`, also what Spring redirects to
   `/api/error` (a route without a handler, a rejected URL, an exception in a filter), whatever `Accept` says. The body
   never carries the original message or a stack trace (`spring.web.error.include-stacktrace=never`).
+  The exception: a URL Tomcat rejects while parsing it (invalid percent-encoding such as `/api/%zz`, an encoded slash
+  such as `/api/a%2fb`) never reaches Spring and gets Tomcat's minimal `400` page, not Problem Details. Changing
+  Tomcat's error valve would not make up for these cases.
 - <a id="logs"></a>**Logs.** JSON in Elastic Common Schema on standard output. The application writes no request bodies
   and no email addresses at `INFO`. A 5xx is logged with the URI the client sees as the problem's `instance`, which is
   the way to find it.

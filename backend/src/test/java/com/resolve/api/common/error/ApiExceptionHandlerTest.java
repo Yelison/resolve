@@ -13,7 +13,10 @@ import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +78,36 @@ class ApiExceptionHandlerTest {
 	}
 
 	@Test
+	void aServerErrorSpringResolvesIsASpanishProblemAndIsLoggedWithTheUri(CapturedOutput output) throws Exception {
+		this.mvc.perform(get("/unwritable"))
+			.andExpect(status().isInternalServerError())
+			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+			.andExpect(jsonPath("$.title").value("Error interno"))
+			.andExpect(jsonPath("$.detail").value("Algo salió mal en el servidor. Inténtalo de nuevo más tarde."))
+			.andExpect(jsonPath("$.instance").value("/unwritable"));
+
+		assertThat(output.getAll()).contains("Request failed with status 500 on /unwritable");
+	}
+
+	@Test
+	void aWrongMethodIsASpanishProblemThatKeepsTheAllowHeader() throws Exception {
+		this.mvc.perform(get("/only-post"))
+			.andExpect(status().isMethodNotAllowed())
+			.andExpect(header().string("Allow", "POST"))
+			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+			.andExpect(jsonPath("$.title").value("Método no permitido"))
+			.andExpect(jsonPath("$.detail").value("Esta ruta no admite ese método."));
+	}
+
+	@Test
+	void aClientErrorSpringResolvesKeepsItsOwnDetailAndIsNotLoggedAsAnError(CapturedOutput output) throws Exception {
+		this.mvc.perform(get("/needs-param")).andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.detail").value("Required parameter 'q' is not present."));
+
+		assertThat(output.getAll()).doesNotContain("Request failed with status 400");
+	}
+
+	@Test
 	void aLockTimeoutIsLoggedWithTheUriTheClientSeesAsTheInstance(CapturedOutput output) throws Exception {
 		this.mvc.perform(get("/lock")).andExpect(status().isServiceUnavailable());
 
@@ -132,6 +165,21 @@ class ApiExceptionHandlerTest {
 		@GetMapping("/stale")
 		String stale() {
 			throw new PreconditionFailedException("Versión antigua.");
+		}
+
+		@GetMapping("/unwritable")
+		String unwritable() {
+			throw new HttpMessageNotWritableException("Failed to write request");
+		}
+
+		@PostMapping("/only-post")
+		String onlyPost() {
+			return "ok";
+		}
+
+		@GetMapping("/needs-param")
+		String needsParam(@RequestParam String q) {
+			return q;
 		}
 
 		@GetMapping("/race")
