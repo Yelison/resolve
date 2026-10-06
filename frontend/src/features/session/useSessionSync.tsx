@@ -71,6 +71,15 @@ export function useSessionSync() {
   const notice = useRef<{ id: string; shownAt: number; returnTo: HTMLElement | null } | null>(null)
   /** La comprobación en vuelo (resuelve a «¿cambió la sesión?»): la esperan las escrituras y se evita lanzar otra. */
   const checking = useRef<Promise<boolean> | null>(null)
+  /**
+   * La sesión que esta pestaña **acepta** como la que muestra: la del primer `/me`, la de cada comprobación que encuentra
+   * un cambio (tras descartar lo anterior) y la de un cambio de organización o un inicio de sesión (la caché se vacía y se
+   * vuelve a llenar). No es la caché de `me`: otros la reescriben sin descartar nada (`invalidateQueries` tras un 403 o un
+   * cambio de rol), y entonces la caché puede traer ya la sesión nueva con la pantalla todavía en la anterior. De aquí salen la
+   * organización de `X-Organization-Id` y la sesión con la que se compara. Es una referencia para que sobreviva a que el
+   * efecto se vuelva a montar.
+   */
+  const accepted = useRef<Me | null>(null)
   /** Último mensaje de otra pestaña recibido mientras se comprobaba: se atiende al terminar, no se pierde. */
   const queued = useRef<{ source: Source; message?: SessionMessageType } | null>(null)
 
@@ -84,6 +93,10 @@ export function useSessionSync() {
   }, [location.key])
 
   useEffect(() => {
+    if (!accepted.current) accepted.current = queryClient.getQueryData<Me>(sessionKeys.me) ?? null
+    /** Verdadero mientras `reconcile` arranca su comprobación, antes de que `checking` exista. */
+    let starting = false
+
     function showNotice() {
       const active = document.activeElement
       const returnTo = active instanceof HTMLElement && active !== document.body ? active : null
@@ -111,7 +124,7 @@ export function useSessionSync() {
     }
 
     async function reconcile(source: Source, message?: SessionMessageType) {
-      const previous = queryClient.getQueryData<Me>(sessionKeys.me)
+      const previous = accepted.current
       if (!previous || sessionState.ending) return
       if (checking.current) {
         // Un mensaje de otra pestaña no se descarta: p. ej. un `logout` que llega con la lectura ya respondida.
@@ -121,16 +134,20 @@ export function useSessionSync() {
       }
       // La repetición de un mensaje pendiente va encadenada dentro de la misma comprobación: las escrituras que esperan
       // a `checking` no salen entre la primera lectura y la repetición, que puede descubrir otra sesión.
+      // `fetchQuery` escribe la caché (y avisa a quien la vigila) antes de devolver el control: hasta asignar `checking` esas
+      // escrituras son de esta comprobación, no de otro camino.
+      starting = true
       const run = (async () => {
         let changed = await check(previous, source, message)
         for (let next = queued.current; next; next = queued.current) {
           queued.current = null
-          const shown = queryClient.getQueryData<Me>(sessionKeys.me)
+          const shown = accepted.current
           if (!shown) break // la comprobación anterior vació la sesión (cierre de sesión): no queda nada que comparar
           changed = (await check(shown, next.source, next.message)) || changed
         }
         return changed
       })()
+      starting = false
       checking.current = run
       try {
         await run
@@ -155,12 +172,17 @@ export function useSessionSync() {
         if (changed) {
           holdWrites()
           await clearSessionData(queryClient)
+          // Se acepta antes de escribir la caché: esa escritura es esta, no una ajena.
+          accepted.current = current
           queryClient.setQueryData(sessionKeys.me, current)
           if (notice.current) toast.dismiss(notice.current.id)
           notice.current = null
           void navigate('/', { replace: true })
           toast.show(changedNotice(source, previous, current))
-        } else if (notice.current) {
+        } else {
+          accepted.current = current // la misma sesión, con su nombre o su rol al día
+        }
+        if (!changed && notice.current) {
           const { id, returnTo } = notice.current
           toast.dismiss(id)
           notice.current = null
@@ -173,6 +195,7 @@ export function useSessionSync() {
           // Cerraron sesión en otra pestaña: aquí no queda nada que enseñar. No se depende de que `useMe` reaccione.
           holdWrites()
           await clearSessionData(queryClient)
+          accepted.current = null
           void navigate('/entrar', { replace: true })
           return true
         }
@@ -185,6 +208,25 @@ export function useSessionSync() {
       if (document.visibilityState !== 'hidden') void reconcile(notice.current ? 'return' : 'focus')
     }
 
+    // Quien escribe la caché de `me` sin pasar por aquí (una invalidación tras un 403, un cambio de rol) puede traer la sesión
+    // nueva mientras la pantalla sigue en la anterior. Una identidad distinta de la aceptada que no escribió ninguno de los
+    // caminos que descartan es un cambio sin descartar: se comprueba como si lo hubiera avisado otra pestaña. Mientras hay
+    // una comprobación en vuelo sus propias lecturas escriben la caché y ella decide.
+    const stopWatchingCache = queryClient.getQueryCache().subscribe((event) => {
+      if (starting || checking.current || event.query.queryKey.join() !== sessionKeys.me.join()) return
+      // Solo las escrituras de datos: los demás eventos (un observador que se va, uno que llega) llevan la consulta que
+      // tenían, que puede ser una ya retirada de la caché con la sesión anterior.
+      if (event.type !== 'added' && event.type !== 'updated' && event.type !== 'removed') return
+      const me = queryClient.getQueryData<Me>(sessionKeys.me)
+      if (!me) {
+        // Vaciada la caché (cambio de organización, cierre de sesión): lo que llegue después es la sesión nueva.
+        if (event.type === 'removed') accepted.current = null
+        return
+      }
+      if (!accepted.current || identityOf(accepted.current) === identityOf(me)) accepted.current = me
+      else void reconcile('tab')
+    })
+
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
     window.addEventListener('focus', onReturn)
     document.addEventListener('visibilitychange', onReturn)
@@ -192,15 +234,11 @@ export function useSessionSync() {
     // El reintento de CSRF compara el `/me` que relee con la sesión que la pantalla tenía **al enviar** la escritura
     // (`identity`); lo que ve `observe` solo sirve para que esta pestaña se ponga al día sin esperar al canal.
     setSessionWatch({
-      identity: () => {
-        const shown = queryClient.getQueryData<Me>(sessionKeys.me)
-        return shown ? identityOf(shown) : null
-      },
+      identity: () => (accepted.current ? identityOf(accepted.current) : null),
       // La organización que cada escritura envía en `X-Organization-Id`: la de la pantalla, o ninguna sin sesión cargada.
-      organization: () => queryClient.getQueryData<Me>(sessionKeys.me)?.organization.id ?? null,
+      organization: () => accepted.current?.organization.id ?? null,
       observe: (me) => {
-        const shown = queryClient.getQueryData<Me>(sessionKeys.me)
-        if (shown && identityOf(shown) !== identityOf(me)) void reconcile('tab')
+        if (accepted.current && identityOf(accepted.current) !== identityOf(me)) void reconcile('tab')
       },
       // El backend rechazó una escritura porque la organización de la pantalla ya no es la de la sesión.
       refresh: () => void reconcile('tab'),
@@ -212,6 +250,7 @@ export function useSessionSync() {
       window.removeEventListener('focus', onReturn)
       document.removeEventListener('visibilitychange', onReturn)
       stopListening()
+      stopWatchingCache()
       setWriteGuard(null)
       setSessionWatch(null)
     }
