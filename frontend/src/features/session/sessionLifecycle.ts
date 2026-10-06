@@ -27,7 +27,30 @@ export const navigation = {
  * Estado compartido del cierre de sesión: mientras dura, un 401 de la API es esperado (la sesión acaba de morir) y no
  * debe avisar de que «caducó».
  */
-export const sessionState = { ending: false }
+export const sessionState = { ending: false, switching: false }
+
+/** Si la navegación no llega a confirmarse (un error al cargar la ruta), las escrituras no se quedan bloqueadas para siempre. */
+const HOLD_MAX_MS = 5_000
+let holdTimer: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * Cierra la guardia de escrituras desde que se detecta que la sesión cambió (otra persona u otra organización) hasta que
+ * la pantalla anterior desaparece. Entre una cosa y otra la caché ya está vacía, pero el router espera a cargar la ruta
+ * de destino (perezosa) y la pantalla anterior, con lo que había escrito, sigue montada: una escritura iniciada ahí
+ * saldría hacia la sesión nueva. Se llama antes de vaciar la caché; la libera `releaseWrites` al confirmarse la
+ * navegación (`useSessionSync`) o, como tope, a los `HOLD_MAX_MS`.
+ */
+export function holdWrites() {
+  sessionState.switching = true
+  clearTimeout(holdTimer)
+  holdTimer = setTimeout(releaseWrites, HOLD_MAX_MS)
+}
+
+/** Reabre la guardia de escrituras. */
+export function releaseWrites() {
+  sessionState.switching = false
+  clearTimeout(holdTimer)
+}
 
 /** Prefijos de los borradores que las pantallas guardan en sessionStorage (`useDraft`): respuesta de ticket y artículo. */
 const DRAFT_PREFIXES = ['resolve-draft-', 'resolve-article-']

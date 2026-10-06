@@ -5,7 +5,7 @@ import { api, SESSION_CHANGED_DETAIL } from '../../api/client'
 import { adminMe, mockApi } from '../../test/api'
 import { sessionKeys } from './queries'
 import { SESSION_TAB_ID } from './sessionChannel'
-import { navigation, sessionState } from './sessionLifecycle'
+import { holdWrites, navigation, releaseWrites, sessionState } from './sessionLifecycle'
 import { fromAnotherTab, renderShell, setCsrfCookie, FakeChannel } from './shellHarness'
 
 const acme = { id: 'org-1', name: 'Acme Studio' }
@@ -24,7 +24,7 @@ const unauthorized = { status: 401, body: { status: 401, title: 'No autenticado'
  * `server.hold` (si es una promesa, la siguiente lectura de `/me` espera a ella; la respuesta ya está decidida) y las
  * escrituras que llegaron (`PATCH /me`).
  */
-async function openShell(path = '/tickets/1046') {
+async function openShell(path = '/tickets/1046', lazyHome?: Promise<void>) {
   const server: {
     me: ReturnType<typeof inOrganization> | null
     reads: number
@@ -46,7 +46,7 @@ async function openShell(path = '/tickets/1046') {
     },
   })
   sessionStorage.setItem('resolve-draft-1046', 'Respuesta a medias')
-  const shell = renderShell(path)
+  const shell = renderShell(path, lazyHome)
   await screen.findByRole('button', { name: /^Cuenta/ })
   shell.queryClient.setQueryData(['tickets', 'detail', 1046], { subject: 'Ticket de la sesión anterior' })
   const reads = server.reads
@@ -71,6 +71,7 @@ beforeEach(() => {
 
 afterEach(() => {
   sessionState.ending = false
+  releaseWrites()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   FakeChannel.open.clear()
@@ -231,6 +232,45 @@ describe('escrituras mientras se comprueba la sesión (B-1n)', () => {
     const read = api.GET('/me')
     release()
     expect((await read).response.status).toBe(200)
+  })
+})
+
+describe('escrituras mientras la pantalla anterior sigue montada (H-1)', () => {
+  const patch = () => api.PATCH('/me', { body: { name: 'Yelisson' } })
+
+  it('tras detectar el cambio y hasta que la navegación a / se confirma, la escritura recibe el 409', async () => {
+    let loadHome!: () => void
+    const home = new Promise<void>((resolve) => (loadHome = resolve))
+    const { server, queryClient, router } = await openShell('/tickets/1046', home)
+    server.me = inOrganization(northwind)
+    act(() => void window.dispatchEvent(new Event('focus')))
+
+    // La comprobación ya terminó y la caché está vacía, pero la ruta `/` aún no cargó: el ticket anterior sigue montado.
+    await waitFor(() => expect(cachedTicket(queryClient)).toBeUndefined())
+    await waitFor(() => expect(server.reads).toBeGreaterThan(1))
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    expect(router.state.location.pathname).toBe('/tickets/1046')
+    expect(screen.getByRole('heading', { name: 'Ticket' })).toBeInTheDocument()
+    const { response, error } = await patch()
+    expect(response.status).toBe(409)
+    expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+    expect(server.writes).toBe(0)
+
+    // Al confirmarse la navegación (la pantalla anterior se va) la guardia se abre.
+    loadHome()
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+    expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    expect((await patch()).response.status).toBe(200)
+    expect(server.writes).toBe(1)
+  })
+
+  it('si la navegación no llega a confirmarse, las escrituras no quedan bloqueadas para siempre', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    holdWrites()
+    expect(sessionState.switching).toBe(true)
+    vi.advanceTimersByTime(5_001)
+    expect(sessionState.switching).toBe(false)
+    vi.useRealTimers()
   })
 })
 

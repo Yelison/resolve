@@ -5,7 +5,7 @@ import type { Me } from '../../api/schema'
 import { useToast } from '../../components/ui'
 import { refreshSessionOnForbidden, sessionKeys } from './queries'
 import { postSessionMessage } from './sessionChannel'
-import { clearSessionData, navigation, sessionState } from './sessionLifecycle'
+import { clearSessionData, holdWrites, navigation, sessionState } from './sessionLifecycle'
 
 /**
  * Texto de un error al cambiar de organización: un 401 es la sesión caducada (el aviso «Tu sesión caducó» ofrece
@@ -67,6 +67,8 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
   const switchOrganization = useMutation({
     mutationFn: (organizationId: string) => unwrap(api.POST('/session/organization', { body: { organizationId } })),
     onSuccess: async (me: Me) => {
+      // La guardia de escrituras se cierra antes de vaciar nada y se abre al confirmarse la navegación a `/`.
+      holdWrites()
       await clearSessionData(queryClient)
       queryClient.setQueryData(sessionKeys.me, me)
       postSessionMessage('organization-changed')
