@@ -140,6 +140,31 @@ describe('CSRF', () => {
     await expect(sent.json()).resolves.toEqual({ name: 'Laura' })
   })
 
+  it('conserva las opciones de la petición original (cache, keepalive, mode, referrer…) en el primer envío y en el reintento', async () => {
+    const network = stubFetch(csrfRejection(), new Response('{}', { status: 200 }), new Response('{}', { status: 200 }))
+    const respond = globalThis.fetch
+    vi.stubGlobal('fetch', (input: Request | URL) => {
+      if (urlOf(input).endsWith('/api/me')) setCookie('token-nuevo')
+      return respond(input)
+    })
+    await api.POST('/session/organization', {
+      body: organization,
+      cache: 'no-store',
+      keepalive: true,
+      referrerPolicy: 'no-referrer',
+      integrity: 'sha256-abc',
+    })
+    for (const index of [0, 2]) {
+      const sent = network.at(index)
+      expect(sent.cache, `cache del envío ${index}`).toBe('no-store')
+      expect(sent.keepalive, `keepalive del envío ${index}`).toBe(true)
+      expect(sent.referrerPolicy, `referrerPolicy del envío ${index}`).toBe('no-referrer')
+      expect(sent.integrity, `integrity del envío ${index}`).toBe('sha256-abc')
+      expect(sent.mode, `mode del envío ${index}`).toBe('cors')
+    }
+    expect(network.sent).toHaveLength(3)
+  })
+
   it('una escritura sin cuerpo sale sin cuerpo', async () => {
     const network = stubFetch()
     await api.POST('/logout')
