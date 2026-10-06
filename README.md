@@ -178,7 +178,7 @@ Resolve has no passwords of its own. People sign in with an OpenID Connect ident
 
 | Variable | Meaning |
 | --- | --- |
-| `SPRING_PROFILES_ACTIVE` | `oidc` turns sign-in on (`dev,oidc` locally, `prod,oidc` deployed); without it every call is a `401` |
+| `SPRING_PROFILES_ACTIVE` | `oidc` turns sign-in on (`dev,oidc` locally, `prod,oidc` deployed); without it, `dev` uses the demo login and any other profile answers `401` |
 | `RESOLVE_OIDC_ISSUER` | Issuer URL of the realm; the default is the local Keycloak (`http://localhost:8180/realms/resolve`) |
 | `RESOLVE_OIDC_CLIENT_ID` / `RESOLVE_OIDC_CLIENT_SECRET` | The confidential client of the API (`resolve-api`; in the local realm the secret is a development value) |
 | `RESOLVE_PUBLIC_URL` | Where the browser lands after signing in and out: the address people use. Serving the app from the jar, it is the API's own address |

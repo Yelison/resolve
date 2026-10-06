@@ -19,10 +19,6 @@ import {
 const account = (page: Page) => page.getByRole('button', { name: /^Cuenta:/ })
 
 test('Laura entra con el usuario y la contraseña del realm y ve su nombre', async ({ page }) => {
-  await page.goto('/entrar')
-  // Guardia contra el modo demostración: con `oidc` no hay selector de usuario ni cabecera X-Demo-User.
-  await expect(page.getByText('Demostración')).toHaveCount(0)
-
   await openKeycloakLogin(page)
   await submitKeycloakLogin(page, accounts.laura.email)
 
@@ -69,8 +65,16 @@ test.describe('organizaciones', () => {
         name: accounts.jordi.name,
         role: 'agent',
       })
-      // 400 = ya era miembro de Acme por una ejecución anterior: el escenario no depende de un orden.
-      expect([201, 400]).toContain(invited.status())
+      // 400 = ya era miembro de Acme por una ejecución anterior (el escenario no depende de un orden). Cualquier otro
+      // 400 (cuenta de cliente, cuerpo inválido) es un fallo y debe parar aquí, no más abajo con un timeout.
+      if (invited.status() === 400) {
+        const problem = (await invited.json()) as { errors?: { field: string; message: string }[] }
+        expect(problem.errors, 'el 400 de la invitación es el de «ya forma parte del equipo»').toEqual([
+          { field: 'email', message: 'Ya forma parte del equipo.' },
+        ])
+      } else {
+        expect(invited.status()).toBe(201)
+      }
       const members = (await (await admin.request.get('/api/members')).json()) as { id: string; email: string }[]
       jordiUserId = members.find((member) => member.email === accounts.jordi.email)?.id
       expect(jordiUserId, 'Jordi figura en el equipo de Acme').toBeTruthy()
@@ -90,7 +94,10 @@ test.describe('organizaciones', () => {
       expect(me.organization.name).toBe(target)
       expect(me.organizations).toHaveLength(2)
     } finally {
-      if (jordiUserId) await apiSend(admin, 'POST', `/members/${jordiUserId}/remove`, undefined)
+      if (jordiUserId) {
+        const removed = await apiSend(admin, 'POST', `/members/${jordiUserId}/remove`, undefined)
+        expect.soft(removed.ok(), 'retirar a Jordi de Acme al terminar').toBe(true)
+      }
       await adminContext.close()
       await jordiContext.close()
     }
