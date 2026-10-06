@@ -67,7 +67,7 @@
       "enabled": true,
       "firstName": "Yelisson",
       "lastName": "Ortiz",
-      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD:demo}", "temporary": false }]
+      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD}", "temporary": false }]
     },
     {
       "username": "laura.mendez@acme.example",
@@ -76,7 +76,7 @@
       "enabled": true,
       "firstName": "Laura",
       "lastName": "Méndez",
-      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD:demo}", "temporary": false }]
+      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD}", "temporary": false }]
     },
     {
       "username": "maria.perez@cliente.example",
@@ -85,7 +85,7 @@
       "enabled": true,
       "firstName": "María",
       "lastName": "Pérez",
-      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD:demo}", "temporary": false }]
+      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD}", "temporary": false }]
     },
     {
       "username": "jordi.puig@northwind.example",
@@ -94,7 +94,7 @@
       "enabled": true,
       "firstName": "Jordi",
       "lastName": "Puig",
-      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD:demo}", "temporary": false }]
+      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD}", "temporary": false }]
     }
   ]
 }
