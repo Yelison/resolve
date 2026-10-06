@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { isApiError, setSessionMatcher, setWriteGuard, UNAUTHORIZED_EVENT } from '../../api/client'
+import { identityOf, isApiError, setSessionWatch, setWriteGuard, UNAUTHORIZED_EVENT } from '../../api/client'
 import type { Me } from '../../api/schema'
 import { Button, useToast } from '../../components/ui'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
@@ -175,15 +175,19 @@ export function useSessionSync() {
     window.addEventListener('focus', onReturn)
     document.addEventListener('visibilitychange', onReturn)
     const stopListening = subscribeSessionMessages((type) => void reconcile('tab', type))
-    // Cerrada mientras se cambia de sesión y mientras hay una comprobación en vuelo (resuelve a si la sesión cambió).
-    // El reintento de CSRF compara la sesión de su `GET /me` con la de la caché; si no coincide, además de no reintentar,
-    // esta pestaña se pone al día sin esperar al mensaje del canal.
-    setSessionMatcher((me) => {
-      const shown = queryClient.getQueryData<Me>(sessionKeys.me)
-      const same = !shown || (shown.user.id === me.user.id && shown.organization.id === me.organization.id)
-      if (!same) void reconcile('tab')
-      return same
+    // El reintento de CSRF compara el `/me` que relee con la sesión que la pantalla tenía **al enviar** la escritura
+    // (`identity`); lo que ve `observe` solo sirve para que esta pestaña se ponga al día sin esperar al canal.
+    setSessionWatch({
+      identity: () => {
+        const shown = queryClient.getQueryData<Me>(sessionKeys.me)
+        return shown ? identityOf(shown) : null
+      },
+      observe: (me) => {
+        const shown = queryClient.getQueryData<Me>(sessionKeys.me)
+        if (shown && identityOf(shown) !== identityOf(me)) void reconcile('tab')
+      },
     })
+    // Cerrada mientras se cambia de sesión y mientras hay una comprobación en vuelo (resuelve a si la sesión cambió).
     setWriteGuard(async () => sessionState.switching || ((await checking.current) ?? false))
     return () => {
       window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
@@ -191,7 +195,7 @@ export function useSessionSync() {
       document.removeEventListener('visibilitychange', onReturn)
       stopListening()
       setWriteGuard(null)
-      setSessionMatcher(null)
+      setSessionWatch(null)
     }
   }, [toast, queryClient, navigate])
 }

@@ -7,7 +7,7 @@ import {
   isApiError,
   readCsrfToken,
   SESSION_CHANGED_DETAIL,
-  setSessionMatcher,
+  setSessionWatch,
   setWriteGuard,
   toApiPage,
   UNAUTHORIZED_EVENT,
@@ -110,7 +110,7 @@ describe('CSRF', () => {
 
   afterEach(() => {
     setCookie(null)
-    setSessionMatcher(null)
+    setSessionWatch(null)
     setWriteGuard(null)
     vi.unstubAllGlobals()
   })
@@ -215,16 +215,25 @@ describe('CSRF', () => {
     expect(urlOf(network.sent[1]!)).toMatch(/\/api\/me$/)
   })
 
-  describe('el reintento también pasa por la comprobación de la sesión (H-2)', () => {
+  describe('el reintento también pasa por la comprobación de la sesión (H-2, L-1)', () => {
     const meResponse = (organizationId: string) =>
       new Response(JSON.stringify({ user: { id: 'u1' }, organization: { id: organizationId } }), { status: 200 })
-    const sameSession = (me: Me) => me.user.id === 'u1' && me.organization.id === 'org-a'
+
+    /** La sesión que la pantalla muestra, cambiable por el test; `observed` recoge lo que ve el reintento. */
+    function watchSession(initial: string | null) {
+      const watch = { shown: initial, observed: [] as Me[] }
+      setSessionWatch({ identity: () => watch.shown, observe: (me) => watch.observed.push(me) })
+      return watch
+    }
 
     /** La cookie llega con la respuesta de `/me`, como en el navegador. */
-    function cookieArrivesWithMe() {
+    function cookieArrivesWithMe(onMe?: () => void) {
       const respond = globalThis.fetch
       vi.stubGlobal('fetch', (input: Request | URL) => {
-        if (urlOf(input).endsWith('/api/me')) setCookie('token-nuevo')
+        if (urlOf(input).endsWith('/api/me')) {
+          setCookie('token-nuevo')
+          onMe?.()
+        }
         return respond(input)
       })
     }
@@ -232,25 +241,45 @@ describe('CSRF', () => {
     it('si el /me del reintento es otra organización, no hay segundo POST y recibe el 409 de sesión cambiada', async () => {
       const network = stubFetch(csrfRejection(), meResponse('org-b'), new Response('{}', { status: 200 }))
       cookieArrivesWithMe()
-      setSessionMatcher(sameSession)
+      const watch = watchSession('u1:org-a')
       const { response, error } = await api.POST('/session/organization', { body: organization })
       expect(response.status).toBe(409)
       expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
       expect(network.sent).toHaveLength(2) // el POST y el GET /me: el reintento no sale
+      expect(watch.observed).toHaveLength(1) // la aplicación vio ese /me para ponerse al día
     })
 
-    it('si el /me del reintento es la misma sesión, se reintenta como antes', async () => {
+    it('compara con la sesión del momento del envío: aunque la pantalla ya se haya puesto al día, no reintenta (L-1)', async () => {
+      const network = stubFetch(csrfRejection(), meResponse('org-b'), new Response('{}', { status: 200 }))
+      // Mientras el /me del reintento está en vuelo, la pestaña recibe el cambio por el canal y actualiza su caché a org-b.
+      const watch = watchSession('u1:org-a')
+      cookieArrivesWithMe(() => (watch.shown = 'u1:org-b'))
+      const { response } = await api.POST('/session/organization', { body: organization })
+      expect(response.status).toBe(409)
+      expect(network.sent).toHaveLength(2)
+    })
+
+    it('si el /me del reintento es la misma sesión que al enviar, se reintenta como antes', async () => {
       const network = stubFetch(csrfRejection(), meResponse('org-a'), new Response('{}', { status: 200 }))
       cookieArrivesWithMe()
-      setSessionMatcher(sameSession)
+      watchSession('u1:org-a')
       const { response } = await api.POST('/session/organization', { body: organization })
       expect(response.status).toBe(200)
+      expect(network.sent).toHaveLength(3)
+    })
+
+    it('sin sesión al enviar (nada que comparar) se reintenta como antes', async () => {
+      const network = stubFetch(csrfRejection(), meResponse('org-b'), new Response('{}', { status: 200 }))
+      cookieArrivesWithMe()
+      watchSession(null)
+      expect((await api.POST('/session/organization', { body: organization })).response.status).toBe(200)
       expect(network.sent).toHaveLength(3)
     })
 
     it('si la guardia de escrituras se cierra mientras se relee /me, tampoco se reintenta', async () => {
       const network = stubFetch(csrfRejection(), meResponse('org-a'), new Response('{}', { status: 200 }))
       cookieArrivesWithMe()
+      watchSession('u1:org-a')
       let consulted = 0
       setWriteGuard(() => Promise.resolve(++consulted > 1)) // abierta al enviar, cerrada al reintentar
       const { response } = await api.POST('/session/organization', { body: organization })
@@ -261,7 +290,7 @@ describe('CSRF', () => {
     it('una respuesta de /me que no es un Me no impide el reintento', async () => {
       const network = stubFetch(csrfRejection(), new Response('no es json', { status: 200 }), new Response('{}'))
       cookieArrivesWithMe()
-      setSessionMatcher(sameSession)
+      watchSession('u1:org-a')
       expect((await api.POST('/session/organization', { body: organization })).response.status).toBe(200)
       expect(network.sent).toHaveLength(3)
     })

@@ -124,16 +124,24 @@ export function setWriteGuard(guard: WriteGuard | null) {
   writeGuard = guard
 }
 
-/**
- * ¿La sesión que responde `/me` es la que la aplicación tiene en pantalla (misma persona y organización)? La registra
- * `features/session` con la caché de `/me`. El reintento de CSRF lo consulta con la respuesta de su propio `GET /me`.
- */
-export type SessionMatcher = (me: Me) => boolean
-let sessionMatcher: SessionMatcher | null = null
+/** Identidad de una sesión: persona y organización. Es lo que cambia cuando la sesión «es otra». */
+export const identityOf = (me: Me) => `${me.user.id}:${me.organization.id}`
 
-/** Registra (o quita, con `null`) la comparación de la sesión que ve el reintento de CSRF. */
-export function setSessionMatcher(matcher: SessionMatcher | null) {
-  sessionMatcher = matcher
+/**
+ * Lo que `features/session` registra para el reintento de CSRF (esta capa no importa de ella):
+ * - `identity`: la sesión que muestra la pantalla ahora (`identityOf`), o `null` sin sesión;
+ * - `observe`: recibe el `Me` que devolvió el `GET /me` del reintento, para que la aplicación se ponga al día sin esperar
+ *   al canal si no coincide con la suya.
+ */
+export interface SessionWatch {
+  identity: () => string | null
+  observe: (me: Me) => void
+}
+let sessionWatch: SessionWatch | null = null
+
+/** Registra (o quita, con `null`) lo que el reintento de CSRF consulta de la sesión. */
+export function setSessionWatch(watch: SessionWatch | null) {
+  sessionWatch = watch
 }
 
 /** La respuesta de una escritura cancelada porque la sesión cambió: un 409 con el motivo, sin tocar la red. */
@@ -194,6 +202,9 @@ async function fetchWithCsrfRetry(request: Request): Promise<Response> {
   const unsafe = UNSAFE_METHODS.has(request.method)
   const retry = unsafe ? request.clone() : null
   const sentWithToken = request.headers.has(CSRF_HEADER)
+  // La sesión con la que la pantalla compuso la escritura: es con la que se compara tras releer `/me`, no con la de ese
+  // momento (la pestaña pudo ponerse al día entre tanto y entonces la comparación daría «misma sesión»).
+  const sentAs = unsafe ? (sessionWatch?.identity() ?? null) : null
   const response = await globalThis.fetch(request)
   if (!retry || response.status !== 403) return response
   if (sentWithToken && !(await isCsrfRejection(response))) return response
@@ -204,11 +215,13 @@ async function fetchWithCsrfRetry(request: Request): Promise<Response> {
     return response
   }
   // El reintento también pasa por la guardia: la respuesta de `/me` dice quién y en qué organización está la sesión
-  // ahora, y la escritura salió con lo que la pantalla mostraba antes. Si no coinciden (otra pestaña cambió mientras
-  // tanto) no se reintenta y se devuelve el mismo 409 que la guardia.
-  if (sessionMatcher && me.ok) {
+  // ahora. Si no es la que tenía la pantalla al enviar (otra pestaña cambió mientras tanto) no se reintenta y se
+  // devuelve el mismo 409 que la guardia.
+  if (sessionWatch && me.ok) {
     try {
-      if (!sessionMatcher((await me.clone().json()) as Me)) return sessionChangedResponse()
+      const current = (await me.clone().json()) as Me
+      sessionWatch.observe(current)
+      if (sentAs !== null && identityOf(current) !== sentAs) return sessionChangedResponse()
     } catch {
       // Una respuesta que no es un `Me` no dice nada de la sesión: se sigue con el reintento.
     }
