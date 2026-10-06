@@ -229,7 +229,7 @@ feature is on), and the next deployment returns to the disabled image and the te
 secrets unset. It is not the normal path and it leaves the console public for the minutes the machine runs; prefer the
 repository.
 
-## The pipeline: GitHub Actions → GHCR → Fly.io## The pipeline: GitHub Actions → GHCR → Fly.io
+## The pipeline: GitHub Actions → GHCR → Fly.io
 
 > **Nothing runs until the owner switches it on.** There are no accounts yet. Every job of
 > [`deploy.yml`](../../.github/workflows/deploy.yml) and [`demo-reset.yml`](../../.github/workflows/demo-reset.yml) has
@@ -249,8 +249,14 @@ Three more jobs do the same for the identity provider, with the same `DEPLOY_ENA
 it), the `demo` environment and `packages: write` only on the image job:
 
 3. **`idp-changes`** compares the commit with its parent and is true when `deploy/keycloak/**` changed, or on a manual
-   run (**Run workflow** on `main`; from another branch every job is skipped). A push of several commits that only
-   touched `deploy/keycloak` in an earlier one is missed by the comparison: use the manual run.
+   run (**Run workflow** on `main`; from another branch every job is skipped). The comparison can miss a change, and the
+   consequence is silent: (a) a push of several commits where only an earlier one touched `deploy/keycloak`; (b) a run
+   that touched it and is **pending** in the `demo-deploy-and-reset` group, replaced by a later one that did not (GitHub
+   keeps one pending run per group, and the nightly reset shares it). In both cases the identity provider stays on the
+   previous image and the pipeline is green: after a change under `deploy/keycloak/**`, check that `idp-deploy` ran, and if
+   it did not, use the manual run. (Tagging the image with `git rev-parse HEAD:deploy/keycloak` and deploying whenever the
+   tag running on Fly differs would close the gap; it needs the Fly token in the detection job and could not be tested without
+   an account, so it is left as a follow-up.)
 4. **`idp-image`** builds `deploy/keycloak/Dockerfile` and pushes `ghcr.io/<owner>/<repo>-idp` tagged with the SHA and
    `latest`.
 5. **`idp-deploy`** runs `flyctl deploy --config deploy/keycloak/fly.toml --image <image>:<sha>` and then requires the
@@ -276,7 +282,7 @@ without cancellation, so a deployment is never cut in half.
 | GitHub environment `demo` | `DEMO_URL` | variable | `https://resolve-demo.fly.dev` (no trailing slash) |
 | Fly (`fly secrets set -a resolve-demo`) | `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | secrets | The demo database, with **the same role as `DEMO_DB_USER`/`DEMO_DB_PASSWORD`** (see below) and the direct endpoint |
 | Fly | `RESOLVE_OIDC_ISSUER`, `RESOLVE_OIDC_CLIENT_ID`, `RESOLVE_OIDC_CLIENT_SECRET` | secrets | The demo realm |
-| GHCR | package visibility | setting | **Public**, so Fly can pull it without registry credentials (the image holds no secret). If it must stay private, add registry credentials to `flyctl deploy` |
+| GHCR | package visibility of `<repo>` **and** `<repo>-idp` | setting | **Public** for both (the second one appears after the first IdP image is published; set it before the first `idp-deploy`), so Fly can pull them without registry credentials (the image holds no secret). If it must stay private, add registry credentials to `flyctl deploy` |
 | Fly | app `resolve-demo-idp` | app | `fly apps create resolve-demo-idp`, in the same region as `resolve-demo` (`iad`) |
 | Neon | a database for Keycloak | database | A **second database** in the same project (for example `resolve_idp`) and its own role. Not the demo database: the reset empties that one |
 | Fly (`fly secrets set -a resolve-demo-idp`) | `KC_DB_URL`, `KC_DB_USERNAME`, `KC_DB_PASSWORD` | secrets | The Keycloak database: `jdbc:postgresql://<direct-endpoint>/<database>?sslmode=require`, and its role |
@@ -422,7 +428,7 @@ Things that could not be checked without accounts, in the order they matter:
    minutes). Run the reset by hand once and watch what a browser sees.
 3. **`sslmode=verify-full` and the JVM truststore** with Neon (`sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory` in
    `DATABASE_URL`), and `PGSSLROOTCERT=system` in the runner's `psql`.
-4. **GHCR package visibility** (public) and that `flyctl deploy --image` pulls it.
+4. **GHCR package visibility** (public) of **both** packages, `<repo>` and `<repo>-idp`, and that `flyctl deploy --image` pulls each.
 5. **Neon suspends** when nobody uses the demo. The health check does not query the database (outside maintenance), and `prod` sets `spring.datasource.hikari.minimum-idle=0` and `idle-timeout=60000`: HikariCP keeps 10 idle connections by default, which can keep a suspending database awake, so the pool now empties after a minute without traffic. If Neon still does not suspend, look at `maxLifetime` (30 minutes by default) and at the platform's own checks.
 6. **IPv6:** the app is reachable over IPv6 on Fly; the write limit counts a `/64`.
 7. **The identity provider** (`resolve-demo-idp`), in this order: (a) the `release_command` receives the app's secrets and
