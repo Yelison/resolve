@@ -18,31 +18,27 @@
   padding: var(--space-16);
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.collapsed .header {
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-12);
+  min-width: 0;
   min-height: 52px;
   color: var(--color-nav-ink);
   text-decoration: none;
   border-radius: var(--radius-control);
-}
-
-.mark {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-control);
-  background: var(--color-brand);
-  color: var(--color-on-brand);
-  font: var(--font-strong);
-  font-size: 17px;
-}
-
-.logo {
-  font: var(--font-logo);
 }
 
 .workspace {
@@ -101,18 +97,20 @@
 }
 
 .toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-  width: 100%;
-  min-height: var(--touch-target);
-  padding: 0 var(--space-12);
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  padding: 0;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--color-nav-text);
-  font: var(--font-caption);
   cursor: pointer;
+  transition:
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
 }
 
 .toggle:hover {
@@ -124,10 +122,18 @@
   outline-offset: -2px;
 }
 
-.collapsed .toggle {
-  justify-content: center;
-  width: var(--touch-target);
-  padding: 0;
+/* Flecha doble hecha con dos chevrons del conjunto; «expandir» es la misma, girada. */
+.chevrons {
+  display: inline-flex;
+  align-items: center;
+}
+
+.chevrons > svg + svg {
+  margin-left: -14px;
+}
+
+.expand {
+  transform: rotate(180deg);
 }
 
 .profile {

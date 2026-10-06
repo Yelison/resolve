@@ -491,7 +491,7 @@ export default function CatalogPage() {
             collapsed={sidebarCollapsed}
             action={{
               label: sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú',
-              icon: sidebarCollapsed ? 'expand' : 'collapse',
+              kind: sidebarCollapsed ? 'expand' : 'collapse',
               onClick: () => setSidebarCollapsed((value) => !value),
             }}
           />

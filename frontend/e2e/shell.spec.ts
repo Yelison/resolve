@@ -53,4 +53,45 @@ test.describe('shell', () => {
     const [box, sidebarBox] = await Promise.all([profile.boundingBox(), sidebar.boundingBox()])
     expect(box!.y + box!.height).toBeLessThanOrEqual(sidebarBox!.y + sidebarBox!.height)
   })
+
+  test('escritorio: el botón de colapsar está junto a la marca y no en el pie', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    const brand = page.getByRole('link', { name: 'Resolve, ir al resumen' })
+    const toggle = page.getByRole('button', { name: 'Colapsar menú' })
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const [brandBox, toggleBox, navBox] = await Promise.all([
+      brand.boundingBox(),
+      toggle.boundingBox(),
+      page.getByRole('navigation', { name: 'Principal' }).boundingBox(),
+    ])
+    expect(toggleBox!.x).toBeGreaterThan(brandBox!.x)
+    expect(toggleBox!.y + toggleBox!.height).toBeLessThanOrEqual(navBox!.y)
+    await toggle.click()
+    const expand = page.getByRole('button', { name: 'Expandir menú' })
+    await expect(expand).toHaveAttribute('aria-expanded', 'false')
+    const [collapsedBrand, collapsedToggle, sidebarWidth] = await Promise.all([
+      brand.boundingBox(),
+      expand.boundingBox(),
+      page.getByRole('navigation', { name: 'Principal' }).evaluate((nav) => nav.parentElement!.clientWidth),
+    ])
+    // A 76 px solo cabe una columna: el botón queda debajo de la marca, dentro del sidebar.
+    expect(collapsedToggle!.y).toBeGreaterThanOrEqual(collapsedBrand!.y + collapsedBrand!.height - 1)
+    expect(collapsedToggle!.x + collapsedToggle!.width).toBeLessThanOrEqual(sidebarWidth)
+  })
+
+  test('escritorio colapsado: al pasar el puntero por varios iconos solo hay una etiqueta visible', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1024, height: 800 })
+    await page.goto('/tickets')
+    for (const name of ['Resumen', 'Tickets', 'Clientes']) {
+      await page.getByRole('link', { name, exact: true }).hover()
+      // Lectura inmediata, sin reintentos: el cierre retardado de la etiqueta anterior no puede enmascarar la acumulación.
+      expect(await page.getByRole('tooltip').count()).toBe(1)
+    }
+    await expect(page.getByRole('tooltip')).toHaveText('Clientes')
+    await page.mouse.move(700, 400)
+    await expect(page.getByRole('tooltip')).toHaveCount(0)
+  })
 })
