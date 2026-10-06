@@ -72,7 +72,7 @@
 }
 
 .helpText a {
-  color: var(--color-brand);
+  color: var(--color-link);
 }
 
 @media (min-width: 768px) {
