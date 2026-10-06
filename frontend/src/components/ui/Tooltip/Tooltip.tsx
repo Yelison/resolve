@@ -11,7 +11,12 @@ const HIDE_DELAY = 120
  * Cierre del tooltip que está abierto. Solo puede haber uno: al abrirse otro, este se oculta al instante, sin esperar
  * el margen de cierre, así que al recorrer varios iconos con el puntero o el foco no se acumulan etiquetas.
  */
-let hideActive: (() => void) | null = null
+const active: { hide: (() => void) | null } = { hide: null }
+
+function claimActive(hide: () => void) {
+  if (active.hide && active.hide !== hide) active.hide()
+  active.hide = hide
+}
 
 export interface TooltipTriggerProps {
   /** Registra el disparador como ancla de posición del tooltip. */
@@ -82,18 +87,13 @@ export function Tooltip({ content, placement = 'right', describe = true, childre
   // Deja de ser el tooltip activo al desmontarse, para que nadie llame a un cierre huérfano.
   useEffect(
     () => () => {
-      if (hideActive === hide) hideActive = null
+      if (active.hide === hide) active.hide = null
     },
     [hide],
   )
 
-  function claim() {
-    if (hideActive && hideActive !== hide) hideActive()
-    hideActive = hide
-  }
-
   function enter() {
-    claim()
+    claimActive(hide)
     setPointerInside(true)
     setHovered(true)
     setDismissed(false)
@@ -110,7 +110,7 @@ export function Tooltip({ content, placement = 'right', describe = true, childre
         onPointerEnter: enter,
         onPointerLeave: leave,
         onFocus: () => {
-          claim()
+          claimActive(hide)
           setDismissed(false)
           setFocused(true)
         },
