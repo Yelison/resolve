@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest'
  *    surface-hover; los de Metric destacada y TicketRow seleccionada (deltas, urgente) también sobre blue-bg.
  *  - Fondos de estado con texto heredado: las notas internas de Message y Editor (`.note`, amber-bg) llevan `ink` y
  *    `muted`.
- *  - `brand` como color de texto: los enlaces de ArticlePage (`.helpText a`) y ArticleProse (`.prose a`), siempre
+ *  - `link` como color de texto: los enlaces de ArticlePage (`.helpText a`) y ArticleProse (`.prose a`), siempre
  *    dentro de tarjetas surface.
  *
  * Quedan fuera, a propósito: el texto deshabilitado (`opacity: .45` sobre cualquier par) y los elementos decorativos
@@ -28,7 +28,9 @@ import { describe, expect, it } from 'vitest'
  * una mezcla, para que este test lo vea.
  *
  * No texto (1.4.11, ≥ 3:1): `brand` como relleno de borde o indicador (Checkbox y Radio marcados, Switch, barras y
- * contorno de BarChart, ProgressBar) frente a `surface` y `bg`.
+ * contorno de BarChart) frente a `surface` y `bg`. No están cubiertas las pistas de ProgressBar (`line`) y de
+ * Attachment (`disabled`), que en el tema oscuro quedan por debajo de 3:1 frente al relleno `brand` (2,52 y 2,14);
+ * las dos muestran el porcentaje como texto, así que 1.4.11 no lo exige. El ajuste visual de la pista queda para #75.
  *
  * Los valores de `brand`, `brand-hover` y `link` se ajustaron en el código (#65), no en Figma: este test los protege.
  */
