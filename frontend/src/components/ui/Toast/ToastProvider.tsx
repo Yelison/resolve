@@ -57,6 +57,13 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string)
   const [focused, setFocused] = useState(false)
   const paused = hovered || focused
   const remaining = useRef(toast.duration)
+  const delay = toast.action?.delay ?? 0
+  const [waited, setWaited] = useState(delay === 0)
+  useEffect(() => {
+    if (delay === 0) return undefined
+    const timer = window.setTimeout(() => setWaited(true), delay)
+    return () => window.clearTimeout(timer)
+  }, [delay])
 
   useEffect(() => {
     if (paused) return
@@ -87,7 +94,9 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string)
             type="button"
             className={buttonClassName({ variant: 'secondary', className: styles.action })}
             aria-label={toast.action.ariaLabel}
+            aria-disabled={waited ? undefined : true}
             onClick={() => {
+              if (!waited) return
               onDismiss(toast.id)
               toast.action?.onSelect()
             }}

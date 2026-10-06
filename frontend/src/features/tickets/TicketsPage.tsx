@@ -23,7 +23,8 @@ import {
 import { isApiError } from '../../api/client'
 import type { TicketMetrics, TicketPriority, TicketStatus, TicketSummary, TicketView } from '../../domain/ticket'
 import { ticketPriorityValues, ticketStatusValues } from '../../domain/ticket'
-import { isLockTimeout, LOCK_TIMEOUT_MESSAGE, LOCK_TOAST_DURATION } from '../../lib/mutationError'
+import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
+import { isLockTimeout, LOCK_RETRY_DELAY_MS, LOCK_TIMEOUT_MESSAGE, LOCK_TOAST_DURATION } from '../../lib/mutationError'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
@@ -458,7 +459,16 @@ function InboxRow({ ticket, isStaff }: { ticket: TicketSummary; isStaff: boolean
                   action: {
                     label: 'Reintentar',
                     ariaLabel: `Reintentar actualizar el ticket #${ticket.number}`,
-                    onSelect: attempt,
+                    delay: LOCK_RETRY_DELAY_MS,
+                    onSelect: () => {
+                      attempt()
+                      // El aviso se cierra con el foco dentro: vuelve al menú de la fila (o al título si la fila ya no está).
+                      const trigger = document.querySelector<HTMLElement>(
+                        `[aria-label="Acciones del ticket #${ticket.number}"]`,
+                      )
+                      if (trigger) trigger.focus()
+                      else focusPageHeadingIfFocusLost()
+                    },
                   },
                 }
               : {
