@@ -1,11 +1,23 @@
-import type { Route } from '@playwright/test'
+import type { Request as PlaywrightRequest, Route } from '@playwright/test'
 import type { Member, TeamMember } from '../../src/api/schema'
 
-/** Petición que el despachador de `fixtures.ts` ofrece a cada feature: ya lleva la ruta de la API sin el prefijo. */
+/**
+ * Lo que los manejadores usan de `Route` y de su petición, y nada más: así el despachador sirve igual a Playwright
+ * (`fixtures.ts`) que al adaptador de la demostración estática (`src/showcase`), que construye objetos con esta forma.
+ */
+export type MockRoute = Pick<Route, 'fulfill'>
+export type MockPlaywrightRequest = Pick<PlaywrightRequest, 'method' | 'url' | 'headers' | 'postDataJSON'>
+
+/** Petición que el despachador ofrece a cada feature: ya lleva la ruta de la API sin el prefijo. */
 export interface MockRequest {
-  route: Route
-  request: ReturnType<Route['request']>
+  route: MockRoute
+  request: MockPlaywrightRequest
   url: URL
+  /**
+   * Dirección pública de la aplicación, sin barra final: el origen en los e2e y el origen más la base (`/resolve`) en la
+   * demostración estática. Las redirecciones de la sesión simulada se construyen con ella.
+   */
+  appUrl: string
   path: string
   method: string
 }
@@ -27,15 +39,19 @@ export const minutesAgo = (minutes: number) => new Date(now - minutes * 60_000).
 export const laura: Member = { id: 'u-laura', name: 'Laura Méndez', email: 'laura@acme.example' }
 export const daniel: Member = { id: 'u-daniel', name: 'Daniel Santos', email: 'daniel@acme.example' }
 
-export const json = (route: Route, body: unknown, status = 200) =>
+export const json = (route: MockRoute, body: unknown, status = 200) =>
   route.fulfill({
     status,
     contentType: status >= 400 ? 'application/problem+json' : 'application/json',
     body: JSON.stringify(body),
   })
 
-export const problem = (route: Route, status: number, title: string, errors?: { field: string; message: string }[]) =>
-  json(route, { status, title, ...(errors && { errors }) }, status)
+export const problem = (
+  route: MockRoute,
+  status: number,
+  title: string,
+  errors?: { field: string; message: string }[],
+) => json(route, { status, title, ...(errors && { errors }) }, status)
 
 export const teamMember = (member: Partial<TeamMember> & Pick<TeamMember, 'id' | 'name' | 'email'>): TeamMember => ({
   role: 'agent',

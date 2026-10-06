@@ -1,6 +1,5 @@
-import type { Route } from '@playwright/test'
 import type { Article, ArticleSummary, Category, Me } from '../../src/api/schema'
-import { json, minutesAgo, problem, type MockFeature, type MockHandler } from './shared'
+import { json, minutesAgo, problem, type MockFeature, type MockHandler, type MockRoute } from './shared'
 import { me } from './session'
 
 const acceso = { id: 'cat-acceso', name: 'Cuenta y acceso', slug: 'cuenta-y-acceso' }
@@ -102,7 +101,7 @@ export function createArticleStore(): ArticleStore {
 export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = createArticleStore()): MockFeature {
   const readable = (article: ArticleSummary) =>
     role !== 'customer' || (article.status === 'published' && article.visibility === 'public')
-  const articleJson = (route: Route, article: Article, status = 200) =>
+  const articleJson = (route: MockRoute, article: Article, status = 200) =>
     route.fulfill({
       status,
       contentType: 'application/json',

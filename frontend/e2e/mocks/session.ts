@@ -1,6 +1,5 @@
-import type { Route } from '@playwright/test'
 import type { LogoutResponse, Me, OrganizationRef, SessionOrganizationSelection } from '../../src/api/schema'
-import { json, problem, type MockFeature } from './shared'
+import { json, problem, type MockFeature, type MockRoute } from './shared'
 
 export const me: Me = {
   user: { id: 'u-admin', name: 'Yelisson Ortiz', email: 'yelisson@acme.example' },
@@ -74,7 +73,7 @@ export function sessionMock(
   }
 
   /** El 403 con el que el backend rechaza una escritura sin el token de CSRF; el `detail` no se parece al real a propósito. */
-  const csrfRejection = (route: Route) =>
+  const csrfRejection = (route: MockRoute) =>
     route.fulfill({
       status: 403,
       contentType: 'application/problem+json',
@@ -87,7 +86,7 @@ export function sessionMock(
     })
 
   return {
-    handle: ({ route, request, url, path, method }) => {
+    handle: ({ route, request, appUrl, path, method }) => {
       // Como el backend: una escritura cuya `X-Organization-Id` no es la organización de la sesión se rechaza antes de que
       // llegue a ninguna otra feature, así que no escribe nada. Elegir organización y cerrar sesión no la comprueban. El
       // orden es el del servidor: primero el token CSRF (403), después la organización (409).
@@ -132,7 +131,7 @@ export function sessionMock(
       }
       if (method === 'GET' && path === '/oauth2/authorization/resolve') {
         signedIn = true
-        return route.fulfill({ status: 302, headers: { location: `${url.origin}/` } })
+        return route.fulfill({ status: 302, headers: { location: `${appUrl}/` } })
       }
       const isWrite = method === 'POST' && (path === '/logout' || path === '/session/organization')
       if (!isWrite) return undefined
@@ -142,7 +141,7 @@ export function sessionMock(
         signedIn = false
         refused = null
         // El proveedor devuelve a la aplicación: sin sesión, la shell lleva a /entrar.
-        const body: LogoutResponse = { logoutUrl: `${url.origin}/entrar` }
+        const body: LogoutResponse = { logoutUrl: `${appUrl}/entrar` }
         return json(route, body)
       }
       const { organizationId } = request.postDataJSON() as SessionOrganizationSelection
