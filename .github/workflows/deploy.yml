@@ -117,7 +117,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
-      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
       # --ha=false: sin él, el primer despliegue de una app con servicios crea dos máquinas. La API guarda las sesiones en
       # memoria (D-13) y el límite de escrituras es por máquina; Keycloak va con caché local.
       - name: Deploy the image tagged with the SHA
@@ -192,7 +192,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
-      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # 1.6
       # --ha=false: sin él, el primer despliegue de una app con servicios crea dos máquinas. La API guarda las sesiones en
       # memoria (D-13) y el límite de escrituras es por máquina; Keycloak va con caché local.
       - name: Deploy the image tagged with the SHA
