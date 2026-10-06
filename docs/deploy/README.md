@@ -179,6 +179,12 @@ without cancellation, so a deployment is never cut in half.
 | Fly | `RESOLVE_OIDC_ISSUER`, `RESOLVE_OIDC_CLIENT_ID`, `RESOLVE_OIDC_CLIENT_SECRET` | secrets | The demo realm |
 | GHCR | package visibility | setting | **Public**, so Fly can pull it without registry credentials (the image holds no secret). If it must stay private, add registry credentials to `flyctl deploy` |
 
+**Limit the `demo` environment to `main`** (Settings → Environments → `demo` → *Deployment branches and tags* →
+*Selected branches* → `main`, and, if wanted, *Required reviewers*). Any workflow that declares `environment: demo`
+receives `FLY_API_TOKEN` and the database credentials, and a flow on another branch could drop the guard; `workflow_dispatch`
+lets anyone with write access pick any branch. `demo-reset.yml` also refuses to run when `github.ref` is not
+`refs/heads/main`.
+
 One-time database steps, run by the owner against the demo database (the sentinel is created by hand **on purpose**: if
 the workflow created it, the guard would protect nothing):
 
@@ -207,11 +213,16 @@ Northwind is Europe/Madrid (UTC+1 / UTC+2); if it were the reference, 03:00 woul
 would move twice a year. GitHub only runs `schedule` from the default branch, can delay it under load and disables it
 after 60 days without repository activity; **Run workflow** triggers it by hand.
 
+0. **Only from `main`**, and in the same concurrency group as `deploy.yml` (`demo-deploy-and-reset`): a deployment, whose new
+   machine runs Flyway at startup, never overlaps with the `clean` and `migrate` of the reset (GitHub keeps one pending run
+   per group, the latest).
 1. **Guard.** It aborts unless the database name contains `demo`, the connection really is that database, **and** the
    sentinel row above exists. A real database has no sentinel. `flyway clean` is also impossible from the application:
    `spring.flyway.clean-disabled=true` in `prod` (tested), and the CLI runs with `-cleanDisabled=false` only inside this
    job.
-2. **Maintenance on** (below), then a 15-second wait for the application to notice.
+2. **Maintenance on** (below), a 15-second wait, and then it **requires an HTTP `503`** from `/api/me` (that request is what
+   makes the application read the mark) and from readiness before anything is deleted. An empty `DEMO_URL`, a DNS failure or a
+   timeout abort too: they are not a `503`.
 3. **`flyway clean migrate`** with the Flyway CLI image (same major as `flyway-core`, pinned by digest) on
    `db/migration` and `db/demo` (rehearsed against a local PostgreSQL 17: 15 migrations, `V1006`). `clean` empties the
    `public` schema; `resolve_ops` is not managed by Flyway and survives.
@@ -285,3 +296,19 @@ With `RESOLVE_DEMO_LIMITS=true`:
 - **The container port** is reachable only through Fly's proxy (`[http_service]` is the only service) and the application
   trusts `X-Forwarded-*` (`forward-headers-strategy=framework`).
 - **HSTS `includeSubDomains`** has no effect on `*.fly.dev` (browsers do not apply it to a public suffix).
+
+## Verify on the first deployment
+
+Things that could not be checked without accounts, in the order they matter:
+
+1. **`Fly-Client-IP` is overwritten by Fly's proxy.** Send a request with a fake `Fly-Client-IP` header and check which
+   address the write limit counts. If Fly passes the client's copy through, the per-IP limit can be forged by changing
+   that header: stop trusting it (leave `RESOLVE_DEMO_CLIENT_IP_HEADER` empty) until that is solved.
+2. **A single machine that is out of service.** Whether Fly keeps routing to the only machine while readiness is
+   `OUT_OF_SERVICE` (the reset works either way: it needs no route to end the maintenance, but the smoke waits for readiness
+   `UP`). Run the reset by hand once and watch what a browser sees.
+3. **`sslmode=verify-full` and the JVM truststore** with Neon (`sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory` in
+   `DATABASE_URL`), and `PGSSLROOTCERT=system` in the runner's `psql`.
+4. **GHCR package visibility** (public) and that `flyctl deploy --image` pulls it.
+5. **Neon suspends** when nobody uses the demo (the health check does not query the database).
+6. **IPv6:** the app is reachable over IPv6 on Fly; the write limit counts a `/64`.

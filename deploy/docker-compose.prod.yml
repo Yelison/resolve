@@ -85,7 +85,8 @@ services:
       RESOLVE_OIDC_CLIENT_ID: resolve-api
       RESOLVE_OIDC_CLIENT_SECRET: ${RESOLVE_OIDC_CLIENT_SECRET}
       RESOLVE_PUBLIC_URL: http://localhost:${SERVER_PORT:-8080}
-      # Sin valor por defecto en prod: si es una demostración pública (noindex, bandera de /me, modo mantenimiento).
+      # En prod la aplicación exige RESOLVE_DEMO_ENABLED (sin valor por defecto); esta prueba local lo pone a false si no se
+      # da. Es la demostración pública si es true (noindex, bandera de /me, modo mantenimiento).
       RESOLVE_DEMO_ENABLED: ${RESOLVE_DEMO_ENABLED:-false}
       RESOLVE_DEMO_LIMITS: ${RESOLVE_DEMO_LIMITS:-false}
       # prod solo aplica las migraciones reales: la base empieza vacía. Para probar con los datos de demostración, dar

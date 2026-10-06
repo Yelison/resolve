@@ -14,8 +14,11 @@ on:
 permissions: {}
 
 # Un despliegue a la vez y ninguno se cancela a medias: el siguiente espera.
+# Comparte grupo con demo-reset.yml: un despliegue (cuya máquina nueva ejecuta Flyway al arrancar) no se solapa con el
+# `flyway clean` + `migrate` del reinicio nocturno. GitHub deja una sola ejecución pendiente por grupo: si llegan varias, se
+# conserva la más reciente, que es la que interesa desplegar.
 concurrency:
-  group: deploy
+  group: demo-deploy-and-reset
   cancel-in-progress: false
 
 jobs:
@@ -56,6 +59,9 @@ jobs:
   deploy:
     name: Deploy to Fly.io
     needs: image
+    # El mismo control que `image`, propio y no heredado de `needs`: un cambio futuro (`if: always()`, quitar `needs`) no
+    # puede desplegar sin la variable ni con una CI que falló.
+    if: vars.DEPLOY_ENABLED == 'true' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: demo
