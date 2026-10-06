@@ -387,6 +387,38 @@ describe('organización de la pantalla en las escrituras (issue #60)', () => {
   })
 })
 
+describe('la caché de /me reescrita por otro camino (issue #60, M1)', () => {
+  it('una invalidación que ya trae otra organización no deja la pantalla en la anterior: descarta, avisa y no escribe con la nueva', async () => {
+    vi.unstubAllGlobals() // sin canal: nada avisa a esta pestaña antes de que llegue la lectura
+    const { server, queryClient, router } = await openShell()
+    server.me = inOrganization(northwind) // otra pestaña cambió de organización
+    // Lo que hacen un 403 de rol (`refreshSessionOnForbidden`) o un cambio de rol propio: relee `/me` sin descartar nada.
+    await queryClient.invalidateQueries({ queryKey: sessionKeys.me })
+
+    const { response, error } = await api.PATCH('/me', { body: { name: 'Yelisson' } })
+    expect(response.status).toBe(409)
+    expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+    expect(server.sentOrganizations).toEqual([]) // ninguna escritura salió hacia la pantalla de Acme, ni con `org-2`
+    expect(server.writes).toBe(0)
+    expect(await within(region()).findByText('Cambiaste a Northwind en otra pestaña')).toBeInTheDocument()
+    expect(cachedTicket(queryClient)).toBeUndefined()
+    expect(sessionStorage.getItem('resolve-draft-1046')).toBeNull()
+    expect(router.state.location.pathname).toBe('/')
+  })
+
+  it('una invalidación que trae la misma sesión no descarta nada', async () => {
+    vi.unstubAllGlobals()
+    const { server, queryClient, router } = await openShell()
+    await queryClient.invalidateQueries({ queryKey: sessionKeys.me })
+
+    expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
+    expect(server.sentOrganizations).toEqual(['org-1'])
+    expect(cachedTicket(queryClient)).toBeDefined()
+    expect(router.state.location.pathname).toBe('/tickets/1046')
+    expect(screen.queryByText('Cambiaste a Northwind en otra pestaña')).not.toBeInTheDocument()
+  })
+})
+
 describe('escrituras mientras la pantalla anterior sigue montada (H-1)', () => {
   const patch = () => api.PATCH('/me', { body: { name: 'Yelisson' } })
 
