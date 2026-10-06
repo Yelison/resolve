@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -160,9 +161,8 @@ class TicketLockTimeoutTest extends TicketsFixture {
 
 		// Nada se creó y el número no se consumió: el primer ticket sigue siendo el 1.
 		this.mvc.perform(get(API + "/tickets/1").with(as(LAURA))).andExpect(status().isNotFound());
-		org.assertj.core.api.Assertions.assertThat(createTicket(LAURA, this.mariaCustomer, "Ticket", "urgent", null)
-			.path("number")
-			.asLong()).isEqualTo(1);
+		assertThat(createTicket(LAURA, this.mariaCustomer, "Ticket", "urgent", null).path("number").asLong())
+			.isEqualTo(1);
 	}
 
 	private RowLock holdMembership(UUID userId) throws Exception {
