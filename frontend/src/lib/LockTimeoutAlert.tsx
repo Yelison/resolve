@@ -3,6 +3,23 @@ import { Alert, Button } from '../components/ui'
 import { focusPageHeadingIfFocusLost } from './focusPageHeading'
 import { isLockTimeout, LOCK_RETRY_DELAY_MS, LOCK_TIMEOUT_MESSAGE } from './mutationError'
 
+function focusInsideDialogIfFocusLost(dialog: HTMLDialogElement) {
+  window.setTimeout(() => {
+    // Un diálogo ya cerrado devuelve el foco por su cuenta; si el foco sigue dentro, tampoco hay nada que mover.
+    if (!dialog.isConnected || !dialog.open) return focusPageHeadingIfFocusLost()
+    const active = document.activeElement
+    if (active && active !== document.body && dialog.contains(active)) return
+    const notice = dialog.querySelector<HTMLElement>('[role="alert"]')
+    if (notice) {
+      // El aviso no es interactivo: se vuelve enfocable solo por programa.
+      notice.tabIndex = -1
+      notice.focus()
+      return
+    }
+    dialog.querySelector<HTMLElement>('input, select, textarea, button:not([disabled])')?.focus()
+  }, 0)
+}
+
 export interface LockTimeoutAlertProps {
   /** Error de la mutación; solo un `503` de «Recurso ocupado» muestra el aviso. */
   error: unknown
@@ -47,11 +64,17 @@ export function LockTimeoutAlert({ error, pending, onRetry, what, className }: L
     if (!active || active === document.body) retryButton.current?.focus()
   }, [lock, error])
 
-  // Si el aviso se va con el foco dentro (el reintento salió bien o falló con otro error), el foco pasa al título de la
-  // página en lugar de caer en `body`. Con el foco en otro sitio (se editó el formulario) no toca nada.
+  // Si el aviso se va con el foco dentro (el reintento salió bien o falló con otro error), el foco no puede caer en `body`.
+  // En página pasa al título; dentro de un diálogo abierto (el título de la página queda fuera, inerte) se queda en el
+  // diálogo: en su aviso de error o, si no hay, en su primer control. Con el foco en otro sitio no se toca nada.
   const wasVisible = useRef(false)
+  const dialog = useRef<HTMLDialogElement | null>(null)
   useEffect(() => {
-    if (wasVisible.current && !visible) focusPageHeadingIfFocusLost()
+    if (visible) dialog.current = retryButton.current?.closest('dialog') ?? null
+    if (wasVisible.current && !visible) {
+      if (dialog.current) focusInsideDialogIfFocusLost(dialog.current)
+      else focusPageHeadingIfFocusLost()
+    }
     wasVisible.current = visible
   }, [visible])
 
