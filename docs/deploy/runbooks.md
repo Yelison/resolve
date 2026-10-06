@@ -204,7 +204,7 @@ secret of the app at that moment. Rotating is: (1) stage the new value on the Id
 with a secret the realm does not have yet; the entrypoint refuses to start without it, so it is never unset); (2) run the
 deploy workflow by hand (**Run workflow** on `main`): the release machine imports the realm with the new secret and the IdP
 restarts; (3) `fly secrets set RESOLVE_OIDC_CLIENT_SECRET=… -a resolve-demo` (restarts the API) and check the sign-in.
-Sign-ins fail between steps 2 and 3, and every session ends. The same procedure applies whenever the realm must be
+Sign-ins fail between steps 2 and 3; the Keycloak sessions end, and restarting the API in step 3 ends the API's own. The same procedure applies whenever the realm must be
 rebuilt. The exceptional alternative (an image with the console, once, through `fly proxy`) is in the deployment guide.
 
 Keycloak also offers a client-secret rotation policy that keeps the previous secret valid for a period; it would remove
