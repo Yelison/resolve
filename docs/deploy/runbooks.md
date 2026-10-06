@@ -204,16 +204,19 @@ for a while.
 
 ## 6. When `health` is `DOWN`
 
-`management.endpoints.web.exposure.include=health` exposes the endpoint, and the application's context path is
-`/api`, so locally it is `GET /api/actuator/health`. The `prod` profile (T9.3) adds readiness and liveness probes
-(`/api/actuator/health/readiness`); on the deployment, the exact paths are **to verify after the first deployment**.
+`management.endpoints.web.exposure.include=health` exposes the endpoint and `management.endpoints.web.base-path` puts
+it under the API prefix (the application has no context path), so locally it is `GET /api/actuator/health`. The `prod`
+profile enables the probes: `GET /api/actuator/health/liveness` and `GET /api/actuator/health/readiness`, public like
+`health`. The image's `HEALTHCHECK` uses the readiness one; what the platform's own checks should call is **to verify
+after the first deployment**.
 `OUT_OF_SERVICE` during the nightly demo reset is expected, not an incident.
 
 Check in this order:
 
 1. **Which component?** Read the logs: `fly logs -a <api-app>`. The health detail only appears if
-   `management.endpoint.health.show-details` is configured, which is not set today (T9.2/T9.3 decide it — to verify);
-   until then `health` answers just `UP` or `DOWN`.
+   `management.endpoint.health.show-details` is configured, which is not set (the endpoint is public, so it stays off);
+   `health` answers just `UP` or `DOWN`, and the cause is in the logs (JSON in ECS format, see
+   [Deployment](README.md#logs)).
 2. **Database.** Is Neon reachable and not paused/over its limits (Neon console)? Wrong or rotated
    `DATABASE_PASSWORD`? Connection from the Fly region blocked? Try `psql` with the direct connection string.
 3. **Migrations.** A Flyway failure at startup (checksum mismatch, a failed migration) keeps the app down. Read the
