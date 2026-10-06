@@ -23,7 +23,9 @@ test.describe('shell', () => {
     await expect(page.getByRole('dialog')).toBeHidden()
   })
 
-  for (const width of [390, 1440]) {
+  // 390 px solo protege frente a regresiones en la barra móvil (la campana ya estaba oculta ahí); 1024 y 1440 px son
+  // los anchos donde la barra no es compacta y la campana se vería.
+  for (const width of [390, 1024, 1440]) {
     test(`${width} px: el encabezado no tiene campana de notificaciones`, async ({ page }) => {
       await page.setViewportSize({ width, height: 844 })
       await page.goto('/tickets')
