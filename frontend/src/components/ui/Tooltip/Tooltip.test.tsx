@@ -49,4 +49,44 @@ describe('Tooltip', () => {
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
     vi.useRealTimers()
   })
+
+  describe('varios disparadores', () => {
+    function renderTrio() {
+      return render(
+        <>
+          {['Resumen', 'Tickets', 'Clientes'].map((label) => (
+            <Tooltip key={label} content={label} describe={false}>
+              {(trigger) => (
+                <a href={`/${label}`} aria-label={label} {...trigger}>
+                  {label[0]}
+                </a>
+              )}
+            </Tooltip>
+          ))}
+        </>,
+      )
+    }
+
+    it('al pasar rápido el puntero por tres iconos solo queda visible la etiqueta del último', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      renderTrio()
+      await user.hover(screen.getByRole('link', { name: 'Resumen' }))
+      await user.hover(screen.getByRole('link', { name: 'Tickets' }))
+      await user.hover(screen.getByRole('link', { name: 'Clientes' }))
+      // Sin esperar el margen de cierre: las etiquetas anteriores no pueden seguir en pantalla.
+      expect(screen.getAllByRole('tooltip')).toHaveLength(1)
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Clientes')
+      vi.useRealTimers()
+    })
+
+    it('el puntero sobre otro icono sustituye la etiqueta de un icono que conserva el foco', async () => {
+      renderTrio()
+      await userEvent.tab()
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Resumen')
+      await userEvent.hover(screen.getByRole('link', { name: 'Tickets' }))
+      expect(screen.getAllByRole('tooltip')).toHaveLength(1)
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Tickets')
+    })
+  })
 })
