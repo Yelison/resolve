@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.e2e.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "../node_modules/.tmp/tsconfig.e2e-auth.tsbuildinfo"
+  },
+  "include": ["."]
+}
