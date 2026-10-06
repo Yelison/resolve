@@ -6,12 +6,16 @@ import {
   DEMO_USER_STORAGE_KEY,
   isApiError,
   readCsrfToken,
+  SESSION_CHANGED_DETAIL,
+  setSessionMatcher,
+  setWriteGuard,
   toApiPage,
   UNAUTHORIZED_EVENT,
   unwrap,
   versionFromEtag,
   type UnauthorizedDetail,
 } from './client'
+import type { Me } from './schema'
 
 describe('unwrap', () => {
   it('devuelve los datos de una respuesta correcta', async () => {
@@ -106,6 +110,8 @@ describe('CSRF', () => {
 
   afterEach(() => {
     setCookie(null)
+    setSessionMatcher(null)
+    setWriteGuard(null)
     vi.unstubAllGlobals()
   })
 
@@ -207,6 +213,58 @@ describe('CSRF', () => {
     expect(error).toMatchObject({ detail: 'Tu rol no permite esta acción.' })
     expect(network.sent).toHaveLength(2)
     expect(urlOf(network.sent[1]!)).toMatch(/\/api\/me$/)
+  })
+
+  describe('el reintento también pasa por la comprobación de la sesión (H-2)', () => {
+    const meResponse = (organizationId: string) =>
+      new Response(JSON.stringify({ user: { id: 'u1' }, organization: { id: organizationId } }), { status: 200 })
+    const sameSession = (me: Me) => me.user.id === 'u1' && me.organization.id === 'org-a'
+
+    /** La cookie llega con la respuesta de `/me`, como en el navegador. */
+    function cookieArrivesWithMe() {
+      const respond = globalThis.fetch
+      vi.stubGlobal('fetch', (input: Request | URL) => {
+        if (urlOf(input).endsWith('/api/me')) setCookie('token-nuevo')
+        return respond(input)
+      })
+    }
+
+    it('si el /me del reintento es otra organización, no hay segundo POST y recibe el 409 de sesión cambiada', async () => {
+      const network = stubFetch(csrfRejection(), meResponse('org-b'), new Response('{}', { status: 200 }))
+      cookieArrivesWithMe()
+      setSessionMatcher(sameSession)
+      const { response, error } = await api.POST('/session/organization', { body: organization })
+      expect(response.status).toBe(409)
+      expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+      expect(network.sent).toHaveLength(2) // el POST y el GET /me: el reintento no sale
+    })
+
+    it('si el /me del reintento es la misma sesión, se reintenta como antes', async () => {
+      const network = stubFetch(csrfRejection(), meResponse('org-a'), new Response('{}', { status: 200 }))
+      cookieArrivesWithMe()
+      setSessionMatcher(sameSession)
+      const { response } = await api.POST('/session/organization', { body: organization })
+      expect(response.status).toBe(200)
+      expect(network.sent).toHaveLength(3)
+    })
+
+    it('si la guardia de escrituras se cierra mientras se relee /me, tampoco se reintenta', async () => {
+      const network = stubFetch(csrfRejection(), meResponse('org-a'), new Response('{}', { status: 200 }))
+      cookieArrivesWithMe()
+      let consulted = 0
+      setWriteGuard(() => Promise.resolve(++consulted > 1)) // abierta al enviar, cerrada al reintentar
+      const { response } = await api.POST('/session/organization', { body: organization })
+      expect(response.status).toBe(409)
+      expect(network.sent).toHaveLength(2)
+    })
+
+    it('una respuesta de /me que no es un Me no impide el reintento', async () => {
+      const network = stubFetch(csrfRejection(), new Response('no es json', { status: 200 }), new Response('{}'))
+      cookieArrivesWithMe()
+      setSessionMatcher(sameSession)
+      expect((await api.POST('/session/organization', { body: organization })).response.status).toBe(200)
+      expect(network.sent).toHaveLength(3)
+    })
   })
 
   it('un 403 de CSRF en un GET no se reintenta', async () => {

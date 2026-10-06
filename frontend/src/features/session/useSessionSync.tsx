@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { isApiError, setWriteGuard, UNAUTHORIZED_EVENT } from '../../api/client'
+import { isApiError, setSessionMatcher, setWriteGuard, UNAUTHORIZED_EVENT } from '../../api/client'
 import type { Me } from '../../api/schema'
 import { Button, useToast } from '../../components/ui'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
@@ -168,6 +168,14 @@ export function useSessionSync() {
     document.addEventListener('visibilitychange', onReturn)
     const stopListening = subscribeSessionMessages((type) => void reconcile('tab', type))
     // Cerrada mientras se cambia de sesión y mientras hay una comprobación en vuelo (resuelve a si la sesión cambió).
+    // El reintento de CSRF compara la sesión de su `GET /me` con la de la caché; si no coincide, además de no reintentar,
+    // esta pestaña se pone al día sin esperar al mensaje del canal.
+    setSessionMatcher((me) => {
+      const shown = queryClient.getQueryData<Me>(sessionKeys.me)
+      const same = !shown || (shown.user.id === me.user.id && shown.organization.id === me.organization.id)
+      if (!same) void reconcile('tab')
+      return same
+    })
     setWriteGuard(async () => sessionState.switching || ((await checking.current) ?? false))
     return () => {
       window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
@@ -175,6 +183,7 @@ export function useSessionSync() {
       document.removeEventListener('visibilitychange', onReturn)
       stopListening()
       setWriteGuard(null)
+      setSessionMatcher(null)
     }
   }, [toast, queryClient, navigate])
 }

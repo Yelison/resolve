@@ -1,5 +1,5 @@
 import createClient, { type Middleware } from 'openapi-fetch'
-import type { paths, Problem } from './schema'
+import type { Me, paths, Problem } from './schema'
 
 /** Error de la API con su Problem Details (RFC 9457). */
 export class ApiError extends Error {
@@ -125,19 +125,35 @@ export function setWriteGuard(guard: WriteGuard | null) {
 }
 
 /**
- * Una escritura no sale mientras la sesión se está comprobando: si al terminar la persona o la organización son otras,
- * lo que la pantalla mostraba era de la sesión anterior y enviarlo lo escribiría en la nueva. En ese caso se cancela y
- * la llamada recibe un 409 con el motivo (un `Response` devuelto por el middleware sustituye a la petición). Sin
- * comprobación en vuelo no cuesta nada.
+ * ¿La sesión que responde `/me` es la que la aplicación tiene en pantalla (misma persona y organización)? La registra
+ * `features/session` con la caché de `/me`. El reintento de CSRF lo consulta con la respuesta de su propio `GET /me`.
+ */
+export type SessionMatcher = (me: Me) => boolean
+let sessionMatcher: SessionMatcher | null = null
+
+/** Registra (o quita, con `null`) la comparación de la sesión que ve el reintento de CSRF. */
+export function setSessionMatcher(matcher: SessionMatcher | null) {
+  sessionMatcher = matcher
+}
+
+/** La respuesta de una escritura cancelada porque la sesión cambió: un 409 con el motivo, sin tocar la red. */
+function sessionChangedResponse(): Response {
+  return new Response(
+    JSON.stringify({ status: 409, title: 'La sesión cambió', detail: SESSION_CHANGED_DETAIL } satisfies Problem),
+    { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
+  )
+}
+
+/**
+ * Una escritura no sale mientras la sesión se está comprobando o cambiando: si al terminar la persona o la organización
+ * son otras, lo que la pantalla mostraba era de la sesión anterior y enviarlo lo escribiría en la nueva. En ese caso se
+ * cancela y la llamada recibe un 409 con el motivo (un `Response` devuelto por el middleware sustituye a la petición).
+ * Sin comprobación en vuelo no cuesta nada.
  */
 const sessionGuard: Middleware = {
   async onRequest({ request }) {
     if (!UNSAFE_METHODS.has(request.method) || !writeGuard) return undefined
-    if (!(await writeGuard())) return undefined
-    return new Response(
-      JSON.stringify({ status: 409, title: 'La sesión cambió', detail: SESSION_CHANGED_DETAIL } satisfies Problem),
-      { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
-    )
+    return (await writeGuard()) ? sessionChangedResponse() : undefined
   },
 }
 
@@ -181,11 +197,23 @@ async function fetchWithCsrfRetry(request: Request): Promise<Response> {
   const response = await globalThis.fetch(request)
   if (!retry || response.status !== 403) return response
   if (sentWithToken && !(await isCsrfRejection(response))) return response
+  let me: Response
   try {
-    await globalThis.fetch(new URL('/api/me', window.location.origin))
+    me = await globalThis.fetch(new URL('/api/me', window.location.origin))
   } catch {
     return response
   }
+  // El reintento también pasa por la guardia: la respuesta de `/me` dice quién y en qué organización está la sesión
+  // ahora, y la escritura salió con lo que la pantalla mostraba antes. Si no coinciden (otra pestaña cambió mientras
+  // tanto) no se reintenta y se devuelve el mismo 409 que la guardia.
+  if (sessionMatcher && me.ok) {
+    try {
+      if (!sessionMatcher((await me.clone().json()) as Me)) return sessionChangedResponse()
+    } catch {
+      // Una respuesta que no es un `Me` no dice nada de la sesión: se sigue con el reintento.
+    }
+  }
+  if (writeGuard && (await writeGuard())) return sessionChangedResponse()
   const token = readCsrfToken()
   if (!token) return response
   retry.headers.set(CSRF_HEADER, token)

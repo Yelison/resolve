@@ -30,7 +30,8 @@ async function openShell(path = '/tickets/1046', lazyHome?: Promise<void>) {
     reads: number
     writes: number
     hold: Promise<void> | null
-  } = { me: inOrganization(acme), reads: 0, writes: 0, hold: null }
+    patchStatus: number
+  } = { me: inOrganization(acme), reads: 0, writes: 0, hold: null, patchStatus: 200 }
   mockApi({
     'GET /api/me': async () => {
       server.reads += 1
@@ -42,7 +43,9 @@ async function openShell(path = '/tickets/1046', lazyHome?: Promise<void>) {
     },
     'PATCH /api/me': () => {
       server.writes += 1
-      return { body: adminMe }
+      return server.patchStatus === 200
+        ? { body: adminMe }
+        : { status: server.patchStatus, body: { status: server.patchStatus, title: 'Sin permiso' } }
     },
   })
   sessionStorage.setItem('resolve-draft-1046', 'Respuesta a medias')
@@ -232,6 +235,24 @@ describe('escrituras mientras se comprueba la sesión (B-1n)', () => {
     const read = api.GET('/me')
     release()
     expect((await read).response.status).toBe(200)
+  })
+})
+
+describe('reintento de CSRF y sesión en pantalla (H-2)', () => {
+  it('si el /me del reintento ya es otra organización, no se reintenta y la pestaña se pone al día', async () => {
+    vi.unstubAllGlobals() // sin canal: no hay mensaje que avise a tiempo
+    const { server, queryClient, router } = await openShell()
+    setCsrfCookie(null) // justo tras iniciar sesión aún no hay cookie
+    server.patchStatus = 403 // la escritura sale sin token y se rechaza
+    server.me = inOrganization(northwind) // otra pestaña cambió mientras tanto
+
+    const { response, error } = await api.PATCH('/me', { body: { name: 'Yelisson' } })
+    expect(response.status).toBe(409)
+    expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+    expect(server.writes).toBe(1) // solo el primer intento, sin reintento hacia Northwind
+    expect(await within(region()).findByText('Cambiaste a Northwind en otra pestaña')).toBeInTheDocument()
+    expect(cachedTicket(queryClient)).toBeUndefined()
+    expect(router.state.location.pathname).toBe('/')
   })
 })
 
