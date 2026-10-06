@@ -315,5 +315,5 @@ Things that could not be checked without accounts, in the order they matter:
 3. **`sslmode=verify-full` and the JVM truststore** with Neon (`sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory` in
    `DATABASE_URL`), and `PGSSLROOTCERT=system` in the runner's `psql`.
 4. **GHCR package visibility** (public) and that `flyctl deploy --image` pulls it.
-5. **Neon suspends** when nobody uses the demo (the health check does not query the database).
+5. **Neon suspends** when nobody uses the demo. The health check does not query the database (outside maintenance), and `prod` sets `spring.datasource.hikari.minimum-idle=0` and `idle-timeout=60000`: HikariCP keeps 10 idle connections by default, which can keep a suspending database awake, so the pool now empties after a minute without traffic. If Neon still does not suspend, look at `maxLifetime` (30 minutes by default) and at the platform's own checks.
 6. **IPv6:** the app is reachable over IPv6 on Fly; the write limit counts a `/64`.
