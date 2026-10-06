@@ -186,8 +186,13 @@ describe('menú de la cuenta', () => {
       expect(writes).toBe(0)
 
       loadHome()
+      // La ubicación del router cambia antes de que React confirme la pantalla y corra el efecto que libera las escrituras:
+      // se espera a la condición, no a un instante. Las escrituras que salen antes siguen recibiendo el 409 sin llegar a la API.
       await waitFor(() => expect(router.state.location.pathname).toBe('/'))
-      expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
+      expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+      await waitFor(async () => {
+        expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
+      })
       expect(writes).toBe(1)
     })
 
