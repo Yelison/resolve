@@ -28,8 +28,10 @@ class RequiredProdConfiguration {
 
 	/** Propiedad → variable de entorno que la rellena (application.properties y application-prod.properties). */
 	private static final Map<String, String> DATABASE = Map.of("spring.datasource.url", "DATABASE_URL",
-			"spring.datasource.username", "DATABASE_USERNAME", "spring.datasource.password", "DATABASE_PASSWORD",
-			"resolve.demo.enabled", "RESOLVE_DEMO_ENABLED");
+			"spring.datasource.username", "DATABASE_USERNAME", "spring.datasource.password", "DATABASE_PASSWORD");
+
+	/** Si la instalación es la demostración pública: nunca se decide por un valor por defecto escondido. */
+	private static final Map<String, String> DEMO_INSTALLATION = Map.of("resolve.demo.enabled", "RESOLVE_DEMO_ENABLED");
 
 	private static final Map<String, String> OIDC = Map.of(
 			"spring.security.oauth2.client.provider.resolve.issuer-uri", "RESOLVE_OIDC_ISSUER",
@@ -44,6 +46,7 @@ class RequiredProdConfiguration {
 
 	static void check(Environment environment) {
 		Map<String, String> required = new LinkedHashMap<>(DATABASE);
+		required.putAll(DEMO_INSTALLATION);
 		if (environment.acceptsProfiles(Profiles.of("oidc"))) {
 			required.putAll(OIDC);
 		}
