@@ -1,5 +1,8 @@
-/* Generado a partir de las variables de Figma «Resolve Kit / Claro» y «Resolve Kit / Oscuro».
- * No editar a mano: los valores se regeneran desde el diseño. */
+/* Los valores parten de las variables de Figma «Resolve Kit / Claro» y «Resolve Kit / Oscuro».
+ * Los marcados en su línea con su issue (#14, #65, #75) se ajustaron en el código a propósito (contraste, hover y enlace,
+ * pista de progreso) y no se sincronizan con Figma; `tokens.contrast.test.ts` los protege. Si cambias uno, ese test y el
+ * de `tokens.keycloak.test.ts` dicen si sigue cumpliendo. Este archivo se copia tal cual al tema de Keycloak
+ * (`deploy/keycloak/themes/resolve/login/resources/css/tokens.css`): deben ser idénticos. */
 
 :root {
   color-scheme: light;
