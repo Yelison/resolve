@@ -1,3 +1,4 @@
+import type { Route } from '@playwright/test'
 import type { LogoutResponse, Me, OrganizationRef, SessionOrganizationSelection } from '../../src/api/schema'
 import { json, problem, type MockFeature } from './shared'
 
@@ -69,13 +70,28 @@ export function sessionMock(
     }
   }
 
+  /** El 403 con el que el backend rechaza una escritura sin el token de CSRF; el `detail` no se parece al real a propósito. */
+  const csrfRejection = (route: Route) =>
+    route.fulfill({
+      status: 403,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({
+        type: 'https://resolve.example/problems/csrf',
+        status: 403,
+        title: 'Sin permiso',
+        detail: 'Token CSRF.',
+      }),
+    })
+
   return {
     handle: ({ route, request, url, path, method }) => {
       // Como el backend: una escritura cuya `X-Organization-Id` no es la organización de la sesión se rechaza antes de que
-      // llegue a ninguna otra feature, así que no escribe nada. Elegir organización y cerrar sesión no la comprueban.
+      // llegue a ninguna otra feature, así que no escribe nada. Elegir organización y cerrar sesión no la comprueban. El
+      // orden es el del servidor: primero el token CSRF (403), después la organización (409).
       const shown = request.headers()['x-organization-id']
       const exempt = path === '/logout' || path === '/session/organization'
       if (shown && method !== 'GET' && !exempt && signedIn && !refused && shown !== session().organization.id) {
+        if (request.headers()['x-xsrf-token'] !== CSRF_TOKEN) return csrfRejection(route)
         return route.fulfill({
           status: 409,
           contentType: 'application/problem+json',
@@ -118,18 +134,7 @@ export function sessionMock(
       const isWrite = method === 'POST' && (path === '/logout' || path === '/session/organization')
       if (!isWrite) return undefined
       if (!signedIn && !refused) return problem(route, 401, 'No autenticado')
-      if (request.headers()['x-xsrf-token'] !== CSRF_TOKEN) {
-        return route.fulfill({
-          status: 403,
-          contentType: 'application/problem+json',
-          body: JSON.stringify({
-            type: 'https://resolve.example/problems/csrf',
-            status: 403,
-            title: 'Sin permiso',
-            detail: 'Token CSRF.',
-          }),
-        })
-      }
+      if (request.headers()['x-xsrf-token'] !== CSRF_TOKEN) return csrfRejection(route)
       if (path === '/logout') {
         signedIn = false
         refused = null

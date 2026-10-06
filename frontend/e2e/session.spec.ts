@@ -403,6 +403,34 @@ test.describe('varias pestañas', () => {
     expect(await page.evaluate(() => sessionStorage.getItem('resolve-draft-1048'))).toBeNull()
   })
 
+  test('el servidor simulado, como el real, rechaza por CSRF antes que por organización', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: [acme, northwind] })
+    await page.goto('/tickets')
+    await expect(account(page)).toBeVisible()
+    // Una escritura con la organización desfasada: sin token es el 403 de CSRF; con él, el 409 de organización.
+    const write = (token: string | null) =>
+      page.evaluate(
+        async ([organization, csrf]) => {
+          const response = await fetch('/api/me', {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Organization-Id': organization!,
+              ...(csrf && { 'X-XSRF-TOKEN': csrf }),
+            },
+            body: JSON.stringify({ name: 'Yelisson' }),
+          })
+          return { status: response.status, type: ((await response.json()) as { type: string }).type }
+        },
+        [northwind.id, token] as const,
+      )
+    expect(await write(null)).toEqual({ status: 403, type: 'https://resolve.example/problems/csrf' })
+    expect(await write(CSRF_TOKEN)).toEqual({
+      status: 409,
+      type: 'https://resolve.example/problems/organization-mismatch',
+    })
+  })
+
   test('cerrar sesión en una pestaña lleva la otra a /entrar', async ({ page, context }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/tickets')
