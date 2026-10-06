@@ -8,6 +8,7 @@ import com.resolve.api.common.security.CurrentMember;
 import com.resolve.api.organizations.Organization;
 import com.resolve.api.organizations.OrganizationRepository;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,8 +29,11 @@ class MeController {
 
 	private final JdbcClient jdbc;
 
+	private final boolean demo;
+
 	MeController(OrganizationRepository organizations, UserAccountRepository users, MemberPrincipals principals,
-			JdbcClient jdbc) {
+			JdbcClient jdbc, @Value("${resolve.demo.enabled}") boolean demo) {
+		this.demo = demo;
 		this.organizations = organizations;
 		this.users = users;
 		this.principals = principals;
@@ -41,7 +45,7 @@ class MeController {
 	MeResponse me(@AuthenticationPrincipal CurrentMember member) {
 		Organization organization = this.organizations.getReferenceById(member.organizationId());
 		return new MeResponse(new MemberDto(member.userId(), member.name(), member.email()),
-				organizationDto(organization), this.principals.organizationsOf(member.email()), member.role(),
+				organizationDto(organization, this.demo), this.principals.organizationsOf(member.email()), member.role(),
 				member.customerId());
 	}
 
@@ -58,13 +62,14 @@ class MeController {
 		LockTimeouts.limitWait(this.jdbc);
 		this.users.flush();
 		Organization organization = this.organizations.getReferenceById(member.organizationId());
-		return new MeResponse(MemberDto.from(user), organizationDto(organization),
+		return new MeResponse(MemberDto.from(user), organizationDto(organization, this.demo),
 				this.principals.organizationsOf(member.email()), member.role(), member.customerId());
 	}
 
-	static OrganizationDto organizationDto(Organization organization) {
+	/** {@code demo} sale de {@code resolve.demo.enabled}: es de la instalación, no de la organización. */
+	static OrganizationDto organizationDto(Organization organization, boolean demo) {
 		return new OrganizationDto(organization.getId(), organization.getName(), organization.getTimeZone(),
-				organization.getSupportEmail());
+				organization.getSupportEmail(), demo);
 	}
 
 	/** {@code organizations} lista dónde puede trabajar quien llama; el contrato lo declara opcional. */
@@ -72,7 +77,7 @@ class MeController {
 			@Nullable UUID customerId) {
 	}
 
-	record OrganizationDto(UUID id, String name, String timeZone, @Nullable String supportEmail) {
+	record OrganizationDto(UUID id, String name, String timeZone, @Nullable String supportEmail, boolean demo) {
 	}
 
 }

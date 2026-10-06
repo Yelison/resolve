@@ -10,6 +10,7 @@ import com.resolve.api.organizations.Organization;
 import com.resolve.api.organizations.OrganizationRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.Nullable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -31,7 +32,11 @@ class SessionController {
 
 	private final OrganizationRepository organizations;
 
-	SessionController(MemberPrincipals principals, OrganizationRepository organizations) {
+	private final boolean demo;
+
+	SessionController(MemberPrincipals principals, OrganizationRepository organizations,
+			@Value("${resolve.demo.enabled}") boolean demo) {
+		this.demo = demo;
 		this.principals = principals;
 		this.organizations = organizations;
 	}
@@ -63,7 +68,7 @@ class SessionController {
 	private MeController.MeResponse me(CurrentMember member) {
 		Organization organization = this.organizations.findById(member.organizationId()).orElseThrow();
 		return new MeController.MeResponse(new MemberDto(member.userId(), member.name(), member.email()),
-				MeController.organizationDto(organization), this.principals.organizationsOf(member.email()),
+				MeController.organizationDto(organization, this.demo), this.principals.organizationsOf(member.email()),
 				member.role(), member.customerId());
 	}
 
