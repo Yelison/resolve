@@ -108,28 +108,52 @@ export async function clearSessionData(queryClient: QueryClient) {
   clearDrafts()
 }
 
+/** La cadena de `focusContentWhenReady` en curso (su cancelación). */
+let stopFocus: (() => void) | undefined
+
 /**
  * Lleva el foco al contenido principal cuando la shell lo pinta y el foco puede moverse allí: tras un cambio que
  * desmonta a quien lo tenía (el selector de usuario de demostración). Tres trampas, por eso no basta un `focus()`:
  * mientras un `<dialog>` modal sigue abierto el resto de la página es inerte y `focus()` no hace nada sin avisar; la
  * shell puede tardar en montarse tras navegar; y al cerrarse, `Modal` devuelve el foco a su disparador, que puede
  * ocurrir justo después. Se reintenta hasta que el foco llega y se confirma una vez más poco después, sin recolocarlo si la persona ya lo movió.
+ *
+ * Devuelve su cancelación. Quien la llama no debe cancelarla al desmontarse: el selector que la lanza desaparece justo con
+ * el cambio de usuario que ella acompaña (el foco tiene que llegar a la pantalla de destino). Se cancela cuando se va la
+ * shell (`useSessionSync`), que es a quien pertenece el contenido que enfoca.
  */
-export function focusContentWhenReady(attempts = 40, delay = 0, confirming = false) {
-  window.setTimeout(() => {
-    const content = document.getElementById('contenido')
-    if (content && !document.querySelector('dialog[open]')) {
-      if (confirming) {
-        // Ya llegó: se vuelve a llevar solo si lo perdió (cayó en `body`). Si la persona lo movió a otro elemento, se respeta.
-        const active = document.activeElement
-        if (active && active !== document.body) return
+export function focusContentWhenReady(): () => void {
+  stopFocus?.() // una sola cadena a la vez
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const tick = (attempts: number, delay: number, confirming: boolean) => {
+    timer = setTimeout(() => {
+      // La cadena puede sobrevivir al entorno (una prueba que ya terminó y desmontó el documento): sin documento no hay
+      // nada que enfocar.
+      if (typeof document === 'undefined') return
+      const content = document.getElementById('contenido')
+      if (content && !document.querySelector('dialog[open]')) {
+        if (confirming) {
+          // Ya llegó: se vuelve a llevar solo si lo perdió (cayó en `body`). Si la persona lo movió a otro elemento, se respeta.
+          const active = document.activeElement
+          if (active && active !== document.body) return
+        }
+        content.focus({ preventScroll: true })
+        if (document.activeElement === content) {
+          if (!confirming) tick(attempts, 100, true)
+          return
+        }
       }
-      content.focus({ preventScroll: true })
-      if (document.activeElement === content) {
-        if (!confirming) focusContentWhenReady(attempts, 100, true)
-        return
-      }
-    }
-    if (attempts > 0) focusContentWhenReady(attempts - 1, 50)
-  }, delay)
+      if (attempts > 0) tick(attempts - 1, 50, false)
+    }, delay)
+  }
+  tick(40, 0, false)
+  const cancel = () => {
+    clearTimeout(timer)
+    if (stopFocus === cancel) stopFocus = undefined
+  }
+  stopFocus = cancel
+  return cancel
 }
+
+/** Cancela la cadena de `focusContentWhenReady` en curso, si la hay. */
+export const cancelFocusContent = () => stopFocus?.()

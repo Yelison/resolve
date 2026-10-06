@@ -7,7 +7,15 @@ import { Button, useToast } from '../../components/ui'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
 import { fetchMe, sessionKeys } from './queries'
 import { subscribeSessionMessages, type SessionMessageType } from './sessionChannel'
-import { clearSessionData, holdWrites, LOGIN_PATH, navigation, releaseWrites, sessionState } from './sessionLifecycle'
+import {
+  cancelFocusContent,
+  clearSessionData,
+  holdWrites,
+  LOGIN_PATH,
+  navigation,
+  releaseWrites,
+  sessionState,
+} from './sessionLifecycle'
 import styles from './session.module.css'
 
 /** `setTimeout` no admite más de 2³¹ − 1 ms (≈ 24 días): con un valor mayor dispara al instante. */
@@ -69,6 +77,8 @@ export function useSessionSync() {
   // La navegación a `/` tras un cambio de sesión se confirma cuando cambia la ubicación (y con ella la pantalla): hasta
   // entonces la pantalla anterior sigue montada y las escrituras siguen cerradas (`holdWrites`).
   useEffect(() => releaseWrites, [])
+  // Al irse la shell, la cadena que llevaba el foco a su contenido ya no tiene a dónde ir.
+  useEffect(() => cancelFocusContent, [])
   useEffect(() => {
     releaseWrites()
   }, [location.key])
