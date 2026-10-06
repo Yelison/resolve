@@ -365,7 +365,9 @@ describe('CustomerFormDialog con rechazos de la demostración pública', () => {
       headers: { 'Retry-After': '60' },
       body: { status: 503, title: 'Reinicio de la demostración en curso' },
     })
-    expect(within(alert).getByText('Estamos reiniciando la demostración; vuelve en un minuto.')).toBeInTheDocument()
+    expect(within(alert).getByText('No se pudo guardar el cliente; lo que escribiste sigue aquí.')).toBeInTheDocument()
+    // El texto del reinicio es del aviso global del shell: aquí no se repite.
+    expect(screen.queryByText(/Estamos reiniciando/)).not.toBeInTheDocument()
   })
 })
 
