@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { Placement } from '../../../lib/position'
 import { useFloating } from '../shared/useFloating'
@@ -6,6 +6,12 @@ import styles from './Tooltip.module.css'
 
 /** Margen para mover el puntero del disparador al tooltip sin que se cierre. */
 const HIDE_DELAY = 120
+
+/**
+ * Cierre del tooltip que está abierto. Solo puede haber uno: al abrirse otro, este se oculta al instante, sin esperar
+ * el margen de cierre, así que al recorrer varios iconos con el puntero o el foco no se acumulan etiquetas.
+ */
+let hideActive: (() => void) | null = null
 
 export interface TooltipTriggerProps {
   /** Registra el disparador como ancla de posición del tooltip. */
@@ -47,6 +53,11 @@ export function Tooltip({ content, placement = 'right', describe = true, childre
   const [focused, setFocused] = useState(false)
   const [dismissed, setDismissed] = useState(false)
   const open = (hovered || focused) && !dismissed
+  const hide = useCallback(() => {
+    setPointerInside(false)
+    setHovered(false)
+    setFocused(false)
+  }, [])
   const { setAnchor, setFloating, style, portalContainer } = useFloating<HTMLElement, HTMLDivElement>(open, placement)
 
   useEffect(() => {
@@ -68,7 +79,21 @@ export function Tooltip({ content, placement = 'right', describe = true, childre
     return () => window.clearTimeout(timer)
   }, [pointerInside, hovered])
 
+  // Deja de ser el tooltip activo al desmontarse, para que nadie llame a un cierre huérfano.
+  useEffect(
+    () => () => {
+      if (hideActive === hide) hideActive = null
+    },
+    [hide],
+  )
+
+  function claim() {
+    if (hideActive && hideActive !== hide) hideActive()
+    hideActive = hide
+  }
+
   function enter() {
+    claim()
     setPointerInside(true)
     setHovered(true)
     setDismissed(false)
@@ -85,6 +110,7 @@ export function Tooltip({ content, placement = 'right', describe = true, childre
         onPointerEnter: enter,
         onPointerLeave: leave,
         onFocus: () => {
+          claim()
           setDismissed(false)
           setFocused(true)
         },
