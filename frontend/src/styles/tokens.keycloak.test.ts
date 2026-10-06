@@ -15,6 +15,24 @@ import { describe, expect, it } from 'vitest'
  * propios del tema.
  */
 
+/** Colores con nombre de CSS: `white` en un `background` se salta tokens.css igual que un hexadecimal. */
+const NAMED_COLORS = new Set(
+  `aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue
+  chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey
+  darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray
+  darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen
+  fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki
+  lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen
+  lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime
+  limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue
+  mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive
+  olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum
+  powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver
+  skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white
+  whitesmoke yellow yellowgreen canvas canvastext field fieldtext linktext visitedtext activetext buttonface buttontext
+  buttonborder highlight highlighttext graytext mark marktext accentcolor accentcolortext`.split(/\s+/),
+)
+
 const THEME = join(process.cwd(), '../deploy/keycloak/themes/resolve/login/resources/css')
 const appTokens = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8')
 const themeTokens = readFileSync(join(THEME, 'tokens.css'), 'utf8')
@@ -99,14 +117,38 @@ describe('tema de Keycloak · una sola fuente de verdad', () => {
   it('resolve.css solo pinta con variables de tokens.css: ni colores sueltos ni variables inexistentes', () => {
     const withoutComments = themeStyles.replace(/\/\*[\s\S]*?\*\//g, '')
     expect(withoutComments.match(/#[0-9a-f]{3,8}\b/gi) ?? [], 'colores hexadecimales').toEqual([])
-    expect(withoutComments.match(/\b(?:rgba?|hsla?|oklch|oklab|hwb|lab|lch)\(/gi) ?? [], 'funciones de color').toEqual(
-      [],
-    )
+    expect(
+      withoutComments.match(/\b(?:rgba?|hsla?|oklch|oklab|hwb|lab|lch|color-mix|color)\(/gi) ?? [],
+      'funciones de color',
+    ).toEqual([])
+    // Colores con nombre: solo `transparent`, `currentColor` e `inherit` (y `none`, `unset`…) valen sin pasar por un token.
+    const named = [...withoutComments.matchAll(/(?:^|[;{])\s*([a-z-]+|--[a-z0-9_-]+)\s*:\s*([^;{}]+)/g)]
+      .filter(
+        ([, property = '']) =>
+          !/^(?:font|content|display|width|height|margin|padding|gap|grid|flex|transition|animation)/.test(property),
+      )
+      .flatMap(([, property = '', value = '']) =>
+        value
+          .replace(/var\([^)]*\)/g, '')
+          .replace(/url\([^)]*\)/g, '')
+          .replace(/'[^']*'|"[^"]*"/g, '')
+          .split(/[^a-zA-Z-]+/)
+          .filter((word) => NAMED_COLORS.has(word.toLowerCase()))
+          .map((word) => `${property}: ${word}`),
+      )
+    expect(named, 'colores con nombre').toEqual([])
     const known = new Set([...themeTokens.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(([, name = '']) => name))
     const own = new Set([...withoutComments.matchAll(/(--[a-z0-9_-]+)\s*:/g)].map(([, name = '']) => name))
     const used = [...withoutComments.matchAll(/var\((--[a-z0-9_-]+)/g)].map(([, name = '']) => name)
     const unknown = used.filter((name) => !known.has(name) && !own.has(name) && !name.startsWith('--pf-'))
     expect(unknown).toEqual([])
+  })
+
+  it('el tema usa los tokens pensados para el texto de marca y el hover: link, no brand, y brand-hover', () => {
+    const css = themeStyles.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(css.match(/(?:^|[^-\w])color\s*:\s*var\(--color-brand\)/g) ?? [], 'brand como color de texto').toEqual([])
+    const hover = /\.pf-v5-c-button\.pf-m-primary:hover[^{]*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(hover, 'hover del botón primario').toMatch(/background:\s*var\(--color-brand-hover\)\s*;/)
   })
 
   for (const [themeName, theme] of [
