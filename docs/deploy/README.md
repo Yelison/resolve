@@ -437,3 +437,8 @@ Things that could not be checked without accounts, in the order they matter:
    sign out and land back on the application (no *Invalid redirect uri*); (e) the sign-in page has no registration or
    "forgot password" link; (f) `/admin`, `/admin/master/console/` and `/realms/master/account` on the public URL answer 404 (the features really are off in the deployed image); (g) whether the 2 GB machine of `deploy/keycloak/fly.toml` is enough for Keycloak
    plus the first import without restarts (`fly status`); (h) Neon suspends the Keycloak database too when nobody signs in.
+8. **One machine per app.** `fly status -a resolve-demo` and `fly status -a resolve-demo-idp` each show **a single
+   machine**. Fly creates two machines on the first deployment of an app with services unless told otherwise, so both
+   `flyctl deploy` calls carry `--ha=false` (the API keeps its sessions in memory and counts the write limit per machine;
+   Keycloak is built with `KC_CACHE=local`, without a distributed cache). If a second machine exists, destroy it
+   (`fly machine destroy`) and check that the workflow was not edited.

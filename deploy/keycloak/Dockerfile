@@ -11,10 +11,12 @@ FROM quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6c
 
 # Sin superficie de administración: ni la consola ni la API REST de administración ni la consola de cuenta. El realm vive
 # en el repositorio y se importa al arrancar; un cambio de urgencia se hace en el realm y se redespliega (docs/deploy).
-# Las opciones de construcción (base de datos, health, features) se fijan aquí: con `start --optimized` ya no se pueden cambiar.
+# Una sola máquina (fly.toml): caché local, sin descubrimiento ni clúster de Infinispan por la base de datos.
+# Las opciones de construcción (base de datos, health, features, caché) se fijan aquí: con `start --optimized` ya no se pueden cambiar.
 ENV KC_DB=postgres \
     KC_HEALTH_ENABLED=true \
     KC_METRICS_ENABLED=false \
+    KC_CACHE=local \
     KC_FEATURES_DISABLED=admin,admin-api,client-admin-api,account,account-api
 
 COPY deploy/keycloak/themes /opt/keycloak/themes
@@ -30,6 +32,7 @@ COPY deploy/keycloak/resolve-realm.prod.json /opt/keycloak/data/import/resolve-r
 ENV KC_DB=postgres \
     KC_HEALTH_ENABLED=true \
     KC_METRICS_ENABLED=false \
+    KC_CACHE=local \
     KC_FEATURES_DISABLED=admin,admin-api,client-admin-api,account,account-api
 
 # Keycloak no falla con una ${VARIABLE} sin valor del realm: deja el texto literal. El script exige las variables.

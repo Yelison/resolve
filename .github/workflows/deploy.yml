@@ -111,8 +111,10 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
       - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      # --ha=false: sin él, el primer despliegue de una app con servicios crea dos máquinas. La API guarda las sesiones en
+      # memoria (D-13) y el límite de escrituras es por máquina; Keycloak va con caché local.
       - name: Deploy the image tagged with the SHA
-        run: flyctl deploy --config deploy/keycloak/fly.toml --image "${IMAGE}:${SHA}" --strategy immediate
+        run: flyctl deploy --config deploy/keycloak/fly.toml --image "${IMAGE}:${SHA}" --strategy immediate --ha=false
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_IDP }}
           IMAGE: ${{ needs.idp-image.outputs.image }}
@@ -184,8 +186,10 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
       - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      # --ha=false: sin él, el primer despliegue de una app con servicios crea dos máquinas. La API guarda las sesiones en
+      # memoria (D-13) y el límite de escrituras es por máquina; Keycloak va con caché local.
       - name: Deploy the image tagged with the SHA
-        run: flyctl deploy --config deploy/fly.toml --image "${IMAGE}:${SHA}" --strategy immediate
+        run: flyctl deploy --config deploy/fly.toml --image "${IMAGE}:${SHA}" --strategy immediate --ha=false
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           IMAGE: ${{ needs.image.outputs.image }}
