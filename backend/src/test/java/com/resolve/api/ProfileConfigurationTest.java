@@ -68,6 +68,14 @@ class ProfileConfigurationTest {
 	}
 
 	@Test
+	void prodLetsThePoolEmptyWhenIdleSoANeonDatabaseCanSuspend() {
+		ConfigurableEnvironment environment = environment(allVariables(), "prod", "oidc");
+
+		assertThat(environment.getProperty("spring.datasource.hikari.minimum-idle")).isEqualTo("0");
+		assertThat(environment.getProperty("spring.datasource.hikari.idle-timeout")).isEqualTo("60000");
+	}
+
+	@Test
 	void prodNeverLetsTheApplicationRunFlywayClean() {
 		ConfigurableEnvironment environment = environment(allVariables(), "prod", "oidc");
 
