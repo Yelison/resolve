@@ -88,14 +88,16 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 
 	/**
 	 * Activa una invitación. Es un {@code UPDATE} condicional y no un cambio de la entidad: si una retirada se
-	 * confirmó entre la lectura y la activación no afecta a ninguna fila y el miembro retirado no resucita.
-	 * @return las filas activadas: 1, o 0 si la membresía ya no estaba {@code invited}
+	 * confirmó entre la lectura y la activación no afecta a ninguna fila y el miembro retirado no resucita. Corre en
+	 * el filtro del principal, que atiende todas las operaciones, así que nunca espera: si otra transacción retiene
+	 * la fila ({@code FOR UPDATE SKIP LOCKED}) no toca nada y la activación se repite en la petición siguiente.
+	 * @return las filas activadas: 1, o 0 si la membresía ya no estaba {@code invited} o está retenida
 	 */
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
-	@Query("""
-			update Membership m set m.status = com.resolve.api.memberships.MemberStatus.ACTIVE, m.joinedAt = :now
-			where m.id = :id and m.status = com.resolve.api.memberships.MemberStatus.INVITED
-			""")
+	@Query(value = """
+			UPDATE memberships SET status = 'active', joined_at = :now
+			WHERE id = (SELECT id FROM memberships WHERE id = :id AND status = 'invited' FOR UPDATE SKIP LOCKED)
+			""", nativeQuery = true)
 	int activate(UUID id, Instant now);
 
 	@Query("select m.status from Membership m where m.id = :id")

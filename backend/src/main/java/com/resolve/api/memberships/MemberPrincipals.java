@@ -97,10 +97,14 @@ public class MemberPrincipals {
 		return customerId != null && this.customers.existsByIdAndArchivedAtIsNotNull(customerId);
 	}
 
-	/** Activa la invitación en su propia transacción y confirma el estado final: una retirada concurrente gana. */
+	/**
+	 * Activa la invitación en su propia transacción y confirma el estado final: una retirada concurrente gana. Si la
+	 * membresía está retenida por otra transacción la activación se salta y la persona entra igual, con el mismo
+	 * rol y sin más datos que activa; la siguiente petición la activa.
+	 */
 	private Resolution enter(Membership membership, @Nullable String identityName) {
 		if (membership.getStatus() != MemberStatus.ACTIVE
-				&& this.members.activate(membership.getId()) != MemberStatus.ACTIVE) {
+				&& this.members.activate(membership.getId()) == MemberStatus.REMOVED) {
 			return Resolution.DEACTIVATED;
 		}
 		UserAccount user = membership.getUser();
