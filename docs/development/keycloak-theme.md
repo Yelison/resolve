@@ -61,4 +61,4 @@ Other screens: the error page with `client_id=nope`; the logout confirmation at
 `/realms/resolve/protocol/openid-connect/logout`; the information page by confirming that logout while signed in; the
 expired page by opening the sign-in form's `action` URL with `execution=00000000-0000-0000-0000-000000000000`.
 `body[data-page-id]` names the screen. For the whole flow through the app, run the backend with `SPRING_PROFILES_ACTIVE=dev,oidc`
-and Vite as described in [herdr.md](herdr.md#per-task-ports) and press "Entrar con tu cuenta".
+and Vite as described in [herdr.md](herdr.md#port-slots) and press "Entrar con tu cuenta".
