@@ -23,6 +23,7 @@ import {
 import { isApiError } from '../../api/client'
 import type { TicketMetrics, TicketPriority, TicketStatus, TicketSummary, TicketView } from '../../domain/ticket'
 import { ticketPriorityValues, ticketStatusValues } from '../../domain/ticket'
+import { isLockTimeout, LOCK_TIMEOUT_MESSAGE, LOCK_TOAST_DURATION } from '../../lib/mutationError'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
@@ -440,20 +441,36 @@ function InboxRow({ ticket, isStaff }: { ticket: TicketSummary; isStaff: boolean
   const quickUpdate = useQuickTicketUpdate()
 
   function run(changes: TicketChanges, success: string) {
-    quickUpdate.mutate(
-      { number: ticket.number, changes },
-      {
+    // Una sola llamada: el reintento de un 503 de bloqueo la repite tal cual (con la versión que leyó la primera vez).
+    const variables = { number: ticket.number, changes }
+    const attempt = () =>
+      quickUpdate.mutate(variables, {
         onSuccess: () => toast.show({ title: success }),
         onError: (error) =>
-          toast.show({
-            tone: 'error',
-            title: `No se pudo actualizar el ticket #${ticket.number}`,
-            description: isApiError(error, 412)
-              ? 'Otra persona lo cambió a la vez. Revisa los cambios e inténtalo de nuevo.'
-              : 'Inténtalo de nuevo en unos segundos.',
-          }),
-      },
-    )
+          toast.show(
+            isLockTimeout(error)
+              ? {
+                  tone: 'error',
+                  title: `No se pudo actualizar el ticket #${ticket.number}`,
+                  description: LOCK_TIMEOUT_MESSAGE,
+                  // La persona decide cuándo repetir: el aviso no se cierra solo enseguida.
+                  duration: LOCK_TOAST_DURATION,
+                  action: {
+                    label: 'Reintentar',
+                    ariaLabel: `Reintentar actualizar el ticket #${ticket.number}`,
+                    onSelect: attempt,
+                  },
+                }
+              : {
+                  tone: 'error',
+                  title: `No se pudo actualizar el ticket #${ticket.number}`,
+                  description: isApiError(error, 412)
+                    ? 'Otra persona lo cambió a la vez. Revisa los cambios e inténtalo de nuevo.'
+                    : 'Inténtalo de nuevo en unos segundos.',
+                },
+          ),
+      })
+    attempt()
   }
 
   const actions: MenuItem[] = isStaff

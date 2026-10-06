@@ -14,7 +14,10 @@ import {
 import { isApiError } from '../../api/client'
 import type { TicketPriority } from '../../domain/ticket'
 import { ticketPriorityValues } from '../../domain/ticket'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout } from '../../lib/mutationError'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useCustomerSearch } from '../customers/queries'
@@ -32,6 +35,7 @@ export function NewTicketPage() {
   const navigate = useNavigate()
   const toast = useToast()
   const createTicket = useCreateTicket()
+  const submission = useRepeatableSubmission()
   const assignees = useAssignees()
 
   const [customerQuery, setCustomerQuery] = useState('')
@@ -65,15 +69,16 @@ export function NewTicketPage() {
       event.currentTarget.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
       return
     }
-    createTicket.mutate(
-      {
-        customerId: customer.value,
-        subject: subject.trim(),
-        description: description.trim(),
-        priority,
-        assigneeId: assigneeId || null,
-      },
-      {
+    const ticket = {
+      customerId: customer.value,
+      subject: subject.trim(),
+      description: description.trim(),
+      priority,
+      assigneeId: assigneeId || null,
+    }
+    // El reintento de un 503 repite esta misma llamada, no la compone de nuevo con lo que haya en el formulario.
+    submission.send(() =>
+      createTicket.mutate(ticket, {
         onSuccess: (ticket) => {
           toast.show({ title: `Ticket #${ticket.number} creado` })
           void navigate(`/tickets/${ticket.number}`)
@@ -86,12 +91,17 @@ export function NewTicketPage() {
               if (message) serverErrors[field] = message
             }
             setErrors(serverErrors)
-          } else {
+          } else if (!isLockTimeout(error)) {
             toast.show({ tone: 'error', title: 'No se pudo crear el ticket', description: 'Inténtalo de nuevo.' })
           }
         },
-      },
+      }),
     )
+  }
+
+  /** Editar el formulario retira el aviso de bloqueo: el reintento repetiría lo enviado, no lo que se ve ahora. */
+  function dismissLockTimeout() {
+    if (isLockTimeout(createTicket.error)) createTicket.reset()
   }
 
   const customerOptions: ComboboxOption[] = (customers.data?.items ?? []).map((item) => ({
@@ -103,7 +113,7 @@ export function NewTicketPage() {
   return (
     <div className={pageStyles.page}>
       <PageHeader title="Crear ticket" description="Registra una solicitud y asigna el siguiente paso." />
-      <form className={styles.form} onSubmit={submit} noValidate>
+      <form className={styles.form} onSubmit={submit} onChange={dismissLockTimeout} noValidate>
         <section className={styles.panel} aria-labelledby="new-ticket-details">
           <h2 id="new-ticket-details" className={styles.panelTitle}>
             Detalles de la solicitud
@@ -117,6 +127,7 @@ export function NewTicketPage() {
             selected={customer}
             onSelect={(option) => {
               setCustomer(option)
+              dismissLockTimeout()
               setErrors((current) => ({ ...current, customerId: undefined }))
             }}
             loading={customers.isFetching}
@@ -138,6 +149,12 @@ export function NewTicketPage() {
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             error={errors.description}
+          />
+          <LockTimeoutAlert
+            error={createTicket.error}
+            pending={createTicket.isPending}
+            onRetry={submission.retry}
+            what="crear el ticket"
           />
           <div className={styles.actions}>
             <Button type="submit" loading={createTicket.isPending} loadingLabel="Creando…">

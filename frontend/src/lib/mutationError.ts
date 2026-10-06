@@ -13,6 +13,9 @@ export const LOCK_TIMEOUT_MESSAGE = 'Otra persona está guardando este recurso; 
  */
 export const LOCK_RETRY_DELAY_MS = 1000
 
+/** Cuánto dura en pantalla un aviso (Toast) con «Reintentar»: más que el habitual, porque lo decide la persona. */
+export const LOCK_TOAST_DURATION = 15_000
+
 /**
  * ¿Es el `503` de «Recurso ocupado»? Nada se cambió y repetir la misma petición es seguro. El contrato no define un
  * `type` propio para este Problem (es `about:blank`), así que se reconoce por el estado 503 más el `title`. Otro 503

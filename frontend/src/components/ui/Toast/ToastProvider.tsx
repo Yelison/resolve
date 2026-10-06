@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { cx } from '../../../lib/cx'
+import { buttonClassName } from '../Button/buttonClassName'
 import { Icon } from '../Icon/Icon'
 import styles from './Toast.module.css'
-import { ToastContext, type ToastApi, type ToastOptions } from './toastContext'
+import { ToastContext, type ToastAction, type ToastApi, type ToastOptions } from './toastContext'
 
 const DEFAULT_DURATION = 5000
 
@@ -10,6 +11,7 @@ interface ToastItem extends Required<Pick<ToastOptions, 'tone' | 'duration'>> {
   id: string
   title: ReactNode
   description?: ReactNode
+  action?: ToastAction
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -29,6 +31,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       duration: options.duration ?? DEFAULT_DURATION,
       title: options.title,
       description: options.description,
+      action: options.action,
     }
     setToasts((current) => [...current, toast])
     return id
@@ -79,6 +82,19 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string)
           {toast.title}
         </p>
         {toast.description && <p className={styles.description}>{toast.description}</p>}
+        {toast.action && (
+          <button
+            type="button"
+            className={buttonClassName({ variant: 'secondary', className: styles.action })}
+            aria-label={toast.action.ariaLabel}
+            onClick={() => {
+              onDismiss(toast.id)
+              toast.action?.onSelect()
+            }}
+          >
+            {toast.action.label}
+          </button>
+        )}
       </div>
       <button
         type="button"

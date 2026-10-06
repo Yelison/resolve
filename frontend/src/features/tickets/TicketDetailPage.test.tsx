@@ -1,8 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from '../../app/layout/AppShell'
+import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { ticket } from '../../test/ticketFixtures'
@@ -278,5 +279,106 @@ describe('TicketDetailPage y la zona de la organización', () => {
     expect(within(article).getByText('Ayer, 23:30')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('tab', { name: 'Historial' }))
     expect(await screen.findByText('Ayer, 23:30')).toBeInTheDocument()
+  })
+})
+
+describe('TicketDetailPage con un 503 de bloqueo', () => {
+  const LOCK_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+
+  /** El detalle devuelve la versión 3 y, desde la segunda lectura (tras el fallo), la 4: otra persona guardó. */
+  function detailThenNewer() {
+    let reads = 0
+    return () => {
+      reads += 1
+      return { body: ticket(reads === 1 ? {} : { priority: 'low', version: 4 }) }
+    }
+  }
+
+  it('al cambiar un campo ofrece «Reintentar» y repite el PATCH con el mismo cuerpo y la misma versión', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const seen: SentRequest[] = []
+    staffApi({
+      'GET /api/tickets/1048': () => ({ body: ticket() }),
+      'PATCH /api/tickets/1048': inOrder(seen, lockTimeoutRoute(), { body: ticket({ priority: 'high', version: 4 }) }),
+    })
+    renderDetail()
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Prioridad' }), 'high')
+
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    expect(screen.queryByText('No se pudo guardar el cambio')).not.toBeInTheDocument()
+    await retryAfterLockTimeout(user, 'Reintentar guardar el cambio del ticket')
+
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('Prioridad: Alta')).toBeInTheDocument()
+    expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(seen[0]).toEqual({ body: JSON.stringify({ priority: 'high' }), ifMatch: '"3"' })
+  })
+
+  it('si otra persona guardó entretanto, el reintento lleva la versión original y recibe el 412 de siempre', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const seen: SentRequest[] = []
+    staffApi({
+      'GET /api/tickets/1048': detailThenNewer(),
+      'PATCH /api/tickets/1048': inOrder(seen, lockTimeoutRoute(), {
+        status: 412,
+        body: { status: 412, title: 'El recurso cambió' },
+      }),
+    })
+    renderDetail()
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Prioridad' }), 'high')
+    // El detalle se recarga tras el 503 y llega la versión 4; el reintento no la usa.
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Prioridad' })).toHaveValue('low'))
+    await retryAfterLockTimeout(user, 'Reintentar guardar el cambio del ticket')
+
+    expect(await screen.findByText('El ticket cambió mientras lo editabas')).toBeInTheDocument()
+    expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument()
+    expect(seen.map((request) => request.ifMatch)).toEqual(['"3"', '"3"'])
+  })
+
+  it('al responder, conserva el borrador, ofrece «Reintentar» y repite el mismo mensaje', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const seen: SentRequest[] = []
+    staffApi({
+      'POST /api/tickets/1048/messages': inOrder(seen, lockTimeoutRoute(), {
+        status: 201,
+        body: { ...messages[0], id: 'm-3', body: '¿Pudiste acceder?' },
+      }),
+    })
+    renderDetail()
+    const textarea = await screen.findByRole('textbox', { name: 'Respuesta al cliente' })
+    await user.type(textarea, '¿Pudiste acceder?')
+    await user.click(screen.getByRole('button', { name: 'Enviar respuesta' }))
+
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    expect(screen.queryByText('Error al enviar · Borrador guardado')).not.toBeInTheDocument()
+    expect(textarea).toHaveValue('¿Pudiste acceder?')
+    await retryAfterLockTimeout(user, 'Reintentar enviar el mensaje')
+
+    await waitFor(() => expect(textarea).toHaveValue(''))
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(JSON.parse(seen[0]?.body ?? '')).toEqual({ body: '¿Pudiste acceder?', visibility: 'public' })
+  })
+
+  it('si el reintento del mensaje falla por otro motivo, muestra ese error y no el aviso de bloqueo', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    staffApi({
+      'POST /api/tickets/1048/messages': inOrder([], lockTimeoutRoute(), {
+        status: 500,
+        body: { status: 500, title: 'Error interno' },
+      }),
+    })
+    renderDetail()
+    await user.type(await screen.findByRole('textbox', { name: 'Respuesta al cliente' }), 'Hola')
+    await user.click(screen.getByRole('button', { name: 'Enviar respuesta' }))
+    await retryAfterLockTimeout(user, 'Reintentar enviar el mensaje')
+    expect(await screen.findByText('Error al enviar · Borrador guardado')).toBeInTheDocument()
+    expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument()
   })
 })

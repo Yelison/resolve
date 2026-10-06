@@ -19,7 +19,9 @@ import type { CustomerDetail } from '../../domain/customer'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
-import { mutationErrorDetail } from '../../lib/mutationError'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { useMe } from '../session/queries'
 import { useTimeZone } from '../session/useTimeZone'
 import { customerSince } from './customerSince'
@@ -91,6 +93,10 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
   const archive = useArchiveCustomer(customer.id)
   const restore = useRestoreCustomer(customer.id)
   const invite = useInviteCustomer(customer.id)
+  // Un envío recordado por acción: el reintento de un 503 de bloqueo repite esa llamada tal cual.
+  const inviteSubmission = useRepeatableSubmission()
+  const restoreSubmission = useRepeatableSubmission()
+  const archiveSubmission = useRepeatableSubmission()
   const access = portalAccessLabels[customer.portalAccess]
   // Un cliente archivado tiene el acceso suspendido, diga lo que diga `portalAccess` (ver el contrato).
   const portal = customer.archived ? { label: 'Acceso suspendido', tone: 'neutral' as BadgeTone } : access
@@ -117,41 +123,52 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
 
   function inviteToPortal() {
     if (invite.isPending) return
-    invite.mutate(undefined, {
-      onSuccess: () => {
-        closePortalInvite()
-        toast.show({ title: 'Invitación creada', description: `${customer.email} podrá entrar al portal.` })
-      },
-    })
+    inviteSubmission.send(() =>
+      invite.mutate(undefined, {
+        onSuccess: () => {
+          closePortalInvite()
+          toast.show({ title: 'Invitación creada', description: `${customer.email} podrá entrar al portal.` })
+        },
+      }),
+    )
   }
 
   function restoreCustomer() {
-    restore.mutate(undefined, {
-      onSuccess: () => toast.show({ title: 'Cliente restaurado' }),
-      onError: (error) =>
-        toast.show({
-          tone: 'error',
-          title: isApiError(error, 409) ? 'El cliente ya estaba activo' : 'No se pudo restaurar el cliente',
-          description: isApiError(error, 409) ? undefined : 'Inténtalo de nuevo.',
-        }),
-    })
+    restoreSubmission.send(() =>
+      restore.mutate(undefined, {
+        onSuccess: () => toast.show({ title: 'Cliente restaurado' }),
+        onError: (error) => {
+          // Un 503 de bloqueo lo explica su aviso con «Reintentar».
+          if (isLockTimeout(error)) return
+          toast.show({
+            tone: 'error',
+            title: isApiError(error, 409) ? 'El cliente ya estaba activo' : 'No se pudo restaurar el cliente',
+            description: isApiError(error, 409) ? undefined : 'Inténtalo de nuevo.',
+          })
+        },
+      }),
+    )
   }
 
   function archiveCustomer() {
-    archive.mutate(undefined, {
-      onSuccess: () => {
-        closeArchive()
-        toast.show({ title: 'Cliente archivado' })
-      },
-      onError: (error) => {
-        if (isApiError(error, 409)) setConfirmingArchive(false)
-        toast.show({
-          tone: 'error',
-          title: isApiError(error, 409) ? 'El cliente ya estaba archivado' : 'No se pudo archivar el cliente',
-          description: isApiError(error, 409) ? undefined : 'Inténtalo de nuevo.',
-        })
-      },
-    })
+    archiveSubmission.send(() =>
+      archive.mutate(undefined, {
+        onSuccess: () => {
+          closeArchive()
+          toast.show({ title: 'Cliente archivado' })
+        },
+        onError: (error) => {
+          if (isApiError(error, 409)) setConfirmingArchive(false)
+          // Un 503 de bloqueo lo explica el aviso con «Reintentar» dentro del diálogo, que sigue abierto.
+          if (isLockTimeout(error)) return
+          toast.show({
+            tone: 'error',
+            title: isApiError(error, 409) ? 'El cliente ya estaba archivado' : 'No se pudo archivar el cliente',
+            description: isApiError(error, 409) ? undefined : 'Inténtalo de nuevo.',
+          })
+        },
+      }),
+    )
   }
 
   return (
@@ -181,6 +198,13 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
               ))}
           </div>
         }
+      />
+
+      <LockTimeoutAlert
+        error={restore.error}
+        pending={restore.isPending}
+        onRetry={restoreSubmission.retry}
+        what="restaurar el cliente"
       />
 
       {customer.archived && (
@@ -252,7 +276,13 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
           </>
         }
       >
-        {invite.error && (
+        <LockTimeoutAlert
+          error={invite.error}
+          pending={invite.isPending}
+          onRetry={inviteSubmission.retry}
+          what="dar acceso al portal"
+        />
+        {invite.error && !isLockTimeout(invite.error) && (
           <Alert tone="red" title="No se pudo dar acceso al portal" live>
             {isApiError(invite.error, 400)
               ? (invite.error.problem.detail ?? invite.error.problem.title)
@@ -275,7 +305,14 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
             </Button>
           </>
         }
-      />
+      >
+        <LockTimeoutAlert
+          error={archive.error}
+          pending={archive.isPending}
+          onRetry={archiveSubmission.retry}
+          what="archivar el cliente"
+        />
+      </Modal>
     </div>
   )
 }
@@ -298,6 +335,7 @@ interface NotesProps {
 
 function Notes({ customer, draft, onDraftChange: setDraft }: NotesProps) {
   const update = useUpdateCustomer(customer.id)
+  const submission = useRepeatableSubmission()
   const toast = useToast()
   const saved = customer.notes ?? ''
   const value = draft ?? saved
@@ -308,20 +346,21 @@ function Notes({ customer, draft, onDraftChange: setDraft }: NotesProps) {
   function save() {
     if (update.isPending || draft === null) return
     const sent = draft
-    update.mutate(
-      { version: customer.version, changes: { notes: sent.trim() || null } },
-      {
+    // El reintento de un 503 repite esta llamada con su versión: si otra persona guardó entretanto, responde el 412.
+    const variables = { version: customer.version, changes: { notes: sent.trim() || null } }
+    submission.send(() =>
+      update.mutate(variables, {
         onSuccess: () => {
           // Solo se suelta el borrador si no se escribió nada nuevo mientras se guardaba.
           setDraft((current) => (current === sent ? null : current))
           toast.show({ title: 'Cambios guardados' })
         },
         onError: (error) => {
-          if (!isApiError(error, 412) && !isApiError(error, 409)) {
+          if (!isApiError(error, 412) && !isApiError(error, 409) && !isLockTimeout(error)) {
             toast.show({ tone: 'error', title: 'No se pudieron guardar las notas', description: 'Inténtalo de nuevo.' })
           }
         },
-      },
+      }),
     )
   }
 
@@ -338,6 +377,12 @@ function Notes({ customer, draft, onDraftChange: setDraft }: NotesProps) {
           Otra persona lo actualizó y ya cargamos la versión actual. Tu texto sigue aquí: revísalo y guarda de nuevo.
         </Alert>
       )}
+      <LockTimeoutAlert
+        error={update.error}
+        pending={update.isPending}
+        onRetry={submission.retry}
+        what="guardar las notas"
+      />
       {(customer.archived || archivedError) && (
         <Alert tone="red" title="El cliente está archivado" live={Boolean(archivedError) || draft !== null}>
           Ya no se pueden editar sus notas. Solo un administrador puede restaurarlo.
