@@ -273,3 +273,23 @@ describe('inicio de sesión de demostración', () => {
     expect(screen.queryByRole('region', { name: 'Demostración' }) !== null).toBe(mode === 'smoke')
   })
 })
+
+describe('marca en la pantalla de entrada', () => {
+  it.each(['production', 'showcase'])(
+    'muestra el logo una vez, sin repetir el nombre «resolve» junto al título (%s)',
+    async (mode) => {
+      vi.stubEnv('MODE', mode)
+      mockApi({ 'GET /api/me': unauthorized })
+      renderRoutes('/entrar')
+      await settled()
+      const card = screen.getByRole('heading', { name: 'Entra a Resolve' }).closest('div')!.parentElement!
+        .parentElement!
+      // El logo es la misma pieza que la del sidebar (`Brand`): una «R» decorativa, sin el nombre al lado.
+      const logos = [...card.querySelectorAll('[aria-hidden="true"]')].filter((node) => node.textContent === 'R')
+      expect(logos).toHaveLength(1)
+      expect(within(card).queryByText('resolve')).not.toBeInTheDocument()
+      // «Resolve» como texto del título: una sola vez en el encabezado de la tarjeta.
+      expect(within(card).getAllByText(/^Entra a Resolve$/)).toHaveLength(1)
+    },
+  )
+})

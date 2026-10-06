@@ -80,11 +80,6 @@
   inset: 0;
 }
 
-.brand {
-  font: var(--font-logo);
-  color: var(--color-ink);
-}
-
 .title {
   font: var(--font-title-mobile);
   color: var(--color-ink);
