@@ -48,7 +48,13 @@ abstract class AbstractProblemErrorTest {
 		@Bean
 		FilterRegistrationBean<Filter> boom() {
 			FilterRegistrationBean<Filter> registration = new FilterRegistrationBean<>((request, response, chain) -> {
-				if (((jakarta.servlet.http.HttpServletRequest) request).getHeader("X-Boom") != null) {
+				String boom = ((jakarta.servlet.http.HttpServletRequest) request).getHeader("X-Boom");
+				if ("wrapped".equals(boom)) {
+					// Como lo que sale de un controlador: Tomcat ve un ServletException con la causa dentro.
+					throw new jakarta.servlet.ServletException("envoltorio",
+							new IllegalStateException("detalle-interno-que-no-debe-salir"));
+				}
+				if (boom != null) {
 					throw new IllegalStateException("detalle-interno-que-no-debe-salir");
 				}
 				chain.doFilter(request, response);
@@ -96,6 +102,16 @@ abstract class AbstractProblemErrorTest {
 		assertThat(output.getAll()).containsOnlyOnce("Request failed with status 500 on /api/me");
 		// La traza la escribe Tomcat una sola vez: el controlador de errores no la repite.
 		assertThat(output.getAll()).containsOnlyOnce("detalle-interno-que-no-debe-salir");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = { "text/html", "*/*" })
+	void aWrappedExceptionIsLoggedWithTheClassOfItsCause(String accept, CapturedOutput output) throws Exception {
+		HttpResponse<String> response = get("/api/me", accept, "X-Boom", "wrapped");
+
+		problem(response, 500);
+		assertThat(output.getAll()).containsOnlyOnce(
+				"Request failed with status 500 on /api/me (java.lang.IllegalStateException)");
 	}
 
 	protected HttpResponse<String> get(String path, String accept, String... headers) throws IOException,
