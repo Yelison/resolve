@@ -365,7 +365,12 @@ function Composer({ number }: { number: number }) {
           if (addMessage.isError) addMessage.reset()
         }}
         mode={mode}
-        onModeChange={setMode}
+        onModeChange={(next) => {
+          setMode(next)
+          // El reintento repetiría el modo anterior (una nota como respuesta al cliente o al revés): se retira el aviso y
+          // el envío normal usa lo que muestra la pantalla.
+          if (isLockTimeout(addMessage.error)) addMessage.reset()
+        }}
         onSubmit={submit}
         status={status}
       />

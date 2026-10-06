@@ -366,6 +366,45 @@ describe('TicketDetailPage con un 503 de bloqueo', () => {
     expect(JSON.parse(seen[0]?.body ?? '')).toEqual({ body: '¿Pudiste acceder?', visibility: 'public' })
   })
 
+  it('tras un 503 en una nota interna, cambiar a «Responder al cliente» retira el aviso y el envío lleva lo que se ve', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const seen: SentRequest[] = []
+    staffApi({
+      'POST /api/tickets/1048/messages': inOrder(seen, lockTimeoutRoute(), {
+        status: 201,
+        body: { ...messages[0], id: 'm-3', body: 'Dato sensible' },
+      }),
+    })
+    renderDetail()
+    await user.click(await screen.findByRole('radio', { name: 'Nota interna' }))
+    await user.type(screen.getByRole('textbox', { name: 'Nota interna' }), 'Dato sensible')
+    await user.click(screen.getByRole('button', { name: 'Guardar nota' }))
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Responder al cliente' }))
+    expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reintentar enviar el mensaje' })).not.toBeInTheDocument()
+    expect(seen).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Enviar respuesta' }))
+    await waitFor(() => expect(seen).toHaveLength(2))
+    expect(JSON.parse(seen[1]?.body ?? '')).toEqual({ body: 'Dato sensible', visibility: 'public' })
+  })
+
+  it('tras un 503 en una respuesta pública, cambiar a nota interna no deja salir nada como público', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const seen: SentRequest[] = []
+    staffApi({ 'POST /api/tickets/1048/messages': inOrder(seen, lockTimeoutRoute()) })
+    renderDetail()
+    await user.type(await screen.findByRole('textbox', { name: 'Respuesta al cliente' }), 'Dato sensible')
+    await user.click(screen.getByRole('button', { name: 'Enviar respuesta' }))
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Nota interna' }))
+    expect(screen.queryByRole('button', { name: 'Reintentar enviar el mensaje' })).not.toBeInTheDocument()
+    expect(seen).toHaveLength(1)
+    expect(seen.some((request) => request.body.includes('"public"') && seen.indexOf(request) > 0)).toBe(false)
+  })
+
   it('si el reintento del mensaje falla por otro motivo, muestra ese error y no el aviso de bloqueo', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     staffApi({
