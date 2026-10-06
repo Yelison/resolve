@@ -1,8 +1,8 @@
 # Deployment
 
 How the application is packaged and configured to run outside a developer's machine. The operations side (backups,
-restore, rollback, secret rotation, what to look at when `health` is `DOWN`) is in the [runbooks](runbooks.md); the
-pipeline that publishes the image is T9.3 and does not exist yet.
+restore, rollback, secret rotation, what to look at when `health` is `DOWN`) is in the [runbooks](runbooks.md). The
+pipeline and the resettable public demo are described in [the last sections](#the-pipeline-github-actions--ghcr--flyio).
 
 ## The image
 
@@ -40,11 +40,16 @@ later with an unrelated error.
 | `RESOLVE_OIDC_CLIENT_ID`     | OIDC client of the API (a confidential client with PKCE, as in the demo realm)         |
 | `RESOLVE_OIDC_CLIENT_SECRET` | Secret of that client                                                                  |
 | `RESOLVE_PUBLIC_URL`         | Public URL of the application, with `https`. Where the browser lands after signing in and out; it must be in the client's `post.logout.redirect.uris` |
+| `RESOLVE_DEMO_ENABLED`       | `true` on the public demo, `false` otherwise. **No default in `prod`**: it turns on `organization.demo` in `/me`, `X-Robots-Tag: noindex` and the maintenance mode |
+| `RESOLVE_DEMO_LIMITS`        | Optional (`false`). `true` turns on the per-organization caps and the 60-writes-per-minute limit |
+| `RESOLVE_DEMO_CLIENT_IP_HEADER` | Optional. Header the platform proxy **overwrites** with the client address (`Fly-Client-IP` on Fly). Without it the limit counts the connection address (one bucket behind a proxy) |
 | `SERVER_PORT`                | Optional. The port the API listens on; `8080` in the image                             |
 
 `SPRING_FLYWAY_LOCATIONS` is also honoured. `prod` applies only `classpath:db/migration`, so a database starts empty:
 nobody has a membership until the invitation flow or a seed creates one. A public demo that wants the demo data adds
-`classpath:db/demo` (T9.3).
+`classpath:db/demo` (`deploy/fly.toml` does, with `SPRING_FLYWAY_OUT_OF_ORDER=true`: the demo database already has
+`V1000+` applied, so a later real migration with a lower version would otherwise be reported as ignored and stop the
+start).
 
 ## Behind HTTPS
 
@@ -138,6 +143,127 @@ pipeline (T9.3). Nothing is deployed from here.
 
 ## Not covered yet
 
-The deployment pipeline, the platform configuration (`fly.toml`), the demo reset and the maintenance mode are T9.3.
+The pipeline, `deploy/fly.toml`, the demo reset and the maintenance mode are described below.
 A real deployment also needs its own realm (not the demo one: its users and secret are public) and a Keycloak that is
 not in development mode.
+
+## The pipeline: GitHub Actions → GHCR → Fly.io
+
+> **Nothing runs until the owner switches it on.** There are no accounts yet. Every job of
+> [`deploy.yml`](../../.github/workflows/deploy.yml) and [`demo-reset.yml`](../../.github/workflows/demo-reset.yml) has
+> `if: vars.DEPLOY_ENABLED == 'true'`; without that repository variable they are skipped. No step publishes an image
+> or calls Fly or Neon, and the repository holds no secret.
+
+`deploy.yml` starts with `workflow_run` on the `CI` workflow, only when it was a **push to `main`** and it
+**succeeded** (a pull request's CI never deploys). A `workflow_run` flow and not a job inside `ci.yml` because it leaves
+`ci.yml` untouched and deploys exactly `workflow_run.head_sha`, the commit the CI checked. Two jobs:
+
+1. **`image`** (`packages: write`, the only job with it) builds the [`Dockerfile`](../../Dockerfile) and pushes
+   `ghcr.io/<owner>/<repo>` (lowercase) tagged with the SHA and `latest`.
+2. **`deploy`** (environment `demo`) runs `flyctl deploy --config deploy/fly.toml --image <image>:<sha>` and waits for
+   `readiness` to answer `UP`. **Rollback** is the same command with a previous tag.
+
+Actions are pinned by commit SHA (Dependabot keeps them current); `permissions: {}` at the top and `concurrency`
+without cancellation, so a deployment is never cut in half.
+
+### What the owner has to create
+
+| Where | Name | Kind | Value |
+| --- | --- | --- | --- |
+| Repository | `DEPLOY_ENABLED` | variable | `true` to switch everything on; delete it or set anything else to stop |
+| GitHub environment `demo` | `FLY_API_TOKEN` | secret | `fly tokens create deploy -a resolve-demo` |
+| GitHub environment `demo` | `DEMO_DB_USER`, `DEMO_DB_PASSWORD` | secrets | Role of the **demo** Neon database (owner of its schema; it can drop objects) |
+| GitHub environment `demo` | `DEMO_DB_HOST`, `DEMO_DB_NAME` | variables | Neon **direct** endpoint (not `-pooler`) and the database name, which must contain `demo` |
+| GitHub environment `demo` | `DEMO_URL` | variable | `https://resolve-demo.fly.dev` (no trailing slash) |
+| Fly (`fly secrets set -a resolve-demo`) | `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | secrets | The demo database (the app may use the pooled endpoint) |
+| Fly | `RESOLVE_OIDC_ISSUER`, `RESOLVE_OIDC_CLIENT_ID`, `RESOLVE_OIDC_CLIENT_SECRET` | secrets | The demo realm |
+| GHCR | package visibility | setting | **Public**, so Fly can pull it without registry credentials (the image holds no secret). If it must stay private, add registry credentials to `flyctl deploy` |
+
+One-time database steps, run by the owner against the demo database (the sentinel is created by hand **on purpose**: if
+the workflow created it, the guard would protect nothing):
+
+```sql
+CREATE SCHEMA IF NOT EXISTS resolve_ops;
+CREATE TABLE resolve_ops.demo_database (marker text PRIMARY KEY);
+INSERT INTO resolve_ops.demo_database VALUES ('resolve-demo-database');
+GRANT USAGE ON SCHEMA resolve_ops TO <app role>;  -- the API reads resolve_ops.maintenance
+```
+
+`app = "resolve-demo"` and `primary_region = "iad"` in `fly.toml` are decisions to confirm: change them before the first
+deployment (and `RESOLVE_PUBLIC_URL`, which must match the app's URL and be one of the realm client's redirect URIs).
+Create the Neon project in the region closest to `primary_region`.
+
+## The nightly reset
+
+[`demo-reset.yml`](../../.github/workflows/demo-reset.yml) runs at **03:00 in America/Bogota** (Acme Studio, the
+organization of the demo users `…@acme.example`): UTC-5 all year, so `cron: '0 8 * * *'`, with no daylight-saving change.
+Northwind is Europe/Madrid (UTC+1 / UTC+2); if it were the reference, 03:00 would be 02:00 or 01:00 UTC and the line
+would move twice a year. GitHub only runs `schedule` from the default branch, can delay it under load and disables it
+after 60 days without repository activity; **Run workflow** triggers it by hand.
+
+1. **Guard.** It aborts unless the database name contains `demo`, the connection really is that database, **and** the
+   sentinel row above exists. A real database has no sentinel. `flyway clean` is also impossible from the application:
+   `spring.flyway.clean-disabled=true` in `prod` (tested), and the CLI runs with `-cleanDisabled=false` only inside this
+   job.
+2. **Maintenance on** (below), then a 15-second wait for the application to notice.
+3. **`flyway clean migrate`** with the Flyway CLI image (same major as `flyway-core`, pinned by digest) on
+   `db/migration` and `db/demo` (rehearsed against a local PostgreSQL 17: 15 migrations, `V1006`). `clean` empties the
+   `public` schema; `resolve_ops` is not managed by Flyway and survives.
+4. **Maintenance off** and a **smoke**: readiness `UP`, `/` answers `200`, `/api/me` without a session `401`, two
+   organizations in the database.
+
+If `clean` or `migrate` fails the flow is red and the maintenance mark is **not** removed: it expires by itself (10
+minutes), and nobody sees a half-migrated database before that. Run the workflow again.
+
+### Maintenance mode
+
+While the mark is on, every `/api` path except `/api/actuator/health/**` answers `503` Problem "Reinicio de la
+demostración en curso" with `Retry-After`; `readiness` is `OUT_OF_SERVICE` (so Fly stops routing) and `liveness` stays
+`UP`. The static web app is still served. The aggregate `/api/actuator/health` also reports `OUT_OF_SERVICE`.
+
+- **Design.** The mark is a deadline in `resolve_ops.maintenance(until timestamptz)`, written by the workflow with
+  `psql`. The application reads it every 5 seconds (`resolve.demo.maintenance-poll`), never per request, and decides with
+  its own clock in between. It is only active with `resolve.demo.enabled=true`.
+- **Why a table and not an endpoint or memory.** `flyway clean` does not touch another schema, so the mark survives the
+  reset it protects; it works with several machines and across an application restart; and nobody can activate it
+  without the database credentials, so there is no route to protect in the security chain (an endpoint under `/api`
+  would need changes in `SecurityConfiguration` and CSRF). The cost: a constant read of the database (Neon will not
+  suspend its compute; `auto_stop_machines` is off for the same reason) and up to 5 seconds of delay.
+- **It cannot stay on forever.** The mark is a deadline, not a switch, so a workflow that dies mid-way ends the mode by
+  itself; and a mark that expires more than 15 minutes ahead is ignored. A missing table or a read error means "no
+  maintenance".
+- **Risk.** Whoever has the database credentials can close the demo. If readiness is out of service Fly may route
+  nothing during the window, which is the intent; the workflow does not need the HTTP route to end the mode, it deletes
+  the row.
+
+## Limits of the demo
+
+With `RESOLVE_DEMO_LIMITS=true`:
+
+- **Per-organization caps** (`DemoLimits`): 500 tickets, 200 customers (archived included), 50 team members (admins and
+  agents not removed, invited included) and 100 articles; one more is a `409` Problem "Límite de la demostración".
+  Customer portal accesses are limited by the customer cap. Two simultaneous creations may both take the last slot
+  (tickets and customers are counted without a lock; members and articles are already serialized per organization).
+- **60 writes per minute per IP** (`POST`, `PUT`, `PATCH`, `DELETE` under `/api`), `429` with `Retry-After`, in a servlet
+  filter because Fly does not limit at the edge. **The IP cannot be forged**: it is read from the header named in
+  `RESOLVE_DEMO_CLIENT_IP_HEADER` (`Fly-Client-IP`), never from `X-Forwarded-For`, and with no header configured (or a
+  value that is not an address) it is the connection's address. That is safe only if the container is reachable
+  **only through Fly's proxy**, which `fly.toml` guarantees by publishing just `[http_service]`. Fly's documentation
+  describes `Fly-Client-IP` as the address "from the perspective of Fly Proxy" and recommends it over
+  `X-Forwarded-For`, but does not state that a client-sent copy is overwritten: **check that on the first deployment**
+  (send a request with a fake `Fly-Client-IP` and see which address the limit counts). Buckets are in memory (10 000
+  addresses at most) and per machine; `fly.toml` runs one.
+- **`X-Robots-Tag: noindex`** on every response of a demo (`RESOLVE_DEMO_ENABLED=true`).
+
+## Notes of the T9.2 review
+
+- **Base images** are pinned by digest in the `Dockerfile` (index digests, valid for amd64 and arm64) and Dependabot's
+  `docker` ecosystem proposes new ones.
+- **Temurin's `/__cacert_entrypoint.sh`** is replaced by our `ENTRYPOINT`. The script does nothing unless
+  `USE_SYSTEM_CA_CERTS` is set (checked in the image) and the image never sets it, so nothing is lost. Neon uses a public
+  CA that the JVM's own truststore already trusts; with `sslmode=verify-full` pgjdbc looks for `~/.postgresql/root.crt`
+  (the user has no home) and may need `sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory` in `DATABASE_URL`: **check
+  it on the first deployment**, `sslmode=require` (Neon's default) works without it.
+- **The container port** is reachable only through Fly's proxy (`[http_service]` is the only service) and the application
+  trusts `X-Forwarded-*` (`forward-headers-strategy=framework`).
+- **HSTS `includeSubDomains`** has no effect on `*.fly.dev` (browsers do not apply it to a public suffix).

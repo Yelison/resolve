@@ -1,0 +1,45 @@
+# Fly.io: la demostración pública (D-14, Q-05). La imagen no se construye en Fly: .github/workflows/deploy.yml la publica
+# en GHCR con la etiqueta del SHA y la despliega con `flyctl deploy --config deploy/fly.toml --image <imagen>`.
+# Aquí no hay secretos: DATABASE_*, RESOLVE_OIDC_* se dan con `fly secrets set` (docs/deploy/README.md).
+app = "resolve-demo"
+
+# Cerca de la base de datos de Neon (aws-us-east-1, Virginia del Norte). Si se crea el proyecto de Neon en otra región,
+# esta debe ser la más cercana a ella: cada consulta de la API cruza esa distancia.
+primary_region = "iad"
+
+[env]
+  SERVER_PORT = "8080"
+  # Es una demostración pública: bandera de /me, noindex, modo mantenimiento y topes (docs/deploy/README.md).
+  RESOLVE_DEMO_ENABLED = "true"
+  RESOLVE_DEMO_LIMITS = "true"
+  # Fly sobrescribe esta cabecera con la IP que ve su proxy; el límite de escrituras por IP se apoya en ella y no en
+  # X-Forwarded-For. El servicio solo se publica por el proxy de Fly (no hay [[services]] con otro puerto).
+  RESOLVE_DEMO_CLIENT_IP_HEADER = "Fly-Client-IP"
+  # Con los datos de demostración, que prod no aplica por sí solo. La base ya tiene V1000+ aplicadas: cuando llegue una
+  # migración real con versión menor, Flyway la ve «ignorada» y falla la validación si no se admite fuera de orden.
+  SPRING_FLYWAY_LOCATIONS = "classpath:db/migration,classpath:db/demo"
+  SPRING_FLYWAY_OUT_OF_ORDER = "true"
+  # La URL pública de la aplicación y del emisor del realm no son secretos; el secreto del cliente sí.
+  RESOLVE_PUBLIC_URL = "https://resolve-demo.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Sin parada automática: la JVM tarda en arrancar y el modo mantenimiento consulta la base de datos cada pocos
+  # segundos (Neon no se suspende de todos modos). Una sola máquina: el límite de escrituras es por máquina.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/actuator/health/readiness"
+    interval = "15s"
+    timeout = "5s"
+    # La JVM con Flyway y Hibernate tarda en estar lista.
+    grace_period = "90s"
+
+# La más pequeña que aguanta la JVM (el heap es el 75 % de la memoria, ver el Dockerfile).
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
