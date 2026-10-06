@@ -128,11 +128,29 @@ export function ticketsMock(customerOf: (id: string) => Customer): MockFeature {
     if (method === 'GET' && path === '/tickets') {
       const status = url.searchParams.getAll('status')
       const customerId = url.searchParams.get('customerId')
-      const items = currentTickets().filter(
+      const q = url.searchParams.get('q')?.trim().toLowerCase()
+      const size = Number(url.searchParams.get('size')) || 20
+      // Como el servidor: un número (con o sin #) busca ese ticket; cualquier otro texto, en el asunto y el cliente.
+      const number = q && /^#?\d+$/.test(q) ? Number(q.replace('#', '')) : undefined
+      const matches = currentTickets().filter(
         (ticket) =>
-          (status.length === 0 || status.includes(ticket.status)) && (!customerId || ticket.customer.id === customerId),
+          (status.length === 0 || status.includes(ticket.status)) &&
+          (!customerId || ticket.customer.id === customerId) &&
+          (!q ||
+            (number !== undefined
+              ? ticket.number === number
+              : `${ticket.subject} ${ticket.customer.name} ${ticket.customer.email} ${ticket.customer.company ?? ''}`
+                  .toLowerCase()
+                  .includes(q))),
       )
-      return json(route, { items, page: 0, size: 20, totalItems: items.length, totalPages: items.length ? 1 : 0 })
+      const items = matches.slice(0, size)
+      return json(route, {
+        items,
+        page: 0,
+        size,
+        totalItems: matches.length,
+        totalPages: Math.ceil(matches.length / size),
+      })
     }
     if (ticketMatch) {
       const summary = currentTickets().find((ticket) => ticket.number === Number(ticketMatch[1]))
