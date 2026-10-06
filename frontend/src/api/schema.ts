@@ -129,7 +129,7 @@ export interface paths {
          *     knows, spelled exactly (`America/Bogota`); offsets, aliases such as `UTC+5` and other spellings are a
          *     400 on `timeZone`. Requires `If-Match` with the current version; a patch that changes nothing returns
          *     200 without a new version. Creating tickets does not change the version. Errors are checked in this
-         *     order: 401, 403, 428, 400, 412.
+         *     order: 401, 409 (`X-Organization-Id` mismatch), 403, 428, 400, 412.
          */
         patch: operations["updateOrganization"];
         trace?: never;
@@ -222,7 +222,7 @@ export interface paths {
          * Change status, priority and/or assignee
          * @description JSON Merge Patch semantics: absent fields are unchanged and `assigneeId: null` unassigns the
          *     ticket. Requires `If-Match` with the current version. A patch that changes nothing returns 200
-         *     without a new version or activity entry. Errors are checked in this order: 401, 403, 404, 428,
+         *     without a new version or activity entry. Errors are checked in this order: 401, 409 (`X-Organization-Id` mismatch), 403, 404, 428,
          *     400, 412.
          */
         patch: operations["updateTicket"];
@@ -364,7 +364,7 @@ export interface paths {
          * @description JSON Merge Patch semantics: absent fields are unchanged and `null` clears `company` and `notes`
          *     (`name` and `email` do not accept `null`). Requires `If-Match` with the current version. A patch that
          *     changes nothing returns 200 without a new version. An archived customer cannot be edited: restore it
-         *     first (409). Errors are checked in this order: 401, 403, 404, 428, 400, 412, 409.
+         *     first (409). Errors are checked in this order: 401, 409 (`X-Organization-Id` mismatch), 403, 404, 428, 400, 412, 409.
          */
         patch: operations["updateCustomer"];
         trace?: never;
@@ -670,7 +670,7 @@ export interface paths {
          * @description JSON Merge Patch semantics: absent fields are unchanged and no field accepts `null`. The status is not
          *     patchable (use `publish` and `unpublish`) and the slug never changes. Requires `If-Match` with the
          *     current version. A patch that changes nothing returns 200 without a new version and without touching
-         *     `updatedAt` or `updatedBy`. Errors are checked in this order: 401, 403, 404, 428, 400, 412.
+         *     `updatedAt` or `updatedBy`. Errors are checked in this order: 401, 409 (`X-Organization-Id` mismatch), 403, 404, 428, 400, 412.
          */
         patch: operations["updateArticle"];
         trace?: never;
@@ -1480,6 +1480,7 @@ export interface components {
          *     | `https://resolve.example/problems/csrf` | 403 | The write has no valid CSRF token. |
          *     | `https://resolve.example/problems/access-deactivated` | 401 | Membership removed or customer archived. |
          *     | `https://resolve.example/problems/no-membership` | 401 | Authenticated identity without any membership. |
+         *     | `https://resolve.example/problems/organization-mismatch` | 409 | The write's `X-Organization-Id` is not the session's organization. |
          *
          *     The values are identifiers, not addresses: nothing is served at them.
          */
@@ -1587,7 +1588,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description The action is not allowed in the current state of the resource (for example archiving twice). On the public demo (`resolve.demo.limits=true`) the creation of a ticket, customer, member or article also answers it, with the title "Límite de la demostración", when the organization already has the maximum of that resource (500 tickets, 200 customers, 50 team members, 100 articles). */
+        /**
+         * @description Either the action is not allowed in the current state of the resource (for example archiving twice;
+         *     `type` `about:blank`), or the `X-Organization-Id` the write carries is not the organization of the session
+         *     (`type` `https://resolve.example/problems/organization-mismatch`; nothing was changed and the client must
+         *     re-read `/me` before showing anything as current). Clients tell them apart by `type`. On the public demo
+         *     (`resolve.demo.limits=true`) the creation of a ticket, customer, member or article also answers it, with the
+         *     title "Límite de la demostración", when the organization already has the maximum of that resource (500
+         *     tickets, 200 customers, 50 team members, 100 articles).
+         */
         Conflict: {
             headers: {
                 [name: string]: unknown;
@@ -1609,6 +1618,16 @@ export interface components {
         ActivityFeedSize: number;
         /** @description Slug of the article; it never changes after creation. */
         ArticleSlug: string;
+        /**
+         * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+         *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+         *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+         *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+         *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+         *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+         *     what chooses the organization) nor on `POST /logout`, which ignore it.
+         */
+        OrganizationId: string;
         /** @description Length of the report period, in calendar days of the organization time zone. */
         ReportPeriod: "7d" | "30d" | "90d";
     };
@@ -1698,6 +1717,7 @@ export type ParameterPage = components['parameters']['Page'];
 export type ParameterSize = components['parameters']['Size'];
 export type ParameterActivityFeedSize = components['parameters']['ActivityFeedSize'];
 export type ParameterArticleSlug = components['parameters']['ArticleSlug'];
+export type ParameterOrganizationId = components['parameters']['OrganizationId'];
 export type ParameterReportPeriod = components['parameters']['ReportPeriod'];
 export type HeaderETag = components['headers']['ETag'];
 export type $defs = Record<string, never>;
@@ -1727,7 +1747,18 @@ export interface operations {
     updateMe: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -1748,6 +1779,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["TooManyWrites"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -1854,6 +1886,16 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
                 /** @description A single strong validator with the current version, as returned in `ETag`. */
                 "If-Match": string;
             };
@@ -1879,6 +1921,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
             429: components["responses"]["TooManyWrites"];
@@ -1935,7 +1978,18 @@ export interface operations {
     createTicket: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -2046,6 +2100,16 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
                 /** @description A single strong validator with the current version, as returned in `ETag`. */
                 "If-Match": string;
             };
@@ -2074,6 +2138,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
             429: components["responses"]["TooManyWrites"];
@@ -2109,7 +2174,18 @@ export interface operations {
     createMessage: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path: {
                 number: components["parameters"]["TicketNumber"];
             };
@@ -2134,6 +2210,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["TooManyWrites"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -2207,7 +2284,18 @@ export interface operations {
     createCustomer: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -2315,6 +2403,16 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
                 /** @description A single strong validator with the current version, as returned in `ETag`. */
                 "If-Match": string;
             };
@@ -2353,7 +2451,18 @@ export interface operations {
     archiveCustomer: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path: {
                 id: components["parameters"]["CustomerId"];
             };
@@ -2383,7 +2492,18 @@ export interface operations {
     restoreCustomer: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path: {
                 id: components["parameters"]["CustomerId"];
             };
@@ -2413,7 +2533,18 @@ export interface operations {
     inviteCustomer: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path: {
                 id: components["parameters"]["CustomerId"];
             };
@@ -2465,7 +2596,18 @@ export interface operations {
     inviteMember: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -2525,7 +2667,18 @@ export interface operations {
     changeMemberRole: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path: {
                 /** @description Id of the member's user, as `TeamMember.id`. */
                 userId: components["parameters"]["MemberUserId"];
@@ -2564,7 +2717,18 @@ export interface operations {
     removeMember: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path: {
                 /** @description Id of the member's user, as `TeamMember.id`. */
                 userId: components["parameters"]["MemberUserId"];
@@ -2666,7 +2830,18 @@ export interface operations {
     createCategory: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -2688,6 +2863,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["TooManyWrites"];
             503: components["responses"]["ServiceUnavailable"];
         };
@@ -2732,7 +2908,18 @@ export interface operations {
     createArticle: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -2793,6 +2980,16 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
                 /** @description A single strong validator with the current version, as returned in `ETag`. */
                 "If-Match": string;
             };
@@ -2822,6 +3019,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
             429: components["responses"]["TooManyWrites"];
@@ -2831,7 +3029,18 @@ export interface operations {
     publishArticle: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path: {
                 /** @description Slug of the article; it never changes after creation. */
                 slug: components["parameters"]["ArticleSlug"];
@@ -2850,6 +3059,7 @@ export interface operations {
                     "application/json": components["schemas"]["Article"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
@@ -2861,7 +3071,18 @@ export interface operations {
     unpublishArticle: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
             path: {
                 /** @description Slug of the article; it never changes after creation. */
                 slug: components["parameters"]["ArticleSlug"];
@@ -2880,6 +3101,7 @@ export interface operations {
                     "application/json": components["schemas"]["Article"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

@@ -54,6 +54,19 @@ class ProblemResponses {
 		}
 	}
 
+	/** 409: la organización que la pantalla muestra no es la de la sesión; no se ha tocado nada. */
+	void organizationMismatch(HttpServletRequest request, HttpServletResponse response) throws IOException {
+		write(request, response, HttpStatus.CONFLICT, ProblemTypes.ORGANIZATION_MISMATCH, "La organización cambió",
+				"La organización que ves ya no es la de tu sesión. Lo que ibas a enviar no se envió: revisa lo que ves y repítelo.");
+	}
+
+	/** 400: la cabecera de la organización no es un identificador. */
+	void badOrganizationHeader(HttpServletRequest request, HttpServletResponse response, String header)
+			throws IOException {
+		write(request, response, HttpStatus.BAD_REQUEST, ABOUT_BLANK, "Petición no válida",
+				"La cabecera " + header + " no es un identificador válido.");
+	}
+
 	private void write(HttpServletRequest request, HttpServletResponse response, HttpStatus status, String type,
 			String title, String detail) throws IOException {
 		Map<String, Object> body = new LinkedHashMap<>();

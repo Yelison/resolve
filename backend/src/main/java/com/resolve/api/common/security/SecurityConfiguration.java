@@ -122,8 +122,12 @@ class SecurityConfiguration {
 				// admite GET.
 				.anyRequest()
 				.permitAll());
-		resolver.ifAvailable((available) -> http.addFilterBefore(new PrincipalResolverFilter(available),
-				AuthorizationFilter.class));
+		// La organización de la cabecera se comprueba con el principal ya resuelto y antes de la autorización por rol; sin
+		// resolvedor no hay principal y todo es un 401, así que no hay nada que comprobar.
+		resolver.ifAvailable((available) -> {
+			http.addFilterBefore(new PrincipalResolverFilter(available), AuthorizationFilter.class);
+			http.addFilterAfter(new OrganizationHeaderFilter(problems), PrincipalResolverFilter.class);
+		});
 		// Los perfiles añaden lo suyo (oidc: sesión, CSRF, inicio y cierre de sesión) sobre estas mismas reglas.
 		for (HttpSecurityCustomizer customizer : customizers.orderedStream().toList()) {
 			customizer.customize(http);

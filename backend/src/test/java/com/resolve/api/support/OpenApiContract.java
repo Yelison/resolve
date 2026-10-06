@@ -156,6 +156,17 @@ public final class OpenApiContract {
 		return servers.get(0).path("url").asString();
 	}
 
+	/** Si la operación declara esa cabecera de petición (directamente o por un {@code $ref} a components/parameters). */
+	public static boolean declaresHeader(String operationId, String name) {
+		for (JsonNode parameter : operation(operationId).path("parameters")) {
+			JsonNode resolved = resolve(parameter);
+			if ("header".equals(resolved.path("in").asString("")) && name.equalsIgnoreCase(resolved.path("name").asString(""))) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/** Operaciones cuya respuesta ha validado algún test de esta ejecución. */
 	public static Set<String> verifiedOperationIds() {
 		return Collections.unmodifiableSet(VERIFIED);

@@ -70,6 +70,15 @@ public final class ApiAccess {
 			Map.entry("createCategory", ADMIN), Map.entry("createArticle", STAFF), Map.entry("updateArticle", STAFF),
 			Map.entry("publishArticle", STAFF), Map.entry("unpublishArticle", STAFF));
 
+	/** Cabecera con la organización que muestra la pantalla que compuso la escritura. */
+	public static final String ORGANIZATION_HEADER = "X-Organization-Id";
+
+	/**
+	 * Las escrituras que no llevan {@link #ORGANIZATION_HEADER}: la que elige la organización de la sesión y la que la
+	 * cierra. Todas las demás escrituras del contrato la declaran y la comprueban.
+	 */
+	public static final Set<String> WITHOUT_ORGANIZATION_HEADER = Set.of(LOGOUT, "selectSessionOrganization");
+
 	private ApiAccess() {
 	}
 
@@ -147,6 +156,65 @@ public final class ApiAccess {
 					violations.add(who + ": no puede redirigir");
 				}
 			}
+		}
+		return violations;
+	}
+
+	/**
+	 * Recorre cada escritura del contrato con una organización de cabecera que no es la de la sesión y devuelve lo que no
+	 * cumple: la que declara la cabecera debe responder 409 Problem con el tipo {@code organization-mismatch}, conforme
+	 * al contrato y sin que la petición llegue a ningún controlador (así nada se escribe); la que no la declara
+	 * ({@link #WITHOUT_ORGANIZATION_HEADER}) no puede declararla, y las lecturas no la declaran. Una escritura nueva sin la
+	 * comprobación, o sin su declaración en el contrato, aparece aquí.
+	 *
+	 * @param caller una persona con permiso para todas las escrituras (administrador), con lo que su cadena exija (el token
+	 * CSRF con {@code oidc})
+	 */
+	public static List<String> organizationHeaderViolations(MockMvc mvc, RequestPostProcessor caller) throws Exception {
+		List<String> violations = new ArrayList<>();
+		int writes = 0;
+		for (Operation operation : OpenApiContract.operations()) {
+			String name = operation.operationId() + " " + operation.method() + " " + operation.path();
+			boolean declares = OpenApiContract.declaresHeader(operation.operationId(), ORGANIZATION_HEADER);
+			if (operation.method().equals("GET")) {
+				if (declares) {
+					violations.add(name + ": una lectura no declara " + ORGANIZATION_HEADER);
+				}
+				continue;
+			}
+			if (WITHOUT_ORGANIZATION_HEADER.contains(operation.operationId())) {
+				if (declares) {
+					violations.add(name + ": no la comprueba y no debe declarar " + ORGANIZATION_HEADER);
+				}
+				continue;
+			}
+			writes++;
+			if (!declares) {
+				violations.add(name + ": el contrato no declara " + ORGANIZATION_HEADER);
+			}
+			MvcResult result = mvc.perform(request(operation).with(caller).header(ORGANIZATION_HEADER, UUID.randomUUID().toString()))
+				.andReturn();
+			int status = result.getResponse().getStatus();
+			if (status != 409) {
+				violations.add(name + ": con otra organización debía ser 409 y fue " + status);
+			}
+			else if (result.getHandler() != null) {
+				violations.add(name + ": el 409 debía darse antes del controlador");
+			}
+			else if (!result.getResponse().getContentAsString().contains("\"https://resolve.example/problems/organization-mismatch\"")) {
+				violations.add(name + ": el 409 no trae el tipo organization-mismatch");
+			}
+			else {
+				try {
+					OpenApiContract.assertMatches(operation.operationId(), result);
+				}
+				catch (AssertionError error) {
+					violations.add(name + ": el 409 no cumple el contrato: " + error.getMessage());
+				}
+			}
+		}
+		if (writes == 0) {
+			violations.add("el recorrido no encontró ninguna escritura: no comprobó nada");
 		}
 		return violations;
 	}

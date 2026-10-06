@@ -60,6 +60,8 @@ paths:
         For a `customer` member only `/me` changes: their tickets and messages keep showing the customer record.
         A person who belongs to several organizations has the same name in all of them. There is no `If-Match`: the resource has a
         single owner, so there is no concurrent editor to protect.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       requestBody:
         required: true
         content:
@@ -73,6 +75,7 @@ paths:
               schema: { $ref: '#/components/schemas/Me' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyWrites' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
@@ -176,8 +179,9 @@ paths:
         knows, spelled exactly (`America/Bogota`); offsets, aliases such as `UTC+5` and other spellings are a
         400 on `timeZone`. Requires `If-Match` with the current version; a patch that changes nothing returns
         200 without a new version. Creating tickets does not change the version. Errors are checked in this
-        order: 401, 403, 428, 400, 412.
+        order: 401, 409 (`X-Organization-Id` mismatch), 403, 428, 400, 412.
       parameters:
+        - $ref: '#/components/parameters/OrganizationId'
         - name: If-Match
           in: header
           required: true
@@ -199,6 +203,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
         '429': { $ref: '#/components/responses/TooManyWrites' }
@@ -276,6 +281,8 @@ paths:
         `customerId` and `assigneeId` must belong to the caller's organization (the assignee must be an
         admin or agent). Unknown and foreign ids get the same 400 field error, so other organizations'
         data is never revealed.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       requestBody:
         required: true
         content:
@@ -364,9 +371,10 @@ paths:
       description: |
         JSON Merge Patch semantics: absent fields are unchanged and `assigneeId: null` unassigns the
         ticket. Requires `If-Match` with the current version. A patch that changes nothing returns 200
-        without a new version or activity entry. Errors are checked in this order: 401, 403, 404, 428,
+        without a new version or activity entry. Errors are checked in this order: 401, 409 (`X-Organization-Id` mismatch), 403, 404, 428,
         400, 412.
       parameters:
+        - $ref: '#/components/parameters/OrganizationId'
         - name: If-Match
           in: header
           required: true
@@ -389,6 +397,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
         '429': { $ref: '#/components/responses/TooManyWrites' }
@@ -420,6 +429,8 @@ paths:
       tags: [Messages]
       operationId: createMessage
       summary: Reply to the customer or add an internal note
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       requestBody:
         required: true
         content:
@@ -435,6 +446,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyWrites' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
@@ -509,6 +521,8 @@ paths:
       description: |
         The email must be unique in the organization, ignoring case and including archived customers; a
         duplicate is a 400 field error on `email`.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       requestBody:
         required: true
         content:
@@ -600,8 +614,9 @@ paths:
         JSON Merge Patch semantics: absent fields are unchanged and `null` clears `company` and `notes`
         (`name` and `email` do not accept `null`). Requires `If-Match` with the current version. A patch that
         changes nothing returns 200 without a new version. An archived customer cannot be edited: restore it
-        first (409). Errors are checked in this order: 401, 403, 404, 428, 400, 412, 409.
+        first (409). Errors are checked in this order: 401, 409 (`X-Organization-Id` mismatch), 403, 404, 428, 400, 412, 409.
       parameters:
+        - $ref: '#/components/parameters/OrganizationId'
         - name: If-Match
           in: header
           required: true
@@ -640,6 +655,8 @@ paths:
       description: |
         Hides the customer from lists, search, metrics and the new-ticket selector; their tickets stay
         visible and editable and their portal access stops working. Archiving an archived customer is a 409.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       responses:
         '200':
           description: The archived customer.
@@ -664,6 +681,8 @@ paths:
       operationId: restoreCustomer
       summary: Restore an archived customer (admin only)
       description: Brings the customer back to every list and resumes portal access. Restoring an active customer is a 409.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       responses:
         '200':
           description: The restored customer.
@@ -694,6 +713,8 @@ paths:
         again on the same row. The customer must be active: inviting an archived customer is a 409 (restore it
         first), and so is a customer that already has an `invited` or `active` access, whose email belongs to a
         team member, or whose user is already linked to another customer.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       responses:
         '201':
           description: The invited portal member (`role` is `customer`).
@@ -738,6 +759,8 @@ paths:
         request. Inviting an email that was removed from the team brings the same membership back to `invited`
         with the new role. An email that is already an active or invited member, or that belongs to a customer of
         the organization, is a 400 on the field `email`.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       requestBody:
         required: true
         content:
@@ -787,6 +810,8 @@ paths:
         Works on invited and active members. Changing the role of the last active admin is a 409, and so is
         changing the role of a removed member. A user that is not an admin or agent of the organization
         (unknown, from another organization or a customer) is a 404.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       requestBody:
         required: true
         content:
@@ -820,6 +845,8 @@ paths:
         each with an `assignee_changed` activity whose actor is the caller; resolved tickets keep their assignee.
         Removing oneself, the last active admin or an already removed member is a 409. A user that is not an
         admin or agent of the organization is a 404.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       responses:
         '200':
           description: The removed member.
@@ -900,6 +927,8 @@ paths:
       description: |
         The slug comes from the name (`Slugs.from`, lowercase ASCII with hyphens) and never changes. A name whose
         slug already exists in the organization is a 400 field error on `name`.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       requestBody:
         required: true
         content:
@@ -914,6 +943,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '429': { $ref: '#/components/responses/TooManyWrites' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
@@ -970,6 +1000,8 @@ paths:
         never assigned: a title that would produce one gets the next free suffix (`nuevo-2`). A 409 means another
         article took the slug in the instant between choosing it and saving (it cannot happen through this API, which
         serializes creations; the unique constraint is the last line of defence): the client can retry.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       requestBody:
         required: true
         content:
@@ -1022,8 +1054,9 @@ paths:
         JSON Merge Patch semantics: absent fields are unchanged and no field accepts `null`. The status is not
         patchable (use `publish` and `unpublish`) and the slug never changes. Requires `If-Match` with the
         current version. A patch that changes nothing returns 200 without a new version and without touching
-        `updatedAt` or `updatedBy`. Errors are checked in this order: 401, 403, 404, 428, 400, 412.
+        `updatedAt` or `updatedBy`. Errors are checked in this order: 401, 409 (`X-Organization-Id` mismatch), 403, 404, 428, 400, 412.
       parameters:
+        - $ref: '#/components/parameters/OrganizationId'
         - name: If-Match
           in: header
           required: true
@@ -1046,6 +1079,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
         '429': { $ref: '#/components/responses/TooManyWrites' }
@@ -1061,6 +1095,8 @@ paths:
       description: |
         Sets `status` to `published` and `publishedAt` to now; a published article with `public` visibility
         becomes readable by customers. Publishing a published article is a 409.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       responses:
         '200':
           description: The published article.
@@ -1069,6 +1105,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Article' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1086,6 +1123,8 @@ paths:
       description: |
         Sets `status` to `draft` and clears `publishedAt`; customers stop seeing the article at once (404).
         Unpublishing a draft is a 409.
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
       responses:
         '200':
           description: The article as a draft.
@@ -1094,6 +1133,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Article' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1159,6 +1199,19 @@ components:
       description: Slug of the article; it never changes after creation.
       required: true
       schema: { type: string, minLength: 1, maxLength: 120 }
+    OrganizationId:
+      name: X-Organization-Id
+      in: header
+      required: false
+      description: |
+        Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+        nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+        organization, or the member lost their access there), the answer is `409` with the Problem `type`
+        `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+        authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+        that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+        what chooses the organization) nor on `POST /logout`, which ignore it.
+      schema: { type: string, format: uuid }
     ReportPeriod:
       name: period
       in: query
@@ -1235,10 +1288,13 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     Conflict:
-      description: >-
-        The action is not allowed in the current state of the resource (for example archiving twice). On the public
-        demo (`resolve.demo.limits=true`) the creation of a ticket, customer, member or article also answers it, with
-        the title "Límite de la demostración", when the organization already has the maximum of that resource (500
+      description: |
+        Either the action is not allowed in the current state of the resource (for example archiving twice;
+        `type` `about:blank`), or the `X-Organization-Id` the write carries is not the organization of the session
+        (`type` `https://resolve.example/problems/organization-mismatch`; nothing was changed and the client must
+        re-read `/me` before showing anything as current). Clients tell them apart by `type`. On the public demo
+        (`resolve.demo.limits=true`) the creation of a ticket, customer, member or article also answers it, with the
+        title "Límite de la demostración", when the organization already has the maximum of that resource (500
         tickets, 200 customers, 50 team members, 100 articles).
       content:
         application/problem+json:
@@ -2159,6 +2215,7 @@ components:
         | `https://resolve.example/problems/csrf` | 403 | The write has no valid CSRF token. |
         | `https://resolve.example/problems/access-deactivated` | 401 | Membership removed or customer archived. |
         | `https://resolve.example/problems/no-membership` | 401 | Authenticated identity without any membership. |
+        | `https://resolve.example/problems/organization-mismatch` | 409 | The write's `X-Organization-Id` is not the session's organization. |
 
         The values are identifiers, not addresses: nothing is served at them.
       type: object
