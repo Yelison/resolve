@@ -98,10 +98,12 @@ abstract class AbstractProblemErrorTest {
 		assertThat(response.body()).doesNotContain("detalle-interno-que-no-debe-salir")
 			.doesNotContain("IllegalStateException")
 			.doesNotContain("trace");
-		// El 5xx queda en el registro con la misma URI que ve el cliente.
-		assertThat(output.getAll()).containsOnlyOnce("Request failed with status 500 on /api/me");
-		// La traza la escribe Tomcat una sola vez: el controlador de errores no la repite.
-		assertThat(output.getAll()).containsOnlyOnce("detalle-interno-que-no-debe-salir");
+		// Sin depender del formato del registro (texto, o ECS si un contexto «prod» de otro test lo dejó en la JVM) ni de
+		// cuántas veces lo escriba: la línea del controlador sale una vez, sin el mensaje interno, y la traza, una sola.
+		assertThat(output.getAll().lines().filter((line) -> line.contains("Request failed with status 500 on /api/me")))
+			.hasSize(1)
+			.noneMatch((line) -> line.contains("detalle-interno-que-no-debe-salir"));
+		assertThat(output.getAll()).containsOnlyOnce("java.lang.IllegalStateException: detalle-interno-que-no-debe-salir");
 	}
 
 	@ParameterizedTest
