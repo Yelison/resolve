@@ -1,10 +1,13 @@
 package com.resolve.api.common.security;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import javax.sql.DataSource;
 
 import com.resolve.api.support.OidcApiIntegrationTest;
 import com.resolve.api.support.OidcTestConfiguration;
+import com.resolve.api.support.RowLock;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +26,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -37,6 +41,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OidcAuthenticationTest extends OidcApiIntegrationTest {
 
 	private static final String DEACTIVATED = "Tu acceso a esta organización fue desactivado";
+
+	/** Mucho más que el tope del bloqueo: si la petición vuelve a esperar sin límite, el test falla en vez de colgarse. */
+	private static final Duration LIMIT = Duration.ofSeconds(20);
+
+	@Autowired
+	private DataSource dataSource;
 
 	@Autowired
 	private FilterChainProxy filterChain;
@@ -171,6 +181,21 @@ class OidcAuthenticationTest extends OidcApiIntegrationTest {
 			.andExpect(jsonPath("$.user.name").value("Nuria Ferrer"));
 
 		assertThat(this.data.userName(user)).isEqualTo("Nuria Ferrer");
+	}
+
+	@Test
+	void aForeignKeyToTheAccountDoesNotSkipTheAdoptionOfTheProviderName() throws Exception {
+		UUID user = this.data.staff(this.acme, "agent", "nuria", "nuria@acme.example");
+
+		// Lo que deja un INSERT con clave foránea hacia users (mensaje, actividad, artículo) hasta su commit.
+		try (RowLock lock = RowLock.hold(this.dataSource, "select id from users where id = ? for key share", user)) {
+			assertTimeoutPreemptively(LIMIT, () -> this.mvc
+				.perform(get(API + "/me").session(signedIn("nuria@acme.example", true, "Nuria Ferrer")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.user.name").value("Nuria Ferrer")));
+
+			assertThat(this.data.userName(user)).isEqualTo("Nuria Ferrer");
+		}
 	}
 
 	@Test

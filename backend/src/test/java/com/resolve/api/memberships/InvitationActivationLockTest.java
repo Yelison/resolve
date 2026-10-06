@@ -53,6 +53,19 @@ class InvitationActivationLockTest extends TeamFixture {
 	}
 
 	@Test
+	void aForeignKeyToTheMembershipDoesNotSkipTheActivation() throws Exception {
+		// Lo que deja un INSERT con clave foránea hacia la fila (p. ej. la asignación de un ticket) hasta su commit.
+		try (RowLock lock = RowLock.hold(this.dataSource,
+				"select id from memberships where organization_id = ? and user_id = ? for key share", this.acme,
+				this.invited)) {
+			assertTimeoutPreemptively(LIMIT,
+					() -> this.mvc.perform(get(API + "/me").with(as(INVITED))).andExpect(status().isOk()));
+
+			assertThat(this.data.membershipStatus(this.acme, this.invited)).isEqualTo("active");
+		}
+	}
+
+	@Test
 	void anInvitationBeingRemovedIsStillDeactivatedWhenTheRowIsFree() throws Exception {
 		this.data.setMembershipStatus(this.acme, this.invited, "removed");
 
