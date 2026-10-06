@@ -228,15 +228,21 @@ demostración en curso" with `Retry-After`; `readiness` is `OUT_OF_SERVICE` (so 
 `UP`. The static web app is still served. The aggregate `/api/actuator/health` also reports `OUT_OF_SERVICE`.
 
 - **Design.** The mark is a deadline in `resolve_ops.maintenance(until timestamptz)`, written by the workflow with
-  `psql`. The application reads it every 5 seconds (`resolve.demo.maintenance-poll`), never per request, and decides with
-  its own clock in between. It is only active with `resolve.demo.enabled=true`.
+  `psql`. It is only active with `resolve.demo.enabled=true`.
+- **Read lazily, so Neon can sleep.** There is no polling: the API reads the mark when a request to `/api` arrives and the
+  last read is older than 5 seconds (`resolve.demo.maintenance-poll`), one read at a time, and decides with its own clock
+  in between. With no traffic there are no queries and Neon can suspend its compute; the first request after a pause reads
+  the mark before it is answered. **Readiness does not query the database by itself** (a platform check every few seconds
+  would keep Neon awake): it reflects the last read, which any request to the API refreshes; the reset workflow makes one
+  before it deletes anything. A failed read **keeps the previous mark** (it expires by itself), so a cut connection in the
+  middle of `clean` cannot reopen the API on a half-migrated database.
 - **Why a table and not an endpoint or memory.** `flyway clean` does not touch another schema, so the mark survives the
   reset it protects; it works with several machines and across an application restart; and nobody can activate it
   without the database credentials, so there is no route to protect in the security chain (an endpoint under `/api`
-  would need changes in `SecurityConfiguration` and CSRF). The cost: a constant read of the database (Neon will not
-  suspend its compute; `auto_stop_machines` is off for the same reason) and up to 5 seconds of delay.
+  would need changes in `SecurityConfiguration` and CSRF). The cost: a read of the database (at most every 5 s, only
+  under traffic) and up to 5 seconds of delay.
 - **It cannot stay on forever.** The mark is a deadline, not a switch, so a workflow that dies mid-way ends the mode by
-  itself; and a mark that expires more than 15 minutes ahead is ignored. A missing table or a read error means "no
+  itself; and a mark that expires more than 15 minutes ahead is ignored. A missing table with no earlier mark means "no
   maintenance".
 - **Risk.** Whoever has the database credentials can close the demo. If readiness is out of service Fly may route
   nothing during the window, which is the intent; the workflow does not need the HTTP route to end the mode, it deletes

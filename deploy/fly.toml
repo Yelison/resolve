@@ -25,8 +25,9 @@ primary_region = "iad"
 [http_service]
   internal_port = 8080
   force_https = true
-  # Sin parada automática: la JVM tarda en arrancar y el modo mantenimiento consulta la base de datos cada pocos
-  # segundos (Neon no se suspende de todos modos). Una sola máquina: el límite de escrituras es por máquina.
+  # Sin parada automática: la JVM tarda en arrancar. La comprobación de salud no consulta la base de datos (la marca de
+  # mantenimiento se lee con las peticiones), así que Neon puede suspenderse sin tráfico. Una sola máquina: el límite de
+  # escrituras es por máquina.
   auto_stop_machines = "off"
   auto_start_machines = true
   min_machines_running = 1
