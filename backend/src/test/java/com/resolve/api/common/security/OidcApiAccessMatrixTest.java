@@ -39,6 +39,15 @@ class OidcApiAccessMatrixTest extends OidcApiIntegrationTest {
 	}
 
 	@Test
+	void everyWriteOfTheContractAnswers409BeforeTheControllerWhenTheOrganizationShownIsNotTheSessionOne()
+			throws Exception {
+		UUID acme = this.data.organization("Acme");
+		this.data.staff(acme, "admin", "Ana", "ana@acme.example");
+
+		assertThat(ApiAccess.organizationHeaderViolations(this.mvc, signedInWithCsrf("ana@acme.example"))).isEmpty();
+	}
+
+	@Test
 	void logoutIsOpenToAnyoneWhoSendsTheCsrfHeaderAndToNoOneWithout() throws Exception {
 		this.mvc.perform(post(API + "/logout").with(csrfToken()))
 			.andExpect(status().isOk())

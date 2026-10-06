@@ -48,4 +48,13 @@ class ApiAccessMatrixTest extends ApiIntegrationTest {
 		assertThat(ApiAccess.violations(this.mvc, credentials, (request) -> request)).isEmpty();
 	}
 
+	@Test
+	void everyWriteOfTheContractAnswers409BeforeTheControllerWhenTheOrganizationShownIsNotTheSessionOne()
+			throws Exception {
+		UUID acme = this.data.organization("Acme");
+		this.data.staff(acme, "admin", "Ana", "ana@acme.example");
+
+		assertThat(ApiAccess.organizationHeaderViolations(this.mvc, as("ana@acme.example"))).isEmpty();
+	}
+
 }
