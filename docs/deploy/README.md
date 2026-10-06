@@ -123,6 +123,19 @@ to `8089` (with and without the final `/`), the ports of the API serving the app
 answers "Invalid redirect uri" after signing out and the SSO session stays alive. `KeycloakRealmTest` requires every
 sign-in redirect URI to have its sign-out counterpart.
 
+### The Keycloak login theme
+
+Keycloak shows its sign-in screens with the `resolve` theme (`deploy/keycloak/themes/resolve/login/`, see
+[Keycloak login theme](../development/keycloak-theme.md)), selected by `loginTheme` in the realm file. The compose file
+mounts `deploy/keycloak/themes` read-only on `/opt/keycloak/themes`. That compose also runs `start-dev`, which does not
+cache themes; a real `start` does, so after changing a theme a real deployment has to restart (or roll) Keycloak.
+
+For a real deployment the theme must reach Keycloak's `/opt/keycloak/themes` in one of two ways. **Mount** the folder
+(a volume, or a ConfigMap-like mount on the platform): simplest, but the theme version is not tied to the Keycloak
+version. **Derived image**: `FROM quay.io/keycloak/keycloak:26.7.5` plus `COPY deploy/keycloak/themes /opt/keycloak/themes`,
+built and tagged with the release, so the theme and Keycloak travel and roll back together; preferred once there is a
+pipeline (T9.3). Nothing is deployed from here.
+
 ## Not covered yet
 
 The deployment pipeline, the platform configuration (`fly.toml`), the demo reset and the maintenance mode are T9.3.
