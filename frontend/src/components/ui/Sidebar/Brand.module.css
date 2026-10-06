@@ -1,0 +1,23 @@
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-control);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font: var(--font-strong);
+  font-size: 17px;
+}
+
+.logo {
+  font: var(--font-logo);
+}

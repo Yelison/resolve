@@ -5,6 +5,7 @@ import { initialsOf } from '../Avatar/initials'
 import { Icon, type IconName } from '../Icon/Icon'
 import { NavItem } from '../NavItem/NavItem'
 import { Tooltip } from '../Tooltip/Tooltip'
+import { Brand } from './Brand'
 import styles from './Sidebar.module.css'
 
 export interface SidebarNavItem {
@@ -19,10 +20,13 @@ export interface SidebarNavItem {
 }
 
 export interface SidebarAction {
-  /** Texto del botón; en modo colapsado pasa a aria-label y tooltip. */
+  /** Nombre accesible y tooltip del botón. */
   label: string
-  /** Icono del botón. */
-  icon: IconName
+  /**
+   * Qué hace el botón: `collapse` («) y `expand` (») alternan el sidebar de escritorio y llevan `aria-expanded`;
+   * `close` (‹) cierra el drawer móvil.
+   */
+  kind: 'collapse' | 'expand' | 'close'
   /** Se llama al pulsar el botón. */
   onClick: () => void
 }
@@ -38,7 +42,7 @@ export interface SidebarProps {
   user: { name: string; role: string }
   /** Muestra solo iconos con tooltip. Por defecto, `false`. */
   collapsed?: boolean
-  /** Botón inferior: colapsar o expandir en escritorio, cerrar en el drawer móvil. Sin él no se muestra. */
+  /** Botón de la cabecera, junto a la marca: colapsar o expandir en escritorio, cerrar en el drawer móvil. Sin él no se muestra. */
   action?: SidebarAction
   /** Se llama al elegir una sección, p. ej. para cerrar el drawer. */
   onNavigate?: () => void
@@ -46,7 +50,29 @@ export interface SidebarProps {
   className?: string
 }
 
-/** Navegación lateral: marca arriba, secciones en medio y perfil al final, con scroll interno si falta altura. */
+function HeaderAction({ action }: { action: SidebarAction }) {
+  return (
+    <Tooltip content={action.label} describe={false}>
+      {(trigger) => (
+        <button
+          type="button"
+          className={styles.toggle}
+          aria-label={action.label}
+          aria-expanded={action.kind === 'close' ? undefined : action.kind === 'collapse'}
+          onClick={action.onClick}
+          {...trigger}
+        >
+          <span className={cx(styles.chevrons, action.kind === 'expand' && styles.expand)} aria-hidden="true">
+            <Icon name="arrow" />
+            {action.kind !== 'close' && <Icon name="arrow" />}
+          </span>
+        </button>
+      )}
+    </Tooltip>
+  )
+}
+
+/** Navegación lateral: marca y botón de colapsar arriba, secciones en medio y perfil al final, con scroll interno si falta altura. */
 export function Sidebar({
   items,
   sectionLabel,
@@ -59,16 +85,12 @@ export function Sidebar({
 }: SidebarProps) {
   return (
     <div className={cx(styles.sidebar, collapsed && styles.collapsed, className)}>
-      <Link to="/" className={styles.brand} aria-label="Resolve, ir al resumen" onClick={onNavigate}>
-        <span className={styles.mark} aria-hidden="true">
-          R
-        </span>
-        {!collapsed && (
-          <span className={styles.logo} aria-hidden="true">
-            resolve
-          </span>
-        )}
-      </Link>
+      <div className={styles.header}>
+        <Link to="/" className={styles.brand} aria-label="Resolve, ir al resumen" onClick={onNavigate}>
+          <Brand showName={!collapsed} />
+        </Link>
+        {action && <HeaderAction action={action} />}
+      </div>
 
       {collapsed ? (
         <span className={styles.workspaceInitials} role="img" aria-label={`Espacio de trabajo: ${workspace}`}>
@@ -93,28 +115,6 @@ export function Sidebar({
       </nav>
 
       <div className={styles.spacer} />
-
-      {action && collapsed && (
-        <Tooltip content={action.label} describe={false}>
-          {(trigger) => (
-            <button
-              type="button"
-              className={styles.toggle}
-              aria-label={action.label}
-              onClick={action.onClick}
-              {...trigger}
-            >
-              <Icon name={action.icon} size={22} />
-            </button>
-          )}
-        </Tooltip>
-      )}
-      {action && !collapsed && (
-        <button type="button" className={styles.toggle} onClick={action.onClick}>
-          <Icon name={action.icon} size={22} />
-          {action.label}
-        </button>
-      )}
 
       <div className={styles.profile}>
         <Avatar name={user.name} decorative={!collapsed} />

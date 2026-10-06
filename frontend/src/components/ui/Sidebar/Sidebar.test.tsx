@@ -19,7 +19,11 @@ function renderSidebar(collapsed: boolean, onClick = vi.fn()) {
         workspace="Acme Studio"
         user={{ name: 'Yelisson Ortiz', role: 'Administrador' }}
         collapsed={collapsed}
-        action={{ label: collapsed ? 'Expandir menú' : 'Colapsar menú', icon: 'collapse', onClick }}
+        action={{
+          label: collapsed ? 'Expandir menú' : 'Colapsar menú',
+          kind: collapsed ? 'expand' : 'collapse',
+          onClick,
+        }}
       />
     </MemoryRouter>,
   )
@@ -62,5 +66,53 @@ describe('Topbar', () => {
     expect(screen.getByRole('button', { name: 'Abrir menú' })).toHaveAttribute('aria-controls', 'drawer')
     expect(screen.queryByRole('button', { name: /Buscar/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cambiar a tema oscuro' })).toBeInTheDocument()
+  })
+})
+
+describe('Sidebar · botón de colapsar', () => {
+  it('está en la cabecera, junto a la marca, y no en el pie', () => {
+    renderSidebar(false)
+    const brand = screen.getByRole('link', { name: 'Resolve, ir al resumen' })
+    const toggle = screen.getByRole('button', { name: 'Colapsar menú' })
+    expect(toggle.parentElement).toBe(brand.parentElement)
+    expect(brand.nextElementSibling).toBe(toggle)
+    expect(toggle.compareDocumentPosition(screen.getByRole('navigation', { name: 'Principal' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
+  it('anuncia si el menú está expandido y dibuja una flecha doble', () => {
+    const { unmount } = render(
+      <MemoryRouter>
+        <Sidebar
+          items={items}
+          sectionLabel="Gestión"
+          workspace="Acme Studio"
+          user={{ name: 'Yelisson Ortiz', role: 'Administrador' }}
+          action={{ label: 'Colapsar menú', kind: 'collapse', onClick: () => {} }}
+        />
+      </MemoryRouter>,
+    )
+    const toggle = screen.getByRole('button', { name: 'Colapsar menú' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle.querySelectorAll('svg')).toHaveLength(2)
+    unmount()
+    renderSidebar(true)
+    expect(screen.getByRole('button', { name: 'Expandir menú' })).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('el botón de cerrar del drawer no anuncia estado de expansión', () => {
+    render(
+      <MemoryRouter>
+        <Sidebar
+          items={items}
+          sectionLabel="Gestión"
+          workspace="Acme Studio"
+          user={{ name: 'Yelisson Ortiz', role: 'Administrador' }}
+          action={{ label: 'Cerrar menú', kind: 'close', onClick: () => {} }}
+        />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('button', { name: 'Cerrar menú' })).not.toHaveAttribute('aria-expanded')
   })
 })

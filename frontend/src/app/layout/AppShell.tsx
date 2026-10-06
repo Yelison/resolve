@@ -135,7 +135,7 @@ function AppFrame() {
               isDesktop
                 ? {
                     label: sidebar.collapsed ? 'Expandir menú' : 'Colapsar menú',
-                    icon: sidebar.collapsed ? 'expand' : 'collapse',
+                    kind: sidebar.collapsed ? 'expand' : 'collapse',
                     onClick: sidebar.toggle,
                   }
                 : undefined
@@ -148,7 +148,7 @@ function AppFrame() {
             <Sidebar
               {...sidebarContent}
               className={styles.drawerSidebar}
-              action={{ label: 'Cerrar menú', icon: 'collapse', onClick: closeDrawer }}
+              action={{ label: 'Cerrar menú', kind: 'close', onClick: closeDrawer }}
               onNavigate={closeDrawer}
             />
           )}
