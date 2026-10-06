@@ -21,6 +21,9 @@ import { isApiError } from '../../api/client'
 import type { Ticket, TicketChannel } from '../../domain/ticket'
 import { ticketPriorityValues, ticketStatusValues } from '../../domain/ticket'
 import { formatDateTime } from '../../lib/format'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout } from '../../lib/mutationError'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
@@ -94,19 +97,22 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
   const toast = useToast()
   const update = useUpdateTicket(ticket.number)
   const conflict = update.error && isApiError(update.error, 412)
+  const submission = useRepeatableSubmission()
 
   function change(changes: TicketChanges, success: string) {
-    update.mutate(
-      { version: ticket.version, changes },
-      {
+    // El reintento de un 503 repite esta llamada con su versión: si otra persona guardó entretanto, responde el 412.
+    const variables = { version: ticket.version, changes }
+    submission.send(() =>
+      update.mutate(variables, {
         onSuccess: () => toast.show({ title: success }),
         onError: (error) => {
-          // Un 412 lo explica el aviso de conflicto y un 401, el aviso global «Tu sesión caducó»: otro toast sería ruido.
-          if (!isApiError(error, 412) && !isApiError(error, 401)) {
+          // Un 412 lo explica el aviso de conflicto, un 503 de bloqueo el suyo con «Reintentar» y un 401, el aviso global
+          // «Tu sesión caducó»: otro toast sería ruido.
+          if (!isApiError(error, 412) && !isApiError(error, 401) && !isLockTimeout(error)) {
             toast.show({ tone: 'error', title: 'No se pudo guardar el cambio', description: 'Inténtalo de nuevo.' })
           }
         },
-      },
+      }),
     )
   }
 
@@ -145,6 +151,13 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
           haciendo falta.
         </Alert>
       )}
+
+      <LockTimeoutAlert
+        error={update.error}
+        pending={update.isPending}
+        onRetry={submission.retry}
+        what="guardar el cambio del ticket"
+      />
 
       <div className={styles.layout}>
         <div className={styles.main}>
@@ -313,35 +326,50 @@ function Composer({ number }: { number: number }) {
   const [draft, setDraft] = useDraft(`resolve-draft-${number}`)
   const [mode, setMode] = useState<EditorMode>('reply')
   const addMessage = useAddMessage(number)
+  const submission = useRepeatableSubmission()
   const toast = useToast()
-  const status: EditorStatus = addMessage.isPending ? 'sending' : addMessage.isError ? 'error' : 'idle'
+  // Un 503 de bloqueo lo explica su aviso con «Reintentar», no el error genérico del editor.
+  const status: EditorStatus = addMessage.isPending
+    ? 'sending'
+    : addMessage.isError && !isLockTimeout(addMessage.error)
+      ? 'error'
+      : 'idle'
 
   function submit() {
     const sent = draft
-    addMessage.mutate(
-      { body: sent, visibility: mode === 'reply' ? 'public' : 'internal' },
-      {
+    const message = { body: sent, visibility: mode === 'reply' ? ('public' as const) : ('internal' as const) }
+    const success = mode === 'reply' ? 'Respuesta enviada' : 'Nota guardada'
+    submission.send(() =>
+      addMessage.mutate(message, {
         onSuccess: () => {
           // Solo se vacía si no se escribió nada nuevo mientras se enviaba.
           setDraft((current) => (current === sent ? '' : current))
-          toast.show({ title: mode === 'reply' ? 'Respuesta enviada' : 'Nota guardada' })
+          toast.show({ title: success })
         },
-      },
+      }),
     )
   }
 
   return (
-    <Editor
-      value={draft}
-      onChange={(value) => {
-        setDraft(value)
-        if (addMessage.isError) addMessage.reset()
-      }}
-      mode={mode}
-      onModeChange={setMode}
-      onSubmit={submit}
-      status={status}
-    />
+    <>
+      <LockTimeoutAlert
+        error={addMessage.error}
+        pending={addMessage.isPending}
+        onRetry={submission.retry}
+        what="enviar el mensaje"
+      />
+      <Editor
+        value={draft}
+        onChange={(value) => {
+          setDraft(value)
+          if (addMessage.isError) addMessage.reset()
+        }}
+        mode={mode}
+        onModeChange={setMode}
+        onSubmit={submit}
+        status={status}
+      />
+    </>
   )
 }
 

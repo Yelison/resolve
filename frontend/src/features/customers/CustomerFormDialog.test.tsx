@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import type { CustomerDetail } from '../../domain/customer'
@@ -320,5 +321,62 @@ describe('CustomerFormDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
     expect(await screen.findByText('El cliente está archivado')).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+describe('CustomerFormDialog con un 503 de bloqueo', () => {
+  const LOCK_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+
+  async function editAndSave(user: ReturnType<typeof userEvent.setup>, ...replies: Parameters<typeof inOrder>[1][]) {
+    const seen: SentRequest[] = []
+    mockApi({ 'PATCH /api/customers/c-maria': inOrder(seen, ...replies) })
+    const onClose = renderDialog({ mode: 'edit' })
+    const name = screen.getByRole('textbox', { name: 'Nombre' })
+    await user.clear(name)
+    await user.type(name, 'María P. Ruiz')
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+    return { seen, onClose, name }
+  }
+
+  it('conserva lo escrito, ofrece «Reintentar» y repite el PATCH con el mismo cuerpo y la misma versión', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const { seen, onClose, name } = await editAndSave(user, lockTimeoutRoute(), {
+      body: customerDetail({ name: 'María P. Ruiz', version: 4 }),
+    })
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    expect(screen.queryByText('No se pudo guardar el cliente')).not.toBeInTheDocument()
+    expect(name).toHaveValue('María P. Ruiz')
+    expect(onClose).not.toHaveBeenCalled()
+
+    await retryAfterLockTimeout(user, 'Reintentar guardar el cliente')
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(seen[0]).toEqual({ body: JSON.stringify({ name: 'María P. Ruiz' }), ifMatch: '"3"' })
+  })
+
+  it('si el reintento recibe un 412, muestra el conflicto de siempre y conserva lo escrito', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const { seen, name } = await editAndSave(user, lockTimeoutRoute(), {
+      status: 412,
+      body: { status: 412, title: 'El recurso cambió' },
+    })
+    await retryAfterLockTimeout(user, 'Reintentar guardar el cliente')
+    expect(await screen.findByText('El cliente cambió mientras lo editabas')).toBeInTheDocument()
+    expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument()
+    expect(name).toHaveValue('María P. Ruiz')
+    expect(seen.map((request) => request.ifMatch)).toEqual(['"3"', '"3"'])
+  })
+
+  it('editar un campo retira el aviso: el reintento repetiría lo enviado, no lo que se ve', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    await editAndSave(user, lockTimeoutRoute())
+    await screen.findByRole('button', { name: 'Reintentar guardar el cliente' })
+    await user.type(screen.getByRole('textbox', { name: 'Empresa' }), '!')
+    expect(screen.queryByRole('button', { name: 'Reintentar guardar el cliente' })).not.toBeInTheDocument()
   })
 })

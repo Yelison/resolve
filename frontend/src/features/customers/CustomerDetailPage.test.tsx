@@ -1,7 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { ticket } from '../../test/ticketFixtures'
@@ -498,5 +499,155 @@ describe('CustomerDetailPage', () => {
       await within(dialog).findByRole('alert')
       await waitFor(() => expect(queryClient.getQueryState(customerKeys.detail('c-maria'))?.dataUpdateCount).toBe(2))
     })
+  })
+})
+
+describe('CustomerDetailPage con un 503 de bloqueo', () => {
+  const LOCK_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
+  const archivedCustomer = () => customerDetail({ archived: true, archivedAt: '2026-10-05T10:00:00Z', version: 4 })
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+
+  const setup = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+  async function typeNotes(user: ReturnType<typeof setup>) {
+    await user.click(await screen.findByRole('tab', { name: 'Notas' }))
+    const notes = await screen.findByRole('textbox', { name: 'Notas internas' })
+    await user.type(notes, ' Extra.')
+    await user.click(screen.getByRole('button', { name: 'Guardar notas' }))
+    return notes
+  }
+
+  it('las notas conservan el texto, ofrecen «Reintentar» y repiten el PATCH con la misma versión', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    api({
+      'PATCH /api/customers/c-maria': inOrder(seen, lockTimeoutRoute(), {
+        body: customerDetail({ notes: 'Prefiere que la llamen por la mañana. Extra.', version: 4 }),
+      }),
+    })
+    renderDetail()
+    const notes = await typeNotes(user)
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    expect(screen.queryByText('No se pudieron guardar las notas')).not.toBeInTheDocument()
+    expect(notes).toHaveValue('Prefiere que la llamen por la mañana. Extra.')
+
+    await retryAfterLockTimeout(user, 'Reintentar guardar las notas')
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('Cambios guardados')).toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(seen[0]?.ifMatch).toBe('"3"')
+  })
+
+  it('las notas: si otra persona guardó entretanto, el reintento lleva la versión original y recibe el 412', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    let reads = 0
+    api({
+      'GET /api/customers/c-maria': () => {
+        reads += 1
+        return { body: customerDetail(reads === 1 ? {} : { company: 'Nueva SL', version: 4 }) }
+      },
+      'PATCH /api/customers/c-maria': inOrder(seen, lockTimeoutRoute(), {
+        status: 412,
+        body: { status: 412, title: 'El recurso cambió' },
+      }),
+    })
+    renderDetail()
+    const notes = await typeNotes(user)
+    await waitFor(() => expect(screen.getByText('Nueva SL', { selector: 'dd' })).toBeInTheDocument())
+    await retryAfterLockTimeout(user, 'Reintentar guardar las notas')
+
+    expect(await screen.findByText('El cliente cambió mientras editabas las notas')).toBeInTheDocument()
+    expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument()
+    expect(notes).toHaveValue('Prefiere que la llamen por la mañana. Extra.')
+    expect(seen.map((request) => request.ifMatch)).toEqual(['"3"', '"3"'])
+  })
+
+  it('archivar mantiene abierto el diálogo con «Reintentar» y repite la misma petición', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    api({
+      'POST /api/customers/c-maria/archive': inOrder(seen, lockTimeoutRoute(), { body: archivedCustomer() }),
+    })
+    renderDetail()
+    await user.click(await screen.findByRole('button', { name: 'Archivar' }))
+    const dialog = screen.getByRole('dialog', { name: '¿Archivar a este cliente?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Archivar cliente' }))
+
+    expect(await within(dialog).findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    await retryAfterLockTimeout(user, 'Reintentar archivar el cliente')
+    expect(await screen.findByRole('button', { name: 'Restaurar' })).toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+  })
+
+  it('archivar: si el reintento recibe un 409 se explica como siempre', async () => {
+    const user = setup()
+    api({
+      'POST /api/customers/c-maria/archive': inOrder([], lockTimeoutRoute(), {
+        status: 409,
+        body: { status: 409, title: 'Conflicto', detail: 'El cliente ya estaba archivado.' },
+      }),
+    })
+    renderDetail()
+    await user.click(await screen.findByRole('button', { name: 'Archivar' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archivar cliente' }))
+    await retryAfterLockTimeout(user, 'Reintentar archivar el cliente')
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('El cliente ya estaba archivado')).toBeInTheDocument()
+    expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument()
+  })
+
+  it('restaurar ofrece «Reintentar» bajo el encabezado y repite la misma petición', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    api({
+      'GET /api/customers/c-maria': { body: archivedCustomer() },
+      'POST /api/customers/c-maria/restore': inOrder(seen, lockTimeoutRoute(), {
+        body: customerDetail({ version: 5 }),
+      }),
+    })
+    renderDetail()
+    await user.click(await screen.findByRole('button', { name: 'Restaurar' }))
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    expect(screen.queryByText('No se pudo restaurar el cliente')).not.toBeInTheDocument()
+    await retryAfterLockTimeout(user, 'Reintentar restaurar el cliente')
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('Cliente restaurado')).toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+  })
+
+  it('dar acceso al portal mantiene abierto el diálogo con «Reintentar» y repite la misma petición', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    api({
+      'GET /api/customers/c-maria': { body: customerDetail({ portalAccess: 'none' }) },
+      'POST /api/customers/c-maria/invite': inOrder(seen, lockTimeoutRoute(), {
+        status: 201,
+        body: {
+          id: 'u-maria',
+          name: 'María Pérez',
+          email: 'maria@cliente.example',
+          role: 'customer',
+          status: 'invited',
+          openTickets: 0,
+          joinedAt: null,
+          invitedAt: '2026-10-05T10:00:00Z',
+        },
+      }),
+    })
+    renderDetail()
+    await user.click(await screen.findByRole('button', { name: 'Dar acceso al portal' }))
+    const dialog = screen.getByRole('dialog', { name: 'Dar acceso al portal' })
+    await user.click(within(dialog).getByRole('button', { name: 'Dar acceso' }))
+    expect(await within(dialog).findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    expect(within(dialog).queryByText('No se pudo dar acceso al portal')).not.toBeInTheDocument()
+    await retryAfterLockTimeout(user, 'Reintentar dar acceso al portal')
+    expect(await screen.findByText('Invitación creada')).toBeInTheDocument()
+    expect(seen).toHaveLength(2)
   })
 })

@@ -73,6 +73,19 @@ describe('ToastProvider', () => {
     expect(screen.queryByText('Cambios guardados')).not.toBeInTheDocument()
   })
 
+  it('una acción ejecuta su función, cierra el aviso y tiene el nombre accesible indicado', async () => {
+    const onSelect = vi.fn()
+    const user = renderWithToast({
+      tone: 'error',
+      title: 'No se pudo guardar',
+      action: { label: 'Reintentar', ariaLabel: 'Reintentar guardar el ticket #7', onSelect },
+    })
+    await user.click(screen.getByRole('button', { name: 'Mostrar' }))
+    await user.click(screen.getByRole('button', { name: 'Reintentar guardar el ticket #7' }))
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('No se pudo guardar')).not.toBeInTheDocument()
+  })
+
   it('exige el proveedor', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(() => render(<Trigger title="Hola" />)).toThrow('useToast debe usarse dentro de <ToastProvider>')

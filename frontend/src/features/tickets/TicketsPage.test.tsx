@@ -1,7 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { inOrder, lockTimeoutRoute, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { metrics, page, summary, ticket } from '../../test/ticketFixtures'
@@ -332,5 +333,74 @@ describe('TicketsPage y la zona de la organización', () => {
     renderInbox()
     expect((await screen.findAllByText('ayer')).length).toBeGreaterThan(0)
     expect(screen.queryByText('anteayer')).not.toBeInTheDocument()
+  })
+})
+
+describe('TicketsPage con un 503 de bloqueo en una acción de fila', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+
+  /** La bandeja; el detalle devuelve la versión 5 en la primera lectura y la 6 en las siguientes. */
+  function inbox(seen: SentRequest[], ...replies: Parameters<typeof inOrder>[1][]) {
+    let reads = 0
+    return mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/tickets/metrics': { body: metrics },
+      'GET /api/tickets': { body: page([summary()]) },
+      'GET /api/assignees': { body: [] },
+      'GET /api/tickets/1048': () => {
+        reads += 1
+        return { body: ticket({ version: reads === 1 ? 5 : 6 }) }
+      },
+      'PATCH /api/tickets/1048': inOrder(seen, ...replies),
+    })
+  }
+
+  async function resolveFromMenu(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: 'Acciones del ticket #1048' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Marcar como resuelto' }))
+  }
+
+  it('ofrece «Reintentar» en el aviso y repite el PATCH con la versión de la primera lectura', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const seen: SentRequest[] = []
+    const fetchSpy = inbox(seen, lockTimeoutRoute(), { body: ticket({ version: 6, status: 'resolved' }) })
+    renderInbox()
+    await resolveFromMenu(user)
+
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('No se pudo actualizar el ticket #1048')).toBeInTheDocument()
+    expect(
+      within(region).getByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+    ).toBeInTheDocument()
+    await user.click(within(region).getByRole('button', { name: 'Reintentar actualizar el ticket #1048' }))
+
+    expect(await within(region).findByText('Ticket #1048 resuelto')).toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(seen[0]?.ifMatch).toBe('"5"')
+    // No se volvió a leer el ticket: con la versión 6 el reintento habría pisado el cambio ajeno.
+    expect(
+      fetchSpy.mock.calls.filter(
+        ([input]) =>
+          (input as Request).method === 'GET' && new URL((input as Request).url).pathname === '/api/tickets/1048',
+      ),
+    ).toHaveLength(1)
+  })
+
+  it('si otra persona guardó en medio, el reintento recibe el 412 y se explica como siempre', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const seen: SentRequest[] = []
+    inbox(seen, lockTimeoutRoute(), { status: 412, body: { status: 412, title: 'El recurso cambió' } })
+    renderInbox()
+    await resolveFromMenu(user)
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    await user.click(await within(region).findByRole('button', { name: 'Reintentar actualizar el ticket #1048' }))
+
+    expect(
+      await within(region).findByText('Otra persona lo cambió a la vez. Revisa los cambios e inténtalo de nuevo.'),
+    ).toBeInTheDocument()
+    expect(seen.map((request) => request.ifMatch)).toEqual(['"5"', '"5"'])
   })
 })

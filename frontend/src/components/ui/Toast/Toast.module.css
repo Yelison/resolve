@@ -55,6 +55,11 @@
   color: var(--color-muted);
 }
 
+.action {
+  align-self: flex-start;
+  margin-top: var(--space-4);
+}
+
 .close {
   flex-shrink: 0;
   margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) 0 0;

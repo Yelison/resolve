@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { api, toApiPage, unwrap } from '../../api/client'
 import type { MessageVisibility, Ticket, TicketPriority, TicketStatus, TicketView } from '../../domain/ticket'
@@ -211,17 +212,27 @@ export function useCreateTicket() {
  */
 export function useQuickTicketUpdate() {
   const queryClient = useQueryClient()
+  // La versión leída en el primer intento de cada llamada. Repetir la misma llamada tras un 503 de bloqueo no la lee de
+  // nuevo: con una versión más reciente el reintento pisaría el cambio de quien guardó entretanto. Con la misma, el
+  // servidor responde el 412 de siempre.
+  const versions = useRef(new WeakMap<object, number>())
   return useMutation({
-    mutationFn: async ({ number, changes }: { number: number; changes: TicketChanges }) => {
-      const current = await queryClient.fetchQuery({
-        queryKey: ticketKeys.detail(number),
-        queryFn: () => fetchTicket(queryClient, number),
-        staleTime: 0,
-      })
-      await queryClient.cancelQueries({ queryKey: ticketKeys.detail(number), exact: true })
+    mutationFn: async (variables: { number: number; changes: TicketChanges }) => {
+      const { number, changes } = variables
+      let version = versions.current.get(variables)
+      if (version === undefined) {
+        const current = await queryClient.fetchQuery({
+          queryKey: ticketKeys.detail(number),
+          queryFn: () => fetchTicket(queryClient, number),
+          staleTime: 0,
+        })
+        await queryClient.cancelQueries({ queryKey: ticketKeys.detail(number), exact: true })
+        version = current.version
+        versions.current.set(variables, version)
+      }
       return unwrap(
         api.PATCH('/tickets/{number}', {
-          params: { path: { number }, header: { 'If-Match': `"${current.version}"` } },
+          params: { path: { number }, header: { 'If-Match': `"${version}"` } },
           body: changes,
           headers: { 'Content-Type': 'application/merge-patch+json' },
         }),

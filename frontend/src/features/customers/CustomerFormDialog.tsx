@@ -2,6 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { Alert, Button, Input, Modal, useToast } from '../../components/ui'
 import { isApiError } from '../../api/client'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout } from '../../lib/mutationError'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import type { CustomerDetail, CustomerPatch } from '../../domain/customer'
 import { useCreateCustomer, useUpdateCustomer } from './queries'
 import styles from './CustomerFormDialog.module.css'
@@ -149,6 +152,9 @@ function CustomerForm({
   const [serverChanged, setServerChanged] = useState<FieldName[]>([])
   const [errors, setErrors] = useState<Errors>({})
   const [failure, setFailure] = useState<'conflict' | 'archived' | 'generic' | null>(null)
+  /** El 503 de bloqueo del último envío (nada se cambió); su aviso ofrece repetir ese mismo envío. */
+  const [lockError, setLockError] = useState<unknown>(null)
+  const submission = useRepeatableSubmission()
 
   // Llegó una versión más nueva del cliente (p. ej. tras un 412): los campos no tocados pasan a los valores del
   // servidor y los tocados conservan lo escrito.
@@ -170,6 +176,8 @@ function CustomerForm({
   function change(field: FieldName, value: string) {
     setValues((current) => ({ ...current, [field]: value }))
     setErrors((current) => ({ ...current, [field]: undefined }))
+    // El reintento repetiría lo enviado, no lo que se ve ahora: editar retira el aviso de bloqueo.
+    setLockError(null)
   }
 
   function validate(trimmed: Values): Errors {
@@ -199,16 +207,25 @@ function CustomerForm({
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
       return
     }
+    // El envío ya compuesto (valores y campos tocados): el reintento de un 503 lo repite tal cual, con su versión.
+    const changed = fieldNames.filter((field) => trimmed[field] !== source[field].trim())
+    setLockError(null)
+    submission.send(() => void attempt(form, trimmed, changed))
+  }
+
+  async function attempt(form: HTMLFormElement, trimmed: Values, changed: FieldName[]) {
     try {
-      await save(
-        trimmed,
-        fieldNames.filter((field) => trimmed[field] !== source[field].trim()),
-      )
+      await save(trimmed, changed)
     } catch (error) {
-      if (isApiError(error, 412)) {
+      if (isLockTimeout(error)) {
+        setFailure(null)
+        setLockError(error)
+      } else if (isApiError(error, 412)) {
+        setLockError(null)
         setFailure('conflict')
       } else if (isApiError(error, 409)) {
         // El archivado llega como 409 si la versión coincidía; la recarga del detalle lo reflejará en `archived`.
+        setLockError(null)
         setFailure('archived')
       } else if (isApiError(error, 400)) {
         const serverErrors: Errors = {}
@@ -217,11 +234,13 @@ function CustomerForm({
           if (message) serverErrors[field] = message
         }
         flushSync(() => {
+          setLockError(null)
           setErrors(serverErrors)
           setFailure(Object.keys(serverErrors).length > 0 ? null : 'generic')
         })
         form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
       } else {
+        setLockError(null)
         setFailure('generic')
       }
     }
@@ -246,6 +265,7 @@ function CustomerForm({
           Ya no se puede editar. Solo un administrador puede restaurarlo.
         </Alert>
       )}
+      <LockTimeoutAlert error={lockError} pending={pending} onRetry={submission.retry} what="guardar el cliente" />
       {failure === 'generic' && (
         <Alert tone="red" title="No se pudo guardar el cliente" live>
           Revisa tu conexión e inténtalo de nuevo.

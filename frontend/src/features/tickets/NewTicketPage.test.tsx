@@ -1,8 +1,9 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RequireRole } from '../../app/pages/RequireRole'
+import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { ticket } from '../../test/ticketFixtures'
@@ -112,5 +113,82 @@ describe('NewTicketPage', () => {
     renderForm()
     expect(await screen.findByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Crear ticket' })).not.toBeInTheDocument()
+  })
+
+  describe('un 503 de bloqueo', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    async function fillAndSend(
+      user: ReturnType<typeof userEvent.setup>,
+      seen: SentRequest[],
+      ...replies: Parameters<typeof inOrder>[1][]
+    ) {
+      mockApi({
+        'GET /api/me': { body: adminMe },
+        'GET /api/customers': { body: customers },
+        'GET /api/assignees': { body: assignees },
+        'POST /api/tickets': inOrder(seen, ...replies),
+      })
+      const router = renderForm()
+      await user.click(await screen.findByRole('combobox', { name: 'Cliente' }))
+      await user.click(await screen.findByRole('option', { name: /María Pérez/ }))
+      await user.type(screen.getByRole('textbox', { name: 'Asunto' }), 'No llega el correo')
+      await user.type(screen.getByRole('textbox', { name: 'Descripción' }), 'Desde ayer no recibo avisos.')
+      await user.click(screen.getByRole('button', { name: 'Crear ticket' }))
+      return router
+    }
+
+    it('conserva lo escrito, ofrece «Reintentar» y repite la misma petición', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      const seen: SentRequest[] = []
+      const router = await fillAndSend(user, seen, lockTimeoutRoute(), { status: 201, body: ticket({ number: 1049 }) })
+
+      expect(
+        await screen.findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      ).toBeInTheDocument()
+      expect(screen.queryByText('No se pudo crear el ticket')).not.toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Asunto' })).toHaveValue('No llega el correo')
+      expect(screen.getByRole('textbox', { name: 'Descripción' })).toHaveValue('Desde ayer no recibo avisos.')
+      expect(seen).toHaveLength(1)
+
+      await retryAfterLockTimeout(user, 'Reintentar crear el ticket')
+      expect(await screen.findByText('Detalle')).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/tickets/1049')
+      expect(seen).toHaveLength(2)
+      expect(seen[1]).toEqual(seen[0])
+    })
+
+    it('si el reintento falla por validación, muestra el error del campo de siempre', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      const seen: SentRequest[] = []
+      await fillAndSend(user, seen, lockTimeoutRoute(), {
+        status: 400,
+        body: {
+          status: 400,
+          title: 'Datos no válidos',
+          errors: [{ field: 'subject', message: 'Ese asunto ya existe.' }],
+        },
+      })
+      await retryAfterLockTimeout(user, 'Reintentar crear el ticket')
+      expect(await screen.findByRole('textbox', { name: 'Asunto' })).toHaveAccessibleDescription(
+        'Ese asunto ya existe.',
+      )
+      expect(
+        screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      ).not.toBeInTheDocument()
+    })
+
+    it('editar el formulario retira el aviso: el reintento repetiría lo enviado, no lo que se ve', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      await fillAndSend(user, [], lockTimeoutRoute())
+      await screen.findByRole('button', { name: 'Reintentar crear el ticket' })
+      await user.type(screen.getByRole('textbox', { name: 'Asunto' }), '!')
+      expect(screen.queryByRole('button', { name: 'Reintentar crear el ticket' })).not.toBeInTheDocument()
+    })
   })
 })
