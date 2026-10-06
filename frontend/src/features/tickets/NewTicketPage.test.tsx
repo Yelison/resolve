@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -183,18 +183,55 @@ describe('NewTicketPage', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('un 503 de mantenimiento de la demostración no ofrece «Reintentar» y sigue el aviso genérico', async () => {
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-      await fillAndSend(user, [], {
-        status: 503,
-        body: { status: 503, title: 'Reinicio de la demostración en curso', detail: 'Vuelve en unos minutos.' },
+    describe('rechazos de la demostración pública', () => {
+      async function expectKeptAndAnnounced(message: string) {
+        const alert = await screen.findByRole('status')
+        expect(within(alert).getByText('No se pudo crear el ticket')).toBeInTheDocument()
+        expect(within(alert).getByText(message)).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument()
+        expect(screen.queryByText('Revisa tu conexión e inténtalo de nuevo.')).not.toBeInTheDocument()
+        expect(screen.getByRole('textbox', { name: 'Asunto' })).toHaveValue('No llega el correo')
+        expect(screen.getByRole('textbox', { name: 'Descripción' })).toHaveValue('Desde ayer no recibo avisos.')
+      }
+
+      it('el 503 del reinicio avisa sin «Reintentar» local y conserva lo escrito', async () => {
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+        await fillAndSend(user, [], {
+          status: 503,
+          headers: { 'Retry-After': '60' },
+          body: { status: 503, title: 'Reinicio de la demostración en curso', detail: 'Vuelve en unos minutos.' },
+        })
+        await expectKeptAndAnnounced('Estamos reiniciando la demostración; vuelve en un minuto.')
+        expect(
+          screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+        ).not.toBeInTheDocument()
       })
-      const region = await screen.findByRole('region', { name: 'Notificaciones' })
-      expect(await within(region).findByText('No se pudo crear el ticket')).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument()
-      expect(
-        screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
-      ).not.toBeInTheDocument()
+
+      it('el 429 pide esperar, no reintenta solo y conserva lo escrito', async () => {
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+        const seen: SentRequest[] = []
+        await fillAndSend(user, seen, {
+          status: 429,
+          headers: { 'Retry-After': '30' },
+          body: { status: 429, title: 'Demasiadas escrituras', detail: 'Más de 60 escrituras en un minuto.' },
+        })
+        await expectKeptAndAnnounced('Has hecho muchos cambios seguidos; espera un momento.')
+        await act(() => vi.advanceTimersByTimeAsync(60_000))
+        expect(seen).toHaveLength(1)
+      })
+
+      it('el 409 del tope muestra el detail del Problem y conserva lo escrito', async () => {
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+        await fillAndSend(user, [], {
+          status: 409,
+          body: {
+            status: 409,
+            title: 'Límite de la demostración',
+            detail: 'La demostración admite hasta 500 tickets por organización.',
+          },
+        })
+        await expectKeptAndAnnounced('La demostración admite hasta 500 tickets por organización.')
+      })
     })
 
     it('editar el formulario retira el aviso: el reintento repetiría lo enviado, no lo que se ve', async () => {

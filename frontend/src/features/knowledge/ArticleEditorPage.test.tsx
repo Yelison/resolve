@@ -145,6 +145,28 @@ describe('ArticleEditorPage · nuevo', () => {
     expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Repetido')
   })
 
+  it('el 409 del tope de la demostración muestra su detail, no el aviso del slug, y conserva lo escrito', async () => {
+    api({
+      'POST /api/knowledge/articles': {
+        status: 409,
+        body: {
+          status: 409,
+          title: 'Límite de la demostración',
+          detail: 'La demostración admite hasta 100 artículos.',
+        },
+      },
+    })
+    renderEditor('/conocimiento/nuevo')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Título' }), 'Uno más')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Contenido' }), 'Texto')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Categoría' }), 'Facturación')
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }))
+    expect(await screen.findByText('La demostración admite hasta 100 artículos.')).toBeInTheDocument()
+    expect(screen.queryByText(/Otro artículo acaba de tomar esa dirección/)).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Uno más')
+    expect(screen.getByRole('textbox', { name: 'Contenido' })).toHaveValue('Texto')
+  })
+
   it('muestra el error de campo que devuelve el servidor', async () => {
     api({
       'POST /api/knowledge/articles': {

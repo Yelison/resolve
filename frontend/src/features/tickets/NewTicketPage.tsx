@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { useNavigate } from 'react-router'
 import {
+  Alert,
   Button,
   Combobox,
   Input,
@@ -15,7 +16,7 @@ import { isApiError } from '../../api/client'
 import type { TicketPriority } from '../../domain/ticket'
 import { ticketPriorityValues } from '../../domain/ticket'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
-import { isLockTimeout } from '../../lib/mutationError'
+import { demoErrorMessage, isLockTimeout } from '../../lib/mutationError'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { PageHeader } from '../../app/pages/PageHeader'
@@ -91,7 +92,7 @@ export function NewTicketPage() {
               if (message) serverErrors[field] = message
             }
             setErrors(serverErrors)
-          } else if (!isLockTimeout(error)) {
+          } else if (!isLockTimeout(error) && demoErrorMessage(error) === undefined) {
             toast.show({ tone: 'error', title: 'No se pudo crear el ticket', description: 'Inténtalo de nuevo.' })
           }
         },
@@ -156,6 +157,11 @@ export function NewTicketPage() {
             onRetry={submission.retry}
             what="crear el ticket"
           />
+          {demoErrorMessage(createTicket.error) && (
+            <Alert tone="amber" title="No se pudo crear el ticket" live>
+              {demoErrorMessage(createTicket.error)}
+            </Alert>
+          )}
           <div className={styles.actions}>
             <Button type="submit" loading={createTicket.isPending} loadingLabel="Creando…">
               Crear ticket

@@ -15,7 +15,7 @@ import {
 import type { Article, ArticleCreate, ArticlePatch, ArticleVisibility } from '../../domain/article'
 import { clearDraft, useDraft } from '../../lib/useDraft'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
-import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
+import { isDemoLimit, isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
@@ -327,7 +327,7 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
     setOffered(null)
   }
 
-  const slugTaken = isApiError(create.error, 409)
+  const slugTaken = isApiError(create.error, 409) && !isDemoLimit(create.error)
   const blockedReason = !base
     ? 'Guarda el borrador para poder publicarlo.'
     : dirty
