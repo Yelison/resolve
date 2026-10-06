@@ -1,5 +1,6 @@
 import type { ReportDay } from '../../api/schema'
 import type { BarChartPoint, MetricTrend } from '../../components/ui'
+import { formatWeekdayShort } from '../../lib/format'
 
 export interface ResolvedComparison {
   /** Frase que se explica sola: no depende de la flecha ni del color. */
@@ -33,13 +34,6 @@ export function newToday(count: number): string {
   return count === 1 ? '1 nuevo hoy' : `${count} nuevos hoy`
 }
 
-const weekdayShort = new Intl.DateTimeFormat('es', { weekday: 'short', timeZone: 'UTC' })
-
-/** «lun», «mié», «sáb»: tres letras; se quita el punto que algunos entornos añaden («lun.»). */
-export function weekdayLabel(utc: Date): string {
-  return weekdayShort.format(utc).replace('.', '')
-}
-
 const dayLabel = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 /**
@@ -54,7 +48,7 @@ export function requestPoints(days: ReportDay[]): BarChartPoint[] {
     return {
       key: day.date,
       label: dayLabel.format(utc),
-      shortLabel: weekdayLabel(utc),
+      shortLabel: formatWeekdayShort(utc),
       values: { created: day.created },
     }
   })

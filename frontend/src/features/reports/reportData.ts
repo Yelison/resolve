@@ -8,6 +8,7 @@ import type {
 } from '../../api/schema'
 import type { BarChartPoint, MetricTrend } from '../../components/ui'
 import { memberStatusLabels } from '../../domain/member'
+import { formatWeekdayShort } from '../../lib/format'
 import { toCsv } from './csv'
 
 export const channelLabels: Record<TicketChannel, string> = {
@@ -64,9 +65,6 @@ export function channelValueText({ share, created }: ReportChannel): string {
   return `${decimal.format(share)} % · ${created === 1 ? '1 ticket' : `${integer.format(created)} tickets`}`
 }
 
-const weekdayShort = new Intl.DateTimeFormat('es', { weekday: 'short', timeZone: 'UTC' })
-/** «lun», «mié», «sáb»: tres letras, sin el punto que algunos entornos añaden. */
-const weekdayLabel = (date: Date) => weekdayShort.format(date).replace('.', '')
 const longDay = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })
 const shortDay = new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
@@ -101,7 +99,7 @@ export function chartData(days: ReportDay[]): ChartData {
         return {
           key: day.date,
           label: longDay.format(date),
-          shortLabel: daily ? weekdayLabel(date) : String(date.getUTCDate()),
+          shortLabel: daily ? formatWeekdayShort(date) : String(date.getUTCDate()),
           values: { created: day.created, resolved: day.resolved },
         }
       }),

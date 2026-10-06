@@ -50,13 +50,13 @@ export const demoTickets: TicketSummary[] = [
 export const demoChartSeries = [{ id: 'requests', label: 'Solicitudes' }]
 
 export const demoChartPoints = [
-  { key: 'mon', label: 'Lunes', shortLabel: 'L', values: { requests: 44 } },
-  { key: 'tue', label: 'Martes', shortLabel: 'M', values: { requests: 61 } },
-  { key: 'wed', label: 'Miércoles', shortLabel: 'X', values: { requests: 54 } },
-  { key: 'thu', label: 'Jueves', shortLabel: 'J', values: { requests: 72 } },
-  { key: 'fri', label: 'Viernes', shortLabel: 'V', values: { requests: 65 } },
-  { key: 'sat', label: 'Sábado', shortLabel: 'S', values: { requests: 35 } },
-  { key: 'sun', label: 'Domingo', shortLabel: 'D', values: { requests: 30 } },
+  { key: 'mon', label: 'Lunes', shortLabel: 'lun', values: { requests: 44 } },
+  { key: 'tue', label: 'Martes', shortLabel: 'mar', values: { requests: 61 } },
+  { key: 'wed', label: 'Miércoles', shortLabel: 'mié', values: { requests: 54 } },
+  { key: 'thu', label: 'Jueves', shortLabel: 'jue', values: { requests: 72 } },
+  { key: 'fri', label: 'Viernes', shortLabel: 'vie', values: { requests: 65 } },
+  { key: 'sat', label: 'Sábado', shortLabel: 'sáb', values: { requests: 35 } },
+  { key: 'sun', label: 'Domingo', shortLabel: 'dom', values: { requests: 30 } },
 ]
 
 /** Serie diaria sintética (valores de cuatro cifras incluidos) para probar el gráfico con muchos puntos. */
