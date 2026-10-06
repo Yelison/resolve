@@ -198,6 +198,25 @@ Resolve has no passwords of its own. People sign in with an OpenID Connect ident
 
 Variables, headers and health checks of a deployment are in [docs/deploy/README.md](docs/deploy/README.md); the API side of sign-in is in the [API contract](docs/api/README.md#authentication).
 
+## Live demo
+
+**URL:** _not deployed yet_ (the first deployment will put its address here; the planned one is `https://resolve-demo.fly.dev`, see [docs/deploy/README.md](docs/deploy/README.md)).
+
+The public demo is a shared installation with fictional data. Every page shows a permanent notice, «Demostración pública · los datos se reinician cada noche», and the API marks the installation with `organization.demo` in `/me`. **Do not enter real data**: anyone with the accounts below can read what you write, and it is erased at the next reset.
+
+Accounts of the demo realm ([`deploy/keycloak/resolve-realm.json`](deploy/keycloak/resolve-realm.json)). That realm is public on purpose and its password is the same for everyone: **`demo`**. It is a demonstration value, not a secret, and it belongs only to this realm; a real deployment uses its own realm.
+
+| Email | Role | Organization |
+| --- | --- | --- |
+| `yelisson.ortiz@acme.example` | Administrator | Acme Studio |
+| `laura.mendez@acme.example` | Agent | Acme Studio |
+| `maria.perez@cliente.example` | Customer | Acme Studio |
+| `jordi.puig@northwind.example` | Agent | Northwind |
+
+- **Reset.** Every night at 03:00 (America/Bogota) the database is emptied and reloaded with the demo data. During the reset (a few minutes) the API answers `503` and the interface shows «Estamos reiniciando la demostración; vuelve en un minuto», with a «Reintentar» button.
+- **Limits.** At most 500 tickets, 200 customers, 50 team members and 100 articles per organization (one more gets a `409` «Límite de la demostración», shown in the form that tried it), and 60 writes per minute per address (`429`: the interface asks you to wait and keeps what you typed).
+- **Not indexed.** The demo sends `X-Robots-Tag: noindex`.
+
 ## Design decisions
 
 The Figma frames are the visual reference. Where they conflict with the written responsive and accessibility rules, the rules win:

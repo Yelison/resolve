@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Outlet, useLocation, useMatches, useNavigate } from 'react-router'
 import { Breadcrumb, Sidebar, Topbar, useToast } from '../../components/ui'
 import { useModalDialog } from '../../components/ui/shared/useModalDialog'
+import { useDemoMaintenance } from '../../lib/demoMaintenance'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import { AccountMenu, AccountMenuPlaceholder } from '../../features/session/AccountMenu'
 import { useMe } from '../../features/session/queries'
@@ -11,6 +12,8 @@ import { navigationFor, roleLabels } from '../navigation'
 import { SessionErrorPage } from '../pages/SessionErrorPage'
 import { useTheme } from '../theme/useTheme'
 import styles from './AppShell.module.css'
+import { DemoBanner } from './DemoBanner'
+import { DemoMaintenanceNotice } from './DemoMaintenanceNotice'
 import { useSidebarPreference } from './useSidebarPreference'
 
 export interface RouteHandle {
@@ -39,6 +42,7 @@ function AppFrame() {
   const toast = useToast()
   const drawerId = useId()
   const me = useMe()
+  const maintenance = useDemoMaintenance()
   useSessionSync()
   // Mientras carga la sesión se muestran marcadores neutros. Si falla, el contenido se sustituye por un aviso con
   // reintento: sin rol, las páginas no pueden decidir qué vista mostrar.
@@ -171,6 +175,7 @@ function AppFrame() {
             isTabletUp ? undefined : { expanded: drawerOpen, controls: drawerId, onClick: () => setDrawerOpen(true) }
           }
         />
+        {maintenance && <DemoMaintenanceNotice onRetry={() => void me.refetch()} retrying={me.isFetching} />}
         <main ref={mainRef} id="contenido" className={styles.content} tabIndex={-1}>
           {sessionFailed ? (
             <SessionErrorPage
@@ -187,6 +192,7 @@ function AppFrame() {
             <Outlet />
           )}
         </main>
+        {me.data?.organization.demo && <DemoBanner />}
       </div>
     </div>
   )

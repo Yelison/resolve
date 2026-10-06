@@ -1,13 +1,19 @@
-import { focusManager, onlineManager } from '@tanstack/react-query'
+import { focusManager, onlineManager, type QueryClient } from '@tanstack/react-query'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDemoMaintenance } from '../../lib/demoMaintenance'
+import { queryClient } from '../../lib/queryClient'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { AppShell } from './AppShell'
 
 function renderShell(path = '/tickets') {
+  return renderShellWith(undefined, path).router
+}
+
+function renderShellWith(client?: QueryClient, path = '/tickets') {
   const router = createMemoryRouter(
     [
       {
@@ -23,8 +29,8 @@ function renderShell(path = '/tickets') {
     ],
     { initialEntries: [path] },
   )
-  renderWithProviders(<RouterProvider router={router} />)
-  return router
+  const rendered = renderWithProviders(<RouterProvider router={router} />, client)
+  return { router, queryClient: rendered.queryClient }
 }
 
 // En jsdom matchMedia no coincide con ninguna query, así que el shell está en modo móvil.
@@ -248,5 +254,87 @@ describe('AppShell sin sesión', () => {
     expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/entrar')
     expect(screen.queryByRole('heading', { name: 'No pudimos cargar tu sesión' })).not.toBeInTheDocument()
+  })
+})
+
+const demoMe = { ...adminMe, organization: { ...adminMe.organization, demo: true } }
+
+describe('AppShell en la demostración pública', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    setDemoMaintenance(false)
+    queryClient.clear()
+  })
+
+  it('muestra el aviso persistente como región con nombre, sin interrumpir', async () => {
+    mockApi({ 'GET /api/me': { body: demoMe } })
+    renderShell()
+    const banner = await screen.findByRole('region', { name: 'Demostración pública' })
+    expect(banner).toHaveTextContent('Demostración pública · los datos se reinician cada noche')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(banner).queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('no aparece si demo es false', async () => {
+    mockApi({ 'GET /api/me': { body: adminMe } })
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    await within(screen.getByRole('dialog', { name: 'Menú principal' })).findByText('Yelisson Ortiz')
+    expect(screen.queryByRole('region', { name: 'Demostración pública' })).not.toBeInTheDocument()
+  })
+
+  it('no aparece mientras carga /me y llega con la respuesta', async () => {
+    let respond!: (value: { body: unknown }) => void
+    mockApi({ 'GET /api/me': () => new Promise((resolve) => (respond = resolve)) })
+    renderShell()
+    expect(screen.getByRole('main')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Demostración pública' })).not.toBeInTheDocument()
+    await waitFor(() => expect(respond).toBeTypeOf('function'))
+    await act(async () => respond({ body: demoMe }))
+    expect(await screen.findByRole('region', { name: 'Demostración pública' })).toBeInTheDocument()
+  })
+
+  it('no aparece si /me falla', async () => {
+    mockApi({ 'GET /api/me': { status: 500, body: { status: 500, title: 'Error interno' } } })
+    renderShell()
+    await screen.findByRole('heading', { name: 'No pudimos cargar tu sesión' })
+    expect(screen.queryByRole('region', { name: 'Demostración pública' })).not.toBeInTheDocument()
+  })
+
+  it('durante el reinicio avisa para toda la aplicación y «Reintentar» relee /me y retira el aviso', async () => {
+    const fetchSpy = mockApi({ 'GET /api/me': { body: demoMe } })
+    const { queryClient: client } = renderShellWith(queryClient)
+    await screen.findByRole('region', { name: 'Demostración pública' })
+    expect(client).toBe(queryClient)
+
+    act(() => setDemoMaintenance(true))
+    const notice = await screen.findByRole('status')
+    expect(within(notice).getByText('Estamos reiniciando la demostración; vuelve en un minuto.')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Tickets' })).toBeInTheDocument()
+
+    const meCalls = () =>
+      fetchSpy.mock.calls.filter(([input]) => new URL((input as Request).url).pathname === '/api/me').length
+    const before = meCalls()
+    await userEvent.click(within(notice).getByRole('button', { name: 'Reintentar la conexión con la demostración' }))
+    await waitFor(() => expect(meCalls()).toBe(before + 1))
+    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+  })
+
+  it('si la demostración sigue reiniciando, el aviso se queda tras reintentar', async () => {
+    const fetchSpy = mockApi({ 'GET /api/me': { body: demoMe } })
+    renderShellWith(queryClient)
+    await screen.findByRole('region', { name: 'Demostración pública' })
+    act(() => setDemoMaintenance(true))
+    fetchSpy.mockImplementation(async () =>
+      Response.json(
+        { status: 503, title: 'Reinicio de la demostración en curso' },
+        { status: 503, headers: { 'Content-Type': 'application/problem+json', 'Retry-After': '60' } },
+      ),
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Reintentar la conexión con la demostración' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Reintentar la conexión con la demostración' })).toBeEnabled(),
+    )
+    expect(screen.getByText('Estamos reiniciando la demostración; vuelve en un minuto.')).toBeInTheDocument()
   })
 })
