@@ -82,13 +82,14 @@ describe('TeamPage', () => {
     expect(await screen.findByText('Sin datos')).toBeInTheDocument()
   })
 
-  it('el aviso de permisos enlaza a /configuracion/permisos', async () => {
+  it('enlaza a /configuracion/permisos desde la cabecera, sin el aviso «Permisos por rol»', async () => {
     mockApi(baseRoutes)
     renderTeam()
-    expect(await screen.findByRole('link', { name: 'Ver permisos por rol' })).toHaveAttribute(
-      'href',
-      '/configuracion/permisos',
-    )
+    const link = await screen.findByRole('link', { name: 'Ver permisos por rol' })
+    expect(link).toHaveAttribute('href', '/configuracion/permisos')
+    expect(link.closest('header')).toBe(screen.getByRole('heading', { level: 1, name: 'Equipo' }).closest('header'))
+    expect(screen.queryByText(/ven al equipo en lectura/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Permisos por rol' })).not.toBeInTheDocument()
   })
 
   it('los retirados solo aparecen tras el filtro «Retirados»', async () => {
@@ -176,7 +177,7 @@ describe('TeamPage', () => {
       await userEvent.click(await screen.findByRole('button', { name: 'Invitar agente' }))
       const dialog = await screen.findByRole('dialog', { name: 'Invitar agente' })
       expect(
-        within(dialog).getByText('La persona entrará con este correo; todavía no enviamos correos de invitación.'),
+        within(dialog).getByText('La persona entrará con este correo. No enviamos un aviso automático: avísale tú.'),
       ).toBeInTheDocument()
     })
 
@@ -477,7 +478,9 @@ describe('TeamPage con un 503 de bloqueo', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Invitar' }))
 
     expect(
-      await within(dialog).findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      await within(dialog).findByText(
+        'Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.',
+      ),
     ).toBeInTheDocument()
     expect(within(dialog).queryByText('No se pudo crear la invitación')).not.toBeInTheDocument()
     expect(email).toHaveValue('ana@acme.example')
@@ -515,7 +518,7 @@ describe('TeamPage con un 503 de bloqueo', () => {
       ),
     )
     expect(
-      within(dialog).queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      within(dialog).queryByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
     ).not.toBeInTheDocument()
   })
 
@@ -532,7 +535,9 @@ describe('TeamPage con un 503 de bloqueo', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Guardar rol' }))
 
     expect(
-      await within(dialog).findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      await within(dialog).findByText(
+        'Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.',
+      ),
     ).toBeInTheDocument()
     expect(within(dialog).queryByText('No se pudo cambiar el rol')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('combobox', { name: 'Rol' })).toHaveValue('admin')
@@ -561,7 +566,7 @@ describe('TeamPage con un 503 de bloqueo', () => {
     // El aviso de bloqueo se fue con el foco dentro: sigue en el diálogo, no cae en `body`.
     await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement))
     expect(
-      within(dialog).queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      within(dialog).queryByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
     ).not.toBeInTheDocument()
   })
 
@@ -579,7 +584,9 @@ describe('TeamPage con un 503 de bloqueo', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Retirar del equipo' }))
 
     expect(
-      await within(dialog).findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      await within(dialog).findByText(
+        'Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.',
+      ),
     ).toBeInTheDocument()
     expect(within(dialog).queryByText('No se pudo retirar al miembro')).not.toBeInTheDocument()
     await retryAfterLockTimeout(user, 'Reintentar retirar al miembro')
@@ -604,7 +611,7 @@ describe('TeamPage con un 503 de bloqueo', () => {
     expect(await within(dialog).findByText('Ese miembro ya no existe.')).toBeInTheDocument()
     await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement))
     expect(
-      within(dialog).queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      within(dialog).queryByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
     ).not.toBeInTheDocument()
   })
 })

@@ -32,7 +32,7 @@ export function PermissionsMatrix() {
         <h2 id="permissions-heading" className={styles.heading}>
           Permisos por rol
         </h2>
-        <p className={styles.description}>Qué puede hacer cada rol en este espacio. Esta tabla es informativa.</p>
+        <p className={styles.description}>Qué puede hacer cada rol. Los roles son fijos y no se pueden personalizar.</p>
       </div>
       <div className={styles.panel}>
         <table role="table" className={styles.table} aria-describedby="permissions-caption">

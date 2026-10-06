@@ -75,7 +75,14 @@ export function TeamPage() {
       <PageHeader
         title="Equipo"
         description="Quién atiende, con qué carga y con qué permisos."
-        actions={isAdmin && <Button onClick={() => setInviting(true)}>Invitar agente</Button>}
+        actions={
+          <div className={styles.actions}>
+            <Link to="/configuracion/permisos" className={styles.link}>
+              Ver permisos por rol
+            </Link>
+            {isAdmin && <Button onClick={() => setInviting(true)}>Invitar agente</Button>}
+          </div>
+        }
       />
 
       {metrics.isPending ? (
@@ -97,13 +104,6 @@ export function TeamPage() {
       ) : (
         <MetricsRow metrics={metrics.data} />
       )}
-
-      <Alert tone="blue" title="Permisos por rol">
-        Los administradores gestionan el equipo; los agentes atienden tickets y ven al equipo en lectura.{' '}
-        <Link to="/configuracion/permisos" className={styles.link}>
-          Ver permisos por rol
-        </Link>
-      </Alert>
 
       <section className={styles.panel} aria-label="Miembros del equipo">
         <div className={styles.filters}>

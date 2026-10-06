@@ -372,7 +372,7 @@ describe('TicketsPage con un 503 de bloqueo en una acción de fila', () => {
     const region = screen.getByRole('region', { name: 'Notificaciones' })
     expect(await within(region).findByText('No se pudo actualizar el ticket #1048')).toBeInTheDocument()
     expect(
-      within(region).getByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      within(region).getByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
     ).toBeInTheDocument()
     const retry = within(region).getByRole('button', { name: 'Reintentar actualizar el ticket #1048' })
     // Antes de pasar Retry-After la acción no se activa y el aviso sigue ahí.

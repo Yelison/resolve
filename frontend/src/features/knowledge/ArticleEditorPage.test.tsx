@@ -140,7 +140,7 @@ describe('ArticleEditorPage · nuevo', () => {
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Categoría' }), 'Facturación')
     await userEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }))
     expect(
-      await screen.findByText('Otro artículo acaba de tomar esa dirección; vuelve a intentarlo'),
+      await screen.findByText('Otro artículo se acaba de crear con el mismo enlace; vuelve a intentarlo.'),
     ).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Repetido')
   })
@@ -162,7 +162,7 @@ describe('ArticleEditorPage · nuevo', () => {
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Categoría' }), 'Facturación')
     await userEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }))
     expect(await screen.findByText('La demostración admite hasta 100 artículos.')).toBeInTheDocument()
-    expect(screen.queryByText(/Otro artículo acaba de tomar esa dirección/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Otro artículo se acaba de crear con el mismo enlace/)).not.toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Uno más')
     expect(screen.getByRole('textbox', { name: 'Contenido' })).toHaveValue('Texto')
   })
@@ -539,7 +539,7 @@ describe('ArticleEditorPage · vista previa', () => {
 })
 
 describe('ArticleEditorPage · un 503 de bloqueo', () => {
-  const LOCK_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
+  const LOCK_MESSAGE = 'Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'
   const draftArticle = article({ status: 'draft', publishedAt: null, version: 5 })
 
   beforeEach(() => {

@@ -316,7 +316,7 @@ describe('TicketDetailPage y la zona de la organización', () => {
 })
 
 describe('TicketDetailPage con un 503 de bloqueo', () => {
-  const LOCK_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
+  const LOCK_MESSAGE = 'Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'
 
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })

@@ -15,7 +15,7 @@ const MAX_NAME = 120
 
 const STAFF_NAME_HINT =
   'Se actualiza en todo el espacio. El historial de actividad conserva el nombre que tenías en cada momento.'
-const CUSTOMER_NAME_HINT = 'Este nombre se usa en tu cuenta; el equipo de soporte ve el de tu ficha de cliente.'
+const CUSTOMER_NAME_HINT = 'Así te mostramos en tu cuenta.'
 
 /** Perfil de quien tiene la sesión: solo el nombre se puede cambiar; el correo se muestra sin control. */
 export function ProfileForm({ me }: { me: Me }) {

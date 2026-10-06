@@ -57,9 +57,7 @@ describe('ProfileTab', () => {
   it('a un cliente le explica que su ficha de cliente es independiente', async () => {
     render(customerMe)
     await name()
-    expect(
-      screen.getByText('Este nombre se usa en tu cuenta; el equipo de soporte ve el de tu ficha de cliente.'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Así te mostramos en tu cuenta.')).toBeInTheDocument()
     expect(screen.queryByText(/historial de actividad/)).not.toBeInTheDocument()
   })
 
@@ -160,14 +158,16 @@ describe('ProfileTab con un 503 de bloqueo', () => {
       body: { ...adminMe, user: { ...adminMe.user, name: 'Yelisson O. Ortiz' } },
     })
     expect(
-      await screen.findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      await screen.findByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
     ).toBeInTheDocument()
     expect(screen.queryByText('No se pudo guardar tu nombre')).not.toBeInTheDocument()
     expect(input).toHaveValue('Yelisson O. Ortiz')
 
     await retryAfterLockTimeout(user, 'Reintentar guardar tu nombre')
     expect(await screen.findByText('Cambios guardados')).toBeInTheDocument()
-    expect(screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
+    ).not.toBeInTheDocument()
     expect(seen).toHaveLength(2)
     expect(seen[1]).toEqual(seen[0])
     expect(JSON.parse(seen[0]?.body ?? '')).toEqual({ name: 'Yelisson O. Ortiz' })
@@ -184,6 +184,8 @@ describe('ProfileTab con un 503 de bloqueo', () => {
     await waitFor(() =>
       expect(screen.getByRole('textbox', { name: 'Nombre' })).toHaveAccessibleDescription(/Nombre no permitido./),
     )
-    expect(screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
+    ).not.toBeInTheDocument()
   })
 })

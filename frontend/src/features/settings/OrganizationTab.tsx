@@ -41,7 +41,7 @@ export function OrganizationTab() {
       title="Empresa"
       description={
         isAdmin
-          ? 'Datos del espacio de trabajo y la referencia de las métricas.'
+          ? 'Datos de tu empresa y objetivo de primera respuesta.'
           : 'Datos del espacio de trabajo. Solo un administrador puede cambiarlos.'
       }
     >

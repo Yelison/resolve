@@ -9,6 +9,13 @@
   min-height: 96px;
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-16);
+}
+
 .link {
   display: inline-flex;
   align-items: center;

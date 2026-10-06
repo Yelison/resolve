@@ -5,7 +5,7 @@ import { cx } from '../../lib/cx'
 import type { ParameterReportPeriod as ReportPeriod, ReportSummary } from '../../api/schema'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
-import { Alert, BarChart, Button, EmptyState, Metric, ProgressBar, Select, Skeleton } from '../../components/ui'
+import { BarChart, Button, EmptyState, Metric, ProgressBar, Select, Skeleton } from '../../components/ui'
 import { useTimeZone } from '../session/useTimeZone'
 import { AgentsTable } from './AgentsTable'
 import {
@@ -242,9 +242,7 @@ function RequestsPanel({ data }: { data: ReportSummary }) {
             points={points}
           />
           {granularity === 'week' && (
-            <p className={styles.note}>
-              Cada barra suma una semana, desde el primer día del periodo; la última puede tener menos días.
-            </p>
+            <p className={styles.note}>Una barra por semana; la última puede estar incompleta.</p>
           )}
         </>
       ) : (
@@ -299,14 +297,11 @@ function AgentsPanel({ data }: { data: ReportSummary }) {
         />
       ) : (
         <div className={styles.agents}>
-          <Alert tone="blue" title="Quién aparece aquí">
-            Además del equipo activo, se incluye a quien ya no está pero resolvió o respondió tickets en el periodo, con
-            su estado.
-          </Alert>
           <AgentsTable
             agents={data.byAgent}
             caption={count === 1 ? 'Mostrando 1 agente' : `Mostrando ${count} agentes`}
           />
+          <p className={styles.note}>Incluye a quien ya no está en el equipo si atendió tickets en el periodo.</p>
         </div>
       )}
     </section>
