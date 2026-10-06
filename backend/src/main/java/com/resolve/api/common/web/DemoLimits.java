@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Los topes por organización de la demostración pública (plan §4.5-5): 500 tickets, 200 clientes, 50 miembros y 100
@@ -18,9 +20,11 @@ import org.springframework.stereotype.Component;
  * accesos de portal de los clientes no cuentan: los limita el tope de clientes.
  *
  * <p>
- * Dos altas simultáneas pueden pasar juntas el último hueco (se lee y se guarda sin bloquear): el tope es una defensa
- * contra el abuso, no una cuota exacta, y el límite de escrituras por IP ({@link WriteRateLimitFilter}) acota cuánto
- * puede sobrepasarse. Las altas de miembros y de artículos ya van serializadas por organización.
+ * El tope es exacto con altas simultáneas: {@link #check} toma un bloqueo de asesoramiento de transacción
+ * ({@code pg_advisory_xact_lock}) por recurso y organización antes de contar, y lo conserva hasta que termina la
+ * transacción del alta. La segunda alta espera a que la primera confirme y entonces cuenta su fila. Por eso se exige
+ * una transacción abierta ({@code MANDATORY}): sin ella el bloqueo se soltaría al instante. Todos los llamadores
+ * (crear ticket, cliente, artículo e invitar miembro) son {@code @Transactional}.
  */
 @Component
 public class DemoLimits {
@@ -76,10 +80,15 @@ public class DemoLimits {
 	}
 
 	/** Lanza {@link DemoLimitException} (409) si la organización ya tiene el máximo de ese recurso. */
+	@Transactional(propagation = Propagation.MANDATORY)
 	public void check(Resource resource, UUID organizationId) {
 		if (!this.enabled) {
 			return;
 		}
+		this.jdbc.sql("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))")
+			.param("demo-cap:" + resource.property + ":" + organizationId)
+			.query()
+			.singleRow();
 		long current = this.jdbc.sql(resource.count).param(organizationId).query(Long.class).single();
 		int cap = cap(resource);
 		if (current >= cap) {
