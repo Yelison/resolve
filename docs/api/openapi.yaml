@@ -1327,7 +1327,7 @@ components:
     Organization:
       type: object
       additionalProperties: false
-      required: [id, name, timeZone, supportEmail]
+      required: [id, name, timeZone, supportEmail, demo]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1339,8 +1339,7 @@ components:
         demo:
           description: |
             `true` when this installation is the public demo (`resolve.demo.enabled`): the data is fictional and
-            reset every night. It describes the installation, not the organization. The API always sends it;
-            it is optional so clients may omit it in their own fixtures.
+            reset every night. It describes the installation, not the organization. The API always sends it.
           type: boolean
 
     OrganizationSettings:

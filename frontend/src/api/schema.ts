@@ -757,10 +757,9 @@ export interface components {
             supportEmail: string | null;
             /**
              * @description `true` when this installation is the public demo (`resolve.demo.enabled`): the data is fictional and
-             *     reset every night. It describes the installation, not the organization. The API always sends it;
-             *     it is optional so clients may omit it in their own fixtures.
+             *     reset every night. It describes the installation, not the organization. The API always sends it.
              */
-            demo?: boolean;
+            demo: boolean;
         };
         OrganizationSettings: {
             /** Format: uuid */

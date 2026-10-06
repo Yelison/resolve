@@ -4,7 +4,7 @@ import { json, problem, type MockFeature } from './shared'
 
 export const me: Me = {
   user: { id: 'u-admin', name: 'Yelisson Ortiz', email: 'yelisson@acme.example' },
-  organization: { id: 'org-1', name: 'Acme Studio', timeZone: 'America/Bogota', supportEmail: null },
+  organization: { id: 'org-1', name: 'Acme Studio', timeZone: 'America/Bogota', supportEmail: null, demo: false },
   role: 'admin',
   customerId: null,
 }
