@@ -88,11 +88,16 @@ const day = (index: number, created = index, resolved = 0): ReportDay => ({
 const days = (count: number) => Array.from({ length: count }, (_, index) => day(index))
 
 describe('chartData', () => {
-  it('7 días: un punto por día con la inicial del día de la semana, sin desplazarlo por la zona del navegador', () => {
+  it('7 días: un punto por día con el día de la semana en tres letras, sin desplazarlo por la zona del navegador', () => {
     const { points, granularity } = chartData([day(0, 3, 2), day(1)])
     expect(granularity).toBe('day')
-    expect(points[0]).toMatchObject({ key: '2026-07-06', shortLabel: 'L', values: { created: 3, resolved: 2 } })
-    expect(points[1]?.shortLabel).toBe('M')
+    expect(points[0]).toMatchObject({ key: '2026-07-06', shortLabel: 'lun', values: { created: 3, resolved: 2 } })
+    expect(points[1]?.shortLabel).toBe('mar')
+  })
+
+  it('7 días: el miércoles es «mié», no «X»', () => {
+    const { points } = chartData(days(7))
+    expect(points.map((point) => point.shortLabel)).toEqual(['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'])
   })
 
   it('30 días: un punto por día con el número del día en el eje', () => {
