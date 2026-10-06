@@ -44,7 +44,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = { "DATABASE_URL=jdbc:postgresql://db.invalid/resolve", "DATABASE_USERNAME=resolve",
 		"DATABASE_PASSWORD=ficticia", "RESOLVE_OIDC_ISSUER=https://idp.invalid/realms/resolve",
 		"RESOLVE_OIDC_CLIENT_ID=resolve-api", "RESOLVE_OIDC_CLIENT_SECRET=ficticio",
-		"RESOLVE_PUBLIC_URL=https://resolve.invalid" })
+		"RESOLVE_PUBLIC_URL=https://resolve.invalid", "RESOLVE_DEMO_ENABLED=false" })
 class ProdProfileSmokeTest {
 
 	@Autowired

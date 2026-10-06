@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("prod")
 // En prod no hay valores por defecto: la base de datos llega por variables (ficticias aquí; la conexión real es la de Testcontainers).
 @TestPropertySource(properties = { "DATABASE_URL=jdbc:postgresql://db.invalid/resolve", "DATABASE_USERNAME=resolve",
-		"DATABASE_PASSWORD=ficticia" })
+		"DATABASE_PASSWORD=ficticia", "RESOLVE_DEMO_ENABLED=false" })
 @Import({ TestcontainersConfiguration.class, TestData.class })
 class ProdProfileHasNoDemoLoginTest {
 

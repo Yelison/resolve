@@ -28,7 +28,8 @@ class RequiredProdConfiguration {
 
 	/** Propiedad → variable de entorno que la rellena (application.properties y application-prod.properties). */
 	private static final Map<String, String> DATABASE = Map.of("spring.datasource.url", "DATABASE_URL",
-			"spring.datasource.username", "DATABASE_USERNAME", "spring.datasource.password", "DATABASE_PASSWORD");
+			"spring.datasource.username", "DATABASE_USERNAME", "spring.datasource.password", "DATABASE_PASSWORD",
+			"resolve.demo.enabled", "RESOLVE_DEMO_ENABLED");
 
 	private static final Map<String, String> OIDC = Map.of(
 			"spring.security.oauth2.client.provider.resolve.issuer-uri", "RESOLVE_OIDC_ISSUER",
