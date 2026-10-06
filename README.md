@@ -166,6 +166,38 @@ SMOKE=1 npx playwright test --project=smoke   # PLAYWRIGHT_PORT=4182 if 4173 is 
 
 `SMOKE=1` builds the frontend with `vite build --mode smoke`, which keeps the demo login so the test can act as different users. Only the dev server and the `smoke` build include it; every other mode, `production` among them, drops it: the `X-Demo-User` header, its storage key and `setDemoUser` are absent from `dist/assets/*.js`. Without `SMOKE=1` the `smoke` project does not exist, so `npm run test:e2e` is unchanged.
 
+## Authentication
+
+Resolve has no passwords of its own. People sign in with an OpenID Connect identity provider and the backend turns the verified email into a membership; the `users` table stores a name and an email, never a credential.
+
+**The backend is the OIDC client (a BFF).** The browser never holds a token. `/api/oauth2/authorization/resolve` starts the authorization-code flow (a confidential client with PKCE), the backend exchanges the code, keeps the tokens in its own session and answers the browser with one cookie: `JSESSIONID`, `HttpOnly`, `SameSite=Lax`, `Secure` and scoped to `/api`, so JavaScript cannot read it and the web assets never carry it. The session changes id on sign-in (session-fixation protection). On every request the verified email is resolved again against the memberships, so removing someone or archiving their customer takes effect on their next request, not when the session expires.
+
+- **Writes need the CSRF token.** The API sets a readable `XSRF-TOKEN` cookie with its first authenticated response; every `POST`, `PATCH` and `DELETE` must repeat its value in `X-XSRF-TOKEN`. The frontend does it for you; a `POST` right after signing in first needs a `GET` so the cookie exists.
+- **Signing out** is `POST /api/logout`, which answers `{ "logoutUrl": … }`. The browser must navigate there: that ends the provider's session too, so the next «Entrar» asks for the password again.
+- **People and organizations.** An invitation turns active the first time that email signs in. Someone in several organizations picks the active one from the account menu.
+
+| Variable | Meaning |
+| --- | --- |
+| `SPRING_PROFILES_ACTIVE` | `oidc` turns sign-in on (`dev,oidc` locally, `prod,oidc` deployed); without it every call is a `401` |
+| `RESOLVE_OIDC_ISSUER` | Issuer URL of the realm; the default is the local Keycloak (`http://localhost:8180/realms/resolve`) |
+| `RESOLVE_OIDC_CLIENT_ID` / `RESOLVE_OIDC_CLIENT_SECRET` | The confidential client of the API (`resolve-api`; in the local realm the secret is a development value) |
+| `RESOLVE_PUBLIC_URL` | Where the browser lands after signing in and out: the address people use. Serving the app from the jar, it is the API's own address |
+| `RESOLVE_SESSION_COOKIE_SECURE` | `true` by default; only lower it for a browser that does not treat `localhost` as secure |
+
+**Demo mode.** With the `dev` profile alone there is no identity provider: the API loads the demo data and accepts the `X-Demo-User` header (the demo admin by default), and the dev server shows a demo-user picker. Adding `oidc` turns that login off even next to `dev`, and a `production` build of the frontend has no picker or header at all; the `prod` profile has no demo login either. The [local Keycloak](#sign-in-locally) is the realm for trying the real flow with the demo data.
+
+**Tests.** `npm run test:auth` (in `frontend/`, with `--workers=1`) runs `frontend/e2e-auth/auth.spec.ts` against a real Keycloak and the app served from the jar on one origin, the way a deployment serves it. It checks that Laura signs in with the realm password and sees her name, that `JSESSIONID` changes after signing in, that someone in two organizations can switch, that a write carries the CSRF token without a retry, that signing out ends the API and Keycloak sessions (`/api/me` is `401`, the cookie is gone and the next «Entrar» asks for the password) and that a deactivated account sees the reason on `/entrar` and can sign out. It is separate from `npm run test:e2e`, which mocks the API. To run it, start `postgres` and `keycloak` with `docker compose`, build the frontend, copy `dist` into `backend/target/classes/static`, package the jar and start it with `SPRING_PROFILES_ACTIVE=dev,oidc` and `RESOLVE_PUBLIC_URL` set to the API's own URL (`http://localhost:8080` by default); `SERVER_PORT` and `KEYCLOAK_PORT` tell the tests where to look. CI does the same in the optional `Authentication e2e (Keycloak)` job, which is not a required check; in a Herdr slot see [docs/development/herdr.md](docs/development/herdr.md#authentication-e2e-in-a-slot). The scenario that deactivates an account creates its Keycloak user through the admin API and deletes it afterwards, and the organization one invites a demo agent to a second organization and removes the membership at the end, so neither changes the realm file or the demo data.
+
+**The realm in this repository is for development only.** Its `demo` passwords, the `resolve-dev-secret` client secret and the Keycloak `admin` account are values of a local realm, not credentials of anything real; none of them may reach a deployment.
+
+**What is missing for production:**
+
+- **HTTPS and a domain.** The `prod` profile marks the cookies `Secure` and trusts the proxy's `X-Forwarded-*` headers, so the app must sit behind TLS on its final domain, and that domain must be `RESOLVE_PUBLIC_URL` and a redirect and post-logout URI of the client.
+- **A managed identity provider.** The local Keycloak runs in `start-dev` mode with an imported realm and a throwaway database; a deployment uses a provider (or a hardened Keycloak) with real accounts.
+- **Rotating the client secret.** It has to be changed at the provider and in `RESOLVE_OIDC_CLIENT_SECRET` together; the runbook is in [docs/deploy/runbooks.md](docs/deploy/runbooks.md).
+
+Variables, headers and health checks of a deployment are in [docs/deploy/README.md](docs/deploy/README.md); the API side of sign-in is in the [API contract](docs/api/README.md#authentication).
+
 ## Design decisions
 
 The Figma frames are the visual reference. Where they conflict with the written responsive and accessibility rules, the rules win:
