@@ -176,9 +176,9 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
   a green IdP deployment means the realm of that commit was applied (`idp-changes` compares with the last successful run, below). Tested locally by simulating the command with `docker run`:
   «Realm 'resolve' already exists. Removing it before import» then «Realm 'resolve' imported», the changed setting applied
   and, with another `RESOLVE_OIDC_CLIENT_SECRET`, the API with the old secret refused (`/entrar?error=oidc`) and with the
-  new one signed in. The cost is that the Keycloak sessions end and the failure counters reset on each IdP deployment (the API's own sessions are another matter, see the follow-up under *Limits of the demo*) (which only
+  new one signed in. The cost is that the Keycloak sessions end and the failure counters reset on each IdP deployment (which only
   happens when `deploy/keycloak/**` changes or by hand); the users' internal ids change, and the API identifies people by
-  their verified email address. The start itself still passes `--import-realm` (strategy `IGNORE_EXISTING`), which only
+  their verified email address. The API's own sessions are another matter (see *Limits of the demo*). The start itself still passes `--import-realm` (strategy `IGNORE_EXISTING`), which only
   matters when the image runs outside Fly, for example in the local compose.
 - **The import ends after the health check turns `UP`** (about ten seconds on a first start). An API that starts in that
   window cannot discover the issuer and stops. The pipeline checks the discovery document, not only the health, and the
@@ -212,7 +212,9 @@ lists the endpoint); the sign-in, the theme and the OIDC flow against the API (`
   consecutive failures the right one is refused, and it works again 65 s later. Only a sustained attack of more than 30
   failures in a row can keep a user out, for up to a minute at a time; that is the price of
   having any brake with a public password. If the owner sets a private `RESOLVE_DEMO_USER_PASSWORD`, the lock protects
-  something real: tighten `failureFactor` (five), the quick-login wait (60 s) and the maximum wait (15 minutes) in the realm.
+  something real: tighten the realm: `failureFactor` (five), `quickLoginCheckMilliSeconds` (for example 1000, together with its
+  `minimumQuickLoginWaitSeconds` of 60 s: with the check at 0 that wait never applies) and `maxFailureWaitSeconds` (15
+  minutes).
 - **No password grant anywhere.** `admin-cli`, which Keycloak creates in every realm with direct access grants, is declared
   in the realm with `directAccessGrantsEnabled: false`, because a `POST /token` with `grant_type=password` was the cheapest
   way to hit the failure counter without the form. Every client of the realm answers a client error to it (`admin-cli`,
@@ -260,8 +262,11 @@ it), the `demo` environment and `packages: write` only on the image job:
    difference. A run that fails (for example `idp-deploy`) is not a success, so the change is still pending for the next
    one. Tested by running the script against a repository with a stubbed `gh`: rebase of three commits whose last one only
    touches docs → `changed=true`; last success already containing the change → `false`; no previous run, unknown commit
-   or manual run → `true`. Whether the run's `headSha` of a `workflow_run`-triggered run is the commit CI tested or the tip
-   of `main` is **to verify**; both are commits of `main`, so the comparison holds either way.
+   or manual run → `true`. The `headSha` of a run started by `workflow_run` is, according to GitHub, the tip of
+   `main` when it fired, which is not always the commit CI tested. The window is a few seconds: a push between the end of
+   the CI and the start of Deploy becomes the baseline without having been deployed. `ci.yml` cancels a CI run of `main`
+   that is still going when another push arrives, so there is no other case. If a change under `deploy/keycloak/**` could
+   have fallen in that window, run the workflow by hand.
 4. **`idp-image`** builds `deploy/keycloak/Dockerfile` and pushes `ghcr.io/<owner>/<repo>-idp` tagged with the SHA and
    `latest`.
 5. **`idp-deploy`** runs `flyctl deploy --config deploy/keycloak/fly.toml --image <image>:<sha>` and then requires the
