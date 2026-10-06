@@ -167,7 +167,7 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
   entrypoint ([`entrypoint.sh`](../../deploy/keycloak/entrypoint.sh)) refuses to start, listing what is missing, unless
   `RESOLVE_OIDC_CLIENT_SECRET` (at least 16 characters), `RESOLVE_PUBLIC_URL`, `KC_DB_URL`, `KC_DB_USERNAME`,
   `KC_DB_PASSWORD` and `KC_HOSTNAME` are set, like the API does in `prod`. `sslRequired=external`, no registration, no "forgot password", no outgoing mail
-  (there is no SMTP configuration, so nothing can be sent) and brute-force detection on.
+  (there is no SMTP configuration, so nothing can be sent) and a brute-force brake (below).
 - **The import runs once.** `--import-realm` uses the `IGNORE_EXISTING` strategy: the realm is created the first time and
   every later start logs `Realm 'resolve' already exists. Import skipped`. A restart or a redeployment therefore never
   overwrites a change made afterwards in the console (tested: change, restart, change survives). The consequence is that
@@ -194,9 +194,21 @@ lists the endpoint); the sign-in, the theme and the OIDC flow against the API (`
 
 - **There is no administrator.** Keycloak starts, creates `master` and imports the realm **without** `KC_BOOTSTRAP_ADMIN_*`
   (tested), so those variables are not part of the deployment and there is no account to guess in `master`.
-- **Brute-force detection** is on in `resolve`: five failures lock the account for 60 s, growing by 60 s up to 15 minutes
-  (not permanent). Measured: after six wrong passwords the right one is refused. `master` has no users, so there is
-  nothing to attack there.
+- **Brute-force detection** is on in `resolve`, tuned as a **brake, not a lock**. The demo passwords are public, so a
+  lock protects no account and only lets anybody deny the demo to everyone: Keycloak locks by user, not by address, and the
+  users are listed in this repository. With the usual values (five failures, a minute of wait, a quick-login check of one
+  second) two anonymous requests a minute were enough to leave a user out. The realm uses `failureFactor` 30, a
+  quick-login check of 100 ms with a 5 s wait, and waits of 30 s growing to 60 s at most, never permanent. Measured
+  against the sign-in form: two wrong passwords in a row, and eight in a minute, do **not** stop the right password
+  (it signs in); after 32 consecutive failures the right one is refused, and it works again 65 s later. A sustained
+  attack of more than 30 failures can therefore still keep a user out for up to a minute at a time; that is the price of
+  having any brake with a public password. If the owner sets a private `RESOLVE_DEMO_USER_PASSWORD`, the lock protects
+  something real: tighten `failureFactor` (five), the quick-login wait (60 s) and the maximum wait (15 minutes) in the realm.
+- **No password grant anywhere.** `admin-cli`, which Keycloak creates in every realm with direct access grants, is declared
+  in the realm with `directAccessGrantsEnabled: false`, because a `POST /token` with `grant_type=password` was the cheapest
+  way to hit the failure counter without the form. Every client of the realm answers a client error to it (`admin-cli`,
+  `account`, `account-console`, `security-admin-console`: `400 unauthorized_client`; `resolve-api`, `broker`,
+  `realm-management`: `401`).
 
 **An urgent change** (a wrong redirect URI, a user to remove, a leaked client secret) goes through the repository: edit
 [`resolve-realm.prod.json`](../../deploy/keycloak/resolve-realm.prod.json), merge it, and **make the next start import
