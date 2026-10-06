@@ -176,7 +176,7 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
   a green IdP deployment means the realm of that commit was applied (`idp-changes` compares with the last successful run, below). Tested locally by simulating the command with `docker run`:
   «Realm 'resolve' already exists. Removing it before import» then «Realm 'resolve' imported», the changed setting applied
   and, with another `RESOLVE_OIDC_CLIENT_SECRET`, the API with the old secret refused (`/entrar?error=oidc`) and with the
-  new one signed in. The cost is that sessions end and the failure counters reset on each IdP deployment (which only
+  new one signed in. The cost is that the Keycloak sessions end and the failure counters reset on each IdP deployment (the API's own sessions are another matter, see the follow-up under *Limits of the demo*) (which only
   happens when `deploy/keycloak/**` changes or by hand); the users' internal ids change, and the API identifies people by
   their verified email address. The start itself still passes `--import-realm` (strategy `IGNORE_EXISTING`), which only
   matters when the image runs outside Fly, for example in the local compose.
@@ -223,7 +223,7 @@ lists the endpoint); the sign-in, the theme and the OIDC flow against the API (`
 [`resolve-realm.prod.json`](../../deploy/keycloak/resolve-realm.prod.json) and merge it; the next deployment of the
 identity provider applies it (see the `release_command` above). If the pipeline has not run because nothing under
 `deploy/keycloak/**` changed (a new secret, for instance), run the workflow by hand (**Run workflow** on `main`). No
-database is emptied. Signed-in users are signed out.
+database is emptied. The Keycloak sessions end; the sessions of the API survive until the API restarts (see *Limits of the demo*).
 
 *Exceptionally*, when that is not enough, one image with the features enabled can be deployed **once**
 (`KC_FEATURES_DISABLED` changed in the `Dockerfile`, a bootstrap administrator given as a Fly secret for that start),
@@ -404,6 +404,13 @@ With `RESOLVE_DEMO_LIMITS=true`:
   (send a request with a fake `Fly-Client-IP` and see which address the limit counts). Buckets are in memory (10 000
   addresses at most) and per machine; `fly.toml` runs one.
 - **`X-Robots-Tag: noindex`** on every response of a demo (`RESOLVE_DEMO_ENABLED=true`).
+- **Sessions of the API across an identity provider deployment** (follow-up, not done). The API keeps its sessions in
+  memory and does not ask Keycloak about them, so after the `release_command` re-imports the realm a signed-in visitor
+  keeps working (`/api/me` 200) until the API restarts. If that visitor signs out, the API closes its own session but the
+  `id_token_hint` it sends was signed with the keys of the realm that no longer exists: Keycloak shows once «Parámetro no
+  válido: id_token_hint» (400) instead of returning to the application, and signing in again works. Rotating the client
+  secret does not show it, because its last step restarts the API. Giving the realm **stable signing keys** (imported
+  from a variable, one more secret) would avoid it and is deferred.
 
 ## Notes of the T9.2 review
 
