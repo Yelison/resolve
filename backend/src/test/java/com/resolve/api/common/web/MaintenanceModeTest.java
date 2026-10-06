@@ -6,9 +6,6 @@ import com.resolve.api.support.ApiIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.availability.AvailabilityChangeEvent;
-import org.springframework.boot.availability.ReadinessState;
-import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
 
@@ -22,11 +19,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * El modo mantenimiento de la demostración: la marca de {@code resolve_ops.maintenance} (que {@code flyway clean} no
- * toca) cierra la API con un 503 y la readiness, deja la liveness y caduca sola. El refresco programado no se espera:
- * el test lo llama.
+ * toca) cierra la API con un 503 y la readiness, deja la liveness y caduca sola. La marca se lee de forma perezosa
+ * (como mucho cada 5 s, al llegar una petición): los tests mueven el reloj en lugar de esperar.
  */
-@TestPropertySource(properties = { "resolve.demo.enabled=true", "resolve.demo.maintenance-poll=PT1H",
-		"management.endpoint.health.probes.enabled=true" })
+@TestPropertySource(properties = { "resolve.demo.enabled=true", "management.endpoint.health.probes.enabled=true" })
 class MaintenanceModeTest extends ApiIntegrationTest {
 
 	@Autowired
@@ -34,9 +30,6 @@ class MaintenanceModeTest extends ApiIntegrationTest {
 
 	@Autowired
 	private MaintenanceMode mode;
-
-	@Autowired
-	private ApplicationContext context;
 
 	@BeforeEach
 	void createTheMarkTable() {
@@ -92,26 +85,15 @@ class MaintenanceModeTest extends ApiIntegrationTest {
 	}
 
 	@Test
-	void theModeEndsByItselfWhenTheMarkExpiresEvenIfNobodyRefreshes() throws Exception {
-		markFor("60 seconds");
+	void theModeEndsByItselfWhenTheMarkExpiresEvenWithoutANewRead() throws Exception {
+		markFor("2 seconds");
 		this.mvc.perform(get(API + "/me").with(as("ana@acme.example"))).andExpect(status().isServiceUnavailable());
 
-		this.clock.advance(Duration.ofSeconds(61));
+		// Pasa su hora sin que haya una lectura nueva (no han pasado 5 s): la decisión usa el reloj, no la base de datos.
+		this.clock.advance(Duration.ofSeconds(3));
 
-		assertThat(this.mode.active()).isFalse();
+		assertThat(this.mode.activeNow()).isFalse();
 		this.mvc.perform(get(API + "/me").with(as("ana@acme.example"))).andExpect(status().isOk());
-	}
-
-	@Test
-	void readinessGoesBackToOutOfServiceWhenTheStartPublishesAcceptingTrafficAfterTheFirstRead() throws Exception {
-		markFor("60 seconds");
-		// Al arrancar con una marca vigente, Boot publica ACCEPTING_TRAFFIC al terminar, después de la primera lectura.
-		AvailabilityChangeEvent.publish(this.context, this, ReadinessState.ACCEPTING_TRAFFIC);
-		this.mode.refresh();
-
-		this.mvc.perform(get(API + "/actuator/health/readiness"))
-			.andExpect(status().isServiceUnavailable())
-			.andExpect(jsonPath("$.status").value("OUT_OF_SERVICE"));
 	}
 
 	@Test
@@ -137,6 +119,52 @@ class MaintenanceModeTest extends ApiIntegrationTest {
 		this.jdbc.sql("DROP SCHEMA resolve_ops CASCADE").update();
 		this.mode.refresh();
 
+		this.mvc.perform(get(API + "/me").with(as("ana@acme.example"))).andExpect(status().isOk());
+	}
+
+	private void insertMarkWithoutReading(String interval) {
+		this.jdbc.sql("DELETE FROM resolve_ops.maintenance").update();
+		this.jdbc.sql("INSERT INTO resolve_ops.maintenance (until) VALUES (now() + CAST(? AS interval))")
+			.param(interval)
+			.update();
+	}
+
+	@Test
+	void theMarkIsReadLazilyByARequestAtMostEveryFiveSeconds() throws Exception {
+		insertMarkWithoutReading("60 seconds");
+
+		// Dentro de los 5 s de la última lectura no se consulta la base de datos: la marca nueva aún no se ve.
+		this.mvc.perform(get(API + "/me").with(as("ana@acme.example"))).andExpect(status().isOk());
+		this.clock.advance(Duration.ofSeconds(6));
+		// Pasados los 5 s la petición misma lee la marca antes de decidir.
+		this.mvc.perform(get(API + "/me").with(as("ana@acme.example")))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(header().string("Retry-After", "60"));
+	}
+
+	@Test
+	void readinessNeverQueriesTheDatabaseByItself() throws Exception {
+		insertMarkWithoutReading("60 seconds");
+		this.clock.advance(Duration.ofSeconds(6));
+
+		// Nadie ha pedido nada a la API: la readiness refleja la última lectura (sin marca) y no mira la base de datos,
+		// así las comprobaciones de la plataforma no mantienen despierta a Neon.
+		this.mvc.perform(get(API + "/actuator/health/readiness")).andExpect(status().isOk());
+		// Una petición a la API lee la marca y entonces la readiness la refleja.
+		this.mvc.perform(get(API + "/me").with(as("ana@acme.example"))).andExpect(status().isServiceUnavailable());
+		this.mvc.perform(get(API + "/actuator/health/readiness")).andExpect(status().isServiceUnavailable());
+	}
+
+	@Test
+	void aFailedReadKeepsTheLastMarkSoACutConnectionDoesNotReopenTheApiMidClean() throws Exception {
+		markFor("60 seconds");
+		this.jdbc.sql("DROP SCHEMA resolve_ops CASCADE").update();
+
+		this.clock.advance(Duration.ofSeconds(6));
+		this.mvc.perform(get(API + "/me").with(as("ana@acme.example"))).andExpect(status().isServiceUnavailable());
+
+		// Y caduca sola a su hora aunque la lectura siga fallando.
+		this.clock.advance(Duration.ofSeconds(60));
 		this.mvc.perform(get(API + "/me").with(as("ana@acme.example"))).andExpect(status().isOk());
 	}
 
