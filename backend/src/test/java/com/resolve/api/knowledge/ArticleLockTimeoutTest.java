@@ -43,4 +43,19 @@ class ArticleLockTimeoutTest extends KnowledgeFixture {
 			.isEqualTo(200);
 	}
 
+	@Test
+	void creatingWhileTheSlugLockIsHeldAnswers503AndTheRetryWorks() throws Exception {
+		String article = articleJson("Nuevo artículo", "Texto", this.accountCategory, "internal");
+		try (RowLock lock = RowLock.hold(this.dataSource,
+				"select 1 from (select pg_advisory_xact_lock(hashtextextended(?, 0))) as locked",
+				"article-slug:" + this.acme)) {
+			MvcResult blocked = assertTimeoutPreemptively(LIMIT, () -> postArticle(LAURA, article));
+			assertThat(blocked.getResponse().getStatus()).isEqualTo(503);
+			assertThat(blocked.getResponse().getHeader("Retry-After")).isEqualTo("1");
+			matchesContract("createArticle").match(blocked);
+		}
+
+		assertThat(postArticle(LAURA, article).getResponse().getStatus()).isEqualTo(201);
+	}
+
 }
