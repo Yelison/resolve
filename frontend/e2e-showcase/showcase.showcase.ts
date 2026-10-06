@@ -130,7 +130,7 @@ test('se entra como cliente y se ve lo propio del cliente; cerrar sesión vuelve
   await expect(page.getByRole('link', { name: 'Equipo' })).toBeVisible()
 })
 
-test('recargar conserva el usuario y la ruta; los datos simulados se reinician', async ({ page }) => {
+test('recargar conserva el usuario y la ruta', async ({ page }) => {
   await page.goto('')
   await enterAs(page, CUSTOMER)
   await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
@@ -151,6 +151,36 @@ test('un enlace profundo recargado a mano conserva la sesión en esa ruta', asyn
   await page.goto('tickets/1048')
   await expect(heading(page, 'No puedo acceder a mi cuenta')).toBeVisible()
   await expect(page).toHaveURL(/\/resolve\/tickets\/1048$/)
+})
+
+test('abrir de nuevo la dirección de la demostración tras entrar sigue dentro', async ({ page }) => {
+  await page.goto('')
+  await enterAs(page, ADMIN)
+  await expect(heading(page, 'Resumen')).toBeVisible()
+  // Una carga completa de la dirección pública: GitHub Pages redirige `/resolve` a `/resolve/`, que es lo que abre `goto('')`.
+  await page.goto('')
+  await expect(heading(page, 'Resumen')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Equipo' })).toBeVisible()
+  await expect(page).not.toHaveURL(/\/entrar$/)
+})
+
+test('los cambios no se guardan: un artículo creado desaparece al recargar aunque la sesión siga', async ({ page }) => {
+  const title = 'Artículo efímero de la demostración'
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('')
+  await enterAs(page, ADMIN)
+  await page.goto('conocimiento/nuevo')
+  await page.getByRole('textbox', { name: 'Título' }).fill(title)
+  await page.getByRole('combobox', { name: 'Categoría' }).selectOption({ label: 'Cuenta y acceso' })
+  await page.getByRole('textbox', { name: 'Contenido' }).fill('Texto de prueba.')
+  await page.getByRole('button', { name: 'Guardar borrador' }).click()
+  await expect(heading(page, 'Editar artículo')).toBeVisible()
+  await page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Conocimiento' }).click()
+  await expect(page.getByRole('link', { name: title })).toBeVisible()
+
+  await page.reload()
+  await expect(heading(page, 'Base de conocimiento')).toBeVisible()
+  await expect(page.getByRole('link', { name: title })).toHaveCount(0)
 })
 
 test('una pestaña nueva empieza en /entrar aunque otra tenga sesión', async ({ page, context }) => {
