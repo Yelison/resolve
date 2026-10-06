@@ -29,7 +29,7 @@
 .track {
   height: 8px;
   border-radius: var(--radius-small);
-  background: var(--color-line);
+  background: var(--color-progress-track);
   overflow: hidden;
 }
 

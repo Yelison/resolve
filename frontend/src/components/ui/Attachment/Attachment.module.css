@@ -64,12 +64,12 @@
   appearance: none;
   border: 0;
   border-radius: var(--radius-round);
-  background: var(--color-disabled);
+  background: var(--color-progress-track);
   overflow: hidden;
 }
 
 .progress::-webkit-progress-bar {
-  background: var(--color-disabled);
+  background: var(--color-progress-track);
 }
 
 .progress::-webkit-progress-value {

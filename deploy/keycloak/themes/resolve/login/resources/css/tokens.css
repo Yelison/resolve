@@ -55,6 +55,7 @@
   --color-surface-hover: #edf2fa; /* light/surfaceHover */
   --color-disabled: #d2dae7; /* light/disabled */
   --color-overlay: #0b1220; /* light/overlay */
+  --color-progress-track: var(--color-line); /* pista de progreso: token del código (#75), no está en Figma */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -86,6 +87,7 @@
     --color-surface-hover: #1d2b42; /* dark/surfaceHover */
     --color-disabled: #34445c; /* dark/disabled */
     --color-overlay: #000000; /* dark/overlay */
+    --color-progress-track: #202b3d; /* pista de progreso: tono de line, más oscuro para brand ≥ 3:1 (#75); no está en Figma */
   }
 }
 
@@ -117,4 +119,5 @@
   --color-surface-hover: #1d2b42; /* dark/surfaceHover */
   --color-disabled: #34445c; /* dark/disabled */
   --color-overlay: #000000; /* dark/overlay */
+  --color-progress-track: #202b3d; /* pista de progreso: tono de line, más oscuro para brand ≥ 3:1 (#75); no está en Figma */
 }
