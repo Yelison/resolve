@@ -54,7 +54,7 @@ class InvitationActivationLockTest extends TeamFixture {
 
 	@Test
 	void aForeignKeyToTheMembershipDoesNotSkipTheActivation() throws Exception {
-		// Lo que deja un INSERT con clave foránea hacia la fila (p. ej. la asignación de un ticket) hasta su commit.
+		// Lo que deja cualquier INSERT con clave foránea hacia la fila hasta su commit.
 		try (RowLock lock = RowLock.hold(this.dataSource,
 				"select id from memberships where organization_id = ? and user_id = ? for key share", this.acme,
 				this.invited)) {

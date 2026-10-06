@@ -77,4 +77,20 @@ class CustomerLockTimeoutTest extends CustomersFixture {
 		assertThat(this.data.membershipStatus(this.acme, user)).isEqualTo("invited");
 	}
 
+	@Test
+	void invitingWhileAnotherTransactionInsertsTheSameUserIsA503AndTheRetryWorks() throws Exception {
+		UUID customer = this.data.customer(this.acme, "Cliente Carrera", "carrera@cliente.example", null);
+
+		try (RowLock lock = RowLock.hold(this.dataSource,
+				"insert into users (id, name, email) values (gen_random_uuid(), 'Otra', 'carrera@cliente.example') returning id")) {
+			ResultActions blocked = assertTimeoutPreemptively(LIMIT,
+					() -> this.mvc.perform(post(API + "/customers/" + customer + "/invite").with(as(ADMIN))));
+			blocked.andExpect(status().isServiceUnavailable())
+				.andExpect(matchesContract("inviteCustomer"))
+				.andExpect(header().string("Retry-After", "1"));
+		}
+
+		this.mvc.perform(post(API + "/customers/" + customer + "/invite").with(as(ADMIN))).andExpect(status().isCreated());
+	}
+
 }

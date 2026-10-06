@@ -51,6 +51,9 @@ public class PortalInvitations {
 	public TeamMemberDto inviteCustomer(CurrentMember actor, UUID customerId, String customerName,
 			String customerEmail) {
 		UUID organizationId = actor.organizationId();
+		// Antes de la primera sentencia que puede esperar: el alta del usuario (otra transacción con el mismo correo
+		// sin confirmar) y el UPDATE de una membresía retirada que otra transacción retiene.
+		LockTimeouts.limitWait(this.jdbc);
 		List<Membership> linked = this.memberships.findByCustomer(organizationId, customerId);
 		if (linked.stream().anyMatch((membership) -> membership.getStatus() != MemberStatus.REMOVED)) {
 			throw new ConflictException("El cliente ya tiene acceso al portal.");
@@ -71,8 +74,6 @@ public class PortalInvitations {
 		else {
 			membership.reinvite(Role.CUSTOMER, now);
 		}
-		// El UPDATE de una membresía retirada espera la fila si otra transacción la retiene: se acota.
-		LockTimeouts.limitWait(this.jdbc);
 		this.memberships.flush();
 		return TeamMemberDto.from(membership, 0);
 	}
