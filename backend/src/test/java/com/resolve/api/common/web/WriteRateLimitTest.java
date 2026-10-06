@@ -84,9 +84,22 @@ class WriteRateLimitTest extends ApiIntegrationTest {
 	}
 
 	@Test
+	void anIpv4MappedAddressAndTheIpv4ShareABucket() throws Exception {
+		for (int i = 0; i < 30; i++) {
+			this.mvc.perform(write("::ffff:203.0.113.9")).andExpect(status().isUnauthorized());
+		}
+		for (int i = 0; i < 30; i++) {
+			this.mvc.perform(write("203.0.113.9")).andExpect(status().isUnauthorized());
+		}
+
+		this.mvc.perform(write("::ffff:cb00:7109")).andExpect(status().isTooManyRequests());
+	}
+
+	@Test
 	void aValueThatIsNotAnAddressFallsBackToTheConnectionInsteadOfOpeningABucketPerValue() throws Exception {
 		for (int i = 0; i < 60; i++) {
-			this.mvc.perform(write("valor-" + i).header("X-Forwarded-For", "9.9.9." + i))
+			// «.:1» pasa el filtro de caracteres y empieza por un punto: con getByName llegaba al resolutor de nombres.
+			this.mvc.perform(write((i == 0) ? ".:1" : "valor-" + i).header("X-Forwarded-For", "9.9.9." + i))
 				.andExpect(status().isUnauthorized());
 		}
 
