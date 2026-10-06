@@ -4,7 +4,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 
 [![CI](https://github.com/Yelison/resolve/actions/workflows/ci.yml/badge.svg)](https://github.com/Yelison/resolve/actions/workflows/ci.yml)
 
-> **Status:** work in progress. The design system, the shared components (internally called **Forma UI**), the application shell and every area of the product are done, views and Spring Boot API: **Overview**, **Tickets**, **Customers**, **Team**, **Reports**, **Knowledge base** (reading and editing) and **Settings** (company, profile, appearance and the permissions matrix). What is still pending is an authentication provider for the frontend session, tags, attachments and SLA for tickets, and article ratings; none of them is drawn as if it worked.
+> **Status:** ready to deploy as a public demo, **not deployed yet**. The design system, the shared components (internally called **Forma UI**), the application shell and every area of the product are done, views and Spring Boot API: **Overview**, **Tickets**, **Customers**, **Team**, **Reports**, **Knowledge base** (reading and editing) and **Settings** (company, profile, appearance and the permissions matrix). Sign-in goes through OpenID Connect (the API is the client and keeps the session), one Docker image serves the API and the web app, and the pipeline, the Keycloak of the demo, the nightly reset and the runbooks are written and tested locally; they stay switched off until the owner creates the Fly.io and Neon accounts (see [Live demo](#live-demo)). Still pending: tags, attachments and SLA for tickets, and article ratings; none of them is drawn as if it worked.
 
 | Ticket inbox | Ticket detail (dark) |
 | --- | --- |
@@ -51,7 +51,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 - **Contract-first API.** [`docs/api/openapi.yaml`](docs/api/openapi.yaml) is the single source of truth: the backend integration tests validate every response against it (extra fields fail, so entities or internal notes cannot leak) and the frontend generates its TypeScript types and typed client from it. The decisions behind it are in [`docs/api/README.md`](docs/api/README.md).
 - **Multi-organization by construction.** The organization always comes from the authenticated principal; composite foreign keys keep every reference inside one organization, foreign ids look exactly like missing ones, and customers only see their own tickets and public messages.
 - **Safe concurrent edits.** Tickets carry an `ETag`; updates are merge-patches with `If-Match`, so a stale edit gets `412` and the UI reloads instead of overwriting someone else's change. Each change and its activity entry are written in the same transaction.
-- **Design tokens from Figma, not by hand.** Colors (light and dark), spacing and type styles are generated from the Figma variables into [`tokens.css`](frontend/src/styles/tokens.css), and the 23 icons into typed path data, by an export tool that runs inside Figma (kept outside this repository). Dark mode is a pure token swap that follows `prefers-color-scheme` unless the user picks a theme, and an inline script applies the choice before the first paint.
+- **Design tokens that start in Figma.** Colors (light and dark), spacing and type styles come from the Figma variables into [`tokens.css`](frontend/src/styles/tokens.css), and the 23 icons into typed path data, by an export tool that runs inside Figma (kept outside this repository). A few values were adjusted in the code on purpose (contrast, hover and link colors, the progress track: issues #14, #65 and #75), are marked in the file and are protected by a contrast test. Dark mode is a pure token swap that follows `prefers-color-scheme` unless the user picks a theme, and an inline script applies the choice before the first paint.
 - **Accessible by construction.** Components follow the WAI-ARIA Authoring Practices: menu button, tabs, toolbar, dialogs on native `<dialog>` (focus trap, Escape, focus return), tooltips that also appear on focus and can be dismissed (WCAG 1.4.13), labelled fields with announced errors, 44 px touch targets on small screens, a skip link and `prefers-reduced-motion`.
 - **Responsive by content, not by device.** Two breakpoints (768 and 1200 px) drive the shell: a drawer on mobile, an icon sidebar on tablets and a collapsible sidebar on desktop. The customer and team tables share one layout built on container queries: cards in narrow containers, priority columns from 768 to 1199 px and the full table from 1200 px. The ticket table has its own container-query layout and is not guaranteed to behave the same at every width (at 1024 px it already shows all its columns).
 - **Honest UI.** No fake success states: actions without a backend say they are not connected yet, and demo data is labelled as such.
@@ -72,14 +72,14 @@ Forma UI is the in-house component library in `frontend/src/components/ui` (one 
 ```
 docs/api/           # API decisions and the OpenAPI 3.1 contract
 docs/decisions/     # Architecture decision records (Forma UI extraction criteria)
-docs/deploy/        # Operations runbooks: backups, restore, rollback, secret rotation, health
+docs/deploy/        # Deployment guide and operations runbooks: backups, restore, rollback, secret rotation, health
 docs/development/   # How to work on several tasks in parallel with Herdr
 frontend/
   src/
     api/            # Types generated from the contract and the typed client
     app/            # Shell, routes, pages, theme and the /catalogo route
     components/ui/  # Forma UI: one folder per component (tsx, module.css, tests)
-    features/       # Product features (tickets, customers, team, session): pages, queries and their tests
+    features/       # Product features (tickets, customers, team, session…): pages, queries and their tests
     domain/         # Domain types, re-exported from the generated contract types
     lib/            # Small helpers (positioning, formatting, scroll lock, mutation errors, focus…)
     styles/         # Generated tokens and global styles
@@ -89,12 +89,14 @@ backend/
     common/         # Shared infrastructure only: errors, security, paging, persistence, time
     organizations/ memberships/ customers/ tickets/   # One package per feature
   src/main/resources/db/migration  # Flyway schema; db/demo holds dev-only demo data
-docker-compose.yml  # PostgreSQL for local development
+deploy/             # Fly.io config, Keycloak (realms, login theme, image) and the production compose to test the image
+Dockerfile          # One image: API + web app
+docker-compose.yml  # PostgreSQL and Keycloak for local development
 ```
 
 ## Getting started
 
-Requirements: Node 22.12+, Java 25 and Docker (for PostgreSQL and the backend tests).
+Requirements: Node 22.12+, Java 25 and Docker (for PostgreSQL, Keycloak and the backend tests).
 
 ```sh
 # Frontend
@@ -118,7 +120,7 @@ cd ../backend && ./mvnw -B -DskipTests package && SPRING_PROFILES_ACTIVE=dev jav
 
 Any path that is not a file and does not start with `api/` or `actuator/` answers `index.html`, so reloading `/tickets/1047` works; `/assets/**` (hashed files) is cached for a year and `index.html` is never cached. `frontend/dist` is not committed. During development nothing changes: Vite serves the app and proxies `/api`.
 
-The API reads `DATABASE_URL`, `DATABASE_USERNAME` and `DATABASE_PASSWORD`, with defaults that match `docker-compose.yml` (development only). There is no authentication provider yet: the `dev` profile loads demo data and a demo login (the `X-Demo-User` header, defaulting to the demo admin), and any other profile answers `401`. See the [API contract](docs/api/README.md).
+The API reads `DATABASE_URL`, `DATABASE_USERNAME` and `DATABASE_PASSWORD`, with defaults that match `docker-compose.yml` (development only). The `dev` profile alone loads demo data and a demo login (the `X-Demo-User` header, defaulting to the demo admin); adding `oidc` turns on real sign-in against the local Keycloak (see [Sign in locally](#sign-in-locally)), and any profile without either answers `401`. See the [API contract](docs/api/README.md).
 
 To try other roles in development, call `setDemoUser` from the browser console, for example for the customer María Pérez: `setDemoUser('maria.perez@cliente.example')` (agents: `laura.mendez@acme.example`; `setDemoUser(null)` goes back to the admin). It replaces setting `resolve-demo-user` in `localStorage` by hand and also empties the query cache so data from the previous user never shows; reload the page to load the new session. The same switch is in the account menu (top right, «Cambiar usuario de demostración») and, when the API answers `401`, on the `/entrar` page; both exist only in the dev server and the `smoke` build, never in `production`.
 
@@ -188,23 +190,28 @@ Resolve has no passwords of its own. People sign in with an OpenID Connect ident
 
 **Tests.** `npm run test:auth` (in `frontend/`, with `--workers=1`) runs `frontend/e2e-auth/auth.spec.ts` against a real Keycloak and the app served from the jar on one origin, the way a deployment serves it. It checks that Laura signs in with the realm password and sees her name, that `JSESSIONID` changes after signing in, that someone in two organizations can switch, that a write carries the CSRF token without a retry, that signing out ends the API and Keycloak sessions (`/api/me` is `401`, the cookie is gone and the next «Entrar» asks for the password) and that a deactivated account sees the reason on `/entrar` and can sign out. It is separate from `npm run test:e2e`, which mocks the API. To run it, start `postgres` and `keycloak` with `docker compose`, build the frontend, copy `dist` into `backend/target/classes/static`, package the jar and start it with `SPRING_PROFILES_ACTIVE=dev,oidc` and `RESOLVE_PUBLIC_URL` set to the API's own URL (`http://localhost:8080` by default); `SERVER_PORT` and `KEYCLOAK_PORT` tell the tests where to look, and `KC_BOOTSTRAP_ADMIN_PASSWORD` (default `admin`, the development value of `docker-compose.yml`) must be exported to them too if you changed it there. CI does the same in the optional `Authentication e2e (Keycloak)` job, which is not a required check; in a Herdr slot see [docs/development/herdr.md](docs/development/herdr.md#authentication-e2e-in-a-slot). The scenario that deactivates an account creates its Keycloak user through the admin API and deletes it afterwards, and the organization one invites a demo agent to a second organization and removes the membership at the end, so neither changes the realm file or the demo data.
 
-**The realm in this repository is for development only.** Its `demo` passwords, the `resolve-dev-secret` client secret and the Keycloak `admin` account are values of a local realm, not credentials of anything real; none of them may reach a deployment.
+**The development realm never reaches a deployment.** Its `demo` passwords, the `resolve-dev-secret` client secret and the Keycloak `admin` account are values of a local realm, not credentials of anything real. The public demo uses its own realm ([`resolve-realm.prod.json`](deploy/keycloak/resolve-realm.prod.json)), a client secret that only exists as a platform secret, no administrator at all, and a demo-user password chosen by the owner (`RESOLVE_DEMO_USER_PASSWORD`), public on purpose and published under [Live demo](#live-demo) once there is a deployment.
 
-**What is missing for production:**
+**What a deployment needs, and what is not promised:**
 
-- **HTTPS and a domain.** The `prod` profile marks the cookies `Secure` and trusts the proxy's `X-Forwarded-*` headers, so the app must sit behind TLS on its final domain, and that domain must be `RESOLVE_PUBLIC_URL` and a redirect and post-logout URI of the client.
-- **A managed identity provider.** The local Keycloak runs in `start-dev` mode with an imported realm and a throwaway database; a deployment uses a provider (or a hardened Keycloak) with real accounts.
+- **HTTPS and a domain.** The `prod` profile marks the cookies `Secure` and trusts the proxy's `X-Forwarded-*` headers, so the app must sit behind TLS on its final address, and that address must be `RESOLVE_PUBLIC_URL` and a redirect and post-logout URI of the client.
+- **An identity provider that is not the local one.** The local Keycloak runs in `start-dev` mode with a throwaway database. The demo has its own production-mode Keycloak image with the demo realm; real users would need a managed provider (or a hardened Keycloak) with real accounts.
 - **Rotating the client secret.** It has to be changed at the provider and in `RESOLVE_OIDC_CLIENT_SECRET` together; the runbook is in [docs/deploy/runbooks.md](docs/deploy/runbooks.md).
+- **Not covered for real users:** an own domain, a personal-data retention and deletion policy, support and an SLA, and alerting.
 
 Variables, headers and health checks of a deployment are in [docs/deploy/README.md](docs/deploy/README.md); the API side of sign-in is in the [API contract](docs/api/README.md#authentication).
 
 ## Live demo
 
-**URL:** _not deployed yet_ (the first deployment will put its address here; the planned one is `https://resolve-demo.fly.dev`, see [docs/deploy/README.md](docs/deploy/README.md)).
+**Not deployed yet.** Everything is ready, but nothing is online because the accounts it needs (Fly.io, Neon, the GitHub environment) are not created. The pipeline ([`deploy.yml`](.github/workflows/deploy.yml)) and the nightly reset ([`demo-reset.yml`](.github/workflows/demo-reset.yml)) skip every job until the owner sets the repository variable `DEPLOY_ENABLED=true`. The planned address is `https://resolve-demo.fly.dev` (a decision to confirm), and it will be written here after the first successful deployment, with the password below.
+
+<!-- Deployment badge: add it after the first successful deployment. Today every run of deploy.yml is «skipped» (DEPLOY_ENABLED is not set), so the badge would show «no status» or a misleading result.
+[![Deploy](https://github.com/Yelison/resolve/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/Yelison/resolve/actions/workflows/deploy.yml)
+-->
 
 The public demo is a shared installation with fictional data. Every page shows a permanent notice, «Demostración pública · los datos se reinician cada noche», and the API marks the installation with `organization.demo` in `/me`. **Do not enter real data**: anyone with the accounts below can read what you write, and it is erased at the next reset.
 
-Accounts of the demo realm ([`deploy/keycloak/resolve-realm.json`](deploy/keycloak/resolve-realm.json)). The password to sign in will be published here after the first deployment, once the realm that serves the demo is confirmed.
+Accounts of the demo realm ([`deploy/keycloak/resolve-realm.prod.json`](deploy/keycloak/resolve-realm.prod.json)). All four share one password, `RESOLVE_DEMO_USER_PASSWORD`, which the owner chooses and which is public on purpose (a demo that asks for a password defeats its purpose). It will be published here when the deployment exists; the `demo` password of the local realm is not the one of the deployment.
 
 | Email | Role | Organization |
 | --- | --- | --- |
@@ -216,6 +223,13 @@ Accounts of the demo realm ([`deploy/keycloak/resolve-realm.json`](deploy/keyclo
 - **Reset.** Every night at 03:00 (America/Bogota) the database is emptied and reloaded with the demo data. During the reset (a few minutes) the API answers `503` and the interface shows «Estamos reiniciando la demostración; vuelve en un minuto», with a «Reintentar» button.
 - **Limits.** At most 500 tickets, 200 customers, 50 team members and 100 articles per organization (one more gets a `409` «Límite de la demostración», shown in the form that tried it), and 60 writes per minute per address (`429`: the interface asks you to wait and keeps what you typed).
 - **Not indexed.** The demo sends `X-Robots-Tag: noindex`.
+
+## Operations
+
+The demo runs as two Fly.io apps (the API with the web app, and its own Keycloak) on a Neon PostgreSQL. Every merge to `main` whose CI passes builds the image and deploys it, the identity provider first when `deploy/keycloak/**` changed; a rollback is the same deploy with a previous image tag. The database is reset every night at 03:00 (America/Bogota) by `demo-reset.yml`, which puts the API in maintenance mode, runs `flyway clean migrate` behind a sentinel guard and checks the result. Backups are provider snapshots plus a weekly `pg_dump -Fc`.
+
+- [Deployment guide](docs/deploy/README.md): the image, every variable, the pipeline, [what the owner has to create](docs/deploy/README.md#what-the-owner-has-to-create), the [nightly reset](docs/deploy/README.md#the-nightly-reset), the [limits of the demo](docs/deploy/README.md#limits-of-the-demo) and [what to verify on the first deployment](docs/deploy/README.md#verify-on-the-first-deployment).
+- [Runbooks](docs/deploy/runbooks.md): [backups](docs/deploy/runbooks.md#1-backups), [restore](docs/deploy/runbooks.md#2-restore-into-an-empty-database), [rollback](docs/deploy/runbooks.md#3-rolling-back-a-deployment), [OIDC secret rotation](docs/deploy/runbooks.md#4-rotating-the-oidc-secret-resolve_oidc_client_secret) and [what to do when `health` is `DOWN`](docs/deploy/runbooks.md#6-when-health-is-down).
 
 ## Design decisions
 
@@ -256,25 +270,16 @@ The Figma frames are the visual reference. Where they conflict with the written 
 
 ## Roadmap
 
-- [x] Design tokens, icons and theming
-- [x] Forma UI components with tests and a living catalog
-- [x] Application shell: sidebar, topbar, mobile drawer
-- [x] API contract (OpenAPI) with generated frontend types
-- [x] Tickets: Spring Boot API with organization scoping, concurrency control and activity log
-- [x] Tickets: inbox, detail and new ticket views wired with TanStack Query
-- [x] Full-stack end-to-end smoke test against the real API in CI
-- [x] Customers: API, list, detail, create, edit, archive and portal invitation
-- [x] Team: API, list, invitation, roles and removal
-- [x] Shared table layout in Forma UI
-- [x] Reports API and recent-activity feed
-- [x] Knowledge base API
-- [x] Overview view
-- [x] Reports view: period, accessible chart, channels, agents and CSV
-- [x] Knowledge base views: list, reading, editor with preview, publish and unpublish
-- [x] Settings: company, profile, appearance and the permissions matrix
+Everything planned so far is merged; what remains is open.
+
+- [ ] First deployment of the public demo: the owner creates the accounts and sets `DEPLOY_ENABLED` ([the list](docs/deploy/README.md#what-the-owner-has-to-create)), then checks [what could not be verified without them](docs/deploy/README.md#verify-on-the-first-deployment) and adds the address, the password and the deployment badge to this README
+- [ ] Demo realm: make `RESOLVE_DEMO_USER_PASSWORD` mandatory (the realm file still falls back to `demo` when it is unset)
+- [ ] Demo realm: stable signing keys, so a deployment of the identity provider does not break the sign-out of open sessions ([Limits of the demo](docs/deploy/README.md#limits-of-the-demo))
+- [ ] Sign-in: a specific problem type for an unverified email at the identity provider (#83)
+- [ ] Tests: a prod-profile context leaves console logging in ECS format for the rest of the JVM (#92)
 - [ ] Article ratings («¿Te resultó útil?»)
-- [ ] Authentication provider replacing the dev-only demo login
 - [ ] Tags, attachments and SLA for tickets
+- [ ] For real users, not only a demo: own domain, personal-data retention and deletion policy, support and SLA, alerting
 
 ## License
 
