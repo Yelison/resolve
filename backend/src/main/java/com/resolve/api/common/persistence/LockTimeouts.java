@@ -1,7 +1,5 @@
 package com.resolve.api.common.persistence;
 
-import org.springframework.dao.CannotAcquireLockException;
-import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
@@ -27,8 +25,6 @@ public final class LockTimeouts {
 	/** Segundos que se sugieren en {@code Retry-After}. */
 	public static final int RETRY_AFTER_SECONDS = 1;
 
-	private static final String LOCK_NOT_AVAILABLE = "55P03";
-
 	private LockTimeouts() {
 	}
 
@@ -43,24 +39,16 @@ public final class LockTimeouts {
 
 	/**
 	 * Toma un advisory lock de transacción ({@code pg_advisory_xact_lock}) con la espera acotada. Fija el tope antes,
-	 * así que vale también para las sentencias que siguen en la transacción. {@code JdbcClient} no traduce el 55P03 de
-	 * esta función como lo hace Hibernate con un finder: se convierte aquí en {@link CannotAcquireLockException} para
-	 * que la API responda 503.
+	 * así que vale también para las sentencias que siguen en la transacción; su 55P03 llega como
+	 * {@link org.springframework.dao.CannotAcquireLockException} (ver {@code LockTimeoutTranslation}) y la API
+	 * responde 503.
 	 */
 	public static void lockAdvisory(JdbcClient jdbc, String key) {
 		limitWait(jdbc);
-		try {
-			jdbc.sql("SELECT count(*) FROM (SELECT pg_advisory_xact_lock(hashtextextended(?, 0))) AS locked")
-				.param(key)
-				.query(Long.class)
-				.single();
-		}
-		catch (UncategorizedSQLException ex) {
-			if (ex.getSQLException() != null && LOCK_NOT_AVAILABLE.equals(ex.getSQLException().getSQLState())) {
-				throw new CannotAcquireLockException("Tiempo de espera agotado por el bloqueo " + key, ex);
-			}
-			throw ex;
-		}
+		jdbc.sql("SELECT count(*) FROM (SELECT pg_advisory_xact_lock(hashtextextended(?, 0))) AS locked")
+			.param(key)
+			.query(Long.class)
+			.single();
 	}
 
 }
