@@ -123,6 +123,7 @@
   @container table (min-width: 560px) {
     .nameLink {
       min-height: 0;
+      /* `font` reinicia también el `line-height` de 44 px del tramo anterior: no quitarlo. */
       font: var(--font-strong);
     }
   }
