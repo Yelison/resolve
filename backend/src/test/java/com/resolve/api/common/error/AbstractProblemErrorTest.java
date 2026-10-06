@@ -93,7 +93,9 @@ abstract class AbstractProblemErrorTest {
 			.doesNotContain("IllegalStateException")
 			.doesNotContain("trace");
 		// El 5xx queda en el registro con la misma URI que ve el cliente.
-		assertThat(output.getAll()).contains("Request failed with status 500 on /api/me");
+		assertThat(output.getAll()).containsOnlyOnce("Request failed with status 500 on /api/me");
+		// La traza la escribe Tomcat una sola vez: el controlador de errores no la repite.
+		assertThat(output.getAll()).containsOnlyOnce("detalle-interno-que-no-debe-salir");
 	}
 
 	protected HttpResponse<String> get(String path, String accept, String... headers) throws IOException,
