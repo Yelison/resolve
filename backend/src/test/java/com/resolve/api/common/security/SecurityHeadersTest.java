@@ -78,7 +78,7 @@ class SecurityHeadersTest extends OidcApiIntegrationTest {
 				.andExpect(header().string("Content-Security-Policy",
 						"default-src 'self'; script-src 'self' 'sha256-" + hash + "'; style-src 'self'; "
 								+ "img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; "
-								+ "base-uri 'self'; form-action 'self'; frame-ancestors 'none'"))
+								+ "base-uri 'self'; form-action 'self' http://localhost:8180; frame-ancestors 'none'"))
 				.andExpect(header().string("X-Content-Type-Options", "nosniff"))
 				.andExpect(header().string("Referrer-Policy", "strict-origin-when-cross-origin"));
 		}

@@ -2,6 +2,7 @@ package com.resolve.api.common.web;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -18,8 +19,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * La {@code Content-Security-Policy} de la aplicación web: todo del propio origen ({@code default-src 'self'}), con las
- * fuentes empaquetadas y sin CDN, sin {@code object}, sin incrustarse en otro sitio y con el formulario, la base y las
- * conexiones limitados al origen.
+ * fuentes empaquetadas y sin CDN, sin {@code object}, sin incrustarse en otro sitio y con los formularios, la base y
+ * las conexiones limitados al origen (los formularios, además, al del proveedor de identidad, al que redirige el inicio
+ * de sesión).
  *
  * <p>
  * El {@code index.html} lleva un script en línea (aplica el tema guardado antes del primer pintado, para que no haya
@@ -35,8 +37,9 @@ public class ContentSecurityPolicy {
 
 	private final String policy;
 
-	ContentSecurityPolicy(@Value("${resolve.web.location:classpath:/static/}") String location) {
-		this.policy = build(inlineScriptHashes(location.endsWith("/") ? location : location + "/"));
+	ContentSecurityPolicy(@Value("${resolve.web.location:classpath:/static/}") String location,
+			@Value("${spring.security.oauth2.client.provider.resolve.issuer-uri:}") String issuer) {
+		this.policy = build(inlineScriptHashes(location.endsWith("/") ? location : location + "/"), origin(issuer));
 	}
 
 	/** El valor de la cabecera. */
@@ -44,12 +47,29 @@ public class ContentSecurityPolicy {
 		return this.policy;
 	}
 
-	static String build(List<String> scriptHashes) {
+	static String build(List<String> scriptHashes, List<String> formActionOrigins) {
 		StringBuilder scripts = new StringBuilder("script-src 'self'");
 		scriptHashes.forEach((hash) -> scripts.append(" 'sha256-").append(hash).append('\''));
+		String forms = String.join(" ", "form-action 'self'", String.join(" ", formActionOrigins)).trim();
 		return String.join("; ", "default-src 'self'", scripts, "style-src 'self'", "img-src 'self' data:",
-				"font-src 'self'", "connect-src 'self'", "object-src 'none'", "base-uri 'self'", "form-action 'self'",
+				"font-src 'self'", "connect-src 'self'", "object-src 'none'", "base-uri 'self'", forms,
 				"frame-ancestors 'none'");
+	}
+
+	/**
+	 * El origen del proveedor de identidad, si lo hay. Chrome aplica {@code form-action} también a las redirecciones
+	 * que siguen al envío de un formulario: sin él, un formulario que enviara a {@code /api/oauth2/authorization/…}
+	 * quedaría bloqueado al redirigir al proveedor. Un enlace o {@code location.assign} no pasan por esta directiva.
+	 */
+	private static List<String> origin(String issuer) {
+		if (issuer.isBlank()) {
+			return List.of();
+		}
+		URI uri = URI.create(issuer);
+		if (uri.getScheme() == null || uri.getHost() == null) {
+			return List.of();
+		}
+		return List.of(uri.getScheme() + "://" + uri.getHost() + (uri.getPort() >= 0 ? ":" + uri.getPort() : ""));
 	}
 
 	private static List<String> inlineScriptHashes(String location) {
