@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import { Alert, Button, Input, Modal, useToast } from '../../components/ui'
 import { isApiError } from '../../api/client'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
-import { demoErrorMessage, isLockTimeout } from '../../lib/mutationError'
+import { demoErrorMessage, isDemoMaintenance, isLockTimeout } from '../../lib/mutationError'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import type { CustomerDetail, CustomerPatch } from '../../domain/customer'
 import { useCreateCustomer, useUpdateCustomer } from './queries'
@@ -224,7 +224,8 @@ function CustomerForm({
       if (demo) {
         setLockError(null)
         setFailure(null)
-        setDemoFailure(demo)
+        // El texto del reinicio lo da el aviso global del shell: aquí solo lo local, para no anunciarlo dos veces.
+        setDemoFailure(isDemoMaintenance(error) ? '' : demo)
       } else if (isLockTimeout(error)) {
         setFailure(null)
         setLockError(error)
@@ -274,6 +275,9 @@ function CustomerForm({
         </Alert>
       )}
       <LockTimeoutAlert error={lockError} pending={pending} onRetry={submission.retry} what="guardar el cliente" />
+      {demoFailure === '' && (
+        <Alert tone="amber" title="No se pudo guardar el cliente; lo que escribiste sigue aquí." live />
+      )}
       {demoFailure && (
         <Alert tone="amber" title="No se pudo guardar el cliente" live>
           {demoFailure}

@@ -184,12 +184,15 @@ describe('NewTicketPage', () => {
     })
 
     describe('rechazos de la demostración pública', () => {
-      async function expectKeptAndAnnounced(message: string) {
+      async function expectKeptAndAnnounced(title: string, message?: string) {
         const alert = await screen.findByRole('status')
-        expect(within(alert).getByText('No se pudo crear el ticket')).toBeInTheDocument()
-        expect(within(alert).getByText(message)).toBeInTheDocument()
+        expect(within(alert).getByText(title)).toBeInTheDocument()
+        if (message) expect(within(alert).getByText(message)).toBeInTheDocument()
         expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument()
         expect(screen.queryByText('Revisa tu conexión e inténtalo de nuevo.')).not.toBeInTheDocument()
+        // El rechazo de la demostración no va además a un aviso genérico («Inténtalo de nuevo.»).
+        const toasts = screen.queryByRole('region', { name: 'Notificaciones' })
+        if (toasts) expect(toasts).not.toHaveTextContent('Inténtalo de nuevo.')
         expect(screen.getByRole('textbox', { name: 'Asunto' })).toHaveValue('No llega el correo')
         expect(screen.getByRole('textbox', { name: 'Descripción' })).toHaveValue('Desde ayer no recibo avisos.')
       }
@@ -201,7 +204,9 @@ describe('NewTicketPage', () => {
           headers: { 'Retry-After': '60' },
           body: { status: 503, title: 'Reinicio de la demostración en curso', detail: 'Vuelve en unos minutos.' },
         })
-        await expectKeptAndAnnounced('Estamos reiniciando la demostración; vuelve en un minuto.')
+        await expectKeptAndAnnounced('No se pudo crear el ticket; lo que escribiste sigue aquí.')
+        // El texto del reinicio es del aviso global del shell: aquí no se repite.
+        expect(screen.queryByText(/Estamos reiniciando/)).not.toBeInTheDocument()
         expect(
           screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
         ).not.toBeInTheDocument()
@@ -215,7 +220,10 @@ describe('NewTicketPage', () => {
           headers: { 'Retry-After': '30' },
           body: { status: 429, title: 'Demasiadas escrituras', detail: 'Más de 60 escrituras en un minuto.' },
         })
-        await expectKeptAndAnnounced('Has hecho muchos cambios seguidos; espera un momento.')
+        await expectKeptAndAnnounced(
+          'No se pudo crear el ticket',
+          'Has hecho muchos cambios seguidos; espera un momento.',
+        )
         await act(() => vi.advanceTimersByTimeAsync(60_000))
         expect(seen).toHaveLength(1)
       })
@@ -230,7 +238,10 @@ describe('NewTicketPage', () => {
             detail: 'La demostración admite hasta 500 tickets por organización.',
           },
         })
-        await expectKeptAndAnnounced('La demostración admite hasta 500 tickets por organización.')
+        await expectKeptAndAnnounced(
+          'No se pudo crear el ticket',
+          'La demostración admite hasta 500 tickets por organización.',
+        )
       })
     })
 

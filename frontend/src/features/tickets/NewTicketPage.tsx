@@ -16,7 +16,7 @@ import { isApiError } from '../../api/client'
 import type { TicketPriority } from '../../domain/ticket'
 import { ticketPriorityValues } from '../../domain/ticket'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
-import { demoErrorMessage, isLockTimeout } from '../../lib/mutationError'
+import { demoErrorMessage, isDemoMaintenance, isLockTimeout } from '../../lib/mutationError'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { PageHeader } from '../../app/pages/PageHeader'
@@ -157,10 +157,15 @@ export function NewTicketPage() {
             onRetry={submission.retry}
             what="crear el ticket"
           />
-          {demoErrorMessage(createTicket.error) && (
-            <Alert tone="amber" title="No se pudo crear el ticket" live>
-              {demoErrorMessage(createTicket.error)}
-            </Alert>
+          {isDemoMaintenance(createTicket.error) ? (
+            // El texto del reinicio lo da el aviso global del shell: aquí solo lo local, para no anunciarlo dos veces.
+            <Alert tone="amber" title="No se pudo crear el ticket; lo que escribiste sigue aquí." live />
+          ) : (
+            demoErrorMessage(createTicket.error) && (
+              <Alert tone="amber" title="No se pudo crear el ticket" live>
+                {demoErrorMessage(createTicket.error)}
+              </Alert>
+            )
           )}
           <div className={styles.actions}>
             <Button type="submit" loading={createTicket.isPending} loadingLabel="Creando…">
