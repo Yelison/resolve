@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from 'react'
 
-export type ToastTone = 'success' | 'error'
+export type ToastTone = 'success' | 'error' | 'info'
 
 export interface ToastAction {
   /** Texto visible del botón. */
@@ -14,7 +14,12 @@ export interface ToastAction {
 }
 
 export interface ToastOptions {
-  /** Tipo de aviso. Por defecto, `success`. */
+  /**
+   * Tipo de aviso. Por defecto, `success`.
+   * - `success`: confirma una acción que ya se hizo (✓ verde).
+   * - `error`: algo falló (rojo).
+   * - `info`: solo informa, sin confirmar nada; p. ej. una función aún no disponible o un cambio de sesión (campana azul).
+   */
   tone?: ToastTone
   /** Texto principal del aviso. */
   title: ReactNode

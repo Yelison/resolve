@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { iconPaths } from '../Icon/paths'
 import { ToastProvider } from './ToastProvider'
 import { useToast, type ToastOptions } from './toastContext'
 
@@ -105,6 +106,25 @@ describe('ToastProvider', () => {
     expect(action).not.toHaveAttribute('aria-disabled')
     await user.click(action)
     expect(onSelect).toHaveBeenCalledTimes(1)
+  })
+
+  it('el tono info muestra la campana con su clase y no la marca de éxito', async () => {
+    const user = renderWithToast({ tone: 'info', title: 'Notificaciones no disponibles' })
+    await user.click(screen.getByRole('button', { name: 'Mostrar' }))
+    const toast = screen.getByText('Notificaciones no disponibles').closest('div[class*="toast"]')
+    expect(toast?.className).toMatch(/\binfo\b/)
+    const paths = Array.from(toast?.querySelectorAll('svg path') ?? []).map((path) => path.getAttribute('d'))
+    expect(paths).toEqual(iconPaths.bell)
+    expect(paths).not.toEqual(iconPaths.check)
+  })
+
+  it('sin tono, el aviso es de éxito y muestra la marca', async () => {
+    const user = renderWithToast({ title: 'Cambios guardados' })
+    await user.click(screen.getByRole('button', { name: 'Mostrar' }))
+    const toast = screen.getByText('Cambios guardados').closest('div[class*="toast"]')
+    expect(toast?.className).toMatch(/\bsuccess\b/)
+    const paths = Array.from(toast?.querySelectorAll('svg path') ?? []).map((path) => path.getAttribute('d'))
+    expect(paths).toEqual(iconPaths.check)
   })
 
   it('exige el proveedor', () => {
