@@ -437,7 +437,7 @@ describe('CustomerDetailPage', () => {
       renderDetail()
       await userEvent.click(await screen.findByRole('button', { name: 'Dar acceso al portal' }))
       const dialog = screen.getByRole('dialog', { name: 'Dar acceso al portal' })
-      expect(dialog).toHaveTextContent('todavía no enviamos correos de invitación')
+      expect(dialog).toHaveTextContent('No enviamos un aviso automático: avísale tú.')
       expect(sent(fetchSpy, 'POST')).toBeUndefined()
       await userEvent.click(within(dialog).getByRole('button', { name: 'Dar acceso' }))
       expect(await screen.findByText('Invitación creada')).toBeInTheDocument()
@@ -503,7 +503,7 @@ describe('CustomerDetailPage', () => {
 })
 
 describe('CustomerDetailPage con un 503 de bloqueo', () => {
-  const LOCK_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
+  const LOCK_MESSAGE = 'Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'
   const archivedCustomer = () => customerDetail({ archived: true, archivedAt: '2026-10-05T10:00:00Z', version: 4 })
 
   beforeEach(() => {

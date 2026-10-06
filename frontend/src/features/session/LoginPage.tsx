@@ -104,7 +104,7 @@ export function LoginPage() {
                   live={!checking}
                   title="No pudimos iniciar sesión"
                 >
-                  El proveedor de identidad no completó la entrada. Inténtalo de nuevo.
+                  No pudimos completar el inicio de sesión. Inténtalo de nuevo.
                 </Alert>
               )}
               {refusal && (

@@ -3,7 +3,7 @@ import { expect, test } from './fixtures'
 const widths = [320, 390, 767, 768, 1024, 1199, 1200, 1440]
 const themes = ['light', 'dark'] as const
 
-const LOCK_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
+const LOCK_MESSAGE = 'Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'
 
 /** Responde la primera escritura con el 503 de bloqueo del backend; las siguientes las sirve la API simulada. */
 async function lockOnce(page: import('@playwright/test').Page, url: string) {

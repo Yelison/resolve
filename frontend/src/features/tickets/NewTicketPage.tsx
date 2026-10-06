@@ -53,7 +53,7 @@ export function NewTicketPage() {
     if (!customer) found.customerId = 'Selecciona un cliente.'
     if (!subject.trim()) found.subject = 'Describe el problema en una frase.'
     else if (subject.trim().length > MAX_SUBJECT) found.subject = `Usa como máximo ${MAX_SUBJECT} caracteres.`
-    if (!description.trim()) found.description = 'Cuéntanos qué ocurrió.'
+    if (!description.trim()) found.description = 'Describe qué ocurrió.'
     else if (description.trim().length > MAX_DESCRIPTION) {
       found.description = `Usa como máximo ${MAX_DESCRIPTION} caracteres.`
     }
@@ -145,7 +145,7 @@ export function NewTicketPage() {
           />
           <Textarea
             label="Descripción"
-            placeholder="Cuéntanos qué ocurrió y cómo podemos reproducirlo."
+            placeholder="Qué ocurrió, desde cuándo y qué ha probado el cliente."
             rows={6}
             value={description}
             onChange={(event) => setDescription(event.target.value)}

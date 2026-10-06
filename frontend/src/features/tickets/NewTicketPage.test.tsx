@@ -55,6 +55,11 @@ describe('NewTicketPage', () => {
     expect(screen.getByRole('combobox', { name: 'Cliente' })).toHaveAccessibleDescription('Selecciona un cliente.')
     expect(screen.getByRole('textbox', { name: 'Asunto' })).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByRole('textbox', { name: 'Descripción' })).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('textbox', { name: 'Descripción' })).toHaveAccessibleDescription('Describe qué ocurrió.')
+    expect(screen.getByRole('textbox', { name: 'Descripción' })).toHaveAttribute(
+      'placeholder',
+      'Qué ocurrió, desde cuándo y qué ha probado el cliente.',
+    )
   })
 
   it('crea el ticket con el cliente elegido y abre su detalle', async () => {
@@ -149,7 +154,7 @@ describe('NewTicketPage', () => {
       const router = await fillAndSend(user, seen, lockTimeoutRoute(), { status: 201, body: ticket({ number: 1049 }) })
 
       expect(
-        await screen.findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+        await screen.findByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
       ).toBeInTheDocument()
       expect(screen.queryByText('No se pudo crear el ticket')).not.toBeInTheDocument()
       expect(screen.getByRole('textbox', { name: 'Asunto' })).toHaveValue('No llega el correo')
@@ -179,7 +184,7 @@ describe('NewTicketPage', () => {
         'Ese asunto ya existe.',
       )
       expect(
-        screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+        screen.queryByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
       ).not.toBeInTheDocument()
     })
 
@@ -208,7 +213,7 @@ describe('NewTicketPage', () => {
         // El texto del reinicio es del aviso global del shell: aquí no se repite.
         expect(screen.queryByText(/Estamos reiniciando/)).not.toBeInTheDocument()
         expect(
-          screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+          screen.queryByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
         ).not.toBeInTheDocument()
       })
 

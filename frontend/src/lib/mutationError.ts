@@ -4,7 +4,8 @@ import { isApiError, type ApiError } from '../api/client'
 const LOCK_TIMEOUT_TITLE = 'Recurso ocupado'
 
 /** Lo que se le dice a la persona cuando una escritura no pudo tomar el recurso a tiempo. */
-export const LOCK_TIMEOUT_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
+export const LOCK_TIMEOUT_MESSAGE =
+  'Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'
 
 /**
  * Espera antes de poder repetir tras un `503` de bloqueo. El backend responde `Retry-After: 1` y el contrato fija un

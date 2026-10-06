@@ -80,7 +80,7 @@ export function LockTimeoutAlert({ error, pending, onRetry, what, className }: L
 
   if (!visible) return null
   return (
-    <Alert tone="amber" title="Recurso ocupado" live className={className}>
+    <Alert tone="amber" title="Guardado en curso" live className={className}>
       <p>{LOCK_TIMEOUT_MESSAGE}</p>
       <Button
         ref={retryButton}

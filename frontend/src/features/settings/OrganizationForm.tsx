@@ -215,7 +215,7 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
         maxLength={MAX_EMAIL}
         autoComplete="off"
         onChange={(event) => change('supportEmail', event.target.value)}
-        hint={serverNote('supportEmail') ?? 'Opcional. Se muestra en el pie de la base de conocimiento.'}
+        hint={serverNote('supportEmail') ?? 'Opcional. Lo verán los clientes en los artículos de ayuda.'}
         error={errors.supportEmail}
       />
       <Select

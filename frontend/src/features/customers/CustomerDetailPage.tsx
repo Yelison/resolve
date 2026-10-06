@@ -264,7 +264,7 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
         open={invitingToPortal}
         onClose={closePortalInvite}
         title="Dar acceso al portal"
-        description={`${customer.name} entrará al portal con ${customer.email}; todavía no enviamos correos de invitación.`}
+        description={`${customer.name} podrá entrar al portal con ${customer.email}. No enviamos un aviso automático: avísale tú.`}
         footer={
           <>
             <Button variant="secondary" onClick={closePortalInvite}>

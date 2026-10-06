@@ -336,14 +336,16 @@ describe('OrganizationTab con un 503 de bloqueo', () => {
       headers: etag(5),
     })
     expect(
-      await screen.findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      await screen.findByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
     ).toBeInTheDocument()
     expect(screen.queryByText('No se pudieron guardar los ajustes de la empresa')).not.toBeInTheDocument()
     expect(name).toHaveValue('Acme Studio SL')
 
     await retryAfterLockTimeout(user, 'Reintentar guardar los ajustes de la empresa')
     expect(await screen.findByText('Cambios guardados')).toBeInTheDocument()
-    expect(screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
+    ).not.toBeInTheDocument()
     expect(seen).toHaveLength(2)
     expect(seen[1]).toEqual(seen[0])
     expect(seen[0]).toEqual({ body: JSON.stringify({ name: 'Acme Studio SL' }), ifMatch: '"3"' })
@@ -353,13 +355,15 @@ describe('OrganizationTab con un 503 de bloqueo', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     const seen: SentRequest[] = []
     const name = await renameWith(user, seen, lockTimeoutRoute(), problem(412))
-    await screen.findByText('Otra persona está guardando este recurso; vuelve a intentarlo.')
+    await screen.findByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.')
     // La versión 4 llega por la recarga que hace la mutación; el reintento no la usa.
     expect(await field('Correo de soporte')).toHaveValue('nuevo@acme.example')
     await retryAfterLockTimeout(user, 'Reintentar guardar los ajustes de la empresa')
 
     expect(await screen.findByText('Los ajustes cambiaron mientras los editabas')).toBeInTheDocument()
-    expect(screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Alguien está guardando cambios aquí ahora mismo. Vuelve a intentarlo en un segundo.'),
+    ).not.toBeInTheDocument()
     expect(name).toHaveValue('Acme Studio SL')
     expect(seen.map((request) => request.ifMatch)).toEqual(['"3"', '"3"'])
   })

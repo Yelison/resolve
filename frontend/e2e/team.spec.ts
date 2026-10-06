@@ -23,7 +23,7 @@ test.describe('equipo', () => {
     await page.goto('/equipo')
     await page.getByRole('button', { name: 'Invitar agente' }).click()
     const dialog = page.getByRole('dialog', { name: 'Invitar agente' })
-    await expect(dialog.getByText('todavía no enviamos correos de invitación')).toBeVisible()
+    await expect(dialog.getByText('No enviamos un aviso automático: avísale tú.')).toBeVisible()
 
     await dialog.getByRole('textbox', { name: 'Correo' }).fill('laura@acme.example')
     await dialog.getByRole('button', { name: 'Invitar' }).click()

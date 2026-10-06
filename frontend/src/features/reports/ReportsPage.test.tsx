@@ -139,6 +139,15 @@ describe('ReportsPage', () => {
     expect(table).toHaveAccessibleDescription('Mostrando 4 agentes')
   })
 
+  it('explica quién aparece en una nota bajo la tabla de agentes, no en un aviso', async () => {
+    mockApi(baseRoutes)
+    renderReports()
+    const table = await screen.findByRole('table', { name: 'Rendimiento por agente' })
+    const note = screen.getByText('Incluye a quien ya no está en el equipo si atendió tickets en el periodo.')
+    expect(table.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.queryByText('Quién aparece aquí')).not.toBeInTheDocument()
+  })
+
   describe('periodo', () => {
     it('cambiar el periodo cambia la petición y la URL', async () => {
       const spy = mockApi(baseRoutes)
@@ -198,6 +207,7 @@ describe('ReportsPage', () => {
       expect(requestedPeriods(spy)).toEqual(['90d'])
       // Con 90 días el gráfico agrega por semanas.
       expect(screen.getByRole('img', { name: 'Solicitudes y resueltos por semana' })).toBeInTheDocument()
+      expect(screen.getByText('Una barra por semana; la última puede estar incompleta.')).toBeInTheDocument()
     })
 
     it('un periodo que no existe vuelve al de por defecto, también en la URL', async () => {

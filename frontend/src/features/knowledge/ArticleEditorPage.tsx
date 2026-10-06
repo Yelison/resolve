@@ -401,7 +401,9 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
           </Button>
         </Alert>
       )}
-      {slugTaken && <Alert tone="red" title="Otro artículo acaba de tomar esa dirección; vuelve a intentarlo" live />}
+      {slugTaken && (
+        <Alert tone="red" title="Otro artículo se acaba de crear con el mismo enlace; vuelve a intentarlo." live />
+      )}
       <LockTimeoutAlert
         error={update.error ?? create.error}
         pending={saving}

@@ -32,7 +32,7 @@ export function InviteMemberDialog({ open, onClose }: InviteMemberDialogProps) {
       open={open}
       onClose={onClose}
       title="Invitar agente"
-      description="La persona entrará con este correo; todavía no enviamos correos de invitación."
+      description="La persona entrará con este correo. No enviamos un aviso automático: avísale tú."
     >
       <InviteForm onClose={onClose} />
     </Modal>
