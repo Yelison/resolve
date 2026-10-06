@@ -1,0 +1,410 @@
+/* Identidad de Resolve sobre el maquetado de PatternFly de keycloak.v2.
+ * Los colores salen de tokens.css (copia de frontend/src/styles/tokens.css); aquí no hay ningún valor de color suelto. */
+
+/* Inter se sirve desde el propio tema (@fontsource-variable/inter, licencia OFL en ../fonts/LICENSE.txt). El nombre es
+ * `Inter`, el de --font-family; no `Inter Variable`, que es el de fontsource. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/inter-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  --radius-panel: 12px;
+  --radius-control: 8px;
+  --control-height: 44px;
+  --card-width: 440px;
+}
+
+/* Las variables de PatternFly que pintan texto, bordes y fondos de los controles apuntan a los tokens. */
+:root,
+:root.pf-v5-theme-dark {
+  --pf-v5-global--FontFamily--text: var(--font-family);
+  --pf-v5-global--FontFamily--heading: var(--font-family);
+  --pf-v5-global--FontSize--md: 14px;
+  --pf-v5-global--FontSize--sm: 12px;
+  --pf-v5-global--FontSize--lg: 17px;
+  --pf-v5-global--FontSize--3xl: 30px;
+  --pf-v5-global--Color--100: var(--color-ink);
+  --pf-v5-global--Color--200: var(--color-muted);
+  --pf-v5-global--BackgroundColor--100: var(--color-surface);
+  --pf-v5-global--BackgroundColor--200: var(--color-bg);
+  --pf-v5-global--BorderColor--100: var(--color-line);
+  --pf-v5-global--primary-color--100: var(--color-link);
+  --pf-v5-global--link--Color: var(--color-link);
+  --pf-v5-global--link--Color--hover: var(--color-link);
+  --pf-v5-global--danger-color--100: var(--color-red-ink);
+}
+
+html {
+  font: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+body#keycloak-bg {
+  min-height: 100dvh;
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: var(--font-body);
+}
+
+/* Una sola columna centrada, de 320 a 1440 px: marca arriba y tarjeta debajo, con ancho máximo y margen al viewport. */
+.pf-v5-c-login {
+  display: block;
+  min-height: 100dvh;
+  background: transparent;
+}
+
+.pf-v5-c-login__container {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-24);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(var(--card-width) + 2 * var(--space-16));
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: var(--space-32) var(--space-16);
+  background: transparent;
+}
+
+.pf-v5-c-login__header {
+  display: flex;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+}
+
+/* La marca igual que en el Sidebar: cuadro azul de 34 px con la R y «resolve» en 25 px / 700. */
+#kc-header-wrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: 52px;
+  /* keycloak.v2 fuerza mayúsculas, espaciado y blanco con !important. */
+  color: var(--color-ink) !important;
+  font: var(--font-logo);
+  letter-spacing: normal;
+  text-transform: lowercase;
+}
+
+#kc-header-wrapper::before {
+  content: 'R' / '';
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-control);
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+  font: var(--font-strong);
+  font-size: 17px;
+  text-transform: none;
+}
+
+.pf-v5-c-login__main {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: var(--space-32);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  box-shadow: none;
+}
+
+.pf-v5-c-login__main-header {
+  display: block;
+  margin: 0 0 var(--space-24);
+  padding: 0;
+  border: 0;
+}
+
+.pf-v5-c-login__main-body {
+  margin: 0;
+}
+
+/* Un <h1> por página: es el título de la pantalla («Entra en Resolve», «Cerrar sesión», …). */
+.pf-v5-c-login__main-title,
+#kc-page-title {
+  margin: 0;
+  color: var(--color-ink);
+  font: var(--font-title);
+  overflow-wrap: anywhere;
+}
+
+.pf-v5-c-login__main-body,
+.pf-v5-c-login__main-footer {
+  padding: 0;
+}
+
+.pf-v5-c-login__main-footer {
+  margin-top: var(--space-24);
+}
+
+.pf-v5-c-login__main-footer:not(:has(*)) {
+  display: none;
+}
+
+/* Etiquetas, campos y botones. */
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text {
+  color: var(--color-ink);
+  font: var(--font-label);
+}
+
+.pf-v5-c-form__group {
+  margin: 0;
+}
+
+.pf-v5-c-form__group + .pf-v5-c-form__group {
+  margin-top: var(--space-16);
+}
+
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--BorderRadius: var(--radius-control);
+  min-height: var(--control-height);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: var(--font-body);
+}
+
+.pf-v5-c-form-control::before,
+.pf-v5-c-form-control::after {
+  border-color: var(--color-line);
+  border-width: 1px;
+  border-radius: var(--radius-control);
+}
+
+.pf-v5-c-form-control input {
+  min-height: var(--control-height);
+  padding-inline: var(--space-12);
+  background: transparent;
+  color: var(--color-ink);
+  font: var(--font-body);
+}
+
+.pf-v5-c-form-control.pf-m-error::before,
+.pf-v5-c-form-control.pf-m-error::after {
+  border-color: var(--color-red-ink);
+}
+
+.pf-v5-c-form-control.pf-m-readonly {
+  background: var(--color-surface-hover);
+}
+
+.pf-v5-c-helper-text__item.pf-m-error,
+.pf-v5-c-helper-text__item-text.pf-m-error,
+.kc-feedback-text {
+  color: var(--color-red-ink);
+  font: var(--font-label);
+}
+
+.pf-v5-c-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  border-radius: var(--radius-control);
+  font: var(--font-strong);
+}
+
+.pf-v5-c-button::after {
+  border-radius: var(--radius-control);
+}
+
+.pf-v5-c-button.pf-m-primary {
+  background: var(--color-brand);
+  color: var(--color-on-brand);
+}
+
+.pf-v5-c-button.pf-m-primary:hover,
+.pf-v5-c-button.pf-m-primary:focus {
+  background: var(--color-brand-hover);
+  color: var(--color-on-brand);
+}
+
+.pf-v5-c-button.pf-m-secondary,
+.pf-v5-c-button.pf-m-control {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.pf-v5-c-button.pf-m-secondary::after,
+.pf-v5-c-button.pf-m-control::after {
+  border: 1px solid var(--color-line);
+}
+
+.pf-v5-c-button.pf-m-secondary:hover,
+.pf-v5-c-button.pf-m-control:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-ink);
+}
+
+.pf-v5-c-button:disabled,
+.pf-v5-c-button.pf-m-aria-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pf-v5-c-form__actions {
+  margin: 0;
+  padding: 0;
+}
+
+.pf-v5-c-form__actions .pf-v5-c-button {
+  margin: 0;
+}
+
+.pf-v5-c-form__group:last-child {
+  margin-bottom: 0;
+}
+
+/* Avisos de la página (error, información, advertencia, éxito) con los pares de estado de tokens.css. */
+.pf-v5-c-alert {
+  --_ink: var(--color-blue-ink);
+  --_bg: var(--color-blue-bg);
+  display: flex;
+  gap: var(--space-12);
+  box-sizing: border-box;
+  margin: 0 0 var(--space-16);
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--_ink);
+  border-radius: var(--radius-control);
+  background: var(--_bg);
+  color: var(--_ink);
+  font: var(--font-label);
+}
+
+.pf-v5-c-alert.pf-m-danger {
+  --_ink: var(--color-red-ink);
+  --_bg: var(--color-red-bg);
+}
+
+.pf-v5-c-alert.pf-m-warning {
+  --_ink: var(--color-amber-ink);
+  --_bg: var(--color-amber-bg);
+}
+
+.pf-v5-c-alert.pf-m-success {
+  --_ink: var(--color-green-ink);
+  --_bg: var(--color-green-bg);
+}
+
+.pf-v5-c-alert__icon,
+.pf-v5-c-alert__title {
+  color: inherit;
+}
+
+.pf-v5-c-alert__title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+
+/* Enlaces, textos de página y selector de idioma. */
+a {
+  color: var(--color-link);
+}
+
+.pf-v5-c-login a,
+.pf-v5-c-login .instruction {
+  overflow-wrap: anywhere;
+}
+
+#kc-error-message .instruction,
+#kc-info-message .instruction,
+.instruction {
+  margin: 0 0 var(--space-16);
+  font: var(--font-body);
+}
+
+/* Enlaces: los de una frase conservan su línea y amplían el área pulsable con relleno; los que van solos son de 44 px. */
+.instruction a,
+.pf-v5-c-helper-text__item-text a {
+  padding-block: var(--space-12);
+}
+
+p > a:only-child {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height);
+}
+
+#kc-logout-confirm .pf-v5-c-button,
+#kc-logout {
+  width: 100%;
+}
+
+.pf-v5-c-check__label,
+.pf-v5-c-check__input {
+  min-height: var(--control-height);
+}
+
+/* Foco visible con --color-focus en todo lo interactivo; en los campos, el borde de 2 px hace de anillo. */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.pf-v5-c-form-control input:focus-visible {
+  outline: none;
+}
+
+.pf-v5-c-form-control:focus-within::after {
+  border: 2px solid var(--color-focus);
+}
+
+@media (min-width: 768px) {
+  .pf-v5-c-login__container {
+    justify-content: center;
+    padding-block: var(--space-48);
+  }
+
+  .pf-v5-c-login__main {
+    padding: var(--space-40);
+  }
+}
+
+@media (max-width: 767px) {
+  .pf-v5-c-login__main-title,
+  #kc-page-title {
+    font-size: 24px;
+    line-height: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
