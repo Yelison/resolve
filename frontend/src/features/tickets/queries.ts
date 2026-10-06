@@ -32,28 +32,32 @@ export const ticketKeys = {
   activity: (number: number) => [...ticketKeys.detail(number), 'activity'] as const,
 }
 
+/** Pide una página de la bandeja; la comparten la bandeja y la búsqueda global. */
+export function fetchTicketList(params: TicketListParams, signal?: AbortSignal) {
+  return unwrap(
+    api.GET('/tickets', {
+      params: {
+        query: {
+          view: params.view,
+          status: params.status,
+          priority: params.priority,
+          assigneeId: params.assigneeId || undefined,
+          customerId: params.customerId || undefined,
+          q: params.q?.trim() || undefined,
+          page: toApiPage(params.page),
+          size: params.pageSize,
+          sort: params.sort,
+        },
+      },
+      signal,
+    }),
+  )
+}
+
 export function useTicketList(params: TicketListParams) {
   return useQuery({
     queryKey: ticketKeys.list(params),
-    queryFn: ({ signal }) =>
-      unwrap(
-        api.GET('/tickets', {
-          params: {
-            query: {
-              view: params.view,
-              status: params.status,
-              priority: params.priority,
-              assigneeId: params.assigneeId || undefined,
-              customerId: params.customerId || undefined,
-              q: params.q?.trim() || undefined,
-              page: toApiPage(params.page),
-              size: params.pageSize,
-              sort: params.sort,
-            },
-          },
-          signal,
-        }),
-      ),
+    queryFn: ({ signal }) => fetchTicketList(params, signal),
     // Mantiene la página anterior mientras llega la siguiente, sin parpadeos al filtrar o paginar.
     placeholderData: keepPreviousData,
   })

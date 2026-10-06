@@ -36,25 +36,29 @@ export function useCustomerSearch(q: string) {
   })
 }
 
+/** Pide una página de clientes; la comparten la lista y la búsqueda global. */
+export function fetchCustomerList(params: CustomerListParams, signal?: AbortSignal) {
+  return unwrap(
+    api.GET('/customers', {
+      params: {
+        query: {
+          q: params.q?.trim() || undefined,
+          company: params.company || undefined,
+          archived: params.archived || undefined,
+          page: toApiPage(params.page),
+          size: params.pageSize,
+          sort: params.sort,
+        },
+      },
+      signal,
+    }),
+  )
+}
+
 export function useCustomerList(params: CustomerListParams) {
   return useQuery({
     queryKey: customerKeys.list(params),
-    queryFn: ({ signal }) =>
-      unwrap(
-        api.GET('/customers', {
-          params: {
-            query: {
-              q: params.q?.trim() || undefined,
-              company: params.company || undefined,
-              archived: params.archived || undefined,
-              page: toApiPage(params.page),
-              size: params.pageSize,
-              sort: params.sort,
-            },
-          },
-          signal,
-        }),
-      ),
+    queryFn: ({ signal }) => fetchCustomerList(params, signal),
     // Mantiene la página anterior mientras llega la siguiente, sin parpadeos al filtrar o paginar.
     placeholderData: keepPreviousData,
   })
