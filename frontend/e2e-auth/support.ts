@@ -14,6 +14,8 @@ export const REALM_PASSWORD = 'demo'
 /** Ruta del formulario de entrada de Keycloak: que la URL la contenga prueba que el login pasó por el proveedor. */
 export const KEYCLOAK_AUTH_PATH = '/realms/resolve/protocol/openid-connect/auth'
 
+/** Origen de la aplicación servida desde el jar: el mismo que `baseURL` de playwright.auth.config.ts. */
+const APP_ORIGIN = `http://localhost:${Number(process.env.SERVER_PORT || 8080)}`
 const KEYCLOAK_PORT = Number(process.env.KEYCLOAK_PORT || 8180)
 export const KEYCLOAK_URL = `http://localhost:${KEYCLOAK_PORT}`
 // Valor de desarrollo de docker-compose.yml, sobrescribible como allí.
@@ -34,9 +36,8 @@ export async function submitKeycloakLogin(page: Page, email: string) {
   await page.locator('#username').fill(email)
   await page.locator('#password').fill(REALM_PASSWORD)
   await page.locator('#kc-login').click()
-  await expect(page).toHaveURL(
-    ({ pathname, origin }) => origin === new URL(page.url()).origin && !pathname.includes('/realms/'),
-  )
+  // De vuelta en la aplicación (su origen, no el de Keycloak) y fuera del paso intermedio de /api/login/oauth2/code.
+  await expect(page).toHaveURL((url) => url.origin === APP_ORIGIN && !url.pathname.startsWith('/api/'))
 }
 
 /** Entra con ese usuario del realm por el flujo real y espera a ver la aplicación con su cuenta. */
