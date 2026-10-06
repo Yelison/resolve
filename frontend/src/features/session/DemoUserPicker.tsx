@@ -1,12 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { DEMO_USER_STORAGE_KEY, setDemoUser } from '../../api/client'
 import { Button, Select } from '../../components/ui'
-import { demoUsers } from './demoUsers'
+import { showcaseUsers } from '../../showcase/users'
+import { demoUsers as devUsers } from './demoUsers'
 import styles from './session.module.css'
 import { postSessionMessage } from './sessionChannel'
 import { clearSessionData, focusContentWhenReady } from './sessionLifecycle'
+
+// La condición va escrita aquí (ver `api/client.ts`): así el build de producción no lleva ninguna de las dos listas.
+const demoUsers = import.meta.env.MODE === 'showcase' ? showcaseUsers : devUsers
 
 function storedDemoUser() {
   try {
@@ -30,6 +34,7 @@ export interface DemoUserPickerProps {
 export function DemoUserPicker({ onSwitched, submitLabel = 'Usar este usuario' }: DemoUserPickerProps) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
   const [email, setEmail] = useState(() => {
     const stored = storedDemoUser()
     return demoUsers.some((user) => user.email === stored) ? (stored as string) : (demoUsers[0]?.email ?? '')
@@ -45,7 +50,9 @@ export function DemoUserPicker({ onSwitched, submitLabel = 'Usar este usuario' }
       await clearSessionData(queryClient)
       setDemoUser(email)
       postSessionMessage('signed-in')
-      void navigate('/', { replace: true })
+      // En la demostración estática, `SessionGate` deja en el estado de /entrar la ruta a la que se iba.
+      const from = (location.state as { from?: unknown } | null)?.from
+      void navigate(import.meta.env.MODE === 'showcase' && typeof from === 'string' ? from : '/', { replace: true })
       onSwitched?.()
       // El selector (en /entrar) o el botón de la cuenta al que `Modal` devolvería el foco desaparecen con el cambio de
       // usuario: el foco va al contenido de la shell cuando el diálogo ya no está.
@@ -59,7 +66,11 @@ export function DemoUserPicker({ onSwitched, submitLabel = 'Usar este usuario' }
     <form className={styles.demoForm} onSubmit={(event) => void submit(event)} aria-busy={pending}>
       <Select
         label="Usuario de demostración"
-        hint="Solo desarrollo: no es un inicio de sesión real."
+        hint={
+          import.meta.env.MODE === 'showcase'
+            ? 'Demostración: no es un inicio de sesión real, solo cambia el rol que ves.'
+            : 'Solo desarrollo: no es un inicio de sesión real.'
+        }
         value={email}
         onChange={(event) => setEmail(event.target.value)}
       >

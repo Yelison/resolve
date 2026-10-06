@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import styles from './DemoBanner.module.css'
 
 export const DEMO_BANNER_TEXT = 'Demostración pública · los datos se reinician cada noche'
@@ -13,7 +13,15 @@ export const DEMO_BANNER_TEXT = 'Demostración pública · los datos se reinicia
  * móvil) se reserva en `scroll-padding-bottom` del documento, para que el foco por teclado y los saltos a un ancla
  * dejen el control por encima del aviso.
  */
-export function DemoBanner() {
+export function DemoBanner({
+  name = 'Demostración pública',
+  children = <p>{DEMO_BANNER_TEXT}</p>,
+}: {
+  /** Nombre de la región. */
+  name?: string
+  /** Texto del aviso; por defecto el de la demostración pública. */
+  children?: ReactNode
+}) {
   const banner = useRef<HTMLElement>(null)
   useEffect(() => {
     const element = banner.current
@@ -29,8 +37,8 @@ export function DemoBanner() {
     }
   }, [])
   return (
-    <section ref={banner} className={styles.banner} aria-label="Demostración pública">
-      <p>{DEMO_BANNER_TEXT}</p>
+    <section ref={banner} className={styles.banner} aria-label={name}>
+      {children}
     </section>
   )
 }

@@ -4,6 +4,7 @@ import { isApiError, PROBLEM_TYPES, readCsrfToken } from '../../api/client'
 import { cx } from '../../lib/cx'
 import { Alert, Button, EmptyState, Skeleton } from '../../components/ui'
 import { DemoUserPicker } from './DemoUserPicker'
+import { ShowcaseLoginFrame } from './ShowcaseLoginFrame'
 import { useMe } from './queries'
 import styles from './session.module.css'
 import { subscribeSessionMessages } from './sessionChannel'
@@ -35,7 +36,9 @@ export function LoginPage() {
   const [params] = useSearchParams()
   const heading = useRef<HTMLHeadingElement>(null)
   // La condición va escrita aquí (ver `api/client.ts`): así el build de producción elimina el selector entero.
-  const demoLogin = import.meta.env.DEV || import.meta.env.MODE === 'smoke'
+  const demoLogin = import.meta.env.DEV || import.meta.env.MODE === 'smoke' || import.meta.env.MODE === 'showcase'
+  // En la demostración estática no hay proveedor de identidad al que salir: solo se ofrece el selector de usuarios.
+  const providerLogin = import.meta.env.MODE !== 'showcase'
   const unauthenticated = !me.data && isApiError(me.error, 401)
   const { signOut } = useSessionActions()
   // Motivo por el que el proveedor sí autenticó a la persona pero la aplicación no la admite.
@@ -60,7 +63,7 @@ export function LoginPage() {
   // altura definitiva y nada se mueve al llegar la respuesta.
   const checking = !unauthenticated && !me.isError
 
-  return (
+  const page = (
     <main className={styles.login}>
       <div className={styles.card}>
         <p className={styles.brand} aria-hidden="true">
@@ -110,9 +113,11 @@ export function LoginPage() {
                   {refusal}
                 </Alert>
               )}
-              <Button block onClick={() => navigation.assign(LOGIN_PATH)}>
-                Entrar con tu cuenta
-              </Button>
+              {providerLogin && (
+                <Button block onClick={() => navigation.assign(LOGIN_PATH)}>
+                  Entrar con tu cuenta
+                </Button>
+              )}
               {canSignOut && (
                 <Button
                   block
@@ -143,4 +148,6 @@ export function LoginPage() {
       </div>
     </main>
   )
+  // La demostración estática avisa también aquí, fuera de la shell: es lo primero que se ve.
+  return providerLogin ? page : <ShowcaseLoginFrame>{page}</ShowcaseLoginFrame>
 }

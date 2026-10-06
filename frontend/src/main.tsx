@@ -14,6 +14,13 @@ if (import.meta.env.DEV) {
   Object.assign(window, { setDemoUser })
 }
 
+// Demostración estática (`vite build --mode showcase`): `/api` lo atiende el navegador con la API simulada de los e2e. Se
+// instala antes de pintar; en cualquier otro modo esta rama desaparece del build y no deja ni el módulo ni los datos.
+if (import.meta.env.MODE === 'showcase') {
+  const { installShowcase } = await import('./showcase/install')
+  installShowcase()
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

@@ -1,0 +1,11 @@
+.frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* La pantalla de entrada (un `main`) ocupa lo que deja el aviso, sin sumar su altura a la del viewport. */
+.frame > main {
+  flex: 1;
+  min-height: 0;
+}
