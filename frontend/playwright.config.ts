@@ -9,7 +9,7 @@ const SMOKE = process.env.SMOKE === '1'
 
 // `/catalogo` solo existe con el servidor de desarrollo de Vite (no está en ningún build): sus pruebas, en
 // `e2e/catalog/`, van en su propio proyecto contra `vite`. `npm run test:e2e` lo recoge sin cambiar el comando de CI.
-const DEV_PORT = Number(process.env.PLAYWRIGHT_DEV_PORT || 5173)
+const DEV_PORT = Number(process.env.PLAYWRIGHT_DEV_PORT || process.env.DEV_SERVER_PORT || 5173)
 
 export default defineConfig({
   testDir: './e2e',
