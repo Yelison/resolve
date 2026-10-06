@@ -130,14 +130,83 @@ test('se entra como cliente y se ve lo propio del cliente; cerrar sesión vuelve
   await expect(page.getByRole('link', { name: 'Equipo' })).toBeVisible()
 })
 
-test('los cambios no se guardan: recargar reinicia la demostración en /entrar', async ({ page }) => {
+test('recargar conserva el usuario y la ruta; los datos simulados se reinician', async ({ page }) => {
+  await page.goto('')
+  await enterAs(page, CUSTOMER)
+  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await page.getByRole('link', { name: 'Tickets' }).click()
+  await expect(page).toHaveURL(/\/resolve\/tickets$/)
+
+  await page.reload()
+  await expect(heading(page, 'Tickets')).toBeVisible()
+  await expect(page).toHaveURL(/\/resolve\/tickets$/)
+  // Sigue siendo el cliente, no la administración.
+  await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
+})
+
+test('un enlace profundo recargado a mano conserva la sesión en esa ruta', async ({ page }) => {
   await page.goto('')
   await enterAs(page, ADMIN)
   await expect(heading(page, 'Resumen')).toBeVisible()
-  // Una recarga completa: GitHub Pages redirige `/resolve` a `/resolve/`, que es lo que abre `goto('')`.
-  await page.goto('')
-  await expect(page.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
+  await page.goto('tickets/1048')
+  await expect(heading(page, 'No puedo acceder a mi cuenta')).toBeVisible()
+  await expect(page).toHaveURL(/\/resolve\/tickets\/1048$/)
 })
+
+test('una pestaña nueva empieza en /entrar aunque otra tenga sesión', async ({ page, context }) => {
+  await page.goto('')
+  await enterAs(page, ADMIN)
+  await expect(heading(page, 'Resumen')).toBeVisible()
+  const other = await context.newPage()
+  await other.goto('')
+  await expect(other.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
+  await expect(other).toHaveURL(/\/resolve\/entrar$/)
+})
+
+test('cerrar sesión y recargar deja en /entrar', async ({ page }) => {
+  await page.goto('')
+  await enterAs(page, ADMIN)
+  await expect(heading(page, 'Resumen')).toBeVisible()
+  await signOut(page)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
+  await expect(page).toHaveURL(/\/resolve\/entrar$/)
+})
+
+test('elegir otro usuario tras cerrar sesión sustituye la elección que sobrevive a la recarga', async ({ page }) => {
+  await page.goto('')
+  await enterAs(page, ADMIN)
+  await expect(page.getByRole('link', { name: 'Equipo' })).toBeVisible()
+  await signOut(page)
+  await enterAs(page, CUSTOMER)
+  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
+  await page.reload()
+  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
+})
+
+for (const width of [390, 1440]) {
+  test(`recargar conserva la sesión y cerrar sesión la quita · ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto('')
+    await enterAs(page, ADMIN)
+    await expect(heading(page, 'Resumen')).toBeVisible()
+    await page.goto('reportes')
+    await expect(page).toHaveURL(/\/resolve\/reportes$/)
+    await page.reload()
+    await expect(page).toHaveURL(/\/resolve\/reportes$/)
+    await expect(heading(page, 'Reportes')).toBeVisible()
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(overflow).toBeLessThanOrEqual(0)
+
+    await signOut(page)
+    await page.reload()
+    await expect(page.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
+  })
+}
 
 for (const theme of themes) {
   for (const width of widths) {
