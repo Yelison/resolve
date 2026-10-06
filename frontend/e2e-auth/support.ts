@@ -27,6 +27,12 @@ export const sessionCookie = async (context: BrowserContext) =>
 /** Va a la pantalla de entrada y pulsa «Entrar con tu cuenta»: el navegador queda en el formulario de Keycloak. */
 export async function openKeycloakLogin(page: Page) {
   await page.goto('/entrar')
+  // Guardia contra el modo demostración: sin `oidc` esta API contestaría con el usuario demo en lugar de un 401, y el
+  // botón nunca llegaría a Keycloak. Se dice aquí, en menos de 1 s, en vez de dejar que se agote el tiempo del clic.
+  expect(
+    (await page.request.get('/api/me')).status(),
+    'sin sesión la API debe contestar 401: ¿arrancó con el perfil oidc o cayó al modo demostración (dev sin oidc)?',
+  ).toBe(401)
   await page.getByRole('button', { name: 'Entrar con tu cuenta' }).click()
   await expect(page).toHaveURL(new RegExp(`${KEYCLOAK_AUTH_PATH}\\?`))
 }
