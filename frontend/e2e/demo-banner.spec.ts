@@ -53,8 +53,7 @@ test('el aviso es una región, no un alert, y no se puede cerrar', async ({ page
   await expect(page.getByRole('alert')).toHaveCount(0)
 })
 
-// El catálogo de componentes vive fuera del shell (no tiene sesión ni aviso).
-for (const { path: route, ready } of sweepRoutes.filter((item) => item.path !== '/catalogo')) {
+for (const { path: route, ready } of sweepRoutes) {
   for (const width of [320, 1440]) {
     test(`${route} · el aviso no tapa el final del contenido · ${width}px`, async ({ page }) => {
       await openDemo(page, route, 'light', width)
