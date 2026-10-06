@@ -243,9 +243,11 @@ demostración en curso" with `Retry-After`; `readiness` is `OUT_OF_SERVICE` (so 
 - **Read lazily, so Neon can sleep.** There is no polling: the API reads the mark when a request to `/api` arrives and the
   last read is older than 5 seconds (`resolve.demo.maintenance-poll`), one read at a time, and decides with its own clock
   in between. With no traffic there are no queries and Neon can suspend its compute; the first request after a pause reads
-  the mark before it is answered. **Readiness does not query the database by itself** (a platform check every few seconds
+  the mark before it is answered. **Outside maintenance, readiness does not query the database by itself** (a platform check every few seconds
   would keep Neon awake): it reflects the last read, which any request to the API refreshes; the reset workflow makes one
-  before it deletes anything. A failed read **keeps the previous mark** (it expires by itself), so a cut connection in the
+  before it deletes anything. **While maintenance is on, readiness does re-read the mark** (at most every 5 s), so it goes
+  back to `UP` once the mark is removed even with no traffic; the reset's smoke asks `/api/me` until it answers `401`
+  and then checks readiness. A failed read **keeps the previous mark** (it expires by itself), so a cut connection in the
   middle of `clean` cannot reopen the API on a half-migrated database.
 - **Why a table and not an endpoint or memory.** `flyway clean` does not touch another schema, so the mark survives the
   reset it protects; it works with several machines and across an application restart; and nobody can activate it
@@ -305,8 +307,11 @@ Things that could not be checked without accounts, in the order they matter:
    address the write limit counts. If Fly passes the client's copy through, the per-IP limit can be forged by changing
    that header: stop trusting it (leave `RESOLVE_DEMO_CLIENT_IP_HEADER` empty) until that is solved.
 2. **A single machine that is out of service.** Whether Fly keeps routing to the only machine while readiness is
-   `OUT_OF_SERVICE` (the reset works either way: it needs no route to end the maintenance, but the smoke waits for readiness
-   `UP`). Run the reset by hand once and watch what a browser sees.
+   `OUT_OF_SERVICE`. The reset does not depend on it to *end* the maintenance (it deletes the row), but if Fly stops
+   routing, no request reaches the API and the application only notices through its own readiness check: while maintenance
+   is on, readiness re-reads the mark (at most every 5 s), so Fly's checks alone are enough to bring it back to `UP`. If
+   they are not (the proxy does not even run the check), the API stays closed until the mark's deadline (at most 10
+   minutes). Run the reset by hand once and watch what a browser sees.
 3. **`sslmode=verify-full` and the JVM truststore** with Neon (`sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory` in
    `DATABASE_URL`), and `PGSSLROOTCERT=system` in the runner's `psql`.
 4. **GHCR package visibility** (public) and that `flyctl deploy --image` pulls it.

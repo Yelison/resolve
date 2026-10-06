@@ -36,8 +36,9 @@ import org.springframework.stereotype.Component;
  * <b>Lectura perezosa.</b> No hay sondeo programado: la base de datos se lee cuando llega una petición a la API y la
  * última lectura tiene más de {@code resolve.demo.maintenance-poll} (5 s), una sola a la vez. Sin tráfico no hay
  * consultas, así que la base de datos (Neon) puede suspenderse; la primera petición tras una pausa ya lee la marca antes
- * de decidir. La readiness no consulta la base de datos por su cuenta: refleja la última lectura (las comprobaciones de
- * la plataforma, cada pocos segundos, mantendrían la base despierta). Entre lecturas la decisión se toma con el reloj de
+ * de decidir. Fuera de mantenimiento la readiness no consulta la base de datos por su cuenta: refleja la última lectura (las
+ * comprobaciones de la plataforma, cada pocos segundos, mantendrían la base despierta); mientras hay mantenimiento sí la
+ * relee (como mucho cada 5 s), para volver a UP al acabar sin esperar a una petición a la API. Entre lecturas la decisión se toma con el reloj de
  * la aplicación, con la diferencia con el de la base de datos medida en cada lectura. <b>Un fallo de lectura conserva la
  * marca anterior</b> (que caduca sola): una conexión cortada a mitad del {@code clean} no reabre la API sobre una base de
  * datos a medio migrar. Sin marca anterior, una tabla ausente o un fallo significan «sin mantenimiento».

@@ -120,15 +120,23 @@ jobs:
 
       - name: Smoke
         run: |
-          # La aplicación deja el mantenimiento en su siguiente lectura de la marca.
+          # Primero la API: la aplicación lee la marca al llegar una petición a /api (de forma perezosa), así que `/api/me`
+          # sin sesión es lo que le hace ver que el mantenimiento acabó. Se espera un 401 (la API abierta, sin 503 de
+          # mantenimiento ni 5xx); la máquina puede tardar en volver a enrutarse.
+          code=""
           for _ in $(seq 1 24); do
-            if curl -fsS "${DEMO_URL}/api/actuator/health/readiness" | grep -q '"status":"UP"'; then ready=1; break; fi
+            code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' "${DEMO_URL}/api/me" || true)"
+            [ "${code}" = "401" ] && break
+            sleep 5
+          done
+          [ "${code}" = "401" ] || { echo "::error::/api/me answers ${code:-nothing}, not 401, after the reset"; exit 1; }
+          # Después la readiness, que ya refleja esa lectura.
+          for _ in $(seq 1 12); do
+            if curl -fsS -m 10 "${DEMO_URL}/api/actuator/health/readiness" | grep -q '"status":"UP"'; then ready=1; break; fi
             sleep 5
           done
           [ "${ready:-}" = "1" ] || { echo "::error::readiness is not UP after the reset"; exit 1; }
           test "$(curl -s -o /dev/null -w '%{http_code}' "${DEMO_URL}/")" = "200"
-          # Sin sesión la API responde 401 (y no 503 de mantenimiento ni 5xx).
-          test "$(curl -s -o /dev/null -w '%{http_code}' "${DEMO_URL}/api/me")" = "401"
           # Los datos de demostración están: la base tiene las dos organizaciones sembradas.
           test "$(psql -tAc 'SELECT count(*) FROM organizations')" = "2"
         env:
