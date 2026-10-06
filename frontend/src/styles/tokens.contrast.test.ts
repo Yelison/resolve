@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest'
  * o de estado no textual (bordes, `--color-line`, `--color-disabled`, `--color-focus`, `--color-overlay`), que se
  * rigen por 1.4.11 (3:1) y no por 1.4.3.
  *
- * Texto de marca: `link` (referencia a `brand` en claro y a `blue-ink` en oscuro) es el token de los enlaces de
+ * Texto de marca: `link` (referencia a `blue-ink` en los dos temas) es el token de los enlaces de
  * ArticlePage y ArticleProse; `brand` ya no se pinta como texto. El hover del primario es el token `brand-hover`, no
  * una mezcla, para que este test lo vea.
  *
@@ -48,8 +48,6 @@ interface Pair {
   background: string
   /** Mínimo exigido: 4,5 (texto, 1.4.3) o 3 (no texto, 1.4.11). */
   min?: 3 | 4.5
-  /** Temas en los que se comprueba el par; por defecto, los dos. */
-  themes?: readonly ('light' | 'dark')[]
 }
 
 const PAIRS: readonly Pair[] = [
@@ -62,9 +60,7 @@ const PAIRS: readonly Pair[] = [
   { text: 'ink', background: 'amber-bg' },
   { text: 'muted', background: 'amber-bg' },
   { text: 'link', background: 'surface' },
-  // En claro `link` es `brand` (4,35:1 sobre bg): los enlaces solo van dentro de tarjetas surface (4,66:1), así que
-  // el par sobre bg se exige solo en oscuro. Decisión pendiente del propietario en la entrega de #65.
-  { text: 'link', background: 'bg', themes: ['dark'] },
+  { text: 'link', background: 'bg' },
   { text: 'nav-text', background: 'nav' },
   { text: 'nav-text', background: 'nav-active' },
   { text: 'nav-ink', background: 'nav' },
@@ -146,7 +142,7 @@ describe('tokens.css · contraste AA del texto', () => {
     ['dark', dark],
   ] as const) {
     describe(`tema ${themeName === 'light' ? 'claro' : 'oscuro'}`, () => {
-      for (const pair of PAIRS.filter((p) => p.themes?.includes(themeName) ?? true)) {
+      for (const pair of PAIRS) {
         const min = pair.min ?? 4.5
         const name = pair.min
           ? `${pair.text} sobre ${pair.background}, no texto ≥ 3:1`
