@@ -1,23 +1,23 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { readCsrfToken } from '../../api/client'
 import type { Me } from '../../api/schema'
-import { Menu, type MenuItem } from '../../components/ui'
+import { Menu, Tooltip, type MenuItem } from '../../components/ui'
+import type { SidebarProfile } from '../../components/ui/Sidebar/Sidebar'
 import { DemoUserSwitcher } from './DemoUserSwitcher'
 import { OrganizationSwitcher } from './OrganizationSwitcher'
-import styles from './session.module.css'
 import { useSessionActions } from './useSessionActions'
 
 export interface AccountMenuProps {
   me: Me
-  /** Avatar del `Topbar` (`userMenu`), que hace de contenido del botón. */
-  avatar: ReactNode
+  /** Caja del perfil del `Sidebar` (`profileMenu`): contenido y clase del botón que abre el menú. */
+  profile: SidebarProfile
 }
 
 /**
- * Menú de la cuenta en el `Topbar`: cambiar de organización (si hay varias), cerrar sesión, o, solo en desarrollo y
+ * Menú de la cuenta, en el perfil del `Sidebar` (expandido, colapsado o en el drawer móvil): cambiar de organización (si hay varias), cerrar sesión, o, solo en desarrollo y
  * sin sesión OIDC (no hay cookie `XSRF-TOKEN`: la operación /logout no existe), el selector de usuario de demostración.
  */
-export function AccountMenu({ me, avatar }: AccountMenuProps) {
+export function AccountMenu({ me, profile }: AccountMenuProps) {
   const [dialog, setDialog] = useState<'organization' | 'demo' | null>(null)
   const closeDialog = () => setDialog(null)
 
@@ -50,16 +50,27 @@ export function AccountMenu({ me, avatar }: AccountMenuProps) {
 
   return (
     <>
-      <Menu label="Cuenta" items={items}>
-        {(trigger) => (
-          <button
-            type="button"
-            className={styles.account}
-            aria-label={`Cuenta: ${me.user.name}, ${me.organization.name}`}
-            {...trigger}
-          >
-            {avatar}
-          </button>
+      {/* El menú se abre hacia arriba: el perfil está al pie del sidebar y `Menu` lo voltea si no cabe debajo. */}
+      <Menu label="Cuenta" items={items} placement="bottom-start">
+        {(menu) => (
+          // Colapsado solo se ve el avatar: el nombre va en un tooltip, que se aparta mientras el menú está abierto.
+          <Tooltip content={me.user.name} describe={false} disabled={!profile.collapsed || menu['aria-expanded']}>
+            {(tooltip) => (
+              <button
+                type="button"
+                className={profile.className}
+                aria-label={`Cuenta: ${me.user.name}, ${me.organization.name}`}
+                {...menu}
+                {...tooltip}
+                ref={(node) => {
+                  menu.ref(node)
+                  tooltip.ref(node)
+                }}
+              >
+                {profile.content}
+              </button>
+            )}
+          </Tooltip>
         )}
       </Menu>
       {dialog === 'organization' && <OrganizationSwitcher me={me} onClose={closeDialog} />}
@@ -69,9 +80,9 @@ export function AccountMenu({ me, avatar }: AccountMenuProps) {
 }
 
 /**
- * Lo que ocupa el lugar del menú mientras la sesión carga: el mismo avatar en un hueco del mismo tamaño que el botón,
- * sin acciones (sin sesión no se sabe qué ofrecer). Así los iconos de la barra no se mueven al llegar `/me`.
+ * Lo que ocupa el lugar del menú mientras la sesión carga: el mismo perfil en una caja del mismo tamaño que el botón,
+ * sin acciones (sin sesión no se sabe qué ofrecer). Así el sidebar no cambia de altura al llegar `/me`.
  */
-export function AccountMenuPlaceholder({ avatar }: { avatar: ReactNode }) {
-  return <span className={styles.account}>{avatar}</span>
+export function AccountMenuPlaceholder({ profile }: { profile: SidebarProfile }) {
+  return <div className={profile.className}>{profile.content}</div>
 }

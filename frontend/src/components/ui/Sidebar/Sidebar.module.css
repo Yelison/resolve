@@ -140,7 +140,35 @@
   display: flex;
   align-items: center;
   gap: var(--space-12);
+  width: 100%;
   min-width: 0;
+  min-height: var(--touch-target);
+  padding: var(--space-4) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.collapsed .profile {
+  justify-content: center;
+  width: var(--touch-target);
+  padding: 0;
+}
+
+button.profile {
+  cursor: pointer;
+  transition: background-color var(--duration-fast) ease;
+}
+
+button.profile:hover {
+  background: var(--color-nav-active);
+}
+
+button.profile:focus-visible {
+  outline-offset: -2px;
 }
 
 .profileText {

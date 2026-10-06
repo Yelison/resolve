@@ -489,6 +489,22 @@ export default function CatalogPage() {
             workspace="Acme Studio"
             user={{ name: 'Laura Méndez', role: 'Administradora' }}
             collapsed={sidebarCollapsed}
+            profileMenu={(profile) => (
+              <Menu
+                label="Cuenta de ejemplo"
+                placement="bottom-start"
+                items={[
+                  { id: 'profile', label: 'Mi perfil', onSelect: () => {} },
+                  { id: 'sign-out', label: 'Cerrar sesión', tone: 'danger', onSelect: () => {} },
+                ]}
+              >
+                {(trigger) => (
+                  <button type="button" className={profile.className} aria-label="Cuenta de Laura Méndez" {...trigger}>
+                    {profile.content}
+                  </button>
+                )}
+              </Menu>
+            )}
             action={{
               label: sidebarCollapsed ? 'Expandir menú' : 'Colapsar menú',
               kind: sidebarCollapsed ? 'expand' : 'collapse',
@@ -511,27 +527,6 @@ export default function CatalogPage() {
               onToggleTheme={toggle}
               onSearch={() => {}}
               onNotifications={() => {}}
-              userName="Laura Méndez"
-              userMenu={(avatar) => (
-                <Menu
-                  label="Cuenta de ejemplo"
-                  items={[
-                    { id: 'profile', label: 'Mi perfil', onSelect: () => {} },
-                    { id: 'sign-out', label: 'Cerrar sesión', tone: 'danger', onSelect: () => {} },
-                  ]}
-                >
-                  {(trigger) => (
-                    <button
-                      type="button"
-                      className={styles.demoAccount}
-                      aria-label="Cuenta de Laura Méndez"
-                      {...trigger}
-                    >
-                      {avatar}
-                    </button>
-                  )}
-                </Menu>
-              )}
             />
           </div>
         </div>
@@ -543,7 +538,6 @@ export default function CatalogPage() {
             onToggleTheme={toggle}
             onSearch={() => {}}
             onNotifications={() => {}}
-            userName="Laura Méndez"
             menuButton={{ expanded: false, controls: 'catalog-demo-menu', onClick: () => {} }}
           />
         </div>

@@ -58,7 +58,6 @@ describe('Topbar', () => {
           onToggleTheme={() => {}}
           onSearch={() => {}}
           onNotifications={() => {}}
-          userName="Yelisson Ortiz"
           menuButton={{ expanded: false, controls: 'drawer', onClick: () => {} }}
         />
       </MemoryRouter>,
