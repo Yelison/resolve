@@ -1,6 +1,6 @@
 import { MutationCache, QueryCache, QueryClient } from '@tanstack/react-query'
 import { ApiError, DEMO_USER_EVENT } from '../api/client'
-import { setDemoMaintenance } from './demoMaintenance'
+import { isDemoMaintenanceActive, setDemoMaintenance } from './demoMaintenance'
 import { isDemoMaintenance } from './mutationError'
 
 /** Reintenta fallos de red y errores 5xx; un 4xx no cambia al repetir la misma petición. */
@@ -13,7 +13,15 @@ export function shouldRetry(failureCount: number, error: unknown): boolean {
 const reportMaintenance = (error: unknown) => {
   if (isDemoMaintenance(error)) setDemoMaintenance(true)
 }
-const reportRecovered = () => setDemoMaintenance(false)
+/**
+ * Al volver la demostración, las vistas que fallaron durante el reinicio se piden de nuevo: «Reintentar» del aviso global
+ * relee `/me`, y sin esto la página que se quedó en su error seguiría ahí hasta que la persona la reintentara también.
+ */
+const reportRecovered = () => {
+  if (!isDemoMaintenanceActive()) return
+  setDemoMaintenance(false)
+  void queryClient.refetchQueries({ type: 'active', predicate: (query) => query.state.status === 'error' })
+}
 
 export const queryClient = new QueryClient({
   queryCache: new QueryCache({ onError: reportMaintenance, onSuccess: reportRecovered }),

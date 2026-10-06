@@ -1,13 +1,26 @@
 import { focusManager, onlineManager, type QueryClient } from '@tanstack/react-query'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useQuery } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { api, unwrap } from '../../api/client'
+import { customerKeys } from '../../features/customers/queries'
 import { setDemoMaintenance } from '../../lib/demoMaintenance'
 import { queryClient } from '../../lib/queryClient'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { AppShell } from './AppShell'
+
+/** Una vista con su propia consulta, para ver qué le pasa durante el reinicio de la demostración. */
+function Probe() {
+  const probe = useQuery({
+    queryKey: customerKeys.metrics(),
+    queryFn: () => unwrap(api.GET('/customers/metrics')),
+    retry: false,
+  })
+  return <h1>{probe.data ? 'Sondeo cargado' : probe.error ? 'Sondeo con error' : 'Sondeo cargando'}</h1>
+}
 
 function renderShell(path = '/tickets') {
   return renderShellWith(undefined, path).router
@@ -23,6 +36,7 @@ function renderShellWith(client?: QueryClient, path = '/tickets') {
           { index: true, element: <h1>Resumen</h1>, handle: { crumb: 'Resumen' } },
           { path: 'tickets', element: <h1>Tickets</h1>, handle: { crumb: 'Tickets' } },
           { path: 'clientes', element: <h1>Clientes</h1>, handle: { crumb: 'Clientes' } },
+          { path: 'sondeo', element: <Probe />, handle: { crumb: 'Sondeo' } },
         ],
       },
       { path: '/entrar', element: <h1>Entrar</h1> },
@@ -359,5 +373,28 @@ describe('AppShell en la demostración pública', () => {
       expect(screen.getByRole('button', { name: 'Reintentar la conexión con la demostración' })).toBeEnabled(),
     )
     expect(screen.getByText('Estamos reiniciando la demostración; vuelve en un minuto.')).toBeInTheDocument()
+  })
+
+  it('al volver la demostración, la vista que falló durante el reinicio se recupera con «Reintentar»', async () => {
+    let reset = true
+    mockApi({
+      'GET /api/me': { body: demoMe },
+      'GET /api/customers/metrics': () =>
+        reset
+          ? {
+              status: 503,
+              headers: { 'Retry-After': '60' },
+              body: { status: 503, title: 'Reinicio de la demostración en curso' },
+            }
+          : { body: { total: 0, active: 0, newThisMonth: 0, withOpenTickets: 0 } },
+    })
+    renderShellWith(queryClient, '/sondeo')
+    expect(await screen.findByRole('heading', { name: 'Sondeo con error' })).toBeInTheDocument()
+    const notice = await screen.findByRole('status')
+
+    reset = false
+    await userEvent.click(within(notice).getByRole('button', { name: 'Reintentar la conexión con la demostración' }))
+    expect(await screen.findByRole('heading', { name: 'Sondeo cargado' })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })
