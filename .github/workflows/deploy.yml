@@ -30,8 +30,10 @@ jobs:
   idp-changes:
     name: Did the identity provider change?
     # El mismo control que el resto. `workflow_run` no admite filtro de rutas: se compara el commit probado con su padre
-    # (un push a main es un squash o una fusión, y el padre es main antes de él). Un push de varios commits no
-    # tocados por el último se salta; para eso está la ejecución manual.
+    # (un push a main es un squash o una fusión, y el padre es main antes de él). Se pierde el cambio si un push de varios
+    # commits lo tocó en uno anterior, o si la ejecución que lo traía quedó pendiente en el grupo de concurrencia y la
+    # sustituyó otra posterior que no lo toca: entonces el IdP se queda en la imagen anterior y el flujo sale en verde. La
+    # salida es la ejecución manual (docs/deploy/README.md).
     if: vars.DEPLOY_ENABLED == 'true' && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     timeout-minutes: 5
