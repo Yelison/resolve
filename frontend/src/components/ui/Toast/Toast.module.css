@@ -29,6 +29,10 @@
   color: var(--color-green-ink);
 }
 
+.info .icon {
+  color: var(--color-blue-ink);
+}
+
 .error .icon {
   color: var(--color-red-ink);
 }

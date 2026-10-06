@@ -32,16 +32,19 @@ function changedNotice(source: Source, previous: Me, current: Me) {
   const personChanged = previous.user.id !== current.user.id
   if (source === 'return') {
     return {
+      tone: 'info' as const,
       title: `Entraste como ${current.user.name} en ${current.organization.name}`,
       description: 'Lo que tenías abierto se descartó para no mezclar datos de otra sesión.',
     }
   }
   return personChanged
     ? {
+        tone: 'info' as const,
         title: `Ahora usas Resolve como ${current.user.name} en ${current.organization.name}`,
         description: 'Cambió en otra pestaña. Lo que tenías abierto se descartó para no mezclar datos de otra sesión.',
       }
     : {
+        tone: 'info' as const,
         title: `Cambiaste a ${current.organization.name} en otra pestaña`,
         description: 'Lo que tenías abierto se descartó para no mezclar datos de la otra organización.',
       }

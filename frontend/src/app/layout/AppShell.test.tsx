@@ -96,6 +96,39 @@ describe('AppShell en móvil', () => {
   })
 })
 
+describe('AppShell en escritorio', () => {
+  beforeEach(() => {
+    mockApi({ 'GET /api/me': { body: adminMe } })
+    // Con todas las media queries coincidiendo, el shell usa el sidebar y la barra superior completa.
+    vi.spyOn(window, 'matchMedia').mockImplementation(
+      (query) =>
+        ({
+          matches: true,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          addListener: () => {},
+          removeListener: () => {},
+          dispatchEvent: () => false,
+        }) as MediaQueryList,
+    )
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('el aviso de notificaciones no disponibles es informativo, no de éxito', async () => {
+    renderShell()
+    await userEvent.click(await screen.findByRole('button', { name: 'Notificaciones' }))
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    const toast = within(region).getByText('Notificaciones no disponibles').closest('div[class*="toast"]')
+    expect(toast?.className).toMatch(/\binfo\b/)
+    expect(toast?.className).not.toMatch(/\bsuccess\b/)
+  })
+})
+
 describe('AppShell para clientes', () => {
   afterEach(() => {
     vi.restoreAllMocks()

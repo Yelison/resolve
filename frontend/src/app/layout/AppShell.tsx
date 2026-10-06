@@ -161,7 +161,11 @@ function AppFrame() {
           onToggleTheme={theme.toggle}
           onSearch={openSearch}
           onNotifications={() =>
-            toast.show({ title: 'Notificaciones no disponibles', description: 'Llegarán con la API de eventos.' })
+            toast.show({
+              tone: 'info',
+              title: 'Notificaciones no disponibles',
+              description: 'Llegarán con la API de eventos.',
+            })
           }
           userName={userName}
           // Sin la sesión cargada no se ofrece ninguna acción de cuenta, pero el hueco ya tiene el tamaño del botón.

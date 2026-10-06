@@ -287,7 +287,11 @@ export default function CatalogPage() {
         </div>
         <Upload
           onFiles={(files) =>
-            toast.show({ title: `${files.length} archivo(s) listos`, description: 'Demostración: no se suben.' })
+            toast.show({
+              tone: 'info',
+              title: `${files.length} archivo(s) listos`,
+              description: 'Demostración: no se suben.',
+            })
           }
         />
       </Section>
@@ -325,6 +329,18 @@ export default function CatalogPage() {
             }
           >
             Mostrar error
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() =>
+              toast.show({
+                tone: 'info',
+                title: 'Notificaciones no disponibles',
+                description: 'Llegarán con la API de eventos.',
+              })
+            }
+          >
+            Mostrar aviso informativo
           </Button>
         </div>
         <div className={styles.grid}>
@@ -592,7 +608,11 @@ export default function CatalogPage() {
           mode={mode}
           onModeChange={setMode}
           onSubmit={() => {
-            toast.show({ title: 'Demostración', description: 'El envío no está conectado a un servidor.' })
+            toast.show({
+              tone: 'info',
+              title: 'Demostración',
+              description: 'El envío no está conectado a un servidor.',
+            })
             setDraft('')
           }}
           onAttach={() => {}}
