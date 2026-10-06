@@ -3,6 +3,7 @@ import { Outlet, useLocation, useMatches, useNavigate } from 'react-router'
 import { Breadcrumb, Sidebar, Topbar, useToast } from '../../components/ui'
 import { useModalDialog } from '../../components/ui/shared/useModalDialog'
 import { useDemoMaintenance } from '../../lib/demoMaintenance'
+import { isDemoMaintenance } from '../../lib/mutationError'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import { AccountMenu, AccountMenuPlaceholder } from '../../features/session/AccountMenu'
 import { useMe } from '../../features/session/queries'
@@ -51,6 +52,9 @@ function AppFrame() {
   const sessionFailed = !me.data && me.errorUpdateCount > 0
   const [sessionError, setSessionError] = useState<unknown>(null)
   if (me.error && me.error !== sessionError) setSessionError(me.error)
+  // Abrir la aplicación durante el reinicio de la demostración: /me no tiene datos y recibe ese 503. No es un fallo de
+  // sesión que explicar con la página de error (y su propio «Reintentar»): el aviso global ya lo dice y relee /me.
+  const resetting = sessionFailed && isDemoMaintenance(sessionError)
   // Solo se anuncia el fallo del reintento que pidió el usuario (un fallo más que al pulsar); los automáticos, p. ej.
   // al volver la conexión, no.
   const [requestedAt, setRequestedAt] = useState<number | null>(null)
@@ -175,9 +179,11 @@ function AppFrame() {
             isTabletUp ? undefined : { expanded: drawerOpen, controls: drawerId, onClick: () => setDrawerOpen(true) }
           }
         />
-        {maintenance && <DemoMaintenanceNotice onRetry={() => void me.refetch()} retrying={me.isFetching} />}
+        {(maintenance || resetting) && (
+          <DemoMaintenanceNotice onRetry={() => void me.refetch()} retrying={me.isFetching} />
+        )}
         <main ref={mainRef} id="contenido" className={styles.content} tabIndex={-1}>
-          {sessionFailed ? (
+          {resetting ? null : sessionFailed ? (
             <SessionErrorPage
               error={sessionError}
               onRetry={() => {

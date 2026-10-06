@@ -89,3 +89,23 @@ test('al llegar /me el aviso aparece sin mover el contenido', async ({ page }) =
   expect((await main.boundingBox())!.y).toBe(before)
   expect((await page.locator('header').first().boundingBox())!.y).toBe(topbarBefore)
 })
+
+for (const width of [320, 1440]) {
+  test(`al tabular, el control enfocado no queda bajo el aviso · ${width}px`, async ({ page }) => {
+    await openDemo(page, '/tickets', 'light', width)
+    await expect(page.getByRole('link', { name: /Ticket|#/ }).first()).toBeVisible()
+    const bannerTop = (await page.getByRole('region', { name: NAME }).boundingBox())!.y
+    const obscured: string[] = []
+    for (let step = 0; step < 60; step++) {
+      await page.keyboard.press('Tab')
+      const rect = await page.evaluate(() => {
+        const active = document.activeElement
+        if (!active || active === document.body) return null
+        const { top, bottom } = active.getBoundingClientRect()
+        return { top, bottom, label: active.getAttribute('aria-label') ?? active.textContent?.slice(0, 40) ?? '' }
+      })
+      if (rect && rect.bottom > bannerTop && rect.top < 900) obscured.push(`${step}: ${rect.label}`)
+    }
+    expect(obscured, 'los controles enfocados quedan por encima del aviso').toEqual([])
+  })
+}

@@ -318,6 +318,29 @@ describe('AppShell en la demostración pública', () => {
     await userEvent.click(within(notice).getByRole('button', { name: 'Reintentar la conexión con la demostración' }))
     await waitFor(() => expect(meCalls()).toBe(before + 1))
     await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument())
+    // El aviso se fue con el foco en «Reintentar»: el foco pasa al título, nunca a `body`.
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Tickets' })).toHaveFocus())
+  })
+
+  it('abrir la aplicación durante el reinicio muestra solo el aviso global, no el error de sesión', async () => {
+    const fetchSpy = mockApi({
+      'GET /api/me': {
+        status: 503,
+        headers: { 'Retry-After': '60' },
+        body: { status: 503, title: 'Reinicio de la demostración en curso' },
+      },
+    })
+    renderShell()
+    const notice = await screen.findByRole('status')
+    expect(within(notice).getByText('Estamos reiniciando la demostración; vuelve en un minuto.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'No pudimos cargar tu sesión' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Reintentar/ })).toHaveLength(1)
+
+    fetchSpy.mockImplementation(async () => Response.json(demoMe))
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar la conexión con la demostración' }))
+    expect(await screen.findByRole('heading', { name: 'Tickets' })).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Demostración pública' })).toBeInTheDocument()
   })
 
   it('si la demostración sigue reiniciando, el aviso se queda tras reintentar', async () => {
