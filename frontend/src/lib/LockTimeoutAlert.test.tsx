@@ -164,6 +164,47 @@ describe('LockTimeoutAlert', () => {
     expect(screen.getByRole('heading', { name: 'Ticket' })).toHaveFocus()
   })
 
+  it('dentro de un diálogo abierto, el foco va a su aviso de error y no al título de la página', () => {
+    const view = (error: unknown, pending: boolean, generic = false) => (
+      <>
+        <h1>Cliente</h1>
+        <dialog open>
+          <LockTimeoutAlert {...props} error={error} pending={pending} />
+          {generic && <div role="alert">No se pudo archivar el cliente</div>}
+          <button>Archivar cliente</button>
+        </dialog>
+      </>
+    )
+    const { rerender } = render(view(busy(), false))
+    screen.getByRole('button', { name: 'Reintentar guardar el ticket' }).focus()
+    rerender(view(null, true))
+    rerender(view(null, false, true))
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('alert')).toHaveFocus()
+  })
+
+  it('dentro de un diálogo sin aviso de error, el foco va a su primer control', () => {
+    const view = (error: unknown, pending: boolean) => (
+      <>
+        <h1>Cliente</h1>
+        <dialog open>
+          <LockTimeoutAlert {...props} error={error} pending={pending} />
+          <button>Cancelar</button>
+        </dialog>
+      </>
+    )
+    const { rerender } = render(view(busy(), false))
+    screen.getByRole('button', { name: 'Reintentar guardar el ticket' }).focus()
+    rerender(view(null, true))
+    rerender(view(null, false))
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveFocus()
+  })
+
   it('no mueve el foco si se va estando en otro sitio', () => {
     const { rerender } = render(
       <>

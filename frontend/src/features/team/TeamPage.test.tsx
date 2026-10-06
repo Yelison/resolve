@@ -558,6 +558,8 @@ describe('TeamPage con un 503 de bloqueo', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Guardar rol' }))
     await retryAfterLockTimeout(user, 'Reintentar cambiar el rol')
     expect(await within(dialog).findByText('Debe quedar al menos un administrador activo.')).toBeInTheDocument()
+    // El aviso de bloqueo se fue con el foco dentro: sigue en el diálogo, no cae en `body`.
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement))
     expect(
       within(dialog).queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
     ).not.toBeInTheDocument()
@@ -600,6 +602,7 @@ describe('TeamPage con un 503 de bloqueo', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Retirar del equipo' }))
     await retryAfterLockTimeout(user, 'Reintentar retirar al miembro')
     expect(await within(dialog).findByText('Ese miembro ya no existe.')).toBeInTheDocument()
+    await waitFor(() => expect(dialog).toContainElement(document.activeElement as HTMLElement))
     expect(
       within(dialog).queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
     ).not.toBeInTheDocument()

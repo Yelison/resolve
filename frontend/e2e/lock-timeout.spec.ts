@@ -71,3 +71,41 @@ test.describe('503 de bloqueo · «Reintentar»', () => {
     }
   }
 })
+
+test.describe('503 de bloqueo · foco en un diálogo', () => {
+  for (const width of [320, 1440]) {
+    test(`si el reintento falla con otro error, el foco sigue dentro del diálogo · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      let sent = 0
+      await page.route('**/api/customers/c-maria/archive', async (route) => {
+        const locked = sent++ === 0
+        await route.fulfill({
+          status: locked ? 503 : 500,
+          contentType: 'application/problem+json',
+          body: JSON.stringify(
+            locked
+              ? { status: 503, title: 'Recurso ocupado', detail: 'Otra operación está modificando este recurso.' }
+              : { status: 500, title: 'Error interno' },
+          ),
+        })
+      })
+      await page.goto('/clientes/c-maria')
+      await page.getByRole('button', { name: 'Archivar', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: '¿Archivar a este cliente?' })
+      await dialog.getByRole('button', { name: 'Archivar cliente' }).click()
+
+      const retry = dialog.getByRole('button', { name: 'Reintentar archivar el cliente' })
+      // El foco se queda en el botón del diálogo; la persona llega a «Reintentar» con el teclado.
+      await expect(retry).not.toHaveAttribute('aria-disabled', 'true', { timeout: 3000 })
+      await retry.focus()
+      await expect(retry).toBeFocused()
+      await page.keyboard.press('Enter')
+
+      await expect(dialog.getByText(LOCK_MESSAGE)).toBeHidden()
+      await expect(dialog).toBeVisible()
+      // El título de la página queda fuera del diálogo modal: el foco no puede ir allí ni caer en `body`.
+      expect(await page.evaluate(() => document.activeElement !== document.body)).toBe(true)
+      expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true)
+    })
+  }
+})
