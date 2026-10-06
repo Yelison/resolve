@@ -1,6 +1,9 @@
 package com.resolve.api.common.web;
 
 import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayDeque;
@@ -122,10 +125,38 @@ class WriteRateLimitFilter extends OncePerRequestFilter {
 		if (this.clientIpHeader != null) {
 			String value = request.getHeader(this.clientIpHeader);
 			if (value != null && IP_LITERAL.matcher(value.strip()).matches()) {
-				return value.strip();
+				String key = bucketKey(value.strip());
+				if (key != null) {
+					return key;
+				}
 			}
 		}
-		return connectionAddress(request);
+		String socket = connectionAddress(request);
+		String key = bucketKey(socket);
+		return (key != null) ? key : socket;
+	}
+
+	/**
+	 * La clave del cubo, o {@code null} si no es una dirección. Una IPv6 se cuenta por su prefijo /64 (el tamaño que recibe
+	 * un abonado o un VPS): si no, quien tiene un /64 enviaría cada escritura desde una dirección distinta y no llegaría
+	 * nunca a 60 en ningún cubo, además de expulsar los cubos de otros clientes de la tabla acotada. Solo se interpreta lo
+	 * que contiene «:», que nunca es un nombre de host: no hay consulta DNS.
+	 */
+	static @Nullable String bucketKey(String address) {
+		if (address.indexOf(':') < 0) {
+			return address;
+		}
+		try {
+			if (InetAddress.getByName(address) instanceof Inet6Address ipv6) {
+				byte[] bytes = ipv6.getAddress();
+				return String.format("%02x%02x:%02x%02x:%02x%02x:%02x%02x::/64", bytes[0], bytes[1], bytes[2], bytes[3],
+						bytes[4], bytes[5], bytes[6], bytes[7]);
+			}
+			return address;
+		}
+		catch (UnknownHostException invalid) {
+			return null;
+		}
 	}
 
 	/**

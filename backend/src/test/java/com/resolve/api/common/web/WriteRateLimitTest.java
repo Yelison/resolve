@@ -72,6 +72,17 @@ class WriteRateLimitTest extends ApiIntegrationTest {
 	}
 
 	@Test
+	void ipv6AddressesOfTheSame64ShareABucket() throws Exception {
+		for (int i = 1; i <= 60; i++) {
+			this.mvc.perform(write("2001:db8:0:1::" + Integer.toHexString(i))).andExpect(status().isUnauthorized());
+		}
+
+		this.mvc.perform(write("2001:db8:0:1:ffff::1")).andExpect(status().isTooManyRequests());
+		// Otro /64 tiene su propio cubo.
+		this.mvc.perform(write("2001:db8:0:2::1")).andExpect(status().isUnauthorized());
+	}
+
+	@Test
 	void aValueThatIsNotAnAddressFallsBackToTheConnectionInsteadOfOpeningABucketPerValue() throws Exception {
 		for (int i = 0; i < 60; i++) {
 			this.mvc.perform(write("valor-" + i).header("X-Forwarded-For", "9.9.9." + i))
