@@ -25,6 +25,8 @@ export interface SessionOptions {
    * con el `type` del motivo (membresía retirada o ninguna membresía) hasta que cierra sesión.
    */
   refused?: 'access-deactivated' | 'no-membership'
+  /** La instalación es la demostración pública (`organization.demo`): el shell muestra su aviso. */
+  demo?: boolean
 }
 
 /** Token que la API simulada entrega en la cookie `XSRF-TOKEN` con cada GET /me y que exige en las escrituras. */
@@ -60,6 +62,7 @@ export function sessionMock(
       user: options.longNames ? { ...current.user, name: long('Nombre larguísimo de una persona') } : current.user,
       organization: {
         ...current.organization,
+        ...(options.demo !== undefined ? { demo: options.demo } : {}),
         // La organización de la fixture por defecto sigue siendo `org-1`: solo cambia al elegir otra de la lista.
         ...(options.organizations ? { id: active.id, name: active.name } : {}),
         ...(options.longNames ? { name: long(active.name) } : {}),

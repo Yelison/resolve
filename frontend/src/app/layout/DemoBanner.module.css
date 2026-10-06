@@ -1,0 +1,12 @@
+.banner {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding: var(--space-8) var(--page-gutter);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-blue-bg);
+  color: var(--color-blue-ink);
+  font: var(--font-caption);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
