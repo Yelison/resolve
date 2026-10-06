@@ -83,7 +83,8 @@ export function customersMock(): MockFeature & { customerRef: (id: string) => Cu
       const q = url.searchParams.get('q')?.toLowerCase()
       const company = url.searchParams.get('company')
       const archived = url.searchParams.get('archived') === 'true'
-      const items = [...state.values()]
+      const size = Number(url.searchParams.get('size')) || 20
+      const matches = [...state.values()]
         .map(summaryOf)
         .filter(
           (customer) =>
@@ -91,7 +92,14 @@ export function customersMock(): MockFeature & { customerRef: (id: string) => Cu
             (!company || customer.company === company) &&
             (!q || `${customer.name} ${customer.email} ${customer.company ?? ''}`.toLowerCase().includes(q)),
         )
-      return json(route, { items, page: 0, size: 20, totalItems: items.length, totalPages: items.length ? 1 : 0 })
+      const items = matches.slice(0, size)
+      return json(route, {
+        items,
+        page: 0,
+        size,
+        totalItems: matches.length,
+        totalPages: Math.ceil(matches.length / size),
+      })
     }
     if (method === 'POST' && path === '/customers') {
       const body = request.postDataJSON() as { name: string; email: string; company?: string | null }

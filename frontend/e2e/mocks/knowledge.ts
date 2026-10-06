@@ -131,14 +131,22 @@ export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = cre
       const q = url.searchParams.get('q')?.toLowerCase()
       const category = url.searchParams.get('category')
       const status = url.searchParams.get('status')
-      const items = currentArticles().filter(
+      const size = Number(url.searchParams.get('size')) || 20
+      const matches = currentArticles().filter(
         (article) =>
           readable(article) &&
           (!category || article.category.slug === category) &&
           (!status || article.status === status) &&
           (!q || `${article.title} ${article.category.name}`.toLowerCase().includes(q)),
       )
-      return json(route, { items, page: 0, size: 20, totalItems: items.length, totalPages: items.length ? 1 : 0 })
+      const items = matches.slice(0, size)
+      return json(route, {
+        items,
+        page: 0,
+        size,
+        totalItems: matches.length,
+        totalPages: Math.ceil(matches.length / size),
+      })
     }
     if (method === 'POST' && path === '/knowledge/articles') {
       if (role === 'customer') return problem(route, 403, 'Prohibido')
