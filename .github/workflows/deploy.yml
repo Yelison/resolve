@@ -5,11 +5,16 @@ name: Deploy
 #
 # Se usa workflow_run y no un job `needs` dentro de ci.yml: así este flujo no toca ci.yml (que tiene otros dueños), la CI
 # de los pull requests nunca despliega, y el SHA desplegado es exactamente el que la CI comprobó (head_sha).
+#
+# El proveedor de identidad (Keycloak, deploy/keycloak/) se publica y despliega en las mismas condiciones, pero solo cuando
+# cambia deploy/keycloak/** o a mano (workflow_dispatch, desde main). La API depende de él al arrancar (descubre el
+# emisor), así que el despliegue de la API espera al del IdP cuando este se ejecuta.
 on:
   workflow_run:
     workflows: [CI]
     types: [completed]
     branches: [main]
+  workflow_dispatch:
 
 permissions: {}
 
@@ -22,6 +27,110 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  idp-changes:
+    name: Did the identity provider change?
+    # El mismo control que el resto. `workflow_run` no admite filtro de rutas: se compara el commit probado con su padre
+    # (un push a main es un squash o una fusión, y el padre es main antes de él). Un push de varios commits no
+    # tocados por el último se salta; para eso está la ejecución manual.
+    if: vars.DEPLOY_ENABLED == 'true' && ((github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Compare deploy/keycloak with the previous commit
+        id: diff
+        run: |
+          if [ "${EVENT}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"; echo "manual run"; exit 0
+          fi
+          if git diff --quiet HEAD^ HEAD -- deploy/keycloak; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"; echo "deploy/keycloak is unchanged"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"; git diff --stat HEAD^ HEAD -- deploy/keycloak
+          fi
+        env:
+          EVENT: ${{ github.event_name }}
+
+  idp-image:
+    name: Build and publish the identity provider image
+    needs: idp-changes
+    if: vars.DEPLOY_ENABLED == 'true' && needs.idp-changes.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - name: Image name (GHCR requires lowercase)
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}-idp" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: deploy/keycloak/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:${{ github.event.workflow_run.head_sha || github.sha }}
+            ${{ steps.name.outputs.image }}:latest
+          cache-from: type=gha,scope=idp
+          cache-to: type=gha,mode=max,scope=idp
+
+  idp-deploy:
+    name: Deploy the identity provider to Fly.io
+    needs: [idp-changes, idp-image]
+    # El mismo control, propio y no heredado de `needs`.
+    if: vars.DEPLOY_ENABLED == 'true' && needs.idp-changes.outputs.changed == 'true' && needs.idp-image.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: demo
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # 1.5
+      - name: Deploy the image tagged with the SHA
+        run: flyctl deploy --config deploy/keycloak/fly.toml --image "${IMAGE}:${SHA}" --strategy immediate
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_IDP }}
+          IMAGE: ${{ needs.idp-image.outputs.image }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      # La salud llega a UP unos segundos antes de que termine la importación del realm (primer arranque): lo que cuenta
+      # es que el realm anuncie el emisor que la API espera.
+      - name: The realm announces the issuer the API expects
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl -fsS "${IDP_URL}/realms/resolve/.well-known/openid-configuration" | grep -q "\"issuer\":\"${IDP_URL}/realms/resolve\""; then
+              echo "issuer OK after ${attempt} attempts"; exit 0
+            fi
+            sleep 10
+          done
+          echo "the realm did not announce ${IDP_URL}/realms/resolve in 5 minutes" >&2; exit 1
+        env:
+          IDP_URL: ${{ vars.IDP_URL }}
+
   image:
     name: Build and publish the image
     if: vars.DEPLOY_ENABLED == 'true' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
@@ -58,10 +167,12 @@ jobs:
 
   deploy:
     name: Deploy to Fly.io
-    needs: image
-    # El mismo control que `image`, propio y no heredado de `needs`: un cambio futuro (`if: always()`, quitar `needs`) no
-    # puede desplegar sin la variable ni con una CI que falló.
-    if: vars.DEPLOY_ENABLED == 'true' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main'
+    # Espera al IdP cuando se ejecuta (la API descubre el emisor al arrancar) y no corre si el del IdP falló o se canceló. Si el IdP no
+    # cambió, `idp-deploy` queda omitido y la API despliega igual.
+    needs: [image, idp-deploy]
+    # El mismo control que `image`, propio y no heredado de `needs`: `!cancelled()` hace falta para correr con un `needs`
+    # omitido, y por eso se repiten las condiciones de la variable y de la CI en vez de fiarse de ellas.
+    if: ${{ !cancelled() && needs.image.result == 'success' && (needs.idp-deploy.result == 'success' || needs.idp-deploy.result == 'skipped') && vars.DEPLOY_ENABLED == 'true' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: demo
