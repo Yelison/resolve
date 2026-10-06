@@ -1,11 +1,12 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ActivityFeedItem, ReportSummary } from '../../api/schema'
 import { adminMe, mockApi } from '../../test/api'
-import { renderWithProviders } from '../../test/render'
+import { createTestQueryClient, renderWithProviders } from '../../test/render'
 import { metrics, page, summary } from '../../test/ticketFixtures'
+import { ticketKeys } from '../tickets/queries'
 import { OverviewPage } from './OverviewPage'
 
 afterEach(() => {
@@ -48,7 +49,7 @@ const baseRoutes = {
   'GET /api/tickets': { body: page([summary(), summary({ id: 't-1047', number: 1047, subject: 'Error de pago' })]) },
 }
 
-function renderOverview() {
+function renderOverview(queryClient = createTestQueryClient()) {
   const router = createMemoryRouter(
     [
       { path: '/', element: <OverviewPage /> },
@@ -58,7 +59,7 @@ function renderOverview() {
     ],
     { initialEntries: ['/'] },
   )
-  renderWithProviders(<RouterProvider router={router} />)
+  renderWithProviders(<RouterProvider router={router} />, queryClient)
   return router
 }
 
@@ -239,5 +240,47 @@ describe('OverviewPage', () => {
         expect(screen.getByRole(role, { name: block })).toHaveFocus()
       },
     )
+
+    it('no roba el foco si la persona lo movió a otro control mientras llegaba el reintento', async () => {
+      let release: () => void = () => {}
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      let failing = true
+      mockApi({
+        ...baseRoutes,
+        'GET /api/tickets/metrics': async () => {
+          if (!failing) await gate
+          return failing ? problem : baseRoutes['GET /api/tickets/metrics']
+        },
+        'GET /api/tickets/activity': problem,
+      })
+      renderOverview()
+      const metricsRetry = await screen.findByRole('button', { name: 'Reintentar cargar las métricas' })
+      const activityRetry = await screen.findByRole('button', { name: 'Reintentar cargar la actividad reciente' })
+      failing = false
+      await userEvent.click(metricsRetry)
+      // Mientras la respuesta está retenida, la persona pasa a otro control.
+      act(() => activityRetry.focus())
+      release()
+      expect(await screen.findByRole('group', { name: 'Métricas del resumen' })).toBeInTheDocument()
+      expect(activityRetry).toHaveFocus()
+    })
+
+    it('un reintento que falla no deja pendiente el foco para una recuperación posterior', async () => {
+      let failing = true
+      const queryClient = createTestQueryClient()
+      mockApi({
+        ...baseRoutes,
+        'GET /api/tickets/metrics': () => (failing ? problem : baseRoutes['GET /api/tickets/metrics']),
+      })
+      renderOverview(queryClient)
+      await userEvent.click(await screen.findByRole('button', { name: 'Reintentar cargar las métricas' }))
+      // El reintento falla: el botón sigue ahí. Después la consulta se recupera sin que nadie pulse nada.
+      expect(await screen.findByRole('button', { name: 'Reintentar cargar las métricas' })).toBeInTheDocument()
+      failing = false
+      ;(document.activeElement as HTMLElement | null)?.blur()
+      await act(() => queryClient.refetchQueries({ queryKey: ticketKeys.metrics() }))
+      expect(await screen.findByRole('group', { name: 'Métricas del resumen' })).toBeInTheDocument()
+      expect(document.body).toHaveFocus()
+    })
   })
 })
