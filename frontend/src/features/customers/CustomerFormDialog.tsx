@@ -41,7 +41,7 @@ export function CustomerFormDialog(props: CustomerFormDialogProps) {
       description={
         props.mode === 'create'
           ? 'Guarda sus datos de contacto para vincularlos a sus tickets.'
-          : 'Solo se envían los campos que cambies.'
+          : 'Actualiza sus datos de contacto.'
       }
     >
       {props.mode === 'create' ? (

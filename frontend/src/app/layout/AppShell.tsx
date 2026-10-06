@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Outlet, useLocation, useMatches, useNavigate } from 'react-router'
-import { Breadcrumb, Sidebar, Topbar, useToast } from '../../components/ui'
+import { Breadcrumb, Sidebar, Topbar } from '../../components/ui'
 import type { SidebarProfile } from '../../components/ui/Sidebar/Sidebar'
 import { useModalDialog } from '../../components/ui/shared/useModalDialog'
 import { useDemoMaintenance } from '../../lib/demoMaintenance'
@@ -42,7 +42,6 @@ function AppFrame() {
   const isDesktop = useMediaQuery('(min-width: 1200px)')
   const sidebar = useSidebarPreference()
   const theme = useTheme()
-  const toast = useToast()
   const drawerId = useId()
   const me = useMe()
   const maintenance = useDemoMaintenance()
@@ -171,13 +170,6 @@ function AppFrame() {
           theme={theme.resolved}
           onToggleTheme={theme.toggle}
           onSearch={openSearch}
-          onNotifications={() =>
-            toast.show({
-              tone: 'info',
-              title: 'Notificaciones no disponibles',
-              description: 'Llegarán con la API de eventos.',
-            })
-          }
           breadcrumb={
             <Breadcrumb
               items={[

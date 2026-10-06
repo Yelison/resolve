@@ -31,6 +31,13 @@ afterEach(() => {
 })
 
 describe('CustomerFormDialog', () => {
+  it('en edición describe el diálogo sin hablar de lo que se envía', () => {
+    mockApi({})
+    renderDialog({ mode: 'edit' })
+    expect(screen.getByText('Actualiza sus datos de contacto.')).toBeInTheDocument()
+    expect(screen.queryByText(/Solo se envían/)).not.toBeInTheDocument()
+  })
+
   it('valida el nombre y el correo antes de enviar y enfoca el primer error', async () => {
     const fetchSpy = mockApi({})
     renderDialog({ mode: 'create' })

@@ -38,7 +38,7 @@ test.describe('configuración', () => {
     await expect(page).toHaveURL(/\/configuracion\/permisos$/)
     const table = page.getByRole('table')
     await expect(table.getByRole('columnheader')).toHaveText(['Capacidad', 'Administrador', 'Agente', 'Cliente'])
-    await expect(page.getByText('Los permisos se validan también en el servidor')).toBeVisible()
+    await expect(page.getByText(/servidor/)).toHaveCount(0)
     await expect(page.getByRole('button', { name: /Guardar/ })).toHaveCount(0)
   })
 

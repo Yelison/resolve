@@ -23,8 +23,6 @@ export interface TopbarProps {
   onToggleTheme: () => void
   /** Se llama al pulsar el botón de búsqueda; no se muestra en la barra móvil. */
   onSearch: () => void
-  /** Se llama al pulsar el botón de notificaciones; no se muestra en la barra móvil. */
-  onNotifications: () => void
   /** Presente en la barra móvil: abre el menú lateral y muestra la marca. */
   menuButton?: TopbarMenuButton
   /** Clase adicional del encabezado. */
@@ -34,15 +32,7 @@ export interface TopbarProps {
 /** El atajo se muestra con la tecla de cada sistema; el manejador acepta Ctrl y ⌘ en ambos. */
 const shortcutLabel = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K'
 
-export function Topbar({
-  breadcrumb,
-  theme,
-  onToggleTheme,
-  onSearch,
-  onNotifications,
-  menuButton,
-  className,
-}: TopbarProps) {
+export function Topbar({ breadcrumb, theme, onToggleTheme, onSearch, menuButton, className }: TopbarProps) {
   const compact = Boolean(menuButton)
 
   return (
@@ -77,7 +67,6 @@ export function Topbar({
           label={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
           onClick={onToggleTheme}
         />
-        {!compact && <IconButton icon="bell" label="Notificaciones" onClick={onNotifications} />}
       </div>
     </header>
   )

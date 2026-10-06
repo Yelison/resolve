@@ -109,9 +109,9 @@ describe('ToastProvider', () => {
   })
 
   it('el tono info muestra la campana con su clase y no la marca de éxito', async () => {
-    const user = renderWithToast({ tone: 'info', title: 'Notificaciones no disponibles' })
+    const user = renderWithToast({ tone: 'info', title: 'Aviso informativo' })
     await user.click(screen.getByRole('button', { name: 'Mostrar' }))
-    const toast = screen.getByText('Notificaciones no disponibles').closest('div[class*="toast"]')
+    const toast = screen.getByText('Aviso informativo').closest('div[class*="toast"]')
     expect(toast?.className).toMatch(/\binfo\b/)
     const paths = Array.from(toast?.querySelectorAll('svg path') ?? []).map((path) => path.getAttribute('d'))
     expect(paths).toEqual(iconPaths.bell)

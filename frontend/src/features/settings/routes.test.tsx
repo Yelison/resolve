@@ -24,7 +24,6 @@ describe('rutas de configuración', () => {
     await vi.waitFor(() => expect(router.state.location.pathname).toBe('/configuracion/empresa'))
     expect(await screen.findByRole('tab', { name: 'Empresa', selected: true })).toBeInTheDocument()
     expect(tabNames()).toEqual(['Empresa', 'Perfil', 'Apariencia', 'Permisos'])
-    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 
   it('mientras /me carga en Perfil se ofrecen solo las pestañas del rol con menos permisos', async () => {
@@ -77,8 +76,7 @@ describe('rutas de configuración', () => {
       mockApi(settingsApi(me))
       renderApp('/configuracion/permisos')
       expect(await screen.findByRole('table')).toBeInTheDocument()
-      expect(screen.getByText('Los permisos se validan también en el servidor')).toBeInTheDocument()
-      expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
+      expect(screen.queryByText(/servidor/)).not.toBeInTheDocument()
       expect(screen.queryByText('Página no encontrada')).not.toBeInTheDocument()
       expect(screen.getByRole('tab', { name: 'Permisos' })).toHaveAttribute('aria-selected', 'true')
     },

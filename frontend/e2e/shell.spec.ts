@@ -23,6 +23,15 @@ test.describe('shell', () => {
     await expect(page.getByRole('dialog')).toBeHidden()
   })
 
+  for (const width of [390, 1440]) {
+    test(`${width} px: el encabezado no tiene campana de notificaciones`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 })
+      await page.goto('/tickets')
+      await expect(page.getByRole('button', { name: /^Cambiar a tema/ })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Notificaciones' })).toHaveCount(0)
+    })
+  }
+
   test('intermedio: menú de iconos con tooltip visible al enfocar', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 800 })
     await page.goto('/tickets')

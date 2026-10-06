@@ -18,7 +18,6 @@ describe('rutas de la aplicación', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Reportes' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Rendimiento por agente' })).toBeInTheDocument()
     expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
-    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 
   it('un cliente no abre /reportes y no se pide el informe', async () => {

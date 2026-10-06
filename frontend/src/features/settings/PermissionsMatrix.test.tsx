@@ -41,9 +41,10 @@ describe('PermissionsMatrix', () => {
     ])
   })
 
-  it('es informativa: avisa de la validación del servidor y no ofrece guardar', () => {
+  it('es informativa: sin aviso de validación en el servidor y sin ofrecer guardar', () => {
     render(<PermissionsMatrix />)
-    expect(screen.getByText('Los permisos se validan también en el servidor')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(/servidor/)).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(screen.getByText(`Mostrando ${capabilities.length} capacidades`)).toBeInTheDocument()
   })

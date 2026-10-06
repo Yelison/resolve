@@ -1,4 +1,4 @@
-import { Alert, Icon } from '../../components/ui'
+import { Icon } from '../../components/ui'
 import { roleLabels } from '../../app/navigation'
 import { accessLabels, groupBySection, matrixRoles, type Access } from './permissions'
 import styles from './PermissionsMatrix.module.css'
@@ -23,7 +23,7 @@ function AccessCell({ access, role }: { access: Access; role: string }) {
 /**
  * Matriz informativa de lo que puede hacer cada rol, generada de `permissions.ts`. Por debajo de 640 px de ancho de
  * panel cada capacidad es una tarjeta, agrupadas por sección: ninguna acción se oculta por el ancho. No se guarda
- * nada: los roles son fijos y el servidor decide.
+ * nada: los roles son fijos.
  */
 export function PermissionsMatrix() {
   return (
@@ -74,10 +74,6 @@ export function PermissionsMatrix() {
           Mostrando {total} capacidades
         </p>
       </div>
-      <Alert tone="amber" title="Los permisos se validan también en el servidor">
-        Lo que ves en la interfaz depende de tu rol, pero la autorización y el aislamiento entre empresas se aplican
-        siempre en el servidor.
-      </Alert>
     </section>
   )
 }

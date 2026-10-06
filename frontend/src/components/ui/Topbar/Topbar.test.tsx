@@ -6,7 +6,7 @@ import { Topbar, type TopbarProps } from './Topbar'
 function renderTopbar(props: Partial<TopbarProps> = {}) {
   return render(
     <MemoryRouter>
-      <Topbar theme="light" onToggleTheme={() => {}} onSearch={() => {}} onNotifications={() => {}} {...props} />
+      <Topbar theme="light" onToggleTheme={() => {}} onSearch={() => {}} {...props} />
     </MemoryRouter>,
   )
 }
@@ -19,10 +19,11 @@ describe('Topbar · acciones', () => {
     expect(container.querySelector('[class*="avatar"]')).toBeNull()
   })
 
-  it('termina en las notificaciones en escritorio y en el tema en la barra móvil', () => {
+  it('termina en el tema, sin campana de notificaciones, en escritorio y en la barra móvil', () => {
     const { container, unmount } = renderTopbar()
     const actions = container.querySelector('header')!.lastElementChild!
-    expect(actions.lastElementChild).toBe(screen.getByRole('button', { name: 'Notificaciones' }))
+    expect(actions.lastElementChild).toBe(screen.getByRole('button', { name: 'Cambiar a tema oscuro' }))
+    expect(screen.queryByRole('button', { name: 'Notificaciones' })).not.toBeInTheDocument()
     unmount()
     const compact = renderTopbar({ menuButton: { expanded: false, controls: 'drawer', onClick: () => {} } })
     const compactActions = compact.container.querySelector('header')!.lastElementChild!
