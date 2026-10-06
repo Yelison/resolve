@@ -6,6 +6,9 @@ import com.resolve.api.support.ApiIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.availability.AvailabilityChangeEvent;
+import org.springframework.boot.availability.ReadinessState;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
 
@@ -31,6 +34,9 @@ class MaintenanceModeTest extends ApiIntegrationTest {
 
 	@Autowired
 	private MaintenanceMode mode;
+
+	@Autowired
+	private ApplicationContext context;
 
 	@BeforeEach
 	void createTheMarkTable() {
@@ -94,6 +100,18 @@ class MaintenanceModeTest extends ApiIntegrationTest {
 
 		assertThat(this.mode.active()).isFalse();
 		this.mvc.perform(get(API + "/me").with(as("ana@acme.example"))).andExpect(status().isOk());
+	}
+
+	@Test
+	void readinessGoesBackToOutOfServiceWhenTheStartPublishesAcceptingTrafficAfterTheFirstRead() throws Exception {
+		markFor("60 seconds");
+		// Al arrancar con una marca vigente, Boot publica ACCEPTING_TRAFFIC al terminar, después de la primera lectura.
+		AvailabilityChangeEvent.publish(this.context, this, ReadinessState.ACCEPTING_TRAFFIC);
+		this.mode.refresh();
+
+		this.mvc.perform(get(API + "/actuator/health/readiness"))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(jsonPath("$.status").value("OUT_OF_SERVICE"));
 	}
 
 	@Test

@@ -172,10 +172,10 @@ without cancellation, so a deployment is never cut in half.
 | --- | --- | --- | --- |
 | Repository | `DEPLOY_ENABLED` | variable | `true` to switch everything on; delete it or set anything else to stop |
 | GitHub environment `demo` | `FLY_API_TOKEN` | secret | `fly tokens create deploy -a resolve-demo` |
-| GitHub environment `demo` | `DEMO_DB_USER`, `DEMO_DB_PASSWORD` | secrets | Role of the **demo** Neon database (owner of its schema; it can drop objects) |
+| GitHub environment `demo` | `DEMO_DB_USER`, `DEMO_DB_PASSWORD` | secrets | **The same role the application uses** (`DATABASE_USERNAME`), owner of the **demo** database |
 | GitHub environment `demo` | `DEMO_DB_HOST`, `DEMO_DB_NAME` | variables | Neon **direct** endpoint (not `-pooler`) and the database name, which must contain `demo` |
 | GitHub environment `demo` | `DEMO_URL` | variable | `https://resolve-demo.fly.dev` (no trailing slash) |
-| Fly (`fly secrets set -a resolve-demo`) | `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | secrets | The demo database (the app may use the pooled endpoint) |
+| Fly (`fly secrets set -a resolve-demo`) | `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | secrets | The demo database, with **the same role as `DEMO_DB_USER`/`DEMO_DB_PASSWORD`** (see below) and the direct endpoint |
 | Fly | `RESOLVE_OIDC_ISSUER`, `RESOLVE_OIDC_CLIENT_ID`, `RESOLVE_OIDC_CLIENT_SECRET` | secrets | The demo realm |
 | GHCR | package visibility | setting | **Public**, so Fly can pull it without registry credentials (the image holds no secret). If it must stay private, add registry credentials to `flyctl deploy` |
 
@@ -186,8 +186,14 @@ the workflow created it, the guard would protect nothing):
 CREATE SCHEMA IF NOT EXISTS resolve_ops;
 CREATE TABLE resolve_ops.demo_database (marker text PRIMARY KEY);
 INSERT INTO resolve_ops.demo_database VALUES ('resolve-demo-database');
-GRANT USAGE ON SCHEMA resolve_ops TO <app role>;  -- the API reads resolve_ops.maintenance
 ```
+
+**One role for both.** The API runs Flyway at startup and `flyway clean migrate` recreates every table owned by whoever
+runs it. If the reset used another role than `DATABASE_USERNAME`, the application would lose its permissions on all
+tables after the first reset, could not write `flyway_schema_history` on the next deployment, and could not read
+`resolve_ops.maintenance` (a read error means "no maintenance", silently). So the application and the reset use the same
+role, owner of the demo database and of `resolve_ops` (nothing to `GRANT`). As a safety net the workflow aborts before
+`clean` if readiness still answers `UP` after the maintenance wait.
 
 `app = "resolve-demo"` and `primary_region = "iad"` in `fly.toml` are decisions to confirm: change them before the first
 deployment (and `RESOLVE_PUBLIC_URL`, which must match the app's URL and be one of the realm client's redirect URIs).
@@ -242,12 +248,15 @@ With `RESOLVE_DEMO_LIMITS=true`:
 
 - **Per-organization caps** (`DemoLimits`): 500 tickets, 200 customers (archived included), 50 team members (admins and
   agents not removed, invited included) and 100 articles; one more is a `409` Problem "Límite de la demostración".
-  Customer portal accesses are limited by the customer cap. Two simultaneous creations may both take the last slot
+  Customer portal accesses are limited by the customer cap. The cap is checked **before** the references are validated:
+  at the cap, a request with an invalid `customerId` gets the `409`, not the `400`. Two simultaneous creations may both take the last slot
   (tickets and customers are counted without a lock; members and articles are already serialized per organization).
 - **60 writes per minute per IP** (`POST`, `PUT`, `PATCH`, `DELETE` under `/api`), `429` with `Retry-After`, in a servlet
   filter because Fly does not limit at the edge. **The IP cannot be forged**: it is read from the header named in
   `RESOLVE_DEMO_CLIENT_IP_HEADER` (`Fly-Client-IP`), never from `X-Forwarded-For`, and with no header configured (or a
-  value that is not an address) it is the connection's address. That is safe only if the container is reachable
+  value that is not an address) it is the socket's address. Note that with `forward-headers-strategy=framework` (`prod`)
+  Spring makes `request.getRemoteAddr()` return the first `X-Forwarded-For`, which the client writes, so the filter
+  unwraps the request to the original one (tested with `framework` active). That is safe only if the container is reachable
   **only through Fly's proxy**, which `fly.toml` guarantees by publishing just `[http_service]`. Fly's documentation
   describes `Fly-Client-IP` as the address "from the perspective of Fly Proxy" and recommends it over
   `X-Forwarded-For`, but does not state that a client-sent copy is overwritten: **check that on the first deployment**

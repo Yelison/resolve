@@ -11,6 +11,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletRequestWrapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,8 +34,8 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>
  * <b>La IP del cliente no puede ser falsificable.</b> {@code X-Forwarded-For} lo escribe el cliente, y con
- * {@code forward-headers-strategy=framework} Spring no cambia {@code getRemoteAddr()} (queda la dirección del proxy).
- * Por eso solo se confía en una cabecera que el proxy de la plataforma <i>sobrescribe</i>: el nombre va en
+ * {@code forward-headers-strategy=framework} Spring hace que {@code getRemoteAddr()} devuelva su primer valor: por eso
+ * se lee la dirección de la petición original, la del socket (la del proxy). Solo se confía en una cabecera que el proxy de la plataforma <i>sobrescribe</i>: el nombre va en
  * {@code resolve.demo.client-ip-header} ({@code Fly-Client-IP} en Fly) y, sin él o con un valor que no es una IP, se usa
  * la dirección de la conexión. Con el nombre puesto, el contenedor solo debe ser alcanzable a través del proxy (en Fly
  * lo es: el servicio no se publica en otro sitio); si no, cualquiera podría escribir esa cabecera.
@@ -123,7 +125,20 @@ class WriteRateLimitFilter extends OncePerRequestFilter {
 				return value.strip();
 			}
 		}
-		return request.getRemoteAddr();
+		return connectionAddress(request);
+	}
+
+	/**
+	 * La dirección del socket. Con {@code forward-headers-strategy=framework} (prod) {@code ForwardedHeaderFilter}
+	 * envuelve la petición y hace que {@code getRemoteAddr()} devuelva el primer valor de {@code X-Forwarded-For} o
+	 * {@code Forwarded: for=}, que escribe el cliente: hay que llegar a la petición original.
+	 */
+	private static String connectionAddress(HttpServletRequest request) {
+		ServletRequest original = request;
+		while (original instanceof ServletRequestWrapper wrapper) {
+			original = wrapper.getRequest();
+		}
+		return original.getRemoteAddr();
 	}
 
 }

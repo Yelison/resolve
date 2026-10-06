@@ -73,6 +73,14 @@ jobs:
           # La aplicación lee la marca cada 5 segundos (resolve.demo.maintenance-poll): se espera más que eso para que no
           # haya peticiones en vuelo cuando empiece el borrado.
           sleep 15
+          # Si la aplicación no hizo caso (otro rol de base de datos, otra base, un fallo de lectura de la marca) se
+          # aborta aquí, antes del borrado, y no con tráfico vivo.
+          if curl -fsS -m 10 "${DEMO_URL}/api/actuator/health/readiness" | grep -q '"status":"UP"'; then
+            echo "::error::readiness is still UP after turning maintenance on; refusing to run flyway clean"
+            exit 1
+          fi
+        env:
+          DEMO_URL: ${{ vars.DEMO_URL }}
 
       - name: Flyway clean and migrate (db/migration, db/demo)
         run: |
