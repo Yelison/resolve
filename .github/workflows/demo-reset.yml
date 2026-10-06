@@ -1,0 +1,108 @@
+name: Demo reset
+
+# Reinicia los datos de la demostración pública cada noche (plan §4.5-5): modo mantenimiento → `flyway clean` + `flyway
+# migrate` con db/migration y db/demo contra la base de la demostración → fin del mantenimiento → comprobación.
+#
+# Nada corre mientras el propietario no cree la variable de repositorio DEPLOY_ENABLED=true (docs/deploy/README.md).
+on:
+  schedule:
+    # 03:00 en America/Bogota, la zona de «Acme Studio», la organización de demostración (usuarios @acme.example, ver
+    # backend/src/main/resources/db/demo): UTC-5 todo el año, sin cambio de horario, así que son las 08:00 UTC siempre.
+    # Si algún día la organización de demostración fuera Northwind (Europe/Madrid, UTC+1 en invierno y UTC+2 en verano), las
+    # 03:00 locales serían las 02:00 UTC en invierno y las 01:00 UTC en verano, y habría que mover esta línea dos veces al año.
+    # GitHub solo ejecuta `schedule` desde la rama por defecto, puede retrasarse en horas de mucha carga y desactiva los
+    # flujos programados de un repositorio sin actividad durante 60 días.
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: demo-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    name: Reset the demo database
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: demo
+    permissions:
+      contents: read
+    env:
+      # La base de datos de la demostración, nunca otra. Host y nombre son variables del entorno `demo`; usuario y clave,
+      # secretos del mismo entorno. psql y la CLI de Flyway los leen de aquí, no de la línea de órdenes.
+      PGHOST: ${{ vars.DEMO_DB_HOST }}
+      PGDATABASE: ${{ vars.DEMO_DB_NAME }}
+      PGUSER: ${{ secrets.DEMO_DB_USER }}
+      PGPASSWORD: ${{ secrets.DEMO_DB_PASSWORD }}
+      PGSSLMODE: require
+      # Minutos que dura como máximo el mantenimiento si el flujo se interrumpe; la aplicación ignora una marca que pase de 15.
+      MAINTENANCE_MINUTES: '10'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # `flyway clean` borra todo el esquema. Hasta que esta guarda pasa no se ejecuta nada que escriba. Exige tres cosas
+      # a la vez: que el nombre de la base de datos diga «demo», que sea la que hay al otro lado de la conexión y que
+      # contenga el centinela que el propietario creó una sola vez en ella (docs/deploy/README.md). Una base de datos
+      # real no tiene el centinela, y el flujo no lo crea: si lo hiciera, la guarda no protegería nada.
+      - name: Guard - this is the demo database and nothing else
+        id: guard
+        run: |
+          case "${PGDATABASE}" in
+            *demo*) ;;
+            *) echo "::error::DEMO_DB_NAME '${PGDATABASE}' does not contain 'demo'; refusing to run flyway clean"; exit 1 ;;
+          esac
+          connected="$(psql -tAc 'SELECT current_database()')"
+          [ "${connected}" = "${PGDATABASE}" ] || { echo "::error::connected to '${connected}', expected '${PGDATABASE}'"; exit 1; }
+          found="$(psql -tAc "SELECT count(*) FROM resolve_ops.demo_database WHERE marker = 'resolve-demo-database'")" \
+            || { echo "::error::resolve_ops.demo_database is missing: this is not the demo database"; exit 1; }
+          [ "${found}" = "1" ] || { echo "::error::the demo sentinel row is missing; refusing to run flyway clean"; exit 1; }
+
+      - name: Maintenance on
+        run: |
+          psql -v ON_ERROR_STOP=1 -v minutes="${MAINTENANCE_MINUTES}" <<'SQL'
+          CREATE SCHEMA IF NOT EXISTS resolve_ops;
+          CREATE TABLE IF NOT EXISTS resolve_ops.maintenance (until timestamptz NOT NULL);
+          DELETE FROM resolve_ops.maintenance;
+          INSERT INTO resolve_ops.maintenance (until) VALUES (now() + (:'minutes' || ' minutes')::interval);
+          SQL
+          # La aplicación lee la marca cada 5 segundos (resolve.demo.maintenance-poll): se espera más que eso para que no
+          # haya peticiones en vuelo cuando empiece el borrado.
+          sleep 15
+
+      - name: Flyway clean and migrate (db/migration, db/demo)
+        run: |
+          docker run --rm \
+            -e FLYWAY_USER="${PGUSER}" -e FLYWAY_PASSWORD="${PGPASSWORD}" \
+            -v "${GITHUB_WORKSPACE}/backend/src/main/resources/db:/flyway/sql:ro" \
+            flyway/flyway@sha256:5be18367a9b3979a9f37234c371b80da457a448fb9577bd94d4bf24d923fafac \
+            -url="jdbc:postgresql://${PGHOST}/${PGDATABASE}?sslmode=require" \
+            -locations=filesystem:/flyway/sql/migration,filesystem:/flyway/sql/demo \
+            -cleanDisabled=false \
+            clean migrate
+
+      # Solo si todo salió bien: si `clean` o `migrate` fallan, el mantenimiento sigue hasta que caduque (como mucho
+      # MAINTENANCE_MINUTES) en lugar de enseñar una base de datos a medias, y el flujo queda en rojo. Se repite el flujo a
+      # mano con «Run workflow».
+      - name: Maintenance off
+        run: psql -v ON_ERROR_STOP=1 -c 'DELETE FROM resolve_ops.maintenance'
+
+      - name: Smoke
+        run: |
+          # La aplicación deja el mantenimiento en su siguiente lectura de la marca.
+          for _ in $(seq 1 24); do
+            if curl -fsS "${DEMO_URL}/api/actuator/health/readiness" | grep -q '"status":"UP"'; then ready=1; break; fi
+            sleep 5
+          done
+          [ "${ready:-}" = "1" ] || { echo "::error::readiness is not UP after the reset"; exit 1; }
+          test "$(curl -s -o /dev/null -w '%{http_code}' "${DEMO_URL}/")" = "200"
+          # Sin sesión la API responde 401 (y no 503 de mantenimiento ni 5xx).
+          test "$(curl -s -o /dev/null -w '%{http_code}' "${DEMO_URL}/api/me")" = "401"
+          # Los datos de demostración están: la base tiene las dos organizaciones sembradas.
+          test "$(psql -tAc 'SELECT count(*) FROM organizations')" = "2"
+        env:
+          DEMO_URL: ${{ vars.DEMO_URL }}
