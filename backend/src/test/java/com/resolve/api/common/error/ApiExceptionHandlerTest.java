@@ -4,6 +4,9 @@ import java.sql.SQLException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
@@ -13,6 +16,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -21,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Traducción de las excepciones de negocio a Problem Details, sin levantar la aplicación. */
+@ExtendWith(OutputCaptureExtension.class)
 class ApiExceptionHandlerTest {
 
 	private MockMvc mvc;
@@ -67,6 +72,13 @@ class ApiExceptionHandlerTest {
 	void otherIntegrityViolationsAreNotHiddenAsClientErrors() {
 		assertThatThrownBy(() -> this.mvc.perform(get("/integrity")))
 			.hasRootCauseInstanceOf(SQLException.class);
+	}
+
+	@Test
+	void aLockTimeoutIsLoggedWithTheUriTheClientSeesAsTheInstance(CapturedOutput output) throws Exception {
+		this.mvc.perform(get("/lock")).andExpect(status().isServiceUnavailable());
+
+		assertThat(output.getAll()).contains("Request failed with status 503 on /lock");
 	}
 
 	@Test

@@ -11,6 +11,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.env.Environment;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static com.resolve.api.support.ApiIntegrationTest.API;
@@ -24,6 +25,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles({ "prod", "oidc" })
+// En prod no hay valores por defecto: las variables que exige van ficticias (ver ProdProfileSmokeTest).
+@TestPropertySource(properties = { "DATABASE_URL=jdbc:postgresql://db.invalid/resolve", "DATABASE_USERNAME=resolve",
+		"DATABASE_PASSWORD=ficticia", "RESOLVE_OIDC_ISSUER=https://idp.invalid/realms/resolve",
+		"RESOLVE_OIDC_CLIENT_ID=resolve-api", "RESOLVE_OIDC_CLIENT_SECRET=ficticio",
+		"RESOLVE_PUBLIC_URL=https://resolve.invalid" })
 @Import({ TestcontainersConfiguration.class, TestData.class, OidcTestConfiguration.class })
 class ProdProfileWithOidcHasNoDemoLoginTest {
 

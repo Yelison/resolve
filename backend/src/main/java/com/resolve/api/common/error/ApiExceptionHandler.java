@@ -4,7 +4,10 @@ import java.sql.SQLException;
 import java.util.List;
 
 import com.resolve.api.common.persistence.LockTimeouts;
+import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -19,10 +22,13 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /** Traduce las excepciones de la API a Problem Details (RFC 9457). */
 @RestControllerAdvice
 class ApiExceptionHandler extends ResponseEntityExceptionHandler {
+
+	private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
 	/** SQLSTATE 22021: secuencia de bytes no válida para la codificación (el byte 0 en un texto). */
 	private static final String INVALID_BYTE_SEQUENCE = "22021";
@@ -74,10 +80,13 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	 * toman el bloqueo, así que se relanza y sigue siendo un 500.
 	 */
 	@ExceptionHandler
-	ResponseEntity<ProblemDetail> handleLockTimeout(CannotAcquireLockException exception) {
+	ResponseEntity<ProblemDetail> handleLockTimeout(CannotAcquireLockException exception,
+			HttpServletRequest request) {
 		if (!hasSqlState(exception, LOCK_NOT_AVAILABLE)) {
 			throw exception;
 		}
+		// Un 5xx queda en el registro con la URI que el cliente ve en el «instance» del problema, para encontrarlo.
+		log.warn("Request failed with status 503 on {}: lock timeout", request.getRequestURI());
 		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
 			.header(HttpHeaders.RETRY_AFTER, String.valueOf(LockTimeouts.RETRY_AFTER_SECONDS))
 			.contentType(MediaType.APPLICATION_PROBLEM_JSON)
@@ -110,6 +119,19 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Una ruta de la API sin manejador. Spring la responde con «Not Found» y el detalle «No static resource …», que sale
+	 * del manejador de recursos de la aplicación web y no dice nada útil: el mismo problema que cualquier 404.
+	 */
+	@Override
+	protected @Nullable ResponseEntity<Object> handleNoResourceFoundException(NoResourceFoundException exception,
+			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		return ResponseEntity.status(status)
+			.headers(headers)
+			.contentType(MediaType.APPLICATION_PROBLEM_JSON)
+			.body(problem(HttpStatus.NOT_FOUND, ErrorProblems.title(status), ErrorProblems.detail(status)));
 	}
 
 	@Override

@@ -37,12 +37,15 @@ class OidcSecurityConfiguration {
 	@Bean
 	HttpSecurityCustomizer oidcSecurity(ClientRegistrationRepository registrations, JsonMapper jsonMapper,
 			@Value("${resolve.public-url}") String publicUrl,
-			@Value("${server.servlet.session.cookie.path}") String sessionCookiePath) {
+			@Value("${server.servlet.session.cookie.path}") String sessionCookiePath,
+			@Value("${server.servlet.session.cookie.secure}") boolean cookieSecure) {
 		String appUrl = publicUrl.replaceAll("/+$", "");
-		// La cookie la lee JavaScript (por eso no es HttpOnly) en todo el sitio, no solo bajo /api.
+		// La cookie la lee JavaScript (por eso no es HttpOnly) en todo el sitio, aunque solo la emite la API
+		// (CsrfCookieFilter). Secure como la de sesión, por configuración y no por request.isSecure(): detrás de un proxy
+		// que no reenvíe el esquema, la petición parecería HTTP y la cookie saldría sin Secure.
 		CookieCsrfTokenRepository csrfTokens = CookieCsrfTokenRepository.withHttpOnlyFalse();
 		csrfTokens.setCookiePath("/");
-		csrfTokens.setCookieCustomizer((cookie) -> cookie.sameSite("Lax"));
+		csrfTokens.setCookieCustomizer((cookie) -> cookie.secure(cookieSecure).sameSite("Lax"));
 		// Con el contexto vacío, Spring borraría JSESSIONID en «/»: no la quitaría del navegador, que la guardó con el
 		// Path de server.servlet.session.cookie.path.
 		Cookie expiredSession = new Cookie("JSESSIONID", null);
