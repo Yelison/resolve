@@ -22,7 +22,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = { "resolve.demo.limits=true", "resolve.demo.client-ip-header=Fly-Client-IP",
 		"server.forward-headers-strategy=framework" })
 // Cada test usa sus propias direcciones: los cubos viven en la aplicación y el contexto se comparte entre tests.
-// Cada test usa sus propias direcciones: los cubos viven en la aplicación y el contexto se comparte entre tests.
 class WriteRateLimitTest extends ApiIntegrationTest {
 
 	private static MockHttpServletRequestBuilder write(String clientIp) {

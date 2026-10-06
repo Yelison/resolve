@@ -17,8 +17,9 @@ on:
 
 permissions: {}
 
+# Mismo grupo que deploy.yml: el Flyway de una máquina recién desplegada no se solapa con el `clean` de este flujo.
 concurrency:
-  group: demo-reset
+  group: demo-deploy-and-reset
   cancel-in-progress: false
 
 jobs:
@@ -37,10 +38,20 @@ jobs:
       PGDATABASE: ${{ vars.DEMO_DB_NAME }}
       PGUSER: ${{ secrets.DEMO_DB_USER }}
       PGPASSWORD: ${{ secrets.DEMO_DB_PASSWORD }}
-      PGSSLMODE: require
+      # Verifica el certificado del servidor (las credenciales son las del propietario de la base de datos). `system` usa las CA
+      # del sistema (libpq 16 o posterior, la de ubuntu-latest).
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: system
       # Minutos que dura como máximo el mantenimiento si el flujo se interrumpe; la aplicación ignora una marca que pase de 15.
       MAINTENANCE_MINUTES: '10'
     steps:
+      # `workflow_dispatch` permite elegir cualquier rama, y el flujo de otra rama migraría con sus propias migraciones o sin la
+      # guarda. Solo corre desde main (y el entorno `demo` debe estar limitado a main: docs/deploy/README.md).
+      - name: Only from main
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::error::the demo reset only runs from main (ref: ${GITHUB_REF})"; exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -70,15 +81,23 @@ jobs:
           DELETE FROM resolve_ops.maintenance;
           INSERT INTO resolve_ops.maintenance (until) VALUES (now() + (:'minutes' || ' minutes')::interval);
           SQL
-          # La aplicación lee la marca cada 5 segundos (resolve.demo.maintenance-poll): se espera más que eso para que no
-          # haya peticiones en vuelo cuando empiece el borrado.
+          # La aplicación lee la marca al llegar una petición si la última lectura tiene más de 5 segundos
+          # (resolve.demo.maintenance-poll): se espera más que eso para que no haya peticiones en vuelo cuando empiece el borrado.
           sleep 15
           # Si la aplicación no hizo caso (otro rol de base de datos, otra base, un fallo de lectura de la marca) se
-          # aborta aquí, antes del borrado, y no con tráfico vivo.
-          if curl -fsS -m 10 "${DEMO_URL}/api/actuator/health/readiness" | grep -q '"status":"UP"'; then
-            echo "::error::readiness is still UP after turning maintenance on; refusing to run flyway clean"
-            exit 1
-          fi
+          # aborta aquí, antes del borrado, y no con tráfico vivo. Hace falta una respuesta 503 de verdad: una URL vacía, un
+          # fallo de DNS o un tiempo de espera agotado no valen. La primera petición a la API es la que lee la marca (la
+          # aplicación la lee de forma perezosa); la readiness refleja esa lectura.
+          [ -n "${DEMO_URL}" ] || { echo "::error::DEMO_URL is empty"; exit 1; }
+          code=""
+          for _ in $(seq 1 6); do
+            code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' "${DEMO_URL}/api/me" || true)"
+            [ "${code}" = "503" ] && break
+            sleep 5
+          done
+          [ "${code}" = "503" ] || { echo "::error::the API answers ${code:-nothing}, not 503, after turning maintenance on; refusing to run flyway clean"; exit 1; }
+          ready="$(curl -s -m 10 -o /dev/null -w '%{http_code}' "${DEMO_URL}/api/actuator/health/readiness" || true)"
+          [ "${ready}" = "503" ] || { echo "::error::readiness answers ${ready:-nothing}, not 503; refusing to run flyway clean"; exit 1; }
         env:
           DEMO_URL: ${{ vars.DEMO_URL }}
 
@@ -88,7 +107,7 @@ jobs:
             -e FLYWAY_USER="${PGUSER}" -e FLYWAY_PASSWORD="${PGPASSWORD}" \
             -v "${GITHUB_WORKSPACE}/backend/src/main/resources/db:/flyway/sql:ro" \
             flyway/flyway@sha256:5be18367a9b3979a9f37234c371b80da457a448fb9577bd94d4bf24d923fafac \
-            -url="jdbc:postgresql://${PGHOST}/${PGDATABASE}?sslmode=require" \
+            -url="jdbc:postgresql://${PGHOST}/${PGDATABASE}?sslmode=verify-full&sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory" \
             -locations=filesystem:/flyway/sql/migration,filesystem:/flyway/sql/demo \
             -cleanDisabled=false \
             clean migrate
