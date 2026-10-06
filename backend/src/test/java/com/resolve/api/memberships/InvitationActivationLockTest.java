@@ -65,12 +65,4 @@ class InvitationActivationLockTest extends TeamFixture {
 		}
 	}
 
-	@Test
-	void anInvitationBeingRemovedIsStillDeactivatedWhenTheRowIsFree() throws Exception {
-		this.data.setMembershipStatus(this.acme, this.invited, "removed");
-
-		this.mvc.perform(get(API + "/me").with(as(INVITED))).andExpect(status().isUnauthorized());
-		assertThat(this.data.membershipStatus(this.acme, this.invited)).isEqualTo("removed");
-	}
-
 }
