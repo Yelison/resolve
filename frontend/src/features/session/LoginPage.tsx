@@ -91,7 +91,11 @@ export function LoginPage() {
               <h1 ref={heading} tabIndex={-1} className={styles.title}>
                 Entra a Resolve
               </h1>
-              <p className={styles.lead}>Usa tu cuenta para ver los tickets, clientes y reportes de tu organización.</p>
+              <p className={styles.lead}>
+                {providerLogin
+                  ? 'Usa tu cuenta para ver los tickets, clientes y reportes de tu organización.'
+                  : 'Elige un usuario de demostración para ver los tickets, clientes y reportes de una organización de ejemplo.'}
+              </p>
               {params.get('error') === 'oidc' && (
                 // La clave remonta el aviso al terminar la comprobación para que el rol `alert` se anuncie entonces.
                 <Alert

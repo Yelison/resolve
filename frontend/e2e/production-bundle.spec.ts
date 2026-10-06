@@ -31,6 +31,7 @@ test('el build de producción no incluye la API simulada ni el modo showcase', (
     'e2e-csrf-token',
     'Sin fixture para',
     'Demostración con datos de ejemplo',
+    'Elige un usuario de demostración',
     'showcase',
   ]
   const found = chunks.flatMap(({ name, code }) =>
