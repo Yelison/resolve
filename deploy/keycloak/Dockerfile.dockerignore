@@ -1,0 +1,7 @@
+# Lista de permitidos propia de esta imagen (BuildKit la prefiere al .dockerignore de la raíz, que solo admite la
+# aplicación): solo el tema y el realm entran en el contexto.
+*
+
+!deploy/keycloak/themes/**
+!deploy/keycloak/resolve-realm.prod.json
+!deploy/keycloak/entrypoint.sh
