@@ -184,6 +184,25 @@ class OidcAuthenticationTest extends OidcApiIntegrationTest {
 	}
 
 	@Test
+	void anAccountHeldByAnotherTransactionIsNotWaitedForAndTheNameIsAdoptedOnTheNextRequest() throws Exception {
+		UUID user = this.data.staff(this.acme, "agent", "nuria", "nuria@acme.example");
+
+		try (RowLock lock = RowLock.hold(this.dataSource, "select id from users where id = ? for no key update",
+				user)) {
+			assertTimeoutPreemptively(LIMIT, () -> this.mvc
+				.perform(get(API + "/me").session(signedIn("nuria@acme.example", true, "Nuria Ferrer")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.user.name").value("nuria")));
+
+			assertThat(this.data.userName(user)).isEqualTo("nuria");
+		}
+
+		this.mvc.perform(get(API + "/me").session(signedIn("nuria@acme.example", true, "Nuria Ferrer")))
+			.andExpect(jsonPath("$.user.name").value("Nuria Ferrer"));
+		assertThat(this.data.userName(user)).isEqualTo("Nuria Ferrer");
+	}
+
+	@Test
 	void aForeignKeyToTheAccountDoesNotSkipTheAdoptionOfTheProviderName() throws Exception {
 		UUID user = this.data.staff(this.acme, "agent", "nuria", "nuria@acme.example");
 
