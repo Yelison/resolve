@@ -100,7 +100,9 @@ public class MemberPrincipals {
 	/**
 	 * Activa la invitación en su propia transacción y confirma el estado final: una retirada concurrente gana. Si la
 	 * membresía está retenida por otra transacción la activación se salta y la persona entra igual, con el mismo
-	 * rol y sin más datos que activa; la siguiente petición la activa.
+	 * rol, pero la petición la ve aún {@code invited}: lo que lista solo a los miembros activos (responsables,
+	 * métricas del equipo, reportes) no la incluye todavía y autoasignarse es un 400. Nunca gana permisos; la
+	 * siguiente petición la activa.
 	 */
 	private Resolution enter(Membership membership, @Nullable String identityName) {
 		if (membership.getStatus() != MemberStatus.ACTIVE
