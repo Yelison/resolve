@@ -86,7 +86,9 @@ echo $! # stop it by that PID, never with pkill
 docker compose -p "$COMPOSE_PROJECT_NAME" down -v
 ```
 
-The tests read `SERVER_PORT` and `KEYCLOAK_PORT` from the environment, so loading `.env.herdr` is enough. The jar needs
+The tests read `SERVER_PORT` and `KEYCLOAK_PORT` from the environment, so loading `.env.herdr` is enough (if you set
+`KC_BOOTSTRAP_ADMIN_PASSWORD` for compose, keep it exported for the tests too: one scenario creates a user through
+Keycloak's admin API). The jar needs
 `RESOLVE_PUBLIC_URL` on the API's port because the browser returns to it after signing in and out; the realm already
 lists the API ports 8080-8089 as redirect targets and the same ports as return URLs.
 
