@@ -1,0 +1,24 @@
+# Lista de permitidos: lo que no se nombra aquí no entra en el contexto de construcción (ni en una capa de la imagen).
+# Así un .env, las credenciales locales, el historial de git o los worktrees de otros agentes no pueden colarse.
+*
+
+!backend/pom.xml
+!backend/src/main/**
+backend/src/main/resources/static
+
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/index.html
+!frontend/public/**
+!frontend/src/**
+!frontend/tsconfig*.json
+!frontend/vite.config.ts
+!frontend/playwright.config.ts
+!frontend/e2e/**
+!frontend/e2e-smoke/**
+
+# Aunque estén dentro de lo permitido.
+**/node_modules
+**/target
+**/dist
+**/.env*
