@@ -249,8 +249,10 @@ With `RESOLVE_DEMO_LIMITS=true`:
 - **Per-organization caps** (`DemoLimits`): 500 tickets, 200 customers (archived included), 50 team members (admins and
   agents not removed, invited included) and 100 articles; one more is a `409` Problem "Límite de la demostración".
   Customer portal accesses are limited by the customer cap. The cap is checked **before** the references are validated:
-  at the cap, a request with an invalid `customerId` gets the `409`, not the `400`. Two simultaneous creations may both take the last slot
-  (tickets and customers are counted without a lock; members and articles are already serialized per organization).
+  at the cap, a request with an invalid `customerId` gets the `409`, not the `400`. The cap is exact under concurrency:
+  the check takes a transaction-level advisory lock (`pg_advisory_xact_lock`) per resource and organization before
+  counting and keeps it until the creation commits, so three simultaneous creations with two slots left give two rows and
+  one `409`.
 - **60 writes per minute per IP** (`POST`, `PUT`, `PATCH`, `DELETE` under `/api`), `429` with `Retry-After`, in a servlet
   filter because Fly does not limit at the edge. **The IP cannot be forged**: it is read from the header named in
   `RESOLVE_DEMO_CLIENT_IP_HEADER` (`Fly-Client-IP`), never from `X-Forwarded-For`, and with no header configured (or a
