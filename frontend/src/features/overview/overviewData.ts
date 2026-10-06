@@ -33,7 +33,13 @@ export function newToday(count: number): string {
   return count === 1 ? '1 nuevo hoy' : `${count} nuevos hoy`
 }
 
-const weekdayInitials = ['D', 'L', 'M', 'X', 'J', 'V', 'S'] as const
+const weekdayShort = new Intl.DateTimeFormat('es', { weekday: 'short', timeZone: 'UTC' })
+
+/** «lun», «mié», «sáb»: tres letras; se quita el punto que algunos entornos añaden («lun.»). */
+export function weekdayLabel(utc: Date): string {
+  return weekdayShort.format(utc).replace('.', '')
+}
+
 const dayLabel = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 /**
@@ -48,7 +54,7 @@ export function requestPoints(days: ReportDay[]): BarChartPoint[] {
     return {
       key: day.date,
       label: dayLabel.format(utc),
-      shortLabel: weekdayInitials[utc.getUTCDay()],
+      shortLabel: weekdayLabel(utc),
       values: { created: day.created },
     }
   })

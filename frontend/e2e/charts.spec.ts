@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
 /** Anchos de contenedor reales: 320 (móvil), 768 (intermedio) y 1440 (escritorio). */
@@ -31,10 +32,24 @@ for (const width of widths) {
       valueBoxes.slice(1).forEach((box, index) => {
         expect(box.left, 'las cifras vecinas no deben cruzarse').toBeGreaterThanOrEqual(valueBoxes[index]!.right - 0.5)
       })
-      const labels = await figure
-        .locator('[class*="axis"]')
-        .evaluateAll((els) => els.map((el) => el.scrollWidth - el.clientWidth))
-      expect(Math.max(...labels), 'ninguna etiqueta del eje queda recortada').toBeLessThanOrEqual(0)
+      // Las etiquetas dispersas se centran bajo su barra y pueden sobresalir de su celda: se mide el texto (Range),
+      // que debe quedar dentro del viewport y sin cruzarse con la etiqueta vecina.
+      const labelBoxes = await figure.locator('[class*="axis"]:not([class*="axisRow"])').evaluateAll((els) =>
+        els.map((el) => {
+          const range = document.createRange()
+          range.selectNodeContents(el)
+          const { left, right } = range.getBoundingClientRect()
+          return { left, right }
+        }),
+      )
+      labelBoxes.sort((a, b) => a.left - b.left)
+      expect(labelBoxes[0]!.left, 'ninguna etiqueta del eje sale del viewport').toBeGreaterThanOrEqual(0)
+      expect(labelBoxes.at(-1)!.right, 'ninguna etiqueta del eje sale del viewport').toBeLessThanOrEqual(width)
+      labelBoxes.slice(1).forEach((box, index) => {
+        expect(box.left, 'las etiquetas vecinas no deben cruzarse').toBeGreaterThanOrEqual(
+          labelBoxes[index]!.right - 0.5,
+        )
+      })
     }
 
     const overflow = await page.evaluate(
@@ -42,4 +57,45 @@ for (const width of widths) {
     )
     expect(overflow).toBeLessThanOrEqual(0)
   })
+}
+
+/** Centro horizontal del texto de cada etiqueta del eje y de la barra de su columna. */
+async function centerOffsets(page: Page, chartName: string) {
+  const chart = page.getByRole('img', { name: chartName })
+  await expect(chart).toBeVisible()
+  return chart.evaluate((plot) => {
+    const bars = [...plot.querySelectorAll('svg')].map((svg) => svg.getBoundingClientRect())
+    const labels = [...plot.querySelectorAll<HTMLElement>('[class*="axis"]:not([class*="axisRow"])')]
+    return labels.map((label) => {
+      const range = document.createRange()
+      range.selectNodeContents(label)
+      const text = range.getBoundingClientRect()
+      const bar = bars[Number.parseInt(label.style.gridColumn, 10) - 1]!
+      return text.left + text.width / 2 - (bar.left + bar.width / 2)
+    })
+  })
+}
+
+for (const [route, name] of [
+  ['/', 'Solicitudes por día'],
+  ['/reportes', 'Solicitudes y resueltos por día'],
+  ['/reportes?period=30d', 'Solicitudes y resueltos por día'],
+  ['/reportes?period=90d', 'Solicitudes y resueltos por semana'],
+] as const) {
+  for (const theme of ['light', 'dark']) {
+    for (const width of [320, 390, 768, 1440, 2560]) {
+      test(`cada etiqueta del eje queda centrada bajo su barra · ${route} · ${theme} · ${width}px`, async ({
+        page,
+      }) => {
+        await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto(route)
+        const offsets = await centerOffsets(page, name)
+        expect(offsets.length, 'hay etiquetas en el eje').toBeGreaterThan(0)
+        offsets.forEach((offset, index) =>
+          expect(Math.abs(offset), `etiqueta ${index}: ${offset.toFixed(2)} px`).toBeLessThanOrEqual(1),
+        )
+      })
+    }
+  }
 }

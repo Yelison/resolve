@@ -105,3 +105,45 @@ test.describe('resumen · sin saltos de layout', () => {
     })
   }
 })
+
+test.describe('resumen · gráfico de solicitudes por día', () => {
+  // Medidas de las barras (px de pantalla) y de la separación entre barras vecinas.
+  async function measureBars(page: import('@playwright/test').Page) {
+    const chart = page.getByRole('img', { name: 'Solicitudes por día' })
+    await expect(chart).toBeVisible()
+    return chart.locator('svg').evaluateAll((svgs) => {
+      const rects = svgs.map((svg) => svg.getBoundingClientRect())
+      return {
+        widths: rects.map((rect) => rect.width),
+        gaps: rects.slice(1).map((rect, index) => rect.left - rects[index]!.right),
+      }
+    })
+  }
+
+  for (const width of [1440, 2560]) {
+    test(`las barras ganan grosor y la separación queda acotada · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/')
+      const { widths, gaps } = await measureBars(page)
+      expect(Math.min(...widths), 'barras demasiado finas').toBeGreaterThanOrEqual(40)
+      expect(Math.max(...gaps), 'barras demasiado separadas').toBeLessThanOrEqual(56)
+    })
+  }
+
+  test('las etiquetas del eje son los días en tres letras y caben a 320 px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 })
+    await page.goto('/')
+    const chart = page.getByRole('img', { name: 'Solicitudes por día' })
+    await expect(chart).toBeVisible()
+    const labels = chart.locator('[class*="axis"]:not([class*="axisRow"])')
+    await expect(labels).toHaveCount(7)
+    const texts = await labels.allTextContents()
+    expect(
+      texts.every((text) => /^[a-zñáéíóú]{3}$/.test(text)),
+      texts.join(','),
+    ).toBe(true)
+    expect(texts).not.toContain('X')
+    const clipped = await labels.evaluateAll((els) => els.map((el) => el.scrollWidth - el.clientWidth))
+    expect(Math.max(...clipped)).toBeLessThanOrEqual(0)
+  })
+})
