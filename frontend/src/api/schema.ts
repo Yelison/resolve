@@ -755,6 +755,12 @@ export interface components {
              * @description Public support address shown in the knowledge base footer; null when not set.
              */
             supportEmail: string | null;
+            /**
+             * @description `true` when this installation is the public demo (`resolve.demo.enabled`): the data is fictional and
+             *     reset every night. It describes the installation, not the organization. The API always sends it;
+             *     it is optional so clients may omit it in their own fixtures.
+             */
+            demo?: boolean;
         };
         OrganizationSettings: {
             /** Format: uuid */

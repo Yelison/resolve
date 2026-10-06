@@ -187,7 +187,7 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 
 | Method and path | Roles | Purpose |
 | --- | --- | --- |
-| `GET /api/me` | all | Current user, organization and role |
+| `GET /api/me` | all | Current user, organization and role. `organization.demo` is `true` on the public demo installation (`resolve.demo.enabled`) |
 | `GET /api/session/organizations` | all | Organizations where the caller has a usable membership, by name |
 | `POST /api/session/organization` | all | Work in another of those organizations (`{ organizationId }`); `403` for any other, existing or not; answers the new `Me` |
 | `POST /api/logout` | `oidc` profile | End the server session and answer `{ logoutUrl }` to end the provider's session too (`200`); needs the CSRF header |
