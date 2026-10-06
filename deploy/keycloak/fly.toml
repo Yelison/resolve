@@ -1,0 +1,52 @@
+# Fly.io: el proveedor de identidad de la demostración pública (D-14, Q-04, Q-05). La imagen no se construye en Fly:
+# .github/workflows/deploy.yml la publica en GHCR y la despliega con
+# `flyctl deploy --config deploy/keycloak/fly.toml --image <imagen>`.
+# Aquí no hay secretos: KC_DB_URL, KC_DB_USERNAME, KC_DB_PASSWORD, RESOLVE_OIDC_CLIENT_SECRET (y, solo para el primer
+# arranque, KC_BOOTSTRAP_ADMIN_USERNAME y KC_BOOTSTRAP_ADMIN_PASSWORD) se dan con `fly secrets set` (docs/deploy/README.md).
+app = "resolve-demo-idp"
+
+# La misma región que la API (deploy/fly.toml): cada inicio de sesión cruza la red entre las dos.
+primary_region = "iad"
+
+[env]
+  # Detrás del proxy de Fly, que termina TLS: Keycloak escucha en HTTP y se fía de X-Forwarded-*. El servicio solo se
+  # publica por el proxy (no hay [[services]] con otro puerto), así que ningún cliente llega a Keycloak sin pasar por él.
+  KC_HTTP_ENABLED = "true"
+  KC_HTTP_PORT = "8080"
+  KC_PROXY_HEADERS = "xforwarded"
+  # La URL pública del IdP. Es el `issuer` que anuncia el realm y debe ser idéntico al RESOLVE_OIDC_ISSUER de la API
+  # (esta URL + /realms/resolve). Con KC_HOSTNAME completo Keycloak no acepta otro nombre de host.
+  KC_HOSTNAME = "https://resolve-demo-idp.fly.dev"
+  # Neon admite pocas conexiones en el plan gratuito y Keycloak abre hasta 100 por defecto.
+  KC_DB_POOL_MAX_SIZE = "10"
+  # Se sustituyen en el realm solo cuando se importa (primer arranque): el origen de la aplicación (redirectUris y
+  # post.logout.redirect.uris) y, opcionalmente, la contraseña común de los usuarios de demostración (por defecto «demo»).
+  RESOLVE_PUBLIC_URL = "https://resolve-demo.fly.dev"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Sin parada automática: Keycloak tarda en arrancar y la API lo descubre al iniciar. Una sola máquina (sin
+  # clúster de caché distribuida, que esta demostración no necesita).
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+# La salud está en el puerto de gestión (9000), que el proxy de Fly NO publica: solo la ve la comprobación de la máquina.
+# `port` solo existe en las comprobaciones de nivel superior ([checks.<nombre>]), no en [[http_service.checks]] (que
+# llamaría a 8080/health/ready, una ruta que Keycloak no tiene). Estas comprobaciones informan del estado de la máquina; no
+# sustituyen a las del servicio HTTP en el enrutado del proxy (docs/deploy/README.md, «Verify on the first deployment»).
+[checks.keycloak_ready]
+  type = "http"
+  port = 9000
+  method = "GET"
+  path = "/health/ready"
+  interval = "15s"
+  timeout = "5s"
+  # La JVM con la migración de esquema de Keycloak tarda en estar lista la primera vez.
+  grace_period = "120s"
+
+# Keycloak recomienda 1,25 GB como mínimo; con 1 GB el heap se queda corto al importar el realm.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "2gb"
