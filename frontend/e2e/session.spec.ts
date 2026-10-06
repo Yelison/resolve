@@ -131,26 +131,28 @@ test.describe('cuenta desactivada', () => {
     await expect(page.getByRole('button', { name: /Cerrar sesión/ })).toHaveCount(0)
   })
 
-  for (const theme of themes) {
-    for (const width of [320, 390, 768, 1440]) {
-      test(`el motivo y el botón caben · ${theme} · ${width}px`, async ({ page }) => {
-        await mockApi(page, 'admin', { refused: 'access-deactivated' })
-        await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
-        await page.setViewportSize({ width, height: 700 })
-        await page.goto('/entrar')
-        const alert = page.getByRole('alert')
-        const signOut = page.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' })
-        await expect(signOut).toBeVisible()
-        const [alertBox, buttonBox] = await Promise.all([alert.boundingBox(), signOut.boundingBox()])
-        expect(buttonBox!.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
-        for (const rect of [alertBox!, buttonBox!]) {
-          expect(rect.x).toBeGreaterThanOrEqual(0)
-          expect(rect.x + rect.width).toBeLessThanOrEqual(width)
-        }
-        expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
-        await signOut.focus()
-        await expect(signOut).toBeFocused()
-      })
+  for (const refused of ['access-deactivated', 'no-membership'] as const) {
+    for (const theme of themes) {
+      for (const width of widths) {
+        test(`el motivo y el botón caben · ${refused} · ${theme} · ${width}px`, async ({ page }) => {
+          await mockApi(page, 'admin', { refused })
+          await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+          await page.setViewportSize({ width, height: 700 })
+          await page.goto('/entrar')
+          const alert = page.getByRole('alert')
+          const signOut = page.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' })
+          await expect(signOut).toBeVisible()
+          const [alertBox, buttonBox] = await Promise.all([alert.boundingBox(), signOut.boundingBox()])
+          expect(buttonBox!.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
+          for (const rect of [alertBox!, buttonBox!]) {
+            expect(rect.x).toBeGreaterThanOrEqual(0)
+            expect(rect.x + rect.width).toBeLessThanOrEqual(width)
+          }
+          expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+          await signOut.focus()
+          await expect(signOut).toBeFocused()
+        })
+      }
     }
   }
 })
@@ -369,6 +371,36 @@ test.describe('varias pestañas', () => {
       'Cambiaste a Northwind en otra pestaña',
     )
     expect(posts).toEqual([])
+  })
+
+  test('sin canal ni foco, la escritura con la organización vieja recibe el 409 del servidor y la pestaña se pone al día', async ({
+    page,
+    context,
+  }) => {
+    await context.addInitScript(() => Object.assign(window, { BroadcastChannel: undefined }))
+    await mockApi(page, 'admin', { organizations: [acme, northwind] })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets/1048')
+    const reply = page.getByRole('textbox', { name: 'Respuesta al cliente' })
+    await reply.fill('Respuesta para Acme')
+
+    const other = await context.newPage()
+    await other.goto('/')
+    await switchToNorthwind(other)
+    // Sin canal y sin foco, esta pestaña no sabe nada: sigue mostrando Acme y deja enviar.
+    await expect(account(page)).toHaveAccessibleName('Cuenta: Yelisson Ortiz, Acme Studio')
+
+    const post = page.waitForRequest((request) => request.method() === 'POST' && request.url().includes('/messages'))
+    await page.getByRole('button', { name: 'Enviar respuesta' }).click()
+    expect((await post).headers()['x-organization-id']).toBe(acme.id)
+
+    // El servidor la rechazó sin escribir nada y la pestaña se puso al día como en cualquier otro cambio de sesión.
+    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText(
+      'Cambiaste a Northwind en otra pestaña',
+    )
+    await expect(account(page)).toHaveAccessibleName('Cuenta: Yelisson Ortiz, Northwind')
+    await expect(page).toHaveURL(/\/$/)
+    expect(await page.evaluate(() => sessionStorage.getItem('resolve-draft-1048'))).toBeNull()
   })
 
   test('cerrar sesión en una pestaña lleva la otra a /entrar', async ({ page, context }) => {
