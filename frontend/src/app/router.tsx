@@ -111,4 +111,8 @@ export const appRoutes: RouteObject[] = [
   lazyRoute(async () => ({ Component: (await import('./catalog/CatalogPage')).default }), { path: '/catalogo' }),
 ]
 
-export const router = createBrowserRouter(appRoutes)
+// La demostración estática vive bajo `/resolve/` (GitHub Pages); en cualquier otro modo no hay base.
+export const router = createBrowserRouter(
+  appRoutes,
+  import.meta.env.MODE === 'showcase' ? { basename: import.meta.env.BASE_URL.replace(/\/$/, '') } : undefined,
+)

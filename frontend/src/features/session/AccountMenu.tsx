@@ -22,7 +22,7 @@ export function AccountMenu({ me, avatar }: AccountMenuProps) {
   const closeDialog = () => setDialog(null)
 
   // La condición va escrita aquí (ver `api/client.ts`): así el build de producción elimina el selector entero.
-  const demoLogin = import.meta.env.DEV || import.meta.env.MODE === 'smoke'
+  const demoLogin = import.meta.env.DEV || import.meta.env.MODE === 'smoke' || import.meta.env.MODE === 'showcase'
   // En desarrollo, un 403 o 404 de /logout (backend sin oidc, o una cookie XSRF-TOKEN ajena en localhost) lleva al selector.
   const { signOut } = useSessionActions({ onLogoutUnavailable: demoLogin ? () => setDialog('demo') : undefined })
   const demoSession = demoLogin && readCsrfToken() === null

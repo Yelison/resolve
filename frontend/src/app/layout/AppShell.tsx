@@ -14,6 +14,7 @@ import { SessionErrorPage } from '../pages/SessionErrorPage'
 import { useTheme } from '../theme/useTheme'
 import styles from './AppShell.module.css'
 import { DemoBanner } from './DemoBanner'
+import { ShowcaseBanner } from './ShowcaseBanner'
 import { DemoMaintenanceNotice } from './DemoMaintenanceNotice'
 import { useSidebarPreference } from './useSidebarPreference'
 
@@ -198,7 +199,7 @@ function AppFrame() {
             <Outlet />
           )}
         </main>
-        {me.data?.organization.demo && <DemoBanner />}
+        {import.meta.env.MODE === 'showcase' ? <ShowcaseBanner /> : me.data?.organization.demo && <DemoBanner />}
       </div>
     </div>
   )

@@ -14,5 +14,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["e2e", "e2e-smoke"]
+  "include": ["e2e", "e2e-smoke", "e2e-showcase"]
 }

@@ -9,7 +9,17 @@ export const LOGIN_PATH = '/api/oauth2/authorization/resolve'
  */
 export const navigation = {
   /** Sale de la aplicación hacia `url` en la misma pestaña (cierre de sesión, inicio de sesión). */
-  assign: (url: string) => window.location.assign(url),
+  assign: (url: string) => {
+    // La demostración estática no tiene a dónde salir y recargar perdería el estado de la API simulada (que vive en
+    // memoria): se navega dentro de la aplicación, sin recarga, y el router lo recoge como un cambio de historial.
+    if (import.meta.env.MODE === 'showcase' && new URL(url, window.location.href).origin === window.location.origin) {
+      const target = new URL(url, window.location.href)
+      window.history.pushState(null, '', target.pathname + target.search + target.hash)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+      return
+    }
+    window.location.assign(url)
+  },
   /**
    * Abre `url` en otra pestaña para que la pestaña actual conserve lo que hay escrito; si el navegador bloquea la
    * ventana, navega en la misma como último recurso.
