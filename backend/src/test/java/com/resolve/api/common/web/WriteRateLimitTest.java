@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -41,6 +42,7 @@ class WriteRateLimitTest extends ApiIntegrationTest {
 
 		this.mvc.perform(write("203.0.113.1"))
 			.andExpect(status().isTooManyRequests())
+			.andExpect(matchesContract("createTicket"))
 			.andExpect(header().string("Content-Type", containsString("application/problem+json")))
 			.andExpect(header().string("Retry-After", "60"))
 			.andExpect(jsonPath("$.status").value(429))

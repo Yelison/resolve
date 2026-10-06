@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.TestPropertySource;
 
+import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -62,6 +63,7 @@ class MaintenanceModeTest extends ApiIntegrationTest {
 
 		this.mvc.perform(get(API + "/me").with(as("ana@acme.example")))
 			.andExpect(status().isServiceUnavailable())
+			.andExpect(matchesContract("getMe"))
 			.andExpect(header().string("Content-Type", containsString("application/problem+json")))
 			.andExpect(header().string("Retry-After", "60"))
 			.andExpect(jsonPath("$.title").value("Reinicio de la demostración en curso"))
@@ -69,7 +71,8 @@ class MaintenanceModeTest extends ApiIntegrationTest {
 			.andExpect(jsonPath("$.instance").value(API + "/me"));
 		// Sin sesión ni cabecera también: el filtro va antes de la seguridad.
 		this.mvc.perform(post(API + "/tickets").content("{}").contentType("application/json"))
-			.andExpect(status().isServiceUnavailable());
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(matchesContract("createTicket"));
 	}
 
 	@Test

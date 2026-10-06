@@ -47,6 +47,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     patch:
       tags: [Session]
       operationId: updateMe
@@ -72,7 +73,8 @@ paths:
               schema: { $ref: '#/components/schemas/Me' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /session/organizations:
     get:
@@ -92,6 +94,7 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/OrganizationRef' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /session/organization:
     post:
@@ -119,6 +122,8 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /logout:
     post:
@@ -141,6 +146,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/LogoutResponse' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /organization:
     get:
@@ -158,6 +165,7 @@ paths:
               schema: { $ref: '#/components/schemas/OrganizationSettings' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     patch:
       tags: [Organization]
       operationId: updateOrganization
@@ -193,7 +201,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /tickets:
     get:
@@ -258,6 +267,7 @@ paths:
               schema: { $ref: '#/components/schemas/TicketPage' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Tickets]
       operationId: createTicket
@@ -286,7 +296,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /tickets/metrics:
     get:
@@ -302,6 +313,7 @@ paths:
               schema: { $ref: '#/components/schemas/TicketMetrics' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /tickets/activity:
     get:
@@ -324,6 +336,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /tickets/{number}:
     parameters:
@@ -343,6 +356,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     patch:
       tags: [Tickets]
       operationId: updateTicket
@@ -377,7 +391,8 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /tickets/{number}/messages:
     parameters:
@@ -400,6 +415,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Messages]
       operationId: createMessage
@@ -419,7 +435,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /tickets/{number}/activity:
     parameters:
@@ -440,6 +457,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /customers:
     get:
@@ -483,6 +501,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Customers]
       operationId: createCustomer
@@ -510,6 +529,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /customers/metrics:
     get:
@@ -527,6 +548,7 @@ paths:
               schema: { $ref: '#/components/schemas/CustomerMetrics' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /customers/companies:
     get:
@@ -547,6 +569,7 @@ paths:
                 items: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /customers/{id}:
     parameters:
@@ -568,6 +591,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     patch:
       tags: [Customers]
       operationId: updateCustomer
@@ -603,7 +627,8 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /customers/{id}/archive:
     parameters:
@@ -628,7 +653,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /customers/{id}/restore:
     parameters:
@@ -651,7 +677,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /customers/{id}/invite:
     parameters:
@@ -678,7 +705,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /members:
     get:
@@ -699,6 +727,7 @@ paths:
                 items: { $ref: '#/components/schemas/TeamMember' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Team]
       operationId: inviteMember
@@ -725,7 +754,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /members/metrics:
     get:
@@ -744,6 +774,7 @@ paths:
               schema: { $ref: '#/components/schemas/TeamMetrics' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /members/{userId}/role:
     parameters:
@@ -773,7 +804,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /members/{userId}/remove:
     parameters:
@@ -799,7 +831,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /assignees:
     get:
@@ -816,6 +849,7 @@ paths:
                 items: { $ref: '#/components/schemas/Member' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /reports/summary:
     get:
@@ -838,6 +872,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /knowledge/categories:
     get:
@@ -857,6 +892,7 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/Category' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Knowledge]
       operationId: createCategory
@@ -878,6 +914,8 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /knowledge/articles:
     get:
@@ -919,6 +957,7 @@ paths:
               schema: { $ref: '#/components/schemas/ArticlePage' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     post:
       tags: [Knowledge]
       operationId: createArticle
@@ -951,7 +990,8 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /knowledge/articles/{slug}:
     parameters:
@@ -973,6 +1013,7 @@ paths:
               schema: { $ref: '#/components/schemas/Article' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
     patch:
       tags: [Knowledge]
       operationId: updateArticle
@@ -1007,7 +1048,8 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '412': { $ref: '#/components/responses/PreconditionFailed' }
         '428': { $ref: '#/components/responses/PreconditionRequired' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /knowledge/articles/{slug}/publish:
     parameters:
@@ -1031,7 +1073,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
   /knowledge/articles/{slug}/unpublish:
     parameters:
@@ -1055,7 +1098,8 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
-        '503': { $ref: '#/components/responses/LockTimeout' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
 components:
   securitySchemes:
@@ -1132,13 +1176,27 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
-    LockTimeout:
+    ServiceUnavailable:
       description: >-
-        Another transaction held the row for longer than the server waits (3 seconds). Nothing was changed: the
-        same request can be sent again after `Retry-After`.
+        The request was not processed and nothing was changed; repeat it after `Retry-After`. Two causes, told apart by
+        the Problem `title`: "Recurso ocupado" (another transaction held the row for longer than the server waits, 3
+        seconds) and, only on the public demo, "Reinicio de la demostración en curso" (the nightly data reset is running; a
+        filter answers every API path except the health probes).
       headers:
         Retry-After:
           description: Seconds to wait before repeating the request.
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyWrites:
+      description: >-
+        Public demo only: more than 60 writes in one minute from the same address (an IPv6 client is counted by its /64
+        prefix). Nothing was changed; repeat the request after `Retry-After`. It is answered by a filter before the
+        controllers, so it applies to every write.
+      headers:
+        Retry-After:
+          description: Seconds until the write fits in the window.
           schema: { type: integer, minimum: 1 }
       content:
         application/problem+json:
