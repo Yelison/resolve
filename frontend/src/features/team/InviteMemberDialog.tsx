@@ -2,7 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { Alert, Button, Input, Modal, Select, useToast } from '../../components/ui'
 import { isApiError } from '../../api/client'
-import { mutationErrorDetail } from '../../lib/mutationError'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { teamRoles, type TeamRole } from '../../domain/member'
 import { roleLabels } from '../../app/navigation'
 import { useInviteMember } from './queries'
@@ -45,6 +47,9 @@ function InviteForm({ onClose }: { onClose: () => void }) {
   const [role, setRole] = useState<TeamRole>('agent')
   const [errors, setErrors] = useState<Errors>({})
   const [failed, setFailed] = useState<string | null>(null)
+  /** El 503 de bloqueo del último envío (nada se cambió); su aviso ofrece repetir ese mismo envío. */
+  const [lockError, setLockError] = useState<unknown>(null)
+  const submission = useRepeatableSubmission()
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -66,11 +71,25 @@ function InviteForm({ onClose }: { onClose: () => void }) {
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
       return
     }
+    // El reintento de un 503 repite este envío (correo, nombre y rol ya compuestos), no lo que haya en el formulario.
+    setLockError(null)
+    submission.send(() => void attempt(form, { email: trimmed.email, name: trimmed.name || undefined, role }))
+  }
+
+  async function attempt(form: HTMLFormElement, invitation: { email: string; name?: string; role: TeamRole }) {
     try {
-      await invite.mutateAsync({ email: trimmed.email, name: trimmed.name || undefined, role })
-      toast.show({ title: 'Invitación creada', description: `${trimmed.email} podrá entrar con este correo.` })
+      await invite.mutateAsync(invitation)
+      toast.show({ title: 'Invitación creada', description: `${invitation.email} podrá entrar con este correo.` })
       onClose()
     } catch (error) {
+      if (isLockTimeout(error)) {
+        flushSync(() => {
+          setErrors({})
+          setFailed(null)
+          setLockError(error)
+        })
+        return
+      }
       const serverErrors: Errors = {}
       if (isApiError(error, 400)) {
         for (const field of ['email', 'name'] as const) {
@@ -79,6 +98,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
         }
       }
       flushSync(() => {
+        setLockError(null)
         setErrors(serverErrors)
         setFailed(Object.keys(serverErrors).length === 0 ? mutationErrorDetail(error) : null)
       })
@@ -88,6 +108,12 @@ function InviteForm({ onClose }: { onClose: () => void }) {
 
   return (
     <form className={styles.form} onSubmit={(event) => void submit(event)} noValidate aria-busy={invite.isPending}>
+      <LockTimeoutAlert
+        error={lockError}
+        pending={invite.isPending}
+        onRetry={submission.retry}
+        what="crear la invitación"
+      />
       {failed && (
         <Alert tone="red" title="No se pudo crear la invitación" live>
           {failed}
@@ -101,6 +127,7 @@ function InviteForm({ onClose }: { onClose: () => void }) {
         autoComplete="off"
         onChange={(event) => {
           setEmail(event.target.value)
+          setLockError(null)
           setErrors((current) => ({ ...current, email: undefined }))
         }}
         error={errors.email}
@@ -113,11 +140,19 @@ function InviteForm({ onClose }: { onClose: () => void }) {
         autoComplete="off"
         onChange={(event) => {
           setName(event.target.value)
+          setLockError(null)
           setErrors((current) => ({ ...current, name: undefined }))
         }}
         error={errors.name}
       />
-      <Select label="Rol" value={role} onChange={(event) => setRole(event.target.value as TeamRole)}>
+      <Select
+        label="Rol"
+        value={role}
+        onChange={(event) => {
+          setRole(event.target.value as TeamRole)
+          setLockError(null)
+        }}
+      >
         {teamRoles.map((value) => (
           <option key={value} value={value}>
             {roleLabels[value]}

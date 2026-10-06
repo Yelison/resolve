@@ -4,7 +4,9 @@ import { Alert, Avatar, Button, Input, useToast } from '../../components/ui'
 import { isApiError } from '../../api/client'
 import type { Me } from '../../api/schema'
 import { roleLabels } from '../../app/navigation'
-import { mutationErrorDetail } from '../../lib/mutationError'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { focusSectionHeading } from './focus'
 import { useUpdateProfile } from './queries'
 import styles from './forms.module.css'
@@ -22,6 +24,9 @@ export function ProfileForm({ me }: { me: Me }) {
   const [value, setValue] = useState(me.user.name)
   const [error, setError] = useState<string>()
   const [failure, setFailure] = useState<string | null>(null)
+  /** El 503 de bloqueo del último envío (nada se cambió); su aviso ofrece repetir ese mismo envío. */
+  const [lockError, setLockError] = useState<unknown>(null)
+  const submission = useRepeatableSubmission()
   // Si el nombre cambia desde fuera (otra pestaña, relectura de la sesión) y no hay edición en curso, se sigue al servidor.
   const [seenName, setSeenName] = useState(me.user.name)
   if (me.user.name !== seenName) {
@@ -47,21 +52,33 @@ export function ProfileForm({ me }: { me: Me }) {
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
       return
     }
+    // El reintento de un 503 repite este envío con el nombre ya recortado, no lo que haya en el campo entonces.
+    setLockError(null)
+    submission.send(() => void attempt(form, trimmed))
+  }
+
+  async function attempt(form: HTMLFormElement, name: string) {
     try {
-      const saved = await update.mutateAsync(trimmed)
+      const saved = await update.mutateAsync(name)
+      setLockError(null)
       setValue(saved.user.name)
       setSeenName(saved.user.name)
       toast.show({ title: 'Cambios guardados' })
       focusSectionHeading(form)
     } catch (caught) {
-      if (isApiError(caught, 400)) {
+      if (isLockTimeout(caught)) {
+        setFailure(null)
+        setLockError(caught)
+      } else if (isApiError(caught, 400)) {
         const message = caught.fieldError('name')
         flushSync(() => {
+          setLockError(null)
           setError(message)
           setFailure(message ? null : mutationErrorDetail(caught))
         })
         form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
       } else {
+        setLockError(null)
         setFailure(mutationErrorDetail(caught))
       }
     }
@@ -76,6 +93,12 @@ export function ProfileForm({ me }: { me: Me }) {
           <span className={styles.identityRole}>{roleLabels[me.role]}</span>
         </div>
       </div>
+      <LockTimeoutAlert
+        error={lockError}
+        pending={update.isPending}
+        onRetry={submission.retry}
+        what="guardar tu nombre"
+      />
       {failure && (
         <Alert tone="red" title="No se pudo guardar tu nombre" live>
           {failure}
@@ -89,6 +112,8 @@ export function ProfileForm({ me }: { me: Me }) {
         onChange={(event) => {
           setValue(event.target.value)
           setError(undefined)
+          // El reintento repetiría lo enviado, no lo que se ve ahora: editar retira el aviso de bloqueo.
+          setLockError(null)
         }}
         hint={me.role === 'customer' ? CUSTOMER_NAME_HINT : STAFF_NAME_HINT}
         error={error}

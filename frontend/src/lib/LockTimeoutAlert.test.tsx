@@ -6,12 +6,16 @@ import { LockTimeoutAlert } from './LockTimeoutAlert'
 import { isLockTimeout, LOCK_RETRY_DELAY_MS, LOCK_TIMEOUT_MESSAGE, mutationErrorDetail } from './mutationError'
 
 const busy = () => new ApiError(503, { status: 503, title: 'Recurso ocupado', detail: 'Otra operación…' })
+const maintenance = () =>
+  new ApiError(503, { status: 503, title: 'Reinicio de la demostración en curso', detail: 'Vuelve en unos minutos.' })
 const down = () => new ApiError(503, { status: 503, title: 'Service Unavailable' })
 
 describe('isLockTimeout', () => {
   it('reconoce el 503 «Recurso ocupado» y nada más', () => {
     expect(isLockTimeout(busy())).toBe(true)
     expect(isLockTimeout(down())).toBe(false)
+    // El otro 503 del contrato (mantenimiento de la demostración) no es un bloqueo: repetir enseguida no sirve.
+    expect(isLockTimeout(maintenance())).toBe(false)
     expect(isLockTimeout(new ApiError(409, { status: 409, title: 'Recurso ocupado' }))).toBe(false)
     expect(isLockTimeout(new Error('Recurso ocupado'))).toBe(false)
     expect(isLockTimeout(null)).toBe(false)
@@ -39,6 +43,9 @@ describe('LockTimeoutAlert', () => {
     expect(container).toBeEmptyDOMElement()
     rerender(<LockTimeoutAlert {...props} error={down()} />)
     expect(container).toBeEmptyDOMElement()
+    rerender(<LockTimeoutAlert {...props} error={maintenance()} />)
+    expect(container).toBeEmptyDOMElement()
+    expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument()
   })
 
   it('avisa en una región viva y no se activa hasta pasado Retry-After', async () => {
@@ -59,11 +66,15 @@ describe('LockTimeoutAlert', () => {
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
-  it('el botón puede recibir el foco mientras espera', async () => {
+  it('el botón sigue enfocable mientras espera: aria-disabled no le quita el foco', async () => {
     const user = setup()
     render(<LockTimeoutAlert {...props} error={busy()} />)
+    const button = screen.getByRole('button', { name: 'Reintentar guardar el ticket' })
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).toHaveFocus()
     await user.tab()
-    expect(screen.getByRole('button', { name: 'Reintentar guardar el ticket' })).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(button).toHaveFocus()
   })
 
   it('al repetir, el aviso y el botón siguen montados con el foco y vuelve a esperar si falla otra vez', () => {
@@ -92,6 +103,87 @@ describe('LockTimeoutAlert', () => {
     rerender(<LockTimeoutAlert {...props} error={null} pending />)
     rerender(<LockTimeoutAlert {...props} error={null} pending={false} />)
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('si el foco cayó en body al fallar, pasa a «Reintentar»; si está en otro sitio, no se mueve', () => {
+    const { rerender } = render(
+      <>
+        <input aria-label="Asunto" />
+        <LockTimeoutAlert {...props} error={null} />
+      </>,
+    )
+    rerender(
+      <>
+        <input aria-label="Asunto" />
+        <LockTimeoutAlert {...props} error={busy()} />
+      </>,
+    )
+    expect(screen.getByRole('button', { name: 'Reintentar guardar el ticket' })).toHaveFocus()
+  })
+
+  it('con el foco en otro elemento, el aviso no se lo quita', () => {
+    const { rerender } = render(
+      <>
+        <input aria-label="Asunto" />
+        <LockTimeoutAlert {...props} error={null} />
+      </>,
+    )
+    screen.getByRole('textbox', { name: 'Asunto' }).focus()
+    rerender(
+      <>
+        <input aria-label="Asunto" />
+        <LockTimeoutAlert {...props} error={busy()} />
+      </>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Asunto' })).toHaveFocus()
+  })
+
+  it('al irse con el foco dentro, el foco pasa al título de la página y no a body', () => {
+    const { rerender } = render(
+      <>
+        <h1>Ticket</h1>
+        <LockTimeoutAlert {...props} error={busy()} />
+      </>,
+    )
+    screen.getByRole('button', { name: 'Reintentar guardar el ticket' }).focus()
+    rerender(
+      <>
+        <h1>Ticket</h1>
+        <LockTimeoutAlert {...props} error={null} pending />
+      </>,
+    )
+    rerender(
+      <>
+        <h1>Ticket</h1>
+        <LockTimeoutAlert {...props} error={null} pending={false} />
+      </>,
+    )
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('heading', { name: 'Ticket' })).toHaveFocus()
+  })
+
+  it('no mueve el foco si se va estando en otro sitio', () => {
+    const { rerender } = render(
+      <>
+        <h1>Ticket</h1>
+        <input aria-label="Asunto" />
+        <LockTimeoutAlert {...props} error={busy()} />
+      </>,
+    )
+    screen.getByRole('textbox', { name: 'Asunto' }).focus()
+    rerender(
+      <>
+        <h1>Ticket</h1>
+        <input aria-label="Asunto" />
+        <LockTimeoutAlert {...props} error={null} pending={false} />
+      </>,
+    )
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(screen.getByRole('textbox', { name: 'Asunto' })).toHaveFocus()
   })
 
   it('desaparece si el reintento recibe otro error, que se muestra con su propio aviso', () => {

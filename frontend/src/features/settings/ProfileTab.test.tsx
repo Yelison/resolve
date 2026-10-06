@@ -1,6 +1,7 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, customerMe, mockApi, type MockRoute } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { memberKeys } from '../team/queries'
@@ -131,5 +132,58 @@ describe('ProfileTab', () => {
     await userEvent.click(save())
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo guardar tu nombre')
     expect(input).toHaveValue('Yelisson Ortiz x')
+  })
+})
+
+describe('ProfileTab con un 503 de bloqueo', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function rename(user: ReturnType<typeof userEvent.setup>, ...replies: Parameters<typeof inOrder>[1][]) {
+    const seen: SentRequest[] = []
+    mockApi({ 'GET /api/me': { body: adminMe }, 'PATCH /api/me': inOrder(seen, ...replies) })
+    renderWithProviders(<ProfileTab />)
+    const input = await name()
+    await user.clear(input)
+    await user.type(input, 'Yelisson O. Ortiz')
+    await user.click(save())
+    return { seen, input }
+  }
+
+  it('conserva el nombre, ofrece «Reintentar» y repite la misma petición', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const { seen, input } = await rename(user, lockTimeoutRoute(), {
+      body: { ...adminMe, user: { ...adminMe.user, name: 'Yelisson O. Ortiz' } },
+    })
+    expect(
+      await screen.findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No se pudo guardar tu nombre')).not.toBeInTheDocument()
+    expect(input).toHaveValue('Yelisson O. Ortiz')
+
+    await retryAfterLockTimeout(user, 'Reintentar guardar tu nombre')
+    expect(await screen.findByText('Cambios guardados')).toBeInTheDocument()
+    expect(screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.')).not.toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(JSON.parse(seen[0]?.body ?? '')).toEqual({ name: 'Yelisson O. Ortiz' })
+  })
+
+  it('si el reintento falla por validación, muestra el error del campo y no el aviso de bloqueo', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    await rename(
+      user,
+      lockTimeoutRoute(),
+      problem(400, { errors: [{ field: 'name', message: 'Nombre no permitido.' }] }),
+    )
+    await retryAfterLockTimeout(user, 'Reintentar guardar tu nombre')
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: 'Nombre' })).toHaveAccessibleDescription(/Nombre no permitido./),
+    )
+    expect(screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.')).not.toBeInTheDocument()
   })
 })

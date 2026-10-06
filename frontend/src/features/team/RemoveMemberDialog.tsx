@@ -1,6 +1,8 @@
 import { Alert, Button, Modal, useToast } from '../../components/ui'
 import type { TeamMember } from '../../domain/member'
-import { mutationErrorDetail } from '../../lib/mutationError'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { useRemoveMember } from './queries'
 import styles from './TeamDialogs.module.css'
 
@@ -43,22 +45,26 @@ function RemoveForm({
   onRemoved: () => void
 }) {
   const remove = useRemoveMember()
+  const submission = useRepeatableSubmission()
   const toast = useToast()
 
   function confirm() {
     if (remove.isPending) return
-    remove.mutate(member.id, {
-      onSuccess: () => {
-        toast.show({ title: 'Miembro retirado', description: `${member.name} ya no forma parte del equipo.` })
-        onRemoved()
-      },
-    })
+    submission.send(() =>
+      remove.mutate(member.id, {
+        onSuccess: () => {
+          toast.show({ title: 'Miembro retirado', description: `${member.name} ya no forma parte del equipo.` })
+          onRemoved()
+        },
+      }),
+    )
   }
 
   const error = remove.error
   return (
     <div className={styles.form}>
-      {error && (
+      <LockTimeoutAlert error={error} pending={remove.isPending} onRetry={submission.retry} what="retirar al miembro" />
+      {error && !isLockTimeout(error) && (
         <Alert tone="red" title="No se pudo retirar al miembro" live>
           {mutationErrorDetail(error)}
         </Alert>
