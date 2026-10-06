@@ -39,6 +39,12 @@ let holdTimer: ReturnType<typeof setTimeout> | undefined
  * de destino (perezosa) y la pantalla anterior, con lo que había escrito, sigue montada: una escritura iniciada ahí
  * saldría hacia la sesión nueva. Se llama antes de vaciar la caché; la libera `releaseWrites` al confirmarse la
  * navegación (`useSessionSync`) o, como tope, a los `HOLD_MAX_MS`.
+ *
+ * Dependencia a tener presente: el tope solo es inofensivo mientras los destinos del descarte, `/` y `/entrar`, no sean
+ * rutas perezosas (hoy van en el paquete principal, así que la navegación no espera a la red y la pantalla anterior se va
+ * en milisegundos) y nada bloquee la navegación (`useBlocker`, `beforeunload`). Si alguna de las dos cosas cambia, un tope
+ * que salte con la pantalla anterior aún montada reabriría las escrituras hacia la sesión nueva: habría que liberar la
+ * retención por el estado del router (`navigation.state === 'idle'`) o recargar la página en vez de reabrir.
  */
 export function holdWrites() {
   sessionState.switching = true
