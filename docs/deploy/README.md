@@ -65,7 +65,7 @@ On every response, the API and the web app:
 
 | Header                      | Value                                                                                    |
 | --------------------------- | ---------------------------------------------------------------------------------------- |
-| `Content-Security-Policy`   | `default-src 'self'; script-src 'self' 'sha256-…'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` |
+| `Content-Security-Policy`   | `default-src 'self'; script-src 'self' 'sha256-…'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self' <issuer origin>; frame-ancestors 'none'` |
 | `Strict-Transport-Security` | `max-age=31536000 ; includeSubDomains`, only on secure requests (HTTPS, or `X-Forwarded-Proto: https`) |
 | `X-Content-Type-Options`    | `nosniff`                                                                                |
 | `Referrer-Policy`           | `strict-origin-when-cross-origin`                                                        |
@@ -75,7 +75,9 @@ The fonts are bundled (`@fontsource-variable/inter`), so nothing is loaded from 
 `script-src 'self'` is not an `unsafe-inline`: `index.html` has a small inline script that applies the saved theme
 before the first paint, and the API computes its SHA-256 hash **at startup** from the `index.html` it serves
 (`ContentSecurityPolicy`). Changing that script needs no change on the server, and an injected inline script matches no
-hash. `style-src 'self'` allows no inline styles; the app does not use any.
+hash. `style-src 'self'` allows no inline styles; the app does not use any. `form-action` also lists the origin of
+`RESOLVE_OIDC_ISSUER`: Chrome checks the redirect that follows a form submission, so a sign-in form that the API
+redirects to the identity provider would otherwise be blocked (a link or `location.assign` is not affected).
 
 ## Errors, logs and health
 
@@ -111,7 +113,10 @@ Keycloak listens inside on the same port that is published, so the URL is identi
 The realm file lists the origin of the application in `redirectUris` and `post.logout.redirect.uris` as
 `${RESOLVE_PUBLIC_URL:http://localhost:8080}`: Keycloak replaces it from its environment when it imports the realm (the
 compose sets it from `SERVER_PORT`), and the development setup, which does not set it, keeps `http://localhost:8080`.
-The values used with the Vite dev server are untouched.
+The values used with the Vite dev server are untouched. `post.logout.redirect.uris` also lists `http://localhost:8080`
+to `8089` (with and without the final `/`), the ports of the API serving the app from the jar: without them Keycloak
+answers "Invalid redirect uri" after signing out and the SSO session stays alive. `KeycloakRealmTest` requires every
+sign-in redirect URI to have its sign-out counterpart.
 
 ## Not covered yet
 
