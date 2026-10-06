@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import { Alert, Button, Input, Modal, useToast } from '../../components/ui'
 import { isApiError } from '../../api/client'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
-import { isLockTimeout } from '../../lib/mutationError'
+import { demoErrorMessage, isLockTimeout } from '../../lib/mutationError'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import type { CustomerDetail, CustomerPatch } from '../../domain/customer'
 import { useCreateCustomer, useUpdateCustomer } from './queries'
@@ -152,6 +152,8 @@ function CustomerForm({
   const [serverChanged, setServerChanged] = useState<FieldName[]>([])
   const [errors, setErrors] = useState<Errors>({})
   const [failure, setFailure] = useState<'conflict' | 'archived' | 'generic' | null>(null)
+  /** Rechazo propio de la demostración pública (reinicio, demasiadas escrituras, tope): su texto va tal cual. */
+  const [demoFailure, setDemoFailure] = useState<string | null>(null)
   /** El 503 de bloqueo del último envío (nada se cambió); su aviso ofrece repetir ese mismo envío. */
   const [lockError, setLockError] = useState<unknown>(null)
   const submission = useRepeatableSubmission()
@@ -202,6 +204,7 @@ function CustomerForm({
     flushSync(() => {
       setErrors(found)
       setFailure(null)
+      setDemoFailure(null)
     })
     if (Object.keys(found).length > 0) {
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
@@ -217,7 +220,12 @@ function CustomerForm({
     try {
       await save(trimmed, changed)
     } catch (error) {
-      if (isLockTimeout(error)) {
+      const demo = demoErrorMessage(error)
+      if (demo) {
+        setLockError(null)
+        setFailure(null)
+        setDemoFailure(demo)
+      } else if (isLockTimeout(error)) {
         setFailure(null)
         setLockError(error)
       } else if (isApiError(error, 412)) {
@@ -266,6 +274,11 @@ function CustomerForm({
         </Alert>
       )}
       <LockTimeoutAlert error={lockError} pending={pending} onRetry={submission.retry} what="guardar el cliente" />
+      {demoFailure && (
+        <Alert tone="amber" title="No se pudo guardar el cliente" live>
+          {demoFailure}
+        </Alert>
+      )}
       {failure === 'generic' && (
         <Alert tone="red" title="No se pudo guardar el cliente" live>
           Revisa tu conexión e inténtalo de nuevo.

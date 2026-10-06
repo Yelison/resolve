@@ -324,6 +324,51 @@ describe('CustomerFormDialog', () => {
   })
 })
 
+describe('CustomerFormDialog con rechazos de la demostración pública', () => {
+  async function fillAndSend(route: { status: number; headers?: Record<string, string>; body: unknown }) {
+    const fetchSpy = mockApi({ 'POST /api/customers': route })
+    const onClose = renderDialog({ mode: 'create' })
+    await userEvent.type(screen.getByRole('textbox', { name: 'Nombre' }), 'Ana López')
+    await userEvent.type(screen.getByRole('textbox', { name: 'Correo' }), 'ana@cliente.example')
+    await userEvent.click(screen.getByRole('button', { name: 'Crear cliente' }))
+    const alert = await screen.findByRole('status')
+    expect(screen.getByRole('textbox', { name: 'Nombre' })).toHaveValue('Ana López')
+    expect(screen.getByRole('textbox', { name: 'Correo' })).toHaveValue('ana@cliente.example')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Revisa tu conexión e inténtalo de nuevo.')).not.toBeInTheDocument()
+    return { alert, fetchSpy }
+  }
+
+  it('el 409 del tope muestra el detail del Problem, no «archivado», y conserva lo escrito', async () => {
+    const { alert } = await fillAndSend({
+      status: 409,
+      body: { status: 409, title: 'Límite de la demostración', detail: 'La demostración admite hasta 200 clientes.' },
+    })
+    expect(within(alert).getByText('La demostración admite hasta 200 clientes.')).toBeInTheDocument()
+    expect(screen.queryByText('El cliente está archivado')).not.toBeInTheDocument()
+  })
+
+  it('el 429 pide esperar, no reenvía solo y conserva lo escrito', async () => {
+    const { alert, fetchSpy } = await fillAndSend({
+      status: 429,
+      headers: { 'Retry-After': '30' },
+      body: { status: 429, title: 'Demasiadas escrituras' },
+    })
+    expect(within(alert).getByText('Has hecho muchos cambios seguidos; espera un momento.')).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.filter(([input]) => (input as Request).method === 'POST')).toHaveLength(1)
+  })
+
+  it('el 503 del reinicio avisa sin «Reintentar» local y conserva lo escrito', async () => {
+    const { alert } = await fillAndSend({
+      status: 503,
+      headers: { 'Retry-After': '60' },
+      body: { status: 503, title: 'Reinicio de la demostración en curso' },
+    })
+    expect(within(alert).getByText('Estamos reiniciando la demostración; vuelve en un minuto.')).toBeInTheDocument()
+  })
+})
+
 describe('CustomerFormDialog con un 503 de bloqueo', () => {
   const LOCK_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
 
