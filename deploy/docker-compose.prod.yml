@@ -51,6 +51,7 @@ services:
           - keycloak.localhost
     volumes:
       - ./keycloak/resolve-realm.json:/opt/keycloak/data/import/resolve-realm.json:ro
+      - ./keycloak/themes:/opt/keycloak/themes:ro
     healthcheck:
       # La imagen no trae curl: se consulta el puerto de gestión (9000) con un socket de bash.
       test:
