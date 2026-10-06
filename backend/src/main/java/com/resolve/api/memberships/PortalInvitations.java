@@ -35,11 +35,11 @@ public class PortalInvitations {
 
 	PortalInvitations(MembershipRepository memberships, OrganizationRepository organizations, UserDirectory directory,
 			Clock clock, JdbcClient jdbc) {
-		this.jdbc = jdbc;
 		this.memberships = memberships;
 		this.organizations = organizations;
 		this.directory = directory;
 		this.clock = clock;
+		this.jdbc = jdbc;
 	}
 
 	/**
