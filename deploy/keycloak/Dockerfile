@@ -23,8 +23,8 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:26.7.5@sha256:37dbaf6f0722c9ec246335f36e1ef8b2e6cb960f7c27e0d8c615121a3d475a85
 
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
-# --import-realm solo crea el realm si no existe (estrategia por defecto IGNORE_EXISTING): un reinicio o un nuevo
-# despliegue no pisa lo que se haya cambiado después en Keycloak. Las ${...} del archivo se sustituyen desde el entorno.
+# En Fly el realm lo aplica la release_command de fly.toml (`import --override true`) en cada despliegue. --import-realm,
+# con la estrategia por defecto IGNORE_EXISTING, solo crea el realm si no existe: sirve para ejecutar la imagen fuera de Fly. Las ${...} del archivo se sustituyen desde el entorno.
 COPY deploy/keycloak/resolve-realm.prod.json /opt/keycloak/data/import/resolve-realm.json
 
 ENV KC_DB=postgres \

@@ -197,13 +197,16 @@ Applies once authentication with Keycloak exists (F8) — **to verify after the 
 4. Record the date of the rotation in `<ops log>`. The old secret is not kept anywhere.
 
 **On the demo deployment** (`resolve-demo-idp`, see [Deployment](README.md#the-identity-provider-keycloak-on-flyio)):
-the image has **no administration console** (the features are disabled) and the realm is imported **only the first
-time**, so steps 1 and 2 above do not apply. Rotating is: (1) a new value in `fly secrets set RESOLVE_OIDC_CLIENT_SECRET=…`
-on **both** `resolve-demo-idp` and `resolve-demo` (the entrypoint refuses to start without it, so it is never unset); (2)
-empty the Keycloak database (**not** the demo database) and run the deploy workflow by hand, so the next start imports the
-realm again with the new secret; (3) restart the API and check the sign-in. Sign-ins fail between steps 1 and 3, and every
-session ends. The same procedure applies if the realm itself must be rebuilt. The exceptional alternative (an image with the
-console, once, through `fly proxy`) is in the deployment guide.
+the image has **no administration console** (the features are disabled), so steps 1 and 2 above do not apply. Every
+deployment of the identity provider re-imports the realm from the repository with its `release_command`, with the
+secret of the app at that moment. Rotating is: (1) stage the new value on the IdP:
+`fly secrets set --stage RESOLVE_OIDC_CLIENT_SECRET=… -a resolve-demo-idp` (staged, so the machine does not restart
+with a secret the realm does not have yet; the entrypoint refuses to start without it, so it is never unset); (2) run the
+deploy workflow by hand (**Run workflow** on `main`): the release machine imports the realm with the new secret and the IdP
+restarts; (3) `fly secrets set RESOLVE_OIDC_CLIENT_SECRET=… -a resolve-demo` (restarts the API) and check the sign-in.
+Sign-ins fail between steps 2 and 3, and every session ends. The same procedure applies whenever the realm must be
+rebuilt. The exceptional alternative (an image with the console, once, through `fly proxy`) is in the deployment guide.
+
 Keycloak also offers a client-secret rotation policy that keeps the previous secret valid for a period; it would remove
 the sign-in gap of the warning above and is **to verify** on the first deployment.
 

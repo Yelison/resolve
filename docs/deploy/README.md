@@ -155,7 +155,7 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
   application's. The `resolve_ops` sentinel and the nightly `flyway clean` of the demo reset never touch it.
 - **Health on the management port.** `[[http_service.checks]]` has no `port` (Fly's reference lists it only for top-level
   `[checks.<name>]`), so the check is a machine check, `[checks.keycloak_ready]` on `:9000/health/ready`. The proxy only
-  publishes `8080`, so the management port is reachable by the check and by nobody else. A machine check reports the
+  publishes `8080`, so the management port is reachable by the check and by no client of the proxy. Another machine of the organisation's private network (6PN, the `.internal` names) can reach `:9000` and `:8080` without the proxy, which is acceptable while every app of the organisation is the owner's. A machine check reports the
   machine's health; whether Fly's proxy also stops routing to a machine whose machine check fails is **to verify**.
 - **Behind Fly's proxy.** `KC_HTTP_ENABLED=true` and `KC_PROXY_HEADERS=xforwarded`; `KC_HOSTNAME` is the public URL
   (`https://resolve-demo-idp.fly.dev`), so the issuer the realm announces is
@@ -168,12 +168,18 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
   `RESOLVE_OIDC_CLIENT_SECRET` (at least 16 characters), `RESOLVE_PUBLIC_URL`, `KC_DB_URL`, `KC_DB_USERNAME`,
   `KC_DB_PASSWORD` and `KC_HOSTNAME` are set, like the API does in `prod`. `sslRequired=external`, no registration, no "forgot password", no outgoing mail
   (there is no SMTP configuration, so nothing can be sent) and a brute-force brake (below).
-- **The import runs once.** `--import-realm` uses the `IGNORE_EXISTING` strategy: the realm is created the first time and
-  every later start logs `Realm 'resolve' already exists. Import skipped`. A restart or a redeployment therefore never
-  overwrites a change made afterwards in the console (tested: change, restart, change survives). The consequence is that
-  the environment variables above are read **only at the first start**: changing `RESOLVE_PUBLIC_URL` or the client secret
-  on the Fly app later changes nothing in the realm (see the rotation in the
-  [runbooks](runbooks.md#4-rotating-the-oidc-secret-resolve_oidc_client_secret)).
+- **Every deployment applies the realm of the repository.** `fly.toml` has a `release_command`
+  (`import --optimized --file /opt/keycloak/data/import/resolve-realm.json --override true`) that Fly runs on a temporary
+  machine, from the new image and **through its entrypoint** (so the same variables and the same guard), before the
+  machine is replaced. `--override true` removes the realm if it exists and imports the file again, so a change merged
+  in `resolve-realm.prod.json`, a new `RESOLVE_PUBLIC_URL` or a new client secret take effect with the next deployment, and
+  the pipeline cannot be green while the realm is stale. Tested locally by simulating the command with `docker run`:
+  «Realm 'resolve' already exists. Removing it before import» then «Realm 'resolve' imported», the changed setting applied
+  and, with another `RESOLVE_OIDC_CLIENT_SECRET`, the API with the old secret refused (`/entrar?error=oidc`) and with the
+  new one signed in. The cost is that sessions end and the failure counters reset on each IdP deployment (which only
+  happens when `deploy/keycloak/**` changes or by hand); the users' internal ids change, and the API identifies people by
+  their verified email address. The start itself still passes `--import-realm` (strategy `IGNORE_EXISTING`), which only
+  matters when the image runs outside Fly, for example in the local compose.
 - **The import ends after the health check turns `UP`** (about ten seconds on a first start). An API that starts in that
   window cannot discover the issuer and stops. The pipeline checks the discovery document, not only the health, and the
   API deploy waits for it.
@@ -211,11 +217,10 @@ lists the endpoint); the sign-in, the theme and the OIDC flow against the API (`
   `realm-management`: `401`).
 
 **An urgent change** (a wrong redirect URI, a user to remove, a leaked client secret) goes through the repository: edit
-[`resolve-realm.prod.json`](../../deploy/keycloak/resolve-realm.prod.json), merge it, and **make the next start import
-it**. The import skips a realm that exists, so the realm has to be created again: empty the **Keycloak** database (not
-the demo one; check the name twice, it holds Keycloak's tables and nothing of the application) and run the workflow
-by hand (**Run workflow** on `main`). Signed-in users are signed out, and nothing else is lost: the demo users are in the
-file.
+[`resolve-realm.prod.json`](../../deploy/keycloak/resolve-realm.prod.json) and merge it; the next deployment of the
+identity provider applies it (see the `release_command` above). If the pipeline has not run because nothing under
+`deploy/keycloak/**` changed (a new secret, for instance), run the workflow by hand (**Run workflow** on `main`). No
+database is emptied. Signed-in users are signed out.
 
 *Exceptionally*, when that is not enough, one image with the features enabled can be deployed **once**
 (`KC_FEATURES_DISABLED` changed in the `Dockerfile`, a bootstrap administrator given as a Fly secret for that start),
@@ -275,7 +280,7 @@ without cancellation, so a deployment is never cut in half.
 | Fly | app `resolve-demo-idp` | app | `fly apps create resolve-demo-idp`, in the same region as `resolve-demo` (`iad`) |
 | Neon | a database for Keycloak | database | A **second database** in the same project (for example `resolve_idp`) and its own role. Not the demo database: the reset empties that one |
 | Fly (`fly secrets set -a resolve-demo-idp`) | `KC_DB_URL`, `KC_DB_USERNAME`, `KC_DB_PASSWORD` | secrets | The Keycloak database: `jdbc:postgresql://<direct-endpoint>/<database>?sslmode=require`, and its role |
-| Fly (`-a resolve-demo-idp`) | `RESOLVE_OIDC_CLIENT_SECRET` | secret | A long random value, **the same** as the API's secret of the same name. Read only at the first import (the entrypoint still requires it on every start) |
+| Fly (`-a resolve-demo-idp`) | `RESOLVE_OIDC_CLIENT_SECRET` | secret | A long random value, **the same** as the API's secret of the same name. Read only at the first import (the entrypoint still requires it on every start and on the release machine) |
 | Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret, optional | Password of the four demo users instead of the public `demo`. Before the first start |
 | Fly (`-a resolve-demo`) | `RESOLVE_OIDC_ISSUER` | secret | **`https://resolve-demo-idp.fly.dev/realms/resolve`** (the existing row lists it with the other `RESOLVE_OIDC_*`) |
 | GitHub environment `demo` | `FLY_API_TOKEN_IDP` | secret | `fly tokens create deploy -a resolve-demo-idp` (a token per app) |
@@ -420,8 +425,10 @@ Things that could not be checked without accounts, in the order they matter:
 4. **GHCR package visibility** (public) and that `flyctl deploy --image` pulls it.
 5. **Neon suspends** when nobody uses the demo. The health check does not query the database (outside maintenance), and `prod` sets `spring.datasource.hikari.minimum-idle=0` and `idle-timeout=60000`: HikariCP keeps 10 idle connections by default, which can keep a suspending database awake, so the pool now empties after a minute without traffic. If Neon still does not suspend, look at `maxLifetime` (30 minutes by default) and at the platform's own checks.
 6. **IPv6:** the app is reachable over IPv6 on Fly; the write limit counts a `/64`.
-7. **The identity provider** (`resolve-demo-idp`), in this order: (a) the first start imports the realm
-   (`fly logs -a resolve-demo-idp` shows `Realm 'resolve' imported`; later starts, `Import skipped`); (b)
+7. **The identity provider** (`resolve-demo-idp`), in this order: (a) the `release_command` receives the app's secrets and
+   env (Fly says it runs with them; **not run here**): the deployment output shows `Realm 'resolve' already exists. Removing it
+   before import` (or just `imported` the first time) and `Realm 'resolve' imported`, and a missing secret would stop the
+   deployment with the entrypoint's message; (b)
    `curl https://resolve-demo-idp.fly.dev/realms/resolve/.well-known/openid-configuration` announces
    `"issuer":"https://resolve-demo-idp.fly.dev/realms/resolve"` over HTTPS (links with `http://` mean the proxy headers
    were not trusted); (c) the machine check `keycloak_ready` on `:9000/health/ready` is `passing` (`fly checks list -a resolve-demo-idp`) and the
