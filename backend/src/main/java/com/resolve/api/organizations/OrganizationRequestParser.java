@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
+import com.resolve.api.common.web.ControlCharacters;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
 
@@ -25,7 +26,7 @@ final class OrganizationRequestParser {
 
 	static final int MAX_TARGET_MINUTES = 1440;
 
-	private static final String CONTROL_CHARACTERS = "No admite caracteres de control.";
+	private static final String CONTROL_CHARACTERS = ControlCharacters.MESSAGE;
 
 	private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
@@ -79,7 +80,7 @@ final class OrganizationRequestParser {
 		if (trimmed.isEmpty()) {
 			return invalid("name", "Es obligatorio.");
 		}
-		if (hasControlCharacters(trimmed)) {
+		if (ControlCharacters.in(trimmed, false)) {
 			return invalid("name", CONTROL_CHARACTERS);
 		}
 		if (trimmed.length() > MAX_NAME_LENGTH) {
@@ -100,7 +101,7 @@ final class OrganizationRequestParser {
 		if (trimmed.isEmpty()) {
 			return null;
 		}
-		if (hasControlCharacters(trimmed)) {
+		if (ControlCharacters.in(trimmed, false)) {
 			return invalid("supportEmail", CONTROL_CHARACTERS);
 		}
 		if (trimmed.length() > MAX_EMAIL_LENGTH || !EMAIL.matcher(trimmed).matches()) {
@@ -116,7 +117,7 @@ final class OrganizationRequestParser {
 			return invalid("timeZone", node.isNull() ? "No admite null." : "Debe ser un texto.");
 		}
 		String value = node.asString();
-		if (value.isEmpty() || hasControlCharacters(value) || !isRegion(value) || !databaseKnowsZone.test(value)) {
+		if (value.isEmpty() || ControlCharacters.in(value, false) || !isRegion(value) || !databaseKnowsZone.test(value)) {
 			return invalid("timeZone", message);
 		}
 		return value;
@@ -143,11 +144,6 @@ final class OrganizationRequestParser {
 			return invalid("firstResponseTargetMinutes", message);
 		}
 		return minutes;
-	}
-
-	/** PostgreSQL rechaza el byte 0 y el resto de controles no tienen sentido en un nombre o un correo. */
-	private static boolean hasControlCharacters(String text) {
-		return text.chars().anyMatch(Character::isISOControl);
 	}
 
 	private <T> @Nullable T invalid(String field, String message) {

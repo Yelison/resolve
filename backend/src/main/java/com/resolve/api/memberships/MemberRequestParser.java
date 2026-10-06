@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
+import com.resolve.api.common.web.ControlCharacters;
+import com.resolve.api.common.web.Uuids;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
 
@@ -30,12 +32,8 @@ final class MemberRequestParser {
 
 	/** Id de la ruta: un UUID. Uno mal formado es un 400; uno bien formado pero ajeno o inexistente, un 404. */
 	static UUID userId(String value) {
-		try {
-			return UUID.fromString(value.trim());
-		}
-		catch (IllegalArgumentException exception) {
-			throw new ApiValidationException("userId", "Debe ser un identificador de miembro válido.");
-		}
+		return Uuids.parse(value)
+			.orElseThrow(() -> new ApiValidationException("userId", "Debe ser un identificador de miembro válido."));
 	}
 
 	record NewInvite(String email, String name, Role role) {
@@ -112,10 +110,8 @@ final class MemberRequestParser {
 			parser.error("organizationId", body.get("organizationId").isNull() ? "No admite null." : "Debe ser un texto.");
 		}
 		else {
-			try {
-				id = UUID.fromString(body.get("organizationId").asString().trim());
-			}
-			catch (IllegalArgumentException exception) {
+			id = Uuids.parse(body.get("organizationId").asString()).orElse(null);
+			if (id == null) {
 				parser.error("organizationId", "Debe ser un identificador de organización válido.");
 			}
 		}
@@ -144,8 +140,8 @@ final class MemberRequestParser {
 		if (trimmed.isEmpty()) {
 			return invalid("email", "Es obligatorio.");
 		}
-		if (hasControlCharacters(trimmed)) {
-			return invalid("email", "No admite caracteres de control.");
+		if (ControlCharacters.in(trimmed, false)) {
+			return invalid("email", ControlCharacters.MESSAGE);
 		}
 		if (trimmed.length() > MAX_EMAIL_LENGTH || !EMAIL.matcher(trimmed).matches()) {
 			return invalid("email", "Escribe un correo válido de hasta " + MAX_EMAIL_LENGTH + " caracteres.");
@@ -161,17 +157,13 @@ final class MemberRequestParser {
 		if (trimmed.isEmpty()) {
 			return invalid("name", "Es obligatorio.");
 		}
-		if (hasControlCharacters(trimmed)) {
-			return invalid("name", "No admite caracteres de control.");
+		if (ControlCharacters.in(trimmed, false)) {
+			return invalid("name", ControlCharacters.MESSAGE);
 		}
 		if (trimmed.length() > MAX_NAME_LENGTH) {
 			return invalid("name", "Admite como máximo " + MAX_NAME_LENGTH + " caracteres.");
 		}
 		return trimmed;
-	}
-
-	private static boolean hasControlCharacters(String text) {
-		return text.chars().anyMatch(Character::isISOControl);
 	}
 
 	private <T> @Nullable T invalid(String field, String message) {
