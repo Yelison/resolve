@@ -66,8 +66,8 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 	 * {@code join fetch}, por el mismo motivo que {@link #lockInOrganization}; en orden de número para que dos
 	 * transacciones que bloqueen varios tickets lo hagan siempre en el mismo orden.
 	 */
-	// Sin tope de espera a propósito: lo llama la baja de un miembro (memberships), cuyo contrato no declara el 503.
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@QueryHints(@QueryHint(name = LockTimeouts.HINT, value = LockTimeouts.MILLIS))
 	@Query("""
 			select t from Ticket t
 			where t.organizationId = :organizationId and t.assignee.id = :assigneeId

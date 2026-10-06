@@ -1829,6 +1829,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     listTickets: {
@@ -1905,6 +1906,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     getTicketMetrics: {
@@ -2475,6 +2477,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     removeMember: {
@@ -2503,6 +2506,7 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+            503: components["responses"]["LockTimeout"];
         };
     };
     listAssignees: {

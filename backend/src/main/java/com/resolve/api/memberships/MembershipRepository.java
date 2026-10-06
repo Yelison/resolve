@@ -5,11 +5,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.resolve.api.common.persistence.LockTimeouts;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 
 public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 
@@ -43,6 +46,7 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 	 * alguien retirado. Sin {@code join fetch}: el usuario se carga después, de forma perezosa.
 	 */
 	@Lock(LockModeType.PESSIMISTIC_READ)
+	@QueryHints(@QueryHint(name = LockTimeouts.HINT, value = LockTimeouts.MILLIS))
 	@Query("""
 			select m from Membership m
 			where m.organization.id = :organizationId and m.user.id = :userId and m.role in (
@@ -53,6 +57,7 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 
 	/** Miembro del equipo (admin o agente) en cualquier estado, con la fila bloqueada hasta el commit. */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@QueryHints(@QueryHint(name = LockTimeouts.HINT, value = LockTimeouts.MILLIS))
 	@Query("""
 			select m from Membership m
 			where m.organization.id = :organizationId and m.user.id = :userId and m.role in (
