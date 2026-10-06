@@ -204,7 +204,7 @@ Variables, headers and health checks of a deployment are in [docs/deploy/README.
 
 The public demo is a shared installation with fictional data. Every page shows a permanent notice, «Demostración pública · los datos se reinician cada noche», and the API marks the installation with `organization.demo` in `/me`. **Do not enter real data**: anyone with the accounts below can read what you write, and it is erased at the next reset.
 
-Accounts of the demo realm ([`deploy/keycloak/resolve-realm.json`](deploy/keycloak/resolve-realm.json)). That realm is public on purpose and its password is the same for everyone: **`demo`**. It is a demonstration value, not a secret, and it belongs only to this realm; a real deployment uses its own realm.
+Accounts of the demo realm ([`deploy/keycloak/resolve-realm.json`](deploy/keycloak/resolve-realm.json)). The password to sign in will be published here after the first deployment, once the realm that serves the demo is confirmed.
 
 | Email | Role | Organization |
 | --- | --- | --- |
