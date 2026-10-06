@@ -165,7 +165,7 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
   `post.logout.redirect.uris` come from `RESOLVE_PUBLIC_URL`, its secret from `RESOLVE_OIDC_CLIENT_SECRET`. Keycloak does **not** fail on a `${VARIABLE}` without a value: it keeps the
   literal text, and the client secret would be the public string `${RESOLVE_OIDC_CLIENT_SECRET}` (tested). So the image's
   entrypoint ([`entrypoint.sh`](../../deploy/keycloak/entrypoint.sh)) refuses to start, listing what is missing, unless
-  `RESOLVE_OIDC_CLIENT_SECRET` (at least 16 characters), `RESOLVE_PUBLIC_URL`, `KC_DB_URL`, `KC_DB_USERNAME`,
+  `RESOLVE_OIDC_CLIENT_SECRET` (at least 16 characters), `RESOLVE_DEMO_USER_PASSWORD` (not `demo`), `RESOLVE_PUBLIC_URL`, `KC_DB_URL`, `KC_DB_USERNAME`,
   `KC_DB_PASSWORD` and `KC_HOSTNAME` are set, like the API does in `prod`. `sslRequired=external`, no registration, no "forgot password", no outgoing mail
   (there is no SMTP configuration, so nothing can be sent) and a brute-force brake (below).
 - **Every deployment applies the realm of the repository.** `fly.toml` has a `release_command`
@@ -190,9 +190,8 @@ on `resolve-demo-idp` **before the first deployment of the identity provider**. 
 fictitious addresses, their data is reset every night and a password that a visitor must ask for would defeat the purpose of
 a public demo, so the [README](../../README.md#live-demo) publishes it once the deployment exists. The `release_command`
 substitutes it when it imports the realm, so a change takes effect with the next deployment of the identity provider, and
-it is not read at any other time. **Known gap:** the realm file still writes `${RESOLVE_DEMO_USER_PASSWORD:demo}` and the
-entrypoint does not require the variable, so forgetting the secret would silently deploy the public `demo` instead of
-failing (listed in the README roadmap). The image has no administrator at all (see below), so there is no administrator
+it is not read at any other time. The variable has no default in the realm file and the entrypoint (which the
+`release_command` also goes through) refuses to start or import when it is empty or equals `demo`. The image has no administrator at all (see below), so there is no administrator
 password anywhere.
 
 **No administration surface.** The image is built with `KC_FEATURES_DISABLED=admin,admin-api,client-admin-api,account,account-api`
@@ -303,7 +302,7 @@ without cancellation, so a deployment is never cut in half.
 | Neon | a database for Keycloak | database | A **second database** in the same project (for example `resolve_idp`) and its own role. Not the demo database: the reset empties that one |
 | Fly (`fly secrets set -a resolve-demo-idp`) | `KC_DB_URL`, `KC_DB_USERNAME`, `KC_DB_PASSWORD` | secrets | The Keycloak database: `jdbc:postgresql://<direct-endpoint>/<database>?sslmode=require`, and its role |
 | Fly (`-a resolve-demo-idp`) | `RESOLVE_OIDC_CLIENT_SECRET` | secret | A long random value, **the same** as the API's secret of the same name. Read by the realm import, which runs on **every** deployment of the identity provider (the `release_command`); the entrypoint also requires it on every start |
-| Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret | **Set it before the first deployment.** The password of the four demo users, chosen by the owner and public on purpose (the README «Live demo» shows it). The development password `demo` is not meant for a deployment. Takes effect with the next deployment of the identity provider (the realm import) |
+| Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret, **required** | **Set it before the first deployment; the identity provider does not start or import without it, nor with `demo`.** The password of the four demo users, chosen by the owner and public on purpose (the README «Live demo» shows it). Takes effect with the next deployment of the identity provider (the realm import) |
 | Fly (`-a resolve-demo`) | `RESOLVE_OIDC_ISSUER` | secret | **`https://resolve-demo-idp.fly.dev/realms/resolve`** (the existing row lists it with the other `RESOLVE_OIDC_*`) |
 | GitHub environment `demo` | `FLY_API_TOKEN_IDP` | secret | `fly tokens create deploy -a resolve-demo-idp` (a token per app) |
 | GitHub environment `demo` | `IDP_URL` | variable | `https://resolve-demo-idp.fly.dev` (no trailing slash) |

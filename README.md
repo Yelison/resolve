@@ -4,7 +4,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 
 [![CI](https://github.com/Yelison/resolve/actions/workflows/ci.yml/badge.svg)](https://github.com/Yelison/resolve/actions/workflows/ci.yml)
 
-> **Status:** ready to deploy as a public demo, **not deployed yet**. The design system, the shared components (internally called **Forma UI**), the application shell and every area of the product are done, views and Spring Boot API: **Overview**, **Tickets**, **Customers**, **Team**, **Reports**, **Knowledge base** (reading and editing) and **Settings** (company, profile, appearance and the permissions matrix). Sign-in goes through OpenID Connect (the API is the client and keeps the session), one Docker image serves the API and the web app, and the pipeline, the Keycloak of the demo, the nightly reset and the runbooks are written and tested locally; they stay switched off until the owner creates the Fly.io and Neon accounts (see [Live demo](#live-demo)). Still pending: tags, attachments and SLA for tickets, and article ratings; none of them is drawn as if it worked.
+> **Status:** ready to deploy as a public demo, **not deployed yet**. The design system, the shared components (internally called **Forma UI**), the application shell and every area of the product are done, views and Spring Boot API: **Overview**, **Tickets**, **Customers**, **Team**, **Reports**, **Knowledge base** (reading and editing) and **Settings** (company, profile, appearance and the permissions matrix). Sign-in goes through OpenID Connect (the API is the client and keeps the session), one Docker image serves the API and the web app, and the pipeline is written, and the demo's Keycloak, the nightly reset and the runbooks were rehearsed locally; the pipeline stays switched off until the owner creates the Fly.io and Neon accounts (see [Live demo](#live-demo)). Still pending: tags, attachments and SLA for tickets, and article ratings; none of them is drawn as if it worked.
 
 | Ticket inbox | Ticket detail (dark) |
 | --- | --- |
@@ -82,7 +82,7 @@ frontend/
     features/       # Product features (tickets, customers, team, session…): pages, queries and their tests
     domain/         # Domain types, re-exported from the generated contract types
     lib/            # Small helpers (positioning, formatting, scroll lock, mutation errors, focus…)
-    styles/         # Generated tokens and global styles
+    styles/         # Design tokens (from Figma, a few adjusted in code) and global styles
   e2e/              # Playwright specs with a contract-typed mock API
 backend/
   src/main/java/com/resolve/api/
@@ -211,7 +211,7 @@ Variables, headers and health checks of a deployment are in [docs/deploy/README.
 
 The public demo is a shared installation with fictional data. Every page shows a permanent notice, «Demostración pública · los datos se reinician cada noche», and the API marks the installation with `organization.demo` in `/me`. **Do not enter real data**: anyone with the accounts below can read what you write, and it is erased at the next reset.
 
-Accounts of the demo realm ([`deploy/keycloak/resolve-realm.prod.json`](deploy/keycloak/resolve-realm.prod.json)). All four share one password, `RESOLVE_DEMO_USER_PASSWORD`, which the owner chooses and which is public on purpose (a demo that asks for a password defeats its purpose). It will be published here when the deployment exists; the `demo` password of the local realm is not the one of the deployment.
+Accounts of the demo realm ([`deploy/keycloak/resolve-realm.prod.json`](deploy/keycloak/resolve-realm.prod.json)). All four share one password, `RESOLVE_DEMO_USER_PASSWORD`, which the owner chooses and which is public on purpose (a demo that asks for a password defeats its purpose). It will be published here when the deployment exists; the `demo` password of the local realm is not accepted by the deployment: the identity provider refuses to start without `RESOLVE_DEMO_USER_PASSWORD` or with `demo`.
 
 | Email | Role | Organization |
 | --- | --- | --- |
@@ -226,7 +226,7 @@ Accounts of the demo realm ([`deploy/keycloak/resolve-realm.prod.json`](deploy/k
 
 ## Operations
 
-The demo runs as two Fly.io apps (the API with the web app, and its own Keycloak) on a Neon PostgreSQL. Every merge to `main` whose CI passes builds the image and deploys it, the identity provider first when `deploy/keycloak/**` changed; a rollback is the same deploy with a previous image tag. The database is reset every night at 03:00 (America/Bogota) by `demo-reset.yml`, which puts the API in maintenance mode, runs `flyway clean migrate` behind a sentinel guard and checks the result. Backups are provider snapshots plus a weekly `pg_dump -Fc`.
+Once deployed (see [Live demo](#live-demo); every job is skipped until `DEPLOY_ENABLED` is set), the demo runs as two Fly.io apps (the API with the web app, and its own Keycloak) on a Neon PostgreSQL. Every merge to `main` whose CI passes builds the image and deploys it, the identity provider first when `deploy/keycloak/**` changed; a rollback is the same deploy with a previous image tag. The database is reset every night at 03:00 (America/Bogota) by `demo-reset.yml`, which puts the API in maintenance mode, runs `flyway clean migrate` behind a sentinel guard and checks the result. Backups are provider snapshots plus a weekly `pg_dump -Fc`.
 
 - [Deployment guide](docs/deploy/README.md): the image, every variable, the pipeline, [what the owner has to create](docs/deploy/README.md#what-the-owner-has-to-create), the [nightly reset](docs/deploy/README.md#the-nightly-reset), the [limits of the demo](docs/deploy/README.md#limits-of-the-demo) and [what to verify on the first deployment](docs/deploy/README.md#verify-on-the-first-deployment).
 - [Runbooks](docs/deploy/runbooks.md): [backups](docs/deploy/runbooks.md#1-backups), [restore](docs/deploy/runbooks.md#2-restore-into-an-empty-database), [rollback](docs/deploy/runbooks.md#3-rolling-back-a-deployment), [OIDC secret rotation](docs/deploy/runbooks.md#4-rotating-the-oidc-secret-resolve_oidc_client_secret) and [what to do when `health` is `DOWN`](docs/deploy/runbooks.md#6-when-health-is-down).
@@ -273,7 +273,6 @@ The Figma frames are the visual reference. Where they conflict with the written 
 Everything planned so far is merged; what remains is open.
 
 - [ ] First deployment of the public demo: the owner creates the accounts and sets `DEPLOY_ENABLED` ([the list](docs/deploy/README.md#what-the-owner-has-to-create)), then checks [what could not be verified without them](docs/deploy/README.md#verify-on-the-first-deployment) and adds the address, the password and the deployment badge to this README
-- [ ] Demo realm: make `RESOLVE_DEMO_USER_PASSWORD` mandatory (the realm file still falls back to `demo` when it is unset)
 - [ ] Demo realm: stable signing keys, so a deployment of the identity provider does not break the sign-out of open sessions ([Limits of the demo](docs/deploy/README.md#limits-of-the-demo))
 - [ ] Sign-in: a specific problem type for an unverified email at the identity provider (#83)
 - [ ] Tests: a prod-profile context leaves console logging in ECS format for the rest of the JVM (#92)
