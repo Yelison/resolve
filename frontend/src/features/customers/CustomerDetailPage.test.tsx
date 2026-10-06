@@ -650,4 +650,47 @@ describe('CustomerDetailPage con un 503 de bloqueo', () => {
     expect(await screen.findByText('Invitación creada')).toBeInTheDocument()
     expect(seen).toHaveLength(2)
   })
+
+  describe('con un 429 de la demostración', () => {
+    const tooMany = {
+      status: 429,
+      headers: { 'Retry-After': '30' },
+      body: { status: 429, title: 'Demasiadas escrituras' },
+    }
+
+    it('las notas lo dicen en el aviso y conservan el texto', async () => {
+      const user = setup()
+      api({ 'PATCH /api/customers/c-maria': tooMany })
+      renderDetail()
+      const notes = await typeNotes(user)
+      const region = screen.getByRole('region', { name: 'Notificaciones' })
+      expect(await within(region).findByText('No se pudieron guardar las notas')).toBeInTheDocument()
+      expect(within(region).getByText('Has hecho muchos cambios seguidos; espera un momento.')).toBeInTheDocument()
+      expect(notes).toHaveValue('Prefiere que la llamen por la mañana. Extra.')
+    })
+
+    it('archivar lo dice en el aviso', async () => {
+      const user = setup()
+      api({ 'POST /api/customers/c-maria/archive': tooMany })
+      renderDetail()
+      await user.click(await screen.findByRole('button', { name: 'Archivar' }))
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archivar cliente' }))
+      const region = screen.getByRole('region', { name: 'Notificaciones' })
+      expect(await within(region).findByText('No se pudo archivar el cliente')).toBeInTheDocument()
+      expect(within(region).getByText('Has hecho muchos cambios seguidos; espera un momento.')).toBeInTheDocument()
+    })
+
+    it('restaurar lo dice en el aviso', async () => {
+      const user = setup()
+      api({
+        'GET /api/customers/c-maria': { body: archivedCustomer() },
+        'POST /api/customers/c-maria/restore': tooMany,
+      })
+      renderDetail()
+      await user.click(await screen.findByRole('button', { name: 'Restaurar' }))
+      const region = screen.getByRole('region', { name: 'Notificaciones' })
+      expect(await within(region).findByText('No se pudo restaurar el cliente')).toBeInTheDocument()
+      expect(within(region).getByText('Has hecho muchos cambios seguidos; espera un momento.')).toBeInTheDocument()
+    })
+  })
 })

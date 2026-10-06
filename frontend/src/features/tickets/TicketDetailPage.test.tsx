@@ -238,6 +238,39 @@ describe('TicketDetailPage con la sesión caducada (foco de revisión 5)', () =>
     // Un solo aviso: el de la sesión lo explica y la página no añade su «No se pudo guardar el cambio».
     expect(within(region).queryByText('No se pudo guardar el cambio')).not.toBeInTheDocument()
   })
+
+  it('un 429 al enviar una respuesta lo dice en el editor y conserva el borrador', async () => {
+    staffApi({
+      'POST /api/tickets/1048/messages': {
+        status: 429,
+        headers: { 'Retry-After': '30' },
+        body: { status: 429, title: 'Demasiadas escrituras' },
+      },
+    })
+    renderDetailInShell()
+    const textarea = await screen.findByRole('textbox', { name: 'Respuesta al cliente' })
+    await userEvent.type(textarea, 'Respuesta que no debe perderse')
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar respuesta' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Has hecho muchos cambios seguidos; espera un momento.')
+    expect(screen.queryByText('Error al enviar · Borrador guardado')).not.toBeInTheDocument()
+    expect(textarea).toHaveValue('Respuesta que no debe perderse')
+  })
+
+  it('un 429 al cambiar un campo editable lo dice en el aviso', async () => {
+    staffApi({
+      'PATCH /api/tickets/1048': {
+        status: 429,
+        headers: { 'Retry-After': '30' },
+        body: { status: 429, title: 'Demasiadas escrituras' },
+      },
+    })
+    renderDetailInShell()
+    await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Estado' }), 'waiting')
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('No se pudo guardar el cambio')).toBeInTheDocument()
+    expect(within(region).getByText('Has hecho muchos cambios seguidos; espera un momento.')).toBeInTheDocument()
+    expect(within(region).queryByText('Inténtalo de nuevo.')).not.toBeInTheDocument()
+  })
 })
 
 describe('TicketDetailPage para clientes', () => {
