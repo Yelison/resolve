@@ -392,6 +392,13 @@ p > a:only-child {
 }
 
 @media (max-width: 767px) {
+  /* Los enlaces de una frase («pulsa aquí») también llegan a 44 px: 20 px de línea + 2 × 12 px de relleno. */
+  .instruction a {
+    display: inline-block;
+    box-sizing: border-box;
+    min-height: var(--control-height);
+  }
+
   .pf-v5-c-login__main-title,
   #kc-page-title {
     font-size: 24px;
