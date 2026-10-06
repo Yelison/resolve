@@ -196,6 +196,17 @@ Applies once authentication with Keycloak exists (F8) — **to verify after the 
 3. Check: `GET /api/actuator/health` is `UP`, then sign in through the browser with a test account and sign out.
 4. Record the date of the rotation in `<ops log>`. The old secret is not kept anywhere.
 
+**On the demo deployment** (`resolve-demo-idp`, see [Deployment](README.md#the-identity-provider-keycloak-on-flyio)):
+the realm is imported **only the first time**, so `RESOLVE_OIDC_CLIENT_SECRET` on the identity provider's Fly app is
+read once and **never again**. Rotating is therefore step 1 (the console of `https://resolve-demo-idp.fly.dev/admin`) and
+step 2 (`-a resolve-demo`) only. Do not expect `fly secrets set -a resolve-demo-idp` to change the client. The image refuses to start without
+that secret, so do not unset it: **update it to the new value** after rotating, so the one kept there is not a stale one that
+looks current. The realm file is
+never re-applied, so if the realm itself must be rebuilt (a lost database), drop the Keycloak database, set the secret
+on `resolve-demo-idp` to the value the API already uses, and redeploy: the first start imports the realm again.
+Keycloak also offers a client-secret rotation policy that keeps the previous secret valid for a period; it would remove
+the sign-in gap of the warning above and is **to verify** on the first deployment.
+
 ## 5. Switching the database
 
 Changing `DATABASE_URL`, `DATABASE_USERNAME` and `DATABASE_PASSWORD` is also a `fly secrets set` and restarts the API.
@@ -224,7 +235,10 @@ Check in this order:
 4. **Configuration.** A missing variable fails the start in `prod` because there are no defaults. Compare
    `fly secrets list -a <api-app>` (names only) with the variable table above.
 5. **Keycloak / OIDC.** If the API fails resolving `RESOLVE_OIDC_ISSUER`, check the Keycloak app is running
-   (`fly status -a <keycloak-app>`) and the issuer URL is reachable from the API.
+   (`fly status -a <keycloak-app>`) and the issuer URL is reachable from the API. The discovery document
+   (`<issuer>/.well-known/openid-configuration`) must answer `200` with the same `issuer`; Keycloak's own health can be
+   `UP` a few seconds before the realm is imported (first start), and a Keycloak that is restarting makes the API fail
+   at startup, so restart the API after the identity provider is back.
 6. **Memory or crash loop.** `fly status` shows restarts; look for `OutOfMemoryError`. Scale the machine only after
    confirming that is the cause.
 7. **Recent change?** If it started right after a deployment, roll back (section 3) first and investigate afterwards.
