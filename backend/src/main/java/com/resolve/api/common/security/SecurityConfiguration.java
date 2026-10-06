@@ -1,16 +1,22 @@
 package com.resolve.api.common.security;
 
+import java.time.Duration;
+
 import com.resolve.api.common.web.ApiPathPrefix;
+import com.resolve.api.common.web.ContentSecurityPolicy;
 import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -40,7 +46,8 @@ class SecurityConfiguration {
 
 	@Bean
 	SecurityFilterChain apiSecurity(HttpSecurity http, ObjectProvider<PrincipalResolver> resolver,
-			ObjectProvider<HttpSecurityCustomizer> customizers, JsonMapper jsonMapper) throws Exception {
+			ObjectProvider<HttpSecurityCustomizer> customizers, JsonMapper jsonMapper,
+			ContentSecurityPolicy contentSecurityPolicy) throws Exception {
 		ProblemResponses problems = new ProblemResponses(jsonMapper);
 		http.csrf(AbstractHttpConfigurer::disable)
 			.httpBasic(AbstractHttpConfigurer::disable)
@@ -48,6 +55,17 @@ class SecurityConfiguration {
 			.logout(AbstractHttpConfigurer::disable)
 			.requestCache(AbstractHttpConfigurer::disable)
 			.anonymous(AbstractHttpConfigurer::disable)
+			// Cabeceras de la API y de la aplicación web, en todos los perfiles. Spring Security ya añade
+			// X-Content-Type-Options: nosniff, X-Frame-Options: DENY y la cabecera de HSTS (solo en peticiones seguras,
+			// o sea con HTTPS o con X-Forwarded-Proto: https); aquí se fijan sus valores y se añaden la política de
+			// contenido y la del referrer. La de caché solo se escribe si el manejador no puso la suya, así que los
+			// archivos con hash de /assets conservan «public, max-age=31536000, immutable».
+			.headers((headers) -> headers.contentTypeOptions(Customizer.withDefaults())
+				.httpStrictTransportSecurity(
+						(hsts) -> hsts.maxAgeInSeconds(Duration.ofDays(365).toSeconds()).includeSubDomains(true))
+				.contentSecurityPolicy((csp) -> csp.policyDirectives(contentSecurityPolicy.value()))
+				.referrerPolicy((referrer) -> referrer.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+				.frameOptions(HeadersConfigurer.FrameOptionsConfig::deny))
 			.sessionManagement((session) -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.exceptionHandling((exceptions) -> exceptions.authenticationEntryPoint(problems::unauthorized)
 				.accessDeniedHandler(problems::forbidden))
