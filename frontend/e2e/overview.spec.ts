@@ -120,7 +120,7 @@ test.describe('resumen · gráfico de solicitudes por día', () => {
     })
   }
 
-  for (const width of [1440, 2560]) {
+  for (const width of [1440, 1920, 2560]) {
     test(`las barras ganan grosor y la separación queda acotada · ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('/')
