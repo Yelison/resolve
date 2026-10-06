@@ -13,6 +13,7 @@ import com.resolve.api.common.error.ResourceNotFoundException;
 import com.resolve.api.common.persistence.Ids;
 import com.resolve.api.common.persistence.LockTimeouts;
 import com.resolve.api.common.security.CurrentMember;
+import com.resolve.api.common.web.DemoLimits;
 import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.Preconditions;
@@ -53,14 +54,17 @@ class ArticleService {
 
 	private final ObjectProvider<ArticleSlugHook> slugHook;
 
+	private final DemoLimits demoLimits;
+
 	ArticleService(ArticleRepository articles, CategoryRepository categories, UserAccountRepository users,
-			JdbcClient jdbc, Clock clock, ObjectProvider<ArticleSlugHook> slugHook) {
+			JdbcClient jdbc, Clock clock, ObjectProvider<ArticleSlugHook> slugHook, DemoLimits demoLimits) {
 		this.articles = articles;
 		this.categories = categories;
 		this.users = users;
 		this.jdbc = jdbc;
 		this.clock = clock;
 		this.slugHook = slugHook;
+		this.demoLimits = demoLimits;
 	}
 
 	@Transactional(readOnly = true)
@@ -87,6 +91,7 @@ class ArticleService {
 		Category category = category(organizationId, request.categoryId());
 		UserAccount author = author(member);
 		lockSlugs(organizationId);
+		this.demoLimits.check(DemoLimits.Resource.ARTICLES, organizationId);
 		String slug = freeSlug(organizationId, Slugs.from(request.title()));
 		this.slugHook.ifAvailable(ArticleSlugHook::afterSlugChosen);
 		Article article = new Article(Ids.newId(), organizationId, category, slug, request.title(), request.body(),

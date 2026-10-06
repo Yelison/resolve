@@ -285,6 +285,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '503': { $ref: '#/components/responses/LockTimeout' }
 
   /tickets/metrics:
@@ -508,6 +509,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /customers/metrics:
     get:
@@ -722,6 +724,7 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '503': { $ref: '#/components/responses/LockTimeout' }
 
   /members/metrics:
@@ -1166,7 +1169,11 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     Conflict:
-      description: The action is not allowed in the current state of the resource (for example archiving twice).
+      description: >-
+        The action is not allowed in the current state of the resource (for example archiving twice). On the public
+        demo (`resolve.demo.limits=true`) the creation of a ticket, customer, member or article also answers it, with
+        the title "Límite de la demostración", when the organization already has the maximum of that resource (500
+        tickets, 200 customers, 50 team members, 100 articles).
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }

@@ -12,6 +12,7 @@ import com.resolve.api.common.error.PreconditionFailedException;
 import com.resolve.api.common.error.ResourceNotFoundException;
 import com.resolve.api.common.persistence.Ids;
 import com.resolve.api.common.security.CurrentMember;
+import com.resolve.api.common.web.DemoLimits;
 import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.Preconditions;
@@ -65,10 +66,12 @@ class TicketService implements AssignedTicketReleaser {
 
 	private final ObjectProvider<TicketUpdateHook> updateHook;
 
+	private final DemoLimits demoLimits;
+
 	TicketService(TicketRepository tickets, TicketMessageRepository messages, TicketActivityRepository activities,
 			CustomerRepository customers, MembershipRepository memberships, UserAccountRepository users,
 			TicketMetricsQuery metrics, Clock clock,
-			ObjectProvider<TicketUpdateHook> updateHook) {
+			ObjectProvider<TicketUpdateHook> updateHook, DemoLimits demoLimits) {
 		this.tickets = tickets;
 		this.messages = messages;
 		this.activities = activities;
@@ -78,6 +81,7 @@ class TicketService implements AssignedTicketReleaser {
 		this.metrics = metrics;
 		this.clock = clock;
 		this.updateHook = updateHook;
+		this.demoLimits = demoLimits;
 	}
 
 	@Transactional(readOnly = true)
@@ -97,6 +101,7 @@ class TicketService implements AssignedTicketReleaser {
 
 	@Transactional
 	TicketDto create(CurrentMember member, NewTicket request) {
+		this.demoLimits.check(DemoLimits.Resource.TICKETS, member.organizationId());
 		// Un cliente archivado no admite tickets nuevos y se rechaza igual que uno desconocido o de otra organización.
 		Customer customer = this.customers.findByOrganizationIdAndId(member.organizationId(), request.customerId())
 			.filter((candidate) -> candidate.getArchivedAt() == null)
