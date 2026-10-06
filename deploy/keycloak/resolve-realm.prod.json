@@ -1,0 +1,82 @@
+{
+  "realm": "resolve",
+  "displayName": "Resolve (demostración pública)",
+  "enabled": true,
+  "loginTheme": "resolve",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["es"],
+  "defaultLocale": "es",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "registrationEmailAsUsername": false,
+  "rememberMe": false,
+  "verifyEmail": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "clients": [
+    {
+      "clientId": "resolve-api",
+      "name": "Resolve API (BFF)",
+      "description": "Cliente confidencial del backend de la demostración. Su secreto viene de RESOLVE_OIDC_CLIENT_SECRET.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${RESOLVE_OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["${RESOLVE_PUBLIC_URL}/api/login/oauth2/code/resolve"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "${RESOLVE_PUBLIC_URL}##${RESOLVE_PUBLIC_URL}/"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email"],
+      "optionalClientScopes": []
+    }
+  ],
+  "users": [
+    {
+      "username": "yelisson.ortiz@acme.example",
+      "email": "yelisson.ortiz@acme.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Yelisson",
+      "lastName": "Ortiz",
+      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD:demo}", "temporary": false }]
+    },
+    {
+      "username": "laura.mendez@acme.example",
+      "email": "laura.mendez@acme.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Laura",
+      "lastName": "Méndez",
+      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD:demo}", "temporary": false }]
+    },
+    {
+      "username": "maria.perez@cliente.example",
+      "email": "maria.perez@cliente.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "María",
+      "lastName": "Pérez",
+      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD:demo}", "temporary": false }]
+    },
+    {
+      "username": "jordi.puig@northwind.example",
+      "email": "jordi.puig@northwind.example",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Jordi",
+      "lastName": "Puig",
+      "credentials": [{ "type": "password", "value": "${RESOLVE_DEMO_USER_PASSWORD:demo}", "temporary": false }]
+    }
+  ]
+}
