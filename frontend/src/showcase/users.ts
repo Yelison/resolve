@@ -12,9 +12,9 @@ export interface ShowcaseUser {
 }
 
 export const showcaseUsers: ShowcaseUser[] = [
-  { email: 'yelisson.ortiz@acme.example', label: 'Administración · ve y gestiona todo', role: 'admin' },
-  { email: 'laura.mendez@acme.example', label: 'Agente · atiende tickets, sin administración', role: 'agent' },
-  { email: 'maria.perez@cliente.example', label: 'Cliente · portal de una clienta', role: 'customer' },
+  { email: 'yelisson.ortiz@acme.example', label: 'Administración', role: 'admin' },
+  { email: 'laura.mendez@acme.example', label: 'Agente', role: 'agent' },
+  { email: 'maria.perez@cliente.example', label: 'Cliente', role: 'customer' },
 ]
 
 /** Rol de la sesión simulada para el correo elegido; sin elección (o desconocido), la administración. */

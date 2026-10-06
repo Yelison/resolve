@@ -22,8 +22,8 @@ function watchNetwork(page: Page) {
 
 const heading = (page: Page, name: string) => page.getByRole('heading', { level: 1, name })
 const picker = (page: Page) => page.getByRole('combobox', { name: 'Usuario de demostración' })
-const ADMIN = 'Administración · ve y gestiona todo'
-const CUSTOMER = 'Cliente · portal de una clienta'
+const ADMIN = 'Administración'
+const CUSTOMER = 'Cliente'
 
 /** Elige un usuario en el selector de /entrar y entra con él. */
 async function enterAs(page: Page, label: string) {
@@ -44,11 +44,34 @@ test('la raíz empieza en /entrar con el selector de usuarios y sin proveedor de
   await expect(page.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
   await expect(page).toHaveURL(/\/resolve\/entrar$/)
   await expect(picker(page)).toBeVisible()
+  await expect(
+    page.getByText('Elige un usuario de demostración para ver los tickets, clientes y reportes'),
+  ).toBeVisible()
+  await expect(page.getByText('Usa tu cuenta')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Entrar con tu cuenta' })).toHaveCount(0)
   await expect(page.getByRole('region', { name: NOTICE })).toContainText('los cambios no se guardan')
   expect((await picker(page).locator('option').allTextContents()).length).toBe(3)
   expect(leaked).toEqual([])
 })
+
+for (const theme of themes) {
+  test(`el selector y su descripción caben a 320 px sin recortes · ${theme}`, async ({ page }) => {
+    await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+    await page.setViewportSize({ width: 320, height: 800 })
+    await page.goto('')
+    const select = picker(page)
+    await expect(select).toBeVisible()
+    expect(await select.locator('option').allTextContents()).toEqual(['Administración', 'Agente', 'Cliente'])
+    await expect(page.getByText(/Administración ve y gestiona todo; Agente atiende tickets/)).toBeVisible()
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(overflow, 'la página no debe tener scroll horizontal').toBeLessThanOrEqual(0)
+    const box = (await select.boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(320)
+  })
+}
 
 test('una URL profunda sin sesión lleva a /entrar y vuelve a ella tras elegir usuario', async ({ page }) => {
   await page.goto('tickets/1048')
