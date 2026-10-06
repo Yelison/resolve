@@ -1,13 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { isApiError, setWriteGuard, UNAUTHORIZED_EVENT } from '../../api/client'
 import type { Me } from '../../api/schema'
 import { Button, useToast } from '../../components/ui'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
 import { fetchMe, sessionKeys } from './queries'
 import { subscribeSessionMessages, type SessionMessageType } from './sessionChannel'
-import { clearSessionData, LOGIN_PATH, navigation, sessionState } from './sessionLifecycle'
+import { clearSessionData, holdWrites, LOGIN_PATH, navigation, releaseWrites, sessionState } from './sessionLifecycle'
 import styles from './session.module.css'
 
 /** `setTimeout` no admite más de 2³¹ − 1 ms (≈ 24 días): con un valor mayor dispara al instante. */
@@ -58,12 +58,20 @@ export function useSessionSync() {
   const toast = useToast()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const location = useLocation()
   /** `returnTo`: dónde estaba el foco al avisar, para devolvérselo cuando el aviso se retire solo. */
   const notice = useRef<{ id: string; shownAt: number; returnTo: HTMLElement | null } | null>(null)
   /** La comprobación en vuelo (resuelve a «¿cambió la sesión?»): la esperan las escrituras y se evita lanzar otra. */
   const checking = useRef<Promise<boolean> | null>(null)
   /** Último mensaje de otra pestaña recibido mientras se comprobaba: se atiende al terminar, no se pierde. */
   const queued = useRef<{ source: Source; message?: SessionMessageType } | null>(null)
+
+  // La navegación a `/` tras un cambio de sesión se confirma cuando cambia la ubicación (y con ella la pantalla): hasta
+  // entonces la pantalla anterior sigue montada y las escrituras siguen cerradas (`holdWrites`).
+  useEffect(() => releaseWrites, [])
+  useEffect(() => {
+    releaseWrites()
+  }, [location.key])
 
   useEffect(() => {
     function showNotice() {
@@ -123,6 +131,7 @@ export function useSessionSync() {
         })
         const changed = previous.user.id !== current.user.id || previous.organization.id !== current.organization.id
         if (changed) {
+          holdWrites()
           await clearSessionData(queryClient)
           queryClient.setQueryData(sessionKeys.me, current)
           if (notice.current) toast.dismiss(notice.current.id)
@@ -140,6 +149,7 @@ export function useSessionSync() {
         if (!isApiError(error, 401)) return false // Red o servidor: no se sabe nada; el siguiente intento lo dirá.
         if (message === 'logout') {
           // Cerraron sesión en otra pestaña: aquí no queda nada que enseñar. No se depende de que `useMe` reaccione.
+          holdWrites()
           await clearSessionData(queryClient)
           void navigate('/entrar', { replace: true })
           return true
@@ -157,7 +167,8 @@ export function useSessionSync() {
     window.addEventListener('focus', onReturn)
     document.addEventListener('visibilitychange', onReturn)
     const stopListening = subscribeSessionMessages((type) => void reconcile('tab', type))
-    setWriteGuard(async () => (await checking.current) ?? false)
+    // Cerrada mientras se cambia de sesión y mientras hay una comprobación en vuelo (resuelve a si la sesión cambió).
+    setWriteGuard(async () => sessionState.switching || ((await checking.current) ?? false))
     return () => {
       window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
       window.removeEventListener('focus', onReturn)

@@ -2,7 +2,8 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, mockApi } from '../../test/api'
-import { navigation } from './sessionLifecycle'
+import { api, SESSION_CHANGED_DETAIL } from '../../api/client'
+import { navigation, releaseWrites } from './sessionLifecycle'
 import { renderShell, setCsrfCookie, stubProductionBuild } from './shellHarness'
 
 const orgA = { id: '0192f000-0000-7000-8000-000000000001', name: 'Acme Studio' }
@@ -33,6 +34,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  releaseWrites()
   vi.restoreAllMocks()
   vi.unstubAllEnvs()
   sessionStorage.clear()
@@ -153,6 +155,40 @@ describe('menú de la cuenta', () => {
       expect(await within(region).findByText('Ahora trabajas en Northwind')).toBeInTheDocument()
       expect(screen.queryByRole('dialog', { name: 'Cambiar de organización' })).not.toBeInTheDocument()
       expect(document.body).not.toHaveFocus()
+    })
+
+    it('en la misma pestaña, la escritura que sale entre la elección y la llegada de la pantalla nueva recibe el 409', async () => {
+      let loadHome!: () => void
+      const home = new Promise<void>((resolve) => (loadHome = resolve))
+      let writes = 0
+      mockApi({
+        'GET /api/me': { body: meWithOrganizations },
+        'POST /api/session/organization': { body: meInNorthwind },
+        'PATCH /api/me': () => {
+          writes += 1
+          return { body: adminMe }
+        },
+      })
+      const { router } = renderShell('/tickets/1046', home)
+      await userEvent.click(within(await openAccountMenu()).getByRole('menuitem', { name: /Cambiar de organización/ }))
+      const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
+      await userEvent.click(within(dialog).getByRole('radio', { name: 'Northwind' }))
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de organización' }))
+
+      // El `Me` nuevo ya está guardado y la caché vacía, pero el ticket anterior sigue en pantalla.
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: /Cuenta: Yelisson Ortiz, Northwind/ })).toBeInTheDocument(),
+      )
+      expect(router.state.location.pathname).toBe('/tickets/1046')
+      const blocked = await api.PATCH('/me', { body: { name: 'Yelisson' } })
+      expect(blocked.response.status).toBe(409)
+      expect(blocked.error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+      expect(writes).toBe(0)
+
+      loadHome()
+      await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+      expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
+      expect(writes).toBe(1)
     })
 
     it('un 403 muestra el error en el diálogo, que sigue abierto, y relee la sesión', async () => {

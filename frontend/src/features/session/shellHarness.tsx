@@ -6,14 +6,27 @@ import { renderWithProviders } from '../../test/render'
 import type { SessionMessageType } from './sessionChannel'
 
 /** Estado de un test de sesión: la shell real con unas pocas rutas y la pantalla de entrada. */
-export function renderShell(path = '/tickets/1046') {
+export function renderShell(
+  path = '/tickets/1046',
+  /** Si se da, la ruta `/` es perezosa y no se carga hasta que se resuelve esta promesa (el router espera antes de desmontar la pantalla anterior). */
+  lazyHome?: Promise<void>,
+) {
   const router = createMemoryRouter(
     [
       {
         path: '/',
         element: <AppShell />,
         children: [
-          { index: true, element: <h1>Resumen</h1>, handle: { crumb: 'Resumen' } },
+          lazyHome
+            ? {
+                index: true,
+                lazy: async () => {
+                  await lazyHome
+                  return { Component: () => <h1>Resumen</h1> }
+                },
+                handle: { crumb: 'Resumen' },
+              }
+            : { index: true, element: <h1>Resumen</h1>, handle: { crumb: 'Resumen' } },
           { path: 'tickets', element: <h1>Tickets</h1>, handle: { crumb: 'Tickets' } },
           { path: 'tickets/:number', element: <h1>Ticket</h1>, handle: { crumb: 'Ticket' } },
         ],
