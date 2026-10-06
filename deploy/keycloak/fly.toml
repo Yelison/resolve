@@ -1,8 +1,7 @@
 # Fly.io: el proveedor de identidad de la demostración pública (D-14, Q-04, Q-05). La imagen no se construye en Fly:
 # .github/workflows/deploy.yml la publica en GHCR y la despliega con
 # `flyctl deploy --config deploy/keycloak/fly.toml --image <imagen>`.
-# Aquí no hay secretos: KC_DB_URL, KC_DB_USERNAME, KC_DB_PASSWORD, RESOLVE_OIDC_CLIENT_SECRET (y, solo para el primer
-# arranque, KC_BOOTSTRAP_ADMIN_USERNAME y KC_BOOTSTRAP_ADMIN_PASSWORD) se dan con `fly secrets set` (docs/deploy/README.md).
+# Aquí no hay secretos: KC_DB_URL, KC_DB_USERNAME, KC_DB_PASSWORD, RESOLVE_OIDC_CLIENT_SECRET se dan con `fly secrets set` (docs/deploy/README.md).
 app = "resolve-demo-idp"
 
 # La misma región que la API (deploy/fly.toml): cada inicio de sesión cruza la red entre las dos.
