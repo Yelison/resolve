@@ -26,6 +26,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,6 +48,10 @@ class OidcAuthenticationTest extends OidcApiIntegrationTest {
 
 	@Autowired
 	private DataSource dataSource;
+
+	private static final String ACCESS_DEACTIVATED_TYPE = "https://resolve.example/problems/access-deactivated";
+
+	private static final String NO_MEMBERSHIP_TYPE = "https://resolve.example/problems/no-membership";
 
 	@Autowired
 	private FilterChainProxy filterChain;
@@ -97,7 +102,8 @@ class OidcAuthenticationTest extends OidcApiIntegrationTest {
 	void anEmailTheProviderHasNotVerifiedDoesNotAuthenticate() throws Exception {
 		this.mvc.perform(get(API + "/me").session(signedIn("laura@acme.example", false, "Laura Méndez")))
 			.andExpect(status().isUnauthorized())
-			.andExpect(matchesContract("getMe"));
+			.andExpect(matchesContract("getMe"))
+			.andExpect(jsonPath("$.type").value("about:blank"));
 	}
 
 	@Test
@@ -108,21 +114,24 @@ class OidcAuthenticationTest extends OidcApiIntegrationTest {
 	}
 
 	@Test
-	void anIdentityWithoutMembershipsGetsA401AndNoUserIsCreated() throws Exception {
+	void anIdentityWithoutMembershipsGetsAnUnauthorizedProblemOfItsOwnTypeAndNoUserIsCreated() throws Exception {
 		this.mvc.perform(get(API + "/me").session(signedIn("nadie@acme.example")))
 			.andExpect(status().isUnauthorized())
-			.andExpect(jsonPath("$.detail").value("Inicia sesión para usar la API."));
+			.andExpect(matchesContract("getMe"))
+			.andExpect(jsonPath("$.type").value(NO_MEMBERSHIP_TYPE))
+			.andExpect(jsonPath("$.detail").value("Esta cuenta no tiene acceso a ninguna organización de Resolve."));
 
 		assertThat(this.data.usersWithEmail("nadie@acme.example")).isZero();
 	}
 
 	@Test
-	void aRemovedMemberGetsA401ThatSaysTheAccessWasDeactivated() throws Exception {
+	void aRemovedMemberGetsA401OfTheAccessDeactivatedType() throws Exception {
 		this.data.setMembershipStatus(this.acme, this.laura, "removed");
 
 		this.mvc.perform(get(API + "/me").session(signedIn("laura@acme.example")))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("getMe"))
+			.andExpect(jsonPath("$.type").value(ACCESS_DEACTIVATED_TYPE))
 			.andExpect(jsonPath("$.detail").value(DEACTIVATED));
 	}
 
@@ -134,6 +143,7 @@ class OidcAuthenticationTest extends OidcApiIntegrationTest {
 
 		this.mvc.perform(get(API + "/me").session(signedIn("maria@cliente.example")))
 			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.type").value(ACCESS_DEACTIVATED_TYPE))
 			.andExpect(jsonPath("$.detail").value(DEACTIVATED));
 	}
 
@@ -251,6 +261,22 @@ class OidcAuthenticationTest extends OidcApiIntegrationTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.user.email").value("laura@acme.example"))
 			.andExpect(jsonPath("$.role").value("agent"));
+	}
+
+	@Test
+	void aMemberWhoseOnlyMembershipWasRemovedIsNotAnIdentityWithoutMemberships() throws Exception {
+		// «Sin membresía» es no tener ninguna; haber tenido una y perderla es otro tipo, aunque los dos sean un 401.
+		this.data.setMembershipStatus(this.acme, this.laura, "removed");
+		this.mvc.perform(get(API + "/me").session(signedIn("laura@acme.example")))
+			.andExpect(jsonPath("$.type").value(not(NO_MEMBERSHIP_TYPE)));
+	}
+
+	@Test
+	void anAnonymousCallKeepsTheGenericUnauthorizedType() throws Exception {
+		this.mvc.perform(get(API + "/me"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.type").value("about:blank"))
+			.andExpect(jsonPath("$.detail").value("Inicia sesión para usar la API."));
 	}
 
 	@Test

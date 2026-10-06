@@ -1470,9 +1470,24 @@ export interface components {
             totalItems: number;
             totalPages: number;
         };
-        /** @description RFC 9457 Problem Details. An absent `type` means `about:blank`, as the RFC defines. */
+        /**
+         * @description RFC 9457 Problem Details. An absent `type` means `about:blank`, as the RFC defines. Clients branch on `type`,
+         *     never on `detail` (Spanish text that can change). Only these problems have a stable type of their own; the
+         *     others are `about:blank` and are told apart by status:
+         *
+         *     | `type` | Status | Meaning |
+         *     | --- | --- | --- |
+         *     | `https://resolve.example/problems/csrf` | 403 | The write has no valid CSRF token. |
+         *     | `https://resolve.example/problems/access-deactivated` | 401 | Membership removed or customer archived. |
+         *     | `https://resolve.example/problems/no-membership` | 401 | Authenticated identity without any membership. |
+         *
+         *     The values are identifiers, not addresses: nothing is served at them.
+         */
         Problem: {
-            /** @default about:blank */
+            /**
+             * @description Problem type; see the table above.
+             * @default about:blank
+             */
             type?: string;
             title: string;
             status: number;
@@ -1517,7 +1532,13 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description No authenticated principal. */
+        /**
+         * @description No authenticated principal. A client tells the causes apart by the Problem `type`, never by `detail`:
+         *     `about:blank` (not signed in or session expired), `https://resolve.example/problems/access-deactivated`
+         *     (the identity exists but its membership was removed or its customer archived) and
+         *     `https://resolve.example/problems/no-membership` (the identity provider authenticated the person, but they
+         *     have no membership at all).
+         */
         Unauthorized: {
             headers: {
                 [name: string]: unknown;
@@ -1526,7 +1547,11 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description The role does not allow the action. */
+        /**
+         * @description The role does not allow the action (`type` `about:blank`), or, with the `oidc` profile, the write carries no
+         *     valid CSRF token (`type` `https://resolve.example/problems/csrf`: reading `/me` sets the cookie and the write
+         *     can be repeated with it).
+         */
         Forbidden: {
             headers: {
                 [name: string]: unknown;

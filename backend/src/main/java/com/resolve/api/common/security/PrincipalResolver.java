@@ -16,6 +16,12 @@ public interface PrincipalResolver {
 	 */
 	String DEACTIVATED_ATTRIBUTE = PrincipalResolver.class.getName() + ".DEACTIVATED";
 
+	/**
+	 * Atributo de la petición que un resolvedor activa cuando el proveedor autenticó a la persona pero no tiene ninguna
+	 * membresía: el 401 lo distingue del de quien no ha iniciado sesión.
+	 */
+	String NO_MEMBERSHIP_ATTRIBUTE = PrincipalResolver.class.getName() + ".NO_MEMBERSHIP";
+
 	Optional<CurrentMember> resolve(HttpServletRequest request);
 
 }

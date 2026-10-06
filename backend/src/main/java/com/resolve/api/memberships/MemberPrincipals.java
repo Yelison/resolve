@@ -29,6 +29,11 @@ public class MemberPrincipals {
 
 		static final Resolution DEACTIVATED = new Resolution(null, true);
 
+		/** La identidad no tiene ninguna membresía (ni siquiera una retirada): no es lo mismo que haberla perdido. */
+		public boolean noMembership() {
+			return this.member == null && !this.deactivated;
+		}
+
 		static Resolution of(CurrentMember member) {
 			return new Resolution(member, false);
 		}
