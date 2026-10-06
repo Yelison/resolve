@@ -21,9 +21,9 @@ export interface SessionOptions {
   longNames?: boolean
   /**
    * El proveedor autentica a la persona (hay sesión en el servidor) pero la aplicación no la admite: `/me` responde 401
-   * con el motivo de una cuenta desactivada hasta que cierra sesión.
+   * con el `type` del motivo (membresía retirada o ninguna membresía) hasta que cierra sesión.
    */
-  refused?: boolean
+  refused?: 'access-deactivated' | 'no-membership'
 }
 
 /** Token que la API simulada entrega en la cookie `XSRF-TOKEN` con cada GET /me y que exige en las escrituras. */
@@ -47,7 +47,7 @@ export function sessionMock(
   base?: () => Me,
 ): MockFeature {
   let signedIn = options.signedIn ?? true
-  let refused = options.refused ?? false
+  let refused = options.refused ?? null
   const organizations = options.organizations ?? [acme]
   let active = organizations[0] ?? acme
   const roleMe: Me = role === 'customer' ? { ...me, role, customerId: 'c-maria' } : me
@@ -77,10 +77,12 @@ export function sessionMock(
             status: 401,
             contentType: 'application/problem+json',
             headers: { 'set-cookie': `XSRF-TOKEN=${CSRF_TOKEN}; Path=/; SameSite=Lax` },
+            // El `detail` es un texto para personas: la aplicación reconoce el caso por el `type`.
             body: JSON.stringify({
+              type: `https://resolve.example/problems/${refused}`,
               status: 401,
               title: 'No autenticado',
-              detail: 'Tu acceso a esta organización fue desactivado',
+              detail: refused === 'no-membership' ? 'Sin membresía.' : 'Acceso desactivado.',
             }),
           })
         }
@@ -103,12 +105,17 @@ export function sessionMock(
         return route.fulfill({
           status: 403,
           contentType: 'application/problem+json',
-          body: JSON.stringify({ status: 403, title: 'Sin permiso', detail: 'Falta el token CSRF o no es válido.' }),
+          body: JSON.stringify({
+            type: 'https://resolve.example/problems/csrf',
+            status: 403,
+            title: 'Sin permiso',
+            detail: 'Token CSRF.',
+          }),
         })
       }
       if (path === '/logout') {
         signedIn = false
-        refused = false
+        refused = null
         // El proveedor devuelve a la aplicación: sin sesión, la shell lleva a /entrar.
         const body: LogoutResponse = { logoutUrl: `${url.origin}/entrar` }
         return json(route, body)

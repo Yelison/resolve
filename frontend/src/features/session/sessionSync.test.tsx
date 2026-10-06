@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { api, SESSION_CHANGED_DETAIL } from '../../api/client'
+import { api, PROBLEM_TYPES, SESSION_CHANGED_DETAIL } from '../../api/client'
 import { shouldRetry } from '../../lib/queryClient'
 import { adminMe, mockApi } from '../../test/api'
 import { sessionKeys } from './queries'
@@ -48,9 +48,17 @@ async function openShell(path = '/tickets/1046', lazyHome?: Promise<void>, query
     },
     'PATCH /api/me': () => {
       server.writes += 1
+      // Un 403 de este servidor simulado es siempre el rechazo por falta de token CSRF: el reintento lo reconoce por el type.
       return server.patchStatus === 200
         ? { body: adminMe }
-        : { status: server.patchStatus, body: { status: server.patchStatus, title: 'Sin permiso' } }
+        : {
+            status: server.patchStatus,
+            body: {
+              ...(server.patchStatus === 403 && { type: PROBLEM_TYPES.csrf }),
+              status: server.patchStatus,
+              title: 'Sin permiso',
+            },
+          }
     },
   })
   sessionStorage.setItem('resolve-draft-1046', 'Respuesta a medias')
