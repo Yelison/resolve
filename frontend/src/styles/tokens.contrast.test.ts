@@ -28,9 +28,9 @@ import { describe, expect, it } from 'vitest'
  * una mezcla, para que este test lo vea.
  *
  * No texto (1.4.11, ≥ 3:1): `brand` como relleno de borde o indicador (Checkbox y Radio marcados, Switch, barras y
- * contorno de BarChart) frente a `surface` y `bg`. No están cubiertas las pistas de ProgressBar (`line`) y de
- * Attachment (`disabled`), que en el tema oscuro quedan por debajo de 3:1 frente al relleno `brand` (2,52 y 2,14);
- * las dos muestran el porcentaje como texto, así que 1.4.11 no lo exige. El ajuste visual de la pista queda para #75.
+ * contorno de BarChart) frente a `surface` y `bg`, y como relleno de progreso frente a `progress-track`, la pista de
+ * ProgressBar y de la subida de Attachment (token del código, #75: en el tema oscuro `line` y `disabled` dejaban
+ * el relleno en 2,52 y 2,14).
  *
  * Los valores de `brand`, `brand-hover` y `link` se ajustaron en el código (#65), no en Figma: este test los protege.
  */
@@ -69,7 +69,11 @@ const PAIRS: readonly Pair[] = [
   { text: 'nav-ink', background: 'nav-active' },
   { text: 'on-brand', background: 'brand' },
   { text: 'on-brand', background: 'brand-hover' },
-  ...(['surface', 'bg'] as const).map((background) => ({ text: 'brand', background, min: 3 as const })),
+  ...(['surface', 'bg', 'progress-track'] as const).map((background) => ({
+    text: 'brand',
+    background,
+    min: 3 as const,
+  })),
 ]
 
 /** Tokens de color del bloque; `var(--color-x)` se resuelve contra el propio bloque (así se ve `link`). */
