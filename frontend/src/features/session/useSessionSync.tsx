@@ -109,16 +109,24 @@ export function useSessionSync() {
         if (source === 'tab' && queued.current?.message !== 'logout') queued.current = { source, message }
         return
       }
-      const run = check(previous, source, message)
+      // La repetición de un mensaje pendiente va encadenada dentro de la misma comprobación: las escrituras que esperan
+      // a `checking` no salen entre la primera lectura y la repetición, que puede descubrir otra sesión.
+      const run = (async () => {
+        let changed = await check(previous, source, message)
+        for (let next = queued.current; next; next = queued.current) {
+          queued.current = null
+          const shown = queryClient.getQueryData<Me>(sessionKeys.me)
+          if (!shown) break // la comprobación anterior vació la sesión (cierre de sesión): no queda nada que comparar
+          changed = (await check(shown, next.source, next.message)) || changed
+        }
+        return changed
+      })()
       checking.current = run
       try {
         await run
       } finally {
         checking.current = null
       }
-      const next = queued.current
-      queued.current = null
-      if (next) void reconcile(next.source, next.message)
     }
 
     /** Relee `/me` y descarta si cambió la sesión. Devuelve si cambió (o si terminó): las escrituras en espera no salen. */

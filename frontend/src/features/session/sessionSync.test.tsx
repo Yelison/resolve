@@ -172,6 +172,39 @@ describe('mensajes durante una comprobación', () => {
   })
 })
 
+describe('escrituras y mensajes pendientes de repetirse', () => {
+  it('la escritura espera también a la repetición: si esta descubre otra organización, no sale', async () => {
+    const { server, queryClient } = await openShell()
+    const release = holdNextRead(server)
+    act(() => void window.dispatchEvent(new Event('focus'))) // lectura en vuelo, ya decidida: la misma sesión
+    await waitFor(() => expect(server.reads).toBeGreaterThan(1))
+    const write = api.PATCH('/me', { body: { name: 'Yelisson' } })
+    server.me = inOrganization(northwind) // la repetición leerá la organización nueva
+    fromAnotherTab('organization-changed') // llega durante la comprobación: queda pendiente
+    release()
+
+    const { response, error } = await write
+    expect(response.status).toBe(409)
+    expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+    expect(server.writes).toBe(0)
+    expect(await within(region()).findByText('Cambiaste a Northwind en otra pestaña')).toBeInTheDocument()
+    expect(cachedTicket(queryClient)).toBeUndefined()
+  })
+
+  it('si la repetición confirma la misma sesión, la escritura sale al terminar las dos lecturas', async () => {
+    const { server, readsSinceOpen } = await openShell()
+    const release = holdNextRead(server)
+    act(() => void window.dispatchEvent(new Event('focus')))
+    await waitFor(() => expect(readsSinceOpen()).toBe(1))
+    const write = api.PATCH('/me', { body: { name: 'Yelisson' } })
+    fromAnotherTab('signed-in')
+    release()
+    expect((await write).response.status).toBe(200)
+    expect(readsSinceOpen()).toBe(2) // la lectura inicial y la repetición, antes de que saliera
+    expect(server.writes).toBe(1)
+  })
+})
+
 describe('escrituras mientras se comprueba la sesión (B-1n)', () => {
   const patch = () => api.PATCH('/me', { body: { name: 'Yelisson' } })
 
