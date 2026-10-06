@@ -88,8 +88,8 @@ The security layer resolves the principal from a pluggable source, one per profi
 | 409 | The action is not allowed in the resource's current state (archiving an archived customer, editing an archived customer, removing yourself or the last active admin, changing the role of the last active admin, acting on a removed member). It is a business-rule conflict, not input validation (400) and not versioning (412). On the public demo, creating a ticket, customer, team member or article beyond the per-organization cap (500, 200, 50, 100) is a `409` titled "Límite de la demostración" |
 | 412 | `If-Match` does not match the current version of the resource |
 | 428 | `If-Match` is missing on an update |
-| 429 | Public demo only: more than 60 writes in a minute from the same address (`Retry-After` says when to retry). Not declared per operation in `openapi.yaml`: it comes from a servlet filter before the controllers |
-| 503 | Another transaction held the row lock for more than 3 seconds (title "Recurso ocupado"), or, on the public demo, the nightly data reset is in progress (title "Reinicio de la demostración en curso", from a filter that answers every `/api` path except the health probes); repeat the request after `Retry-After` |
+| 429 | Public demo only: more than 60 writes in a minute from the same address (`Retry-After` says when to retry; an IPv6 client is counted by its /64 prefix). It comes from a servlet filter before the controllers and is declared (`TooManyWrites`) on every write operation |
+| 503 | Another transaction held the row lock for more than 3 seconds (title "Recurso ocupado"), or, on the public demo, the nightly data reset is in progress (title "Reinicio de la demostración en curso", from a filter that answers every `/api` path except the health probes); repeat the request after `Retry-After`. Declared (`ServiceUnavailable`) on every operation |
 
 ### References to other records
 

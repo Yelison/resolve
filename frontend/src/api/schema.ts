@@ -1495,10 +1495,21 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description Another transaction held the row for longer than the server waits (3 seconds). Nothing was changed: the same request can be sent again after `Retry-After`. */
-        LockTimeout: {
+        /** @description The request was not processed and nothing was changed; repeat it after `Retry-After`. Two causes, told apart by the Problem `title`: "Recurso ocupado" (another transaction held the row for longer than the server waits, 3 seconds) and, only on the public demo, "Reinicio de la demostración en curso" (the nightly data reset is running; a filter answers every API path except the health probes). */
+        ServiceUnavailable: {
             headers: {
                 /** @description Seconds to wait before repeating the request. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description Public demo only: more than 60 writes in one minute from the same address (an IPv6 client is counted by its /64 prefix). Nothing was changed; repeat the request after `Retry-After`. It is answered by a filter before the controllers, so it applies to every write. */
+        TooManyWrites: {
+            headers: {
+                /** @description Seconds until the write fits in the window. */
                 "Retry-After"?: number;
                 [name: string]: unknown;
             };
@@ -1647,7 +1658,8 @@ export type ArticlePatch = components['schemas']['ArticlePatch'];
 export type ArticlePage = components['schemas']['ArticlePage'];
 export type Problem = components['schemas']['Problem'];
 export type ResponseBadRequest = components['responses']['BadRequest'];
-export type ResponseLockTimeout = components['responses']['LockTimeout'];
+export type ResponseServiceUnavailable = components['responses']['ServiceUnavailable'];
+export type ResponseTooManyWrites = components['responses']['TooManyWrites'];
 export type ResponseUnauthorized = components['responses']['Unauthorized'];
 export type ResponseForbidden = components['responses']['Forbidden'];
 export type ResponseNotFound = components['responses']['NotFound'];
@@ -1684,6 +1696,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     updateMe: {
@@ -1710,7 +1723,8 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listSessionOrganizations: {
@@ -1732,6 +1746,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     selectSessionOrganization: {
@@ -1759,6 +1774,8 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     logout: {
@@ -1780,6 +1797,8 @@ export interface operations {
                 };
             };
             403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getOrganization: {
@@ -1803,6 +1822,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     updateOrganization: {
@@ -1836,7 +1856,8 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listTickets: {
@@ -1883,6 +1904,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     createTicket: {
@@ -1914,7 +1936,8 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getTicketMetrics: {
@@ -1937,6 +1960,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listRecentActivity: {
@@ -1963,6 +1987,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getTicket: {
@@ -1989,6 +2014,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     updateTicket: {
@@ -2025,7 +2051,8 @@ export interface operations {
             404: components["responses"]["NotFound"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listMessages: {
@@ -2051,6 +2078,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     createMessage: {
@@ -2081,7 +2109,8 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listActivity: {
@@ -2108,6 +2137,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listCustomers: {
@@ -2146,6 +2176,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     createCustomer: {
@@ -2177,6 +2208,8 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getCustomerMetrics: {
@@ -2199,6 +2232,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listCompanies: {
@@ -2221,6 +2255,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getCustomer: {
@@ -2248,6 +2283,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     updateCustomer: {
@@ -2285,7 +2321,8 @@ export interface operations {
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     archiveCustomer: {
@@ -2314,7 +2351,8 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     restoreCustomer: {
@@ -2343,7 +2381,8 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     inviteCustomer: {
@@ -2371,7 +2410,8 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listMembers: {
@@ -2394,6 +2434,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     inviteMember: {
@@ -2429,7 +2470,8 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getTeamMetrics: {
@@ -2452,6 +2494,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     changeMemberRole: {
@@ -2489,7 +2532,8 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     removeMember: {
@@ -2518,7 +2562,8 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listAssignees: {
@@ -2541,6 +2586,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getReportSummary: {
@@ -2567,6 +2613,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listCategories: {
@@ -2588,6 +2635,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     createCategory: {
@@ -2615,6 +2663,8 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     listArticles: {
@@ -2651,6 +2701,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     createArticle: {
@@ -2682,7 +2733,8 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     getArticle: {
@@ -2709,6 +2761,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     updateArticle: {
@@ -2746,7 +2799,8 @@ export interface operations {
             404: components["responses"]["NotFound"];
             412: components["responses"]["PreconditionFailed"];
             428: components["responses"]["PreconditionRequired"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     publishArticle: {
@@ -2775,7 +2829,8 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
     unpublishArticle: {
@@ -2804,7 +2859,8 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
-            503: components["responses"]["LockTimeout"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
         };
     };
 }
