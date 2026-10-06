@@ -187,7 +187,7 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
 **Passwords of the demo users.** They are *demonstration* accounts with fictitious addresses, so the default password
 `demo` is **public on purpose**: it is the same one the development realm uses and it is written in this repository, and
 a password that a visitor must ask for would defeat the purpose of a public demo. The data behind them is reset every night. If the owner prefers another value, set
-`RESOLVE_DEMO_USER_PASSWORD` as a Fly secret **before the first start** (it is substituted at import). The image has no administrator at all (see below), so there is no administrator password anywhere.
+`RESOLVE_DEMO_USER_PASSWORD` as a Fly secret **before the deployment that should use it** (the `release_command` substitutes it when it imports the realm, so a change takes effect with the next deployment of the identity provider, and it is not read at any other time). The image has no administrator at all (see below), so there is no administrator password anywhere.
 
 **No administration surface.** The image is built with `KC_FEATURES_DISABLED=admin,admin-api,client-admin-api,account,account-api`
 (names checked with `kc.sh build --help` in 26.7.5): no administration console, no administration REST API, no account
@@ -287,12 +287,12 @@ without cancellation, so a deployment is never cut in half.
 | GitHub environment `demo` | `DEMO_URL` | variable | `https://resolve-demo.fly.dev` (no trailing slash) |
 | Fly (`fly secrets set -a resolve-demo`) | `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` | secrets | The demo database, with **the same role as `DEMO_DB_USER`/`DEMO_DB_PASSWORD`** (see below) and the direct endpoint |
 | Fly | `RESOLVE_OIDC_ISSUER`, `RESOLVE_OIDC_CLIENT_ID`, `RESOLVE_OIDC_CLIENT_SECRET` | secrets | The demo realm |
-| GHCR | package visibility of `<repo>` **and** `<repo>-idp` | setting | **Public** for both (the second one appears after the first IdP image is published; set it before the first `idp-deploy`), so Fly can pull them without registry credentials (the image holds no secret). If it must stay private, add registry credentials to `flyctl deploy` |
+| GHCR | package visibility of `<repo>` **and** `<repo>-idp` | setting | **Public** for both. The `-idp` package does not exist until `idp-image` publishes it, and `idp-deploy` runs right after in the same run, so **if GHCR creates it private the first `idp-deploy` fails when Fly pulls the image**: make the package public (GitHub → Packages → `<repo>-idp` → Package settings → Change visibility) and re-run the workflow by hand. Public, so Fly can pull them without registry credentials (the image holds no secret). If it must stay private, add registry credentials to `flyctl deploy` |
 | Fly | app `resolve-demo-idp` | app | `fly apps create resolve-demo-idp`, in the same region as `resolve-demo` (`iad`) |
 | Neon | a database for Keycloak | database | A **second database** in the same project (for example `resolve_idp`) and its own role. Not the demo database: the reset empties that one |
 | Fly (`fly secrets set -a resolve-demo-idp`) | `KC_DB_URL`, `KC_DB_USERNAME`, `KC_DB_PASSWORD` | secrets | The Keycloak database: `jdbc:postgresql://<direct-endpoint>/<database>?sslmode=require`, and its role |
-| Fly (`-a resolve-demo-idp`) | `RESOLVE_OIDC_CLIENT_SECRET` | secret | A long random value, **the same** as the API's secret of the same name. Read only at the first import (the entrypoint still requires it on every start and on the release machine) |
-| Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret, optional | Password of the four demo users instead of the public `demo`. Before the first start |
+| Fly (`-a resolve-demo-idp`) | `RESOLVE_OIDC_CLIENT_SECRET` | secret | A long random value, **the same** as the API's secret of the same name. Read by the realm import, which runs on **every** deployment of the identity provider (the `release_command`); the entrypoint also requires it on every start |
+| Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret, optional | Password of the four demo users instead of the public `demo`. Takes effect with the next deployment of the identity provider (the realm import) |
 | Fly (`-a resolve-demo`) | `RESOLVE_OIDC_ISSUER` | secret | **`https://resolve-demo-idp.fly.dev/realms/resolve`** (the existing row lists it with the other `RESOLVE_OIDC_*`) |
 | GitHub environment `demo` | `FLY_API_TOKEN_IDP` | secret | `fly tokens create deploy -a resolve-demo-idp` (a token per app) |
 | GitHub environment `demo` | `IDP_URL` | variable | `https://resolve-demo-idp.fly.dev` (no trailing slash) |
@@ -440,7 +440,7 @@ Things that could not be checked without accounts, in the order they matter:
    minutes). Run the reset by hand once and watch what a browser sees.
 3. **`sslmode=verify-full` and the JVM truststore** with Neon (`sslfactory=org.postgresql.ssl.DefaultJavaSSLFactory` in
    `DATABASE_URL`), and `PGSSLROOTCERT=system` in the runner's `psql`.
-4. **GHCR package visibility** (public) of **both** packages, `<repo>` and `<repo>-idp`, and that `flyctl deploy --image` pulls each.
+4. **GHCR package visibility** (public) of **both** packages, `<repo>` and `<repo>-idp`, and that `flyctl deploy --image` pulls each. The first `idp-deploy` is expected to fail at the pull if the `-idp` package was created private: make it public and run the workflow again by hand.
 5. **Neon suspends** when nobody uses the demo. The health check does not query the database (outside maintenance), and `prod` sets `spring.datasource.hikari.minimum-idle=0` and `idle-timeout=60000`: HikariCP keeps 10 idle connections by default, which can keep a suspending database awake, so the pool now empties after a minute without traffic. If Neon still does not suspend, look at `maxLifetime` (30 minutes by default) and at the platform's own checks.
 6. **IPv6:** the app is reachable over IPv6 on Fly; the write limit counts a `/64`.
 7. **The identity provider** (`resolve-demo-idp`), in this order: (a) the `release_command` receives the app's secrets and
