@@ -40,7 +40,7 @@
   --color-nav-text: #a8b7d0; /* light/navText */
   --color-brand: #3569f6; /* light/brand */
   --color-brand-hover: #3161e0; /* hover del primario: ajustado en el código (#65), no está en Figma; el test de contraste lo protege */
-  --color-link: var(--color-brand); /* texto de marca: token semántico del código (#65), no está en Figma */
+  --color-link: var(--color-blue-ink); /* texto de marca: token semántico del código (#65), no está en Figma */
   --color-blue-bg: #ebf1ff; /* light/blueBg */
   --color-blue-ink: #2455cd; /* light/blueInk */
   --color-green-bg: #e7f6ee; /* light/greenBg */
