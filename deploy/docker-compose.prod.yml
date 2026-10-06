@@ -1,0 +1,94 @@
+# Prueba local de la imagen de producción (Dockerfile): la API con la aplicación web dentro, PostgreSQL y Keycloak con el
+# realm de demostración. NO es un despliegue: Keycloak corre en modo de desarrollo y las contraseñas son las que se den
+# en el archivo de variables (ver docs/deploy/README.md).
+#
+#   cp deploy/env.prod.example deploy/.env.prod.local     # valores ficticios; editarlos si se quiere
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod.local -p resolve-prod up -d --build
+#   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod.local -p resolve-prod down -v
+#
+# La aplicación queda en http://localhost:${SERVER_PORT} y Keycloak en http://keycloak.localhost:${KEYCLOAK_PORT}.
+#
+# Por qué «keycloak.localhost»: el emisor (issuer) que anuncia Keycloak tiene que ser idéntico a RESOLVE_OIDC_ISSUER, y
+# la API lo descubre desde su contenedor mientras el navegador lo abre desde el anfitrión. Los navegadores resuelven
+# cualquier «*.localhost» a 127.0.0.1 sin tocar /etc/hosts, y dentro de la red de compose el alias de abajo lo lleva
+# al contenedor de Keycloak. Para que el puerto también coincida, Keycloak escucha dentro en el mismo que se publica.
+name: resolve-prod
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: resolve
+      POSTGRES_USER: ${DATABASE_USERNAME:-resolve}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?define DATABASE_PASSWORD (ver deploy/env.prod.example)}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d resolve']
+      interval: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.5
+    command: ['start-dev', '--import-realm']
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?define KC_BOOTSTRAP_ADMIN_PASSWORD (ver deploy/env.prod.example)}
+      KC_HEALTH_ENABLED: 'true'
+      KC_HTTP_PORT: ${KEYCLOAK_PORT:-8180}
+      KC_HOSTNAME: http://keycloak.localhost:${KEYCLOAK_PORT:-8180}
+      # Se sustituyen en el realm importado: el secreto del cliente y el origen de la aplicación (redirectUris y
+      # post.logout.redirect.uris).
+      RESOLVE_OIDC_CLIENT_SECRET: ${RESOLVE_OIDC_CLIENT_SECRET:?define RESOLVE_OIDC_CLIENT_SECRET (ver deploy/env.prod.example)}
+      RESOLVE_PUBLIC_URL: http://localhost:${SERVER_PORT:-8080}
+    ports:
+      - '127.0.0.1:${KEYCLOAK_PORT:-8180}:${KEYCLOAK_PORT:-8180}'
+    networks:
+      default:
+        aliases:
+          - keycloak.localhost
+    volumes:
+      - ./keycloak/resolve-realm.json:/opt/keycloak/data/import/resolve-realm.json:ro
+    healthcheck:
+      # La imagen no trae curl: se consulta el puerto de gestión (9000) con un socket de bash.
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  api:
+    image: resolve:local
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod,oidc
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/resolve
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-resolve}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      RESOLVE_OIDC_ISSUER: http://keycloak.localhost:${KEYCLOAK_PORT:-8180}/realms/resolve
+      RESOLVE_OIDC_CLIENT_ID: resolve-api
+      RESOLVE_OIDC_CLIENT_SECRET: ${RESOLVE_OIDC_CLIENT_SECRET}
+      RESOLVE_PUBLIC_URL: http://localhost:${SERVER_PORT:-8080}
+      # prod solo aplica las migraciones reales: la base empieza vacía. Para probar con los datos de demostración, dar
+      # SPRING_FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/demo en el archivo de variables.
+      SPRING_FLYWAY_LOCATIONS: ${SPRING_FLYWAY_LOCATIONS:-classpath:db/migration}
+    ports:
+      - '127.0.0.1:${SERVER_PORT:-8080}:${SERVER_PORT:-8080}'
+
+volumes:
+  postgres-data:
