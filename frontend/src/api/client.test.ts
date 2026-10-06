@@ -287,11 +287,36 @@ describe('CSRF', () => {
       expect(network.sent).toHaveLength(2)
     })
 
-    it('una respuesta de /me que no es un Me no impide el reintento', async () => {
-      const network = stubFetch(csrfRejection(), new Response('no es json', { status: 200 }), new Response('{}'))
+    it.each([
+      ['HTML', () => new Response('<html>portal</html>', { status: 200 })],
+      ['un JSON que no es un Me', () => new Response('{"ok":true}', { status: 200 })],
+    ])('un /me 200 que es %s: no se reintenta y se devuelve el 403 original', async (_name, answer) => {
+      const network = stubFetch(problem(403, 'Cualquier otro texto.'), answer(), new Response('{}'))
       cookieArrivesWithMe()
       watchSession('u1:org-a')
+      const { response, error } = await api.POST('/session/organization', { body: organization })
+      expect(response.status).toBe(403)
+      expect(error).toMatchObject({ detail: 'Cualquier otro texto.' })
+      expect(network.sent).toHaveLength(2) // el POST y el GET /me: nada de reintento
+    })
+
+    it('un /me que no es un Me, sin sesión al enviar (nada que comparar), no impide el reintento', async () => {
+      const network = stubFetch(csrfRejection(), new Response('no es json', { status: 200 }), new Response('{}'))
+      cookieArrivesWithMe()
+      watchSession(null)
       expect((await api.POST('/session/organization', { body: organization })).response.status).toBe(200)
+      expect(network.sent).toHaveLength(3)
+    })
+
+    it('un 401 en el /me del reintento no lo impide: el reintento recibe el 401 de la sesión muerta', async () => {
+      const network = stubFetch(
+        csrfRejection(),
+        new Response('{}', { status: 401 }),
+        new Response('{}', { status: 401 }),
+      )
+      cookieArrivesWithMe()
+      watchSession('u1:org-a')
+      expect((await api.POST('/session/organization', { body: organization })).response.status).toBe(401)
       expect(network.sent).toHaveLength(3)
     })
   })
