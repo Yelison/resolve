@@ -22,7 +22,7 @@ import type { Ticket, TicketChannel } from '../../domain/ticket'
 import { ticketPriorityValues, ticketStatusValues } from '../../domain/ticket'
 import { formatDateTime } from '../../lib/format'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
-import { isLockTimeout } from '../../lib/mutationError'
+import { demoErrorMessage, isLockTimeout } from '../../lib/mutationError'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
@@ -109,7 +109,11 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
           // Un 412 lo explica el aviso de conflicto, un 503 de bloqueo el suyo con «Reintentar» y un 401, el aviso global
           // «Tu sesión caducó»: otro toast sería ruido.
           if (!isApiError(error, 412) && !isApiError(error, 401) && !isLockTimeout(error)) {
-            toast.show({ tone: 'error', title: 'No se pudo guardar el cambio', description: 'Inténtalo de nuevo.' })
+            toast.show({
+              tone: 'error',
+              title: 'No se pudo guardar el cambio',
+              description: demoErrorMessage(error) ?? 'Inténtalo de nuevo.',
+            })
           }
         },
       }),
@@ -373,6 +377,7 @@ function Composer({ number }: { number: number }) {
         }}
         onSubmit={submit}
         status={status}
+        error={demoErrorMessage(addMessage.error)}
       />
     </>
   )

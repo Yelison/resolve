@@ -24,7 +24,13 @@ import { isApiError } from '../../api/client'
 import type { TicketMetrics, TicketPriority, TicketStatus, TicketSummary, TicketView } from '../../domain/ticket'
 import { ticketPriorityValues, ticketStatusValues } from '../../domain/ticket'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
-import { isLockTimeout, LOCK_RETRY_DELAY_MS, LOCK_TIMEOUT_MESSAGE, LOCK_TOAST_DURATION } from '../../lib/mutationError'
+import {
+  demoErrorMessage,
+  isLockTimeout,
+  LOCK_RETRY_DELAY_MS,
+  LOCK_TIMEOUT_MESSAGE,
+  LOCK_TOAST_DURATION,
+} from '../../lib/mutationError'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
@@ -476,7 +482,7 @@ function InboxRow({ ticket, isStaff }: { ticket: TicketSummary; isStaff: boolean
                   title: `No se pudo actualizar el ticket #${ticket.number}`,
                   description: isApiError(error, 412)
                     ? 'Otra persona lo cambió a la vez. Revisa los cambios e inténtalo de nuevo.'
-                    : 'Inténtalo de nuevo en unos segundos.',
+                    : (demoErrorMessage(error) ?? 'Inténtalo de nuevo en unos segundos.'),
                 },
           ),
       })

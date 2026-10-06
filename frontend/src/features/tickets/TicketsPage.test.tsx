@@ -410,4 +410,19 @@ describe('TicketsPage con un 503 de bloqueo en una acción de fila', () => {
     ).toBeInTheDocument()
     expect(seen.map((request) => request.ifMatch)).toEqual(['"5"', '"5"'])
   })
+
+  it('un 429 en una acción de fila lo dice en el aviso, sin «Reintentar»', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    inbox([], {
+      status: 429,
+      headers: { 'Retry-After': '30' },
+      body: { status: 429, title: 'Demasiadas escrituras' },
+    })
+    renderInbox()
+    await resolveFromMenu(user)
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('No se pudo actualizar el ticket #1048')).toBeInTheDocument()
+    expect(within(region).getByText('Has hecho muchos cambios seguidos; espera un momento.')).toBeInTheDocument()
+    expect(within(region).queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument()
+  })
 })

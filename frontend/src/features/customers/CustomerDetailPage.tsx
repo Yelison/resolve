@@ -20,7 +20,7 @@ import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
-import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
+import { demoErrorMessage, isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { useMe } from '../session/queries'
 import { useTimeZone } from '../session/useTimeZone'
@@ -143,7 +143,7 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
           toast.show({
             tone: 'error',
             title: isApiError(error, 409) ? 'El cliente ya estaba activo' : 'No se pudo restaurar el cliente',
-            description: isApiError(error, 409) ? undefined : 'Inténtalo de nuevo.',
+            description: isApiError(error, 409) ? undefined : (demoErrorMessage(error) ?? 'Inténtalo de nuevo.'),
           })
         },
       }),
@@ -164,7 +164,7 @@ function CustomerDetail({ customer, isAdmin }: { customer: CustomerDetail; isAdm
           toast.show({
             tone: 'error',
             title: isApiError(error, 409) ? 'El cliente ya estaba archivado' : 'No se pudo archivar el cliente',
-            description: isApiError(error, 409) ? undefined : 'Inténtalo de nuevo.',
+            description: isApiError(error, 409) ? undefined : (demoErrorMessage(error) ?? 'Inténtalo de nuevo.'),
           })
         },
       }),
@@ -357,7 +357,11 @@ function Notes({ customer, draft, onDraftChange: setDraft }: NotesProps) {
         },
         onError: (error) => {
           if (!isApiError(error, 412) && !isApiError(error, 409) && !isLockTimeout(error)) {
-            toast.show({ tone: 'error', title: 'No se pudieron guardar las notas', description: 'Inténtalo de nuevo.' })
+            toast.show({
+              tone: 'error',
+              title: 'No se pudieron guardar las notas',
+              description: demoErrorMessage(error) ?? 'Inténtalo de nuevo.',
+            })
           }
         },
       }),
