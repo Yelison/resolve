@@ -208,6 +208,9 @@ async function fetchWithCsrfRetry(request: Request): Promise<Response> {
   // `request.clone()`: un clon que se descarta sin 403 deja inutilizable el cuerpo de la original cuando undici (Node,
   // los tests) lo recolecta, y el test que lo lee falla de forma intermitente bajo carga.
   const body = request.body === null ? null : await request.arrayBuffer()
+  // Todas las opciones de la petición original, no solo las que hoy usa el cliente: `new Request(url, init)` parte de los
+  // valores por defecto, y lo que no se copia (`keepalive`, `cache`, `mode`, `referrer`, `referrerPolicy`, `integrity`,
+  // `priority`) se perdería sin que nada fallara si una llamada lo usara.
   const build = (headers: Headers) =>
     new Request(request.url, {
       method: request.method,
@@ -216,6 +219,13 @@ async function fetchWithCsrfRetry(request: Request): Promise<Response> {
       signal: request.signal,
       credentials: request.credentials,
       redirect: request.redirect,
+      mode: request.mode,
+      cache: request.cache,
+      keepalive: request.keepalive,
+      referrer: request.referrer,
+      referrerPolicy: request.referrerPolicy,
+      integrity: request.integrity,
+      ...('priority' in request ? { priority: (request as Request & { priority: RequestPriority }).priority } : {}),
     })
   const response = await globalThis.fetch(build(request.headers))
   if (response.status !== 403) return response
