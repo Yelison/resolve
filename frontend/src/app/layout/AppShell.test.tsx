@@ -119,13 +119,10 @@ describe('AppShell en escritorio', () => {
     vi.restoreAllMocks()
   })
 
-  it('el aviso de notificaciones no disponibles es informativo, no de éxito', async () => {
+  it('el encabezado no tiene campana de notificaciones', async () => {
     renderShell()
-    await userEvent.click(await screen.findByRole('button', { name: 'Notificaciones' }))
-    const region = screen.getByRole('region', { name: 'Notificaciones' })
-    const toast = within(region).getByText('Notificaciones no disponibles').closest('div[class*="toast"]')
-    expect(toast?.className).toMatch(/\binfo\b/)
-    expect(toast?.className).not.toMatch(/\bsuccess\b/)
+    expect(await screen.findByRole('button', { name: /^Cambiar a tema/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Notificaciones' })).not.toBeInTheDocument()
   })
 })
 

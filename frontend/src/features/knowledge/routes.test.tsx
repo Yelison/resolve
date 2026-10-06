@@ -44,7 +44,6 @@ describe('rutas de la aplicación', () => {
     mockApi({ 'GET /api/me': { body: customerMe } })
     renderApp('/conocimiento/nuevo')
     expect(await screen.findByRole('heading', { name: 'No tienes acceso a esta sección' }, COLD)).toBeInTheDocument()
-    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 
   it('/conocimiento/nuevo abre el editor al personal', async () => {

@@ -34,6 +34,5 @@ describe('rutas de la aplicación', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Equipo' })).toBeInTheDocument()
     expect(await screen.findByText('Todavía no hay equipo')).toBeInTheDocument()
     expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
-    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
   })
 })

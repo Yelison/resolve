@@ -234,7 +234,7 @@ export default function CatalogPage() {
           <Button disabled>Deshabilitado</Button>
           <Button loading>Enviar</Button>
           <Button icon="plus">Nuevo ticket</Button>
-          <IconButton icon="bell" label="Notificaciones" />
+          <IconButton icon="search" label="Buscar" />
         </div>
         <div className={styles.row}>
           <Badge tone="blue">Abierto</Badge>
@@ -335,8 +335,8 @@ export default function CatalogPage() {
             onClick={() =>
               toast.show({
                 tone: 'info',
-                title: 'Notificaciones no disponibles',
-                description: 'Llegarán con la API de eventos.',
+                title: 'Aviso informativo',
+                description: 'Un mensaje que no pide ninguna acción.',
               })
             }
           >
@@ -526,7 +526,6 @@ export default function CatalogPage() {
               theme={resolved}
               onToggleTheme={toggle}
               onSearch={() => {}}
-              onNotifications={() => {}}
             />
           </div>
         </div>
@@ -537,7 +536,6 @@ export default function CatalogPage() {
             theme={resolved}
             onToggleTheme={toggle}
             onSearch={() => {}}
-            onNotifications={() => {}}
             menuButton={{ expanded: false, controls: 'catalog-demo-menu', onClick: () => {} }}
           />
         </div>

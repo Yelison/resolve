@@ -5,7 +5,6 @@ import { AppShell, type RouteHandle } from './layout/AppShell'
 import { mainNavigation, type NavigationItem } from './navigation'
 import { NotFoundPage } from './pages/NotFoundPage'
 import pageStyles from './pages/Page.module.css'
-import { PendingPage } from './pages/PendingPage'
 import { IndexRedirect, RequireRole } from './pages/RequireRole'
 import { customersRoutes } from '../features/customers/routes'
 import { knowledgeRoutes } from '../features/knowledge/routes'
@@ -68,8 +67,8 @@ export interface FeatureRoutesContext {
 export type FeatureRoutes = (context: FeatureRoutesContext) => SectionContent
 
 /**
- * Registro de secciones: asocia la ruta de cada entrada de `navigation.ts` con las rutas de su feature. Una sección
- * sin entrada aquí muestra «Vista en construcción».
+ * Registro de secciones: asocia la ruta de cada entrada de `navigation.ts` con las rutas de su feature. Toda entrada de
+ * la navegación necesita la suya.
  */
 const featureRoutes: Record<string, FeatureRoutes> = {
   '/': overviewRoutes,
@@ -81,24 +80,12 @@ const featureRoutes: Record<string, FeatureRoutes> = {
   '/configuracion': settingsRoutes,
 }
 
-/**
- * Secciones sin feature que, aun así, declaran rutas hijas pendientes. Hoy no queda ninguna: al construir una sección
- * pendiente se registra en `featureRoutes` y se borra de aquí junto con sus rutas pendientes.
- */
-const pendingRoutes: Record<string, FeatureRoutes> = {}
-
-/** ¿La sección `to` ya tiene su feature? Las pruebas lo usan para saber cuáles siguen mostrando la vista pendiente. */
-export const hasFeatureRoutes = (to: string) => to in featureRoutes
-
-/** Todas las secciones salen de `mainNavigation`; las que aún no tienen vista muestran «Vista en construcción». */
-const sectionRoutes: RouteObject[] = mainNavigation.map((item) =>
-  sectionRoute(
-    item,
-    (featureRoutes[item.to] ?? pendingRoutes[item.to])?.({ item, lazyRoute }) ?? {
-      element: <PendingPage title={item.label} icon={item.icon} />,
-    },
-  ),
-)
+/** Todas las secciones salen de `mainNavigation`. */
+const sectionRoutes: RouteObject[] = mainNavigation.map((item) => {
+  const routes = featureRoutes[item.to]
+  if (!routes) throw new Error(`La sección ${item.to} no tiene rutas registradas en featureRoutes`)
+  return sectionRoute(item, routes({ item, lazyRoute }))
+})
 
 /** Rutas de la aplicación; se exportan para probar el cableado real (guardias y redirecciones) sin navegador. */
 export const appRoutes: RouteObject[] = [

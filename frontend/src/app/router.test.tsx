@@ -27,7 +27,6 @@ describe('rutas de la aplicación', () => {
     const router = renderApp('/')
     expect(await screen.findByRole('heading', { level: 1, name: 'Resumen' })).toBeInTheDocument()
     expect(await screen.findByText('Nada pendiente')).toBeInTheDocument()
-    expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 
@@ -40,7 +39,6 @@ describe('rutas de la aplicación', () => {
       renderApp(path)
       expect(await screen.findByRole('heading', { level: 1, name: label })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'No tienes acceso a esta sección' })).toBeInTheDocument()
-      expect(screen.queryByText('Vista en construcción')).not.toBeInTheDocument()
     },
   )
 

@@ -50,14 +50,13 @@ describe('Sidebar', () => {
 })
 
 describe('Topbar', () => {
-  it('en móvil muestra el botón de menú y omite búsqueda y notificaciones', () => {
+  it('en móvil muestra el botón de menú y omite la búsqueda', () => {
     render(
       <MemoryRouter>
         <Topbar
           theme="light"
           onToggleTheme={() => {}}
           onSearch={() => {}}
-          onNotifications={() => {}}
           menuButton={{ expanded: false, controls: 'drawer', onClick: () => {} }}
         />
       </MemoryRouter>,
