@@ -28,12 +28,16 @@ export async function mockApi(
 
   // En el contexto y no en la página: una ventana que abre la aplicación (el inicio de sesión en otra pestaña) también la usa.
   // Las rutas de página de cada test siguen teniendo prioridad.
-  await page.context().route('**/api/**', async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    const path = url.pathname.replace(/^\/api/, '')
-    await dispatchMock(features, { route, request, url, appUrl: url.origin, path, method: request.method() })
-  })
+  // Por ruta y no con `**/api/**`: el servidor de desarrollo sirve módulos como `/src/api/client.ts`, que no son la API.
+  await page.context().route(
+    (url) => url.pathname.startsWith('/api/'),
+    async (route) => {
+      const request = route.request()
+      const url = new URL(request.url())
+      const path = url.pathname.replace(/^\/api/, '')
+      await dispatchMock(features, { route, request, url, appUrl: url.origin, path, method: request.method() })
+    },
+  )
 }
 
 /** Test con la API simulada en cada página. */

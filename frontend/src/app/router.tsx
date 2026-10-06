@@ -95,7 +95,11 @@ export const appRoutes: RouteObject[] = [
     children: [...sectionRoutes, { path: '*', element: <NotFoundPage />, handle: { crumb: 'No encontrada' } }],
   },
   ...sessionRoutes,
-  lazyRoute(async () => ({ Component: (await import('./catalog/CatalogPage')).default }), { path: '/catalogo' }),
+  // El catálogo de componentes es una herramienta de desarrollo: fuera de `vite` no se registra la ruta ni se emite su
+  // chunk, y `/catalogo` cae en la página de «no encontrado».
+  ...(import.meta.env.DEV
+    ? [lazyRoute(async () => ({ Component: (await import('./catalog/CatalogPage')).default }), { path: '/catalogo' })]
+    : []),
 ]
 
 // La demostración estática vive bajo `/resolve/` (GitHub Pages); en cualquier otro modo no hay base.
