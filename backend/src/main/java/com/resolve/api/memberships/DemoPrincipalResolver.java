@@ -50,6 +50,9 @@ class DemoPrincipalResolver implements PrincipalResolver {
 		if (resolution.deactivated()) {
 			request.setAttribute(DEACTIVATED_ATTRIBUTE, Boolean.TRUE);
 		}
+		else if (resolution.noMembership()) {
+			request.setAttribute(NO_MEMBERSHIP_ATTRIBUTE, Boolean.TRUE);
+		}
 		return Optional.ofNullable(resolution.member());
 	}
 

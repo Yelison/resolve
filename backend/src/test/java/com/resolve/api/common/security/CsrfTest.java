@@ -54,7 +54,33 @@ class CsrfTest extends OidcApiIntegrationTest {
 			.andExpect(status().isForbidden())
 			.andExpect(content().contentTypeCompatibleWith("application/problem+json"))
 			.andExpect(jsonPath("$.status").value(403))
+			.andExpect(jsonPath("$.type").value("https://resolve.example/problems/csrf"))
 			.andExpect(jsonPath("$.detail").value("Falta el token CSRF o no es válido."));
+	}
+
+	@Test
+	void aWrongTokenAndAMissingOneAreTheSameProblemType() throws Exception {
+		MockHttpSession session = signedIn("laura@acme.example");
+		String token = csrfCookie(session);
+
+		this.mvc.perform(rename(session).cookie(new Cookie("XSRF-TOKEN", token)).header("X-XSRF-TOKEN", token + "x"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.type").value("https://resolve.example/problems/csrf"));
+	}
+
+	@Test
+	void aRoleThatDoesNotAllowTheActionIsNotTheCsrfProblem() throws Exception {
+		var acme = this.data.organization("Acme 2");
+		var customer = this.data.customer(acme, "Clara", "clara@cliente.example", "Cliente SA");
+		this.data.customerUser(acme, customer, "Clara", "clara@cliente.example");
+
+		this.mvc.perform(post(API + "/tickets").session(signedIn("clara@cliente.example"))
+			.with(csrfToken())
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{}"))
+			.andExpect(status().isForbidden())
+			.andExpect(jsonPath("$.type").value("about:blank"))
+			.andExpect(jsonPath("$.detail").value("Tu rol no permite esta acción."));
 	}
 
 	@Test
