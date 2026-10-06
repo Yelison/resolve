@@ -84,7 +84,27 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 			""", nativeQuery = true)
 	long allocateNumber(UUID organizationId);
 
-	/** Registra actividad pública sin cambiar la versión: una respuesta no invalida un cambio de estado paralelo. */
+	/**
+	 * Registra actividad pública sin cambiar la versión: una respuesta no invalida un cambio de estado paralelo.
+	 *
+	 * <p>
+	 * El {@code UPDATE} espera la fila del ticket si un {@code PATCH} la tiene bloqueada, y la pista de
+	 * {@link LockTimeouts} no actúa sobre un {@code UPDATE} masivo: el tope se fija antes con
+	 * {@link #limitLockWait}. Al vencer, PostgreSQL responde 55P03 como en los finders con bloqueo.
+	 */
+	default void touchPublicActivity(UUID ticketId, Instant at, boolean firstResponse) {
+		limitLockWait(LockTimeouts.MILLIS);
+		stampPublicActivity(ticketId, at, firstResponse);
+	}
+
+	/**
+	 * {@code set local lock_timeout} (el tercer argumento de {@code set_config}): vale hasta el final de la
+	 * transacción actual y no se escapa a la siguiente que use la conexión.
+	 * @return el valor fijado
+	 */
+	@Query(value = "select set_config('lock_timeout', :millis, true)", nativeQuery = true)
+	String limitLockWait(String millis);
+
 	@Modifying(flushAutomatically = true, clearAutomatically = true)
 	@Query("""
 			update Ticket t set t.updatedAt = greatest(t.updatedAt, :at),
@@ -92,6 +112,6 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 					else t.firstResponseAt end
 			where t.id = :ticketId
 			""")
-	void touchPublicActivity(UUID ticketId, Instant at, boolean firstResponse);
+	void stampPublicActivity(UUID ticketId, Instant at, boolean firstResponse);
 
 }

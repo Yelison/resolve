@@ -115,6 +115,35 @@ class TicketLockTimeoutTest extends TicketsFixture {
 		this.mvc.perform(get(API + "/tickets/1").with(as(ADMIN))).andExpect(status().isNotFound());
 	}
 
+	@Test
+	void aPublicReplyWhileTheTicketRowIsHeldIsA503AndStoresNothingWhileAnInternalNoteIsNotBlocked() throws Exception {
+		createTicket(LAURA, this.mariaCustomer, "Ticket", "urgent", null);
+
+		try (RowLock lock = RowLock.hold(this.dataSource,
+				"select id from tickets where organization_id = ? and number = 1 for no key update", this.acme)) {
+			ResultActions blocked = assertTimeoutPreemptively(LIMIT, () -> this.mvc
+				.perform(post(API + "/tickets/1/messages").with(as(LAURA))
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"body\": \"Hola\", \"visibility\": \"public\"}")));
+			expectLockTimeout(blocked, "createMessage");
+
+			// Una nota interna no toca la fila del ticket: no espera al bloqueo.
+			assertTimeoutPreemptively(LIMIT, () -> this.mvc
+				.perform(post(API + "/tickets/1/messages").with(as(LAURA))
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"body\": \"Nota\", \"visibility\": \"internal\"}")))
+				.andExpect(status().isCreated());
+		}
+
+		// La respuesta pública no dejó mensaje ni actividad: solo la nota; con la fila libre se aplica.
+		this.mvc.perform(get(API + "/tickets/1/messages").with(as(LAURA)))
+			.andExpect(jsonPath("$.length()").value(1))
+			.andExpect(jsonPath("$[0].body").value("Nota"));
+		this.mvc.perform(post(API + "/tickets/1/messages").with(as(LAURA))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"body\": \"Hola\", \"visibility\": \"public\"}")).andExpect(status().isCreated());
+	}
+
 	private RowLock holdMembership(UUID userId) throws Exception {
 		return RowLock.hold(this.dataSource,
 				"select id from memberships where organization_id = ? and user_id = ? for no key update", this.acme,

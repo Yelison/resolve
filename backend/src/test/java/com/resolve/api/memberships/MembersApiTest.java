@@ -329,4 +329,23 @@ class MembersApiTest extends TeamFixture {
 			.andExpect(matchesContract("removeMember"));
 	}
 
+	@Test
+	void aNonCanonicalUserIdInThePathIsA400OnTheFieldAndNeverReachesTheLookup() throws Exception {
+		// UUID.fromString lo aceptaba (1-2-3-4-5 es el UUID 00000001-0002-0003-0004-000000000005): era un 404. Los
+		// controles pegados al id (que trim() quitaba) los cubre MemberRequestParserTest: el cortafuegos de Spring
+		// Security rechaza antes un %00 en la ruta.
+		for (String id : new String[] { "1-2-3-4-5", "3f2b8c1e5d4a4e6f9a7b1c2d3e4f5a6b" }) {
+			this.mvc.perform(post(API + "/members/" + id + "/role").with(as(ADMIN))
+				.contentType("application/json")
+				.content("{\"role\": \"admin\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(matchesContract("changeMemberRole"))
+				.andExpect(jsonPath("$.errors[0].field").value("userId"));
+			this.mvc.perform(post(API + "/members/" + id + "/remove").with(as(ADMIN)))
+				.andExpect(status().isBadRequest())
+				.andExpect(matchesContract("removeMember"))
+				.andExpect(jsonPath("$.errors[0].field").value("userId"));
+		}
+	}
+
 }
