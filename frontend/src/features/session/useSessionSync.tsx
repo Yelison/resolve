@@ -196,10 +196,14 @@ export function useSessionSync() {
         const shown = queryClient.getQueryData<Me>(sessionKeys.me)
         return shown ? identityOf(shown) : null
       },
+      // La organización que cada escritura envía en `X-Organization-Id`: la de la pantalla, o ninguna sin sesión cargada.
+      organization: () => queryClient.getQueryData<Me>(sessionKeys.me)?.organization.id ?? null,
       observe: (me) => {
         const shown = queryClient.getQueryData<Me>(sessionKeys.me)
         if (shown && identityOf(shown) !== identityOf(me)) void reconcile('tab')
       },
+      // El backend rechazó una escritura porque la organización de la pantalla ya no es la de la sesión.
+      refresh: () => void reconcile('tab'),
     })
     // Cerrada mientras se cambia de sesión y mientras hay una comprobación en vuelo (resuelve a si la sesión cambió).
     setWriteGuard(async () => sessionState.switching || ((await checking.current) ?? false))

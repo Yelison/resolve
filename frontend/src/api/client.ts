@@ -80,7 +80,21 @@ export const PROBLEM_TYPES = {
   accessDeactivated: 'https://resolve.example/problems/access-deactivated',
   /** 401: el proveedor autenticó a la persona, pero no tiene ninguna membresía. */
   noMembership: 'https://resolve.example/problems/no-membership',
+  /** 409: la organización que la pantalla mostraba al componer la escritura ya no es la de la sesión; nada se escribió. */
+  organizationMismatch: 'https://resolve.example/problems/organization-mismatch',
 } as const
+
+/** Cabecera con la organización que muestra la pantalla que compone la escritura (opcional en el contrato). */
+export const ORGANIZATION_HEADER = 'X-Organization-Id'
+
+/**
+ * Las dos escrituras que no la llevan: la que elige la organización de la sesión y la que cierra la sesión. El backend
+ * las ignora; enviársela a la primera sería comparar con la organización que va a dejar de serlo.
+ */
+const WITHOUT_ORGANIZATION = new Set(['/session/organization', '/logout'])
+
+/** Ruta de la API de una petición, sin el prefijo `/api` (`/me`, `/tickets/1046/messages`…). */
+const apiPath = (request: Request) => new URL(request.url).pathname.replace(/^\/api(?=\/|$)/, '')
 
 /** Evento de `window` que avisa de un 401 de la API. Su `detail` es un {@link UnauthorizedDetail}. */
 export const UNAUTHORIZED_EVENT = 'resolve:unauthorized'
@@ -138,14 +152,20 @@ export function setWriteGuard(guard: WriteGuard | null) {
 export const identityOf = (me: Me) => `${me.user.id}:${me.organization.id}`
 
 /**
- * Lo que `features/session` registra para el reintento de CSRF (esta capa no importa de ella):
+ * Lo que `features/session` registra (esta capa no importa de ella):
  * - `identity`: la sesión que muestra la pantalla ahora (`identityOf`), o `null` sin sesión;
- * - `observe`: recibe el `Me` que devolvió el `GET /me` del reintento, para que la aplicación se ponga al día sin esperar
- *   al canal si no coincide con la suya.
+ * - `organization`: el id de la organización que muestra la pantalla, o `null` sin sesión: la que cada escritura envía en
+ *   `X-Organization-Id`;
+ * - `observe`: recibe el `Me` que devolvió el `GET /me` del reintento de CSRF, para que la aplicación se ponga al día sin
+ *   esperar al canal si no coincide con la suya;
+ * - `refresh`: relee `/me` y descarta lo abierto si la sesión cambió; lo llama una escritura que el backend rechazó por
+ *   organización.
  */
 export interface SessionWatch {
   identity: () => string | null
+  organization: () => string | null
   observe: (me: Me) => void
+  refresh: () => void
 }
 let sessionWatch: SessionWatch | null = null
 
@@ -154,12 +174,51 @@ export function setSessionWatch(watch: SessionWatch | null) {
   sessionWatch = watch
 }
 
-/** La respuesta de una escritura cancelada porque la sesión cambió: un 409 con el motivo, sin tocar la red. */
+/**
+ * La respuesta de una escritura que no debe publicarse porque la sesión cambió: un 409 con el motivo. La da el cliente sin
+ * tocar la red (la guardia, el reintento de CSRF) o sustituye a la del backend cuando este la rechaza por organización:
+ * quien llama ve lo mismo en los tres casos. No lleva el `type` de organización: la del reintento de CSRF sale de `fetch` y
+ * pasa por `organizationMismatch`, que no debe tratarla como un rechazo del backend y pedir otra lectura de `/me`.
+ */
 function sessionChangedResponse(): Response {
   return new Response(
     JSON.stringify({ status: 409, title: 'La sesión cambió', detail: SESSION_CHANGED_DETAIL } satisfies Problem),
     { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
   )
+}
+
+/**
+ * Cada escritura lleva la organización que la pantalla muestra **al componerla**, para que el backend la compare con la de
+ * la sesión y la rechace sin efecto si otra pestaña ya la cambió. Va la primera de las que se registran: la guardia de
+ * sesión (`sessionGuard`) puede esperar una comprobación en vuelo, y para entonces la pantalla ya puede mostrar otra
+ * organización; la que cuenta es la de cuando la persona la envió. Sin sesión cargada no hay organización y no se envía.
+ */
+const organizationHeader: Middleware = {
+  onRequest({ request }) {
+    if (!UNSAFE_METHODS.has(request.method) || WITHOUT_ORGANIZATION.has(apiPath(request))) return undefined
+    const organization = sessionWatch?.organization()
+    if (organization) request.headers.set(ORGANIZATION_HEADER, organization)
+    return request
+  },
+}
+
+/**
+ * El 409 con el tipo de organización distinta es el aviso de sesión cambiada de siempre: la escritura no salió, la pantalla
+ * mostraba otra organización. Se reemplaza por la misma respuesta que da la guardia y se pide a la aplicación que se ponga
+ * al día sin esperar al canal ni al foco.
+ */
+const organizationMismatch: Middleware = {
+  async onResponse({ response }) {
+    if (response.status !== 409) return undefined
+    try {
+      const problem = (await response.clone().json()) as Problem
+      if (problem.type !== PROBLEM_TYPES.organizationMismatch) return undefined
+    } catch {
+      return undefined
+    }
+    sessionWatch?.refresh()
+    return sessionChangedResponse()
+  },
 }
 
 /**
@@ -179,8 +238,7 @@ const sessionGuard: Middleware = {
 const unauthorized: Middleware = {
   onResponse({ request, response }) {
     if (response.status === 401) {
-      const path = new URL(request.url).pathname.replace(/^\/api(?=\/|$)/, '')
-      const detail: UnauthorizedDetail = { method: request.method, path }
+      const detail: UnauthorizedDetail = { method: request.method, path: apiPath(request) }
       window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail }))
     }
     return undefined
@@ -275,7 +333,7 @@ export const api = createClient<paths>({
   // Se resuelve en cada llamada (no al importar), así los tests y las herramientas pueden sustituir fetch.
   fetch: fetchWithCsrfRetry,
 })
-api.use(sessionGuard, demoUser, csrf, unauthorized)
+api.use(organizationHeader, sessionGuard, demoUser, csrf, organizationMismatch, unauthorized)
 
 interface FetchResult<T> {
   data?: T

@@ -71,6 +71,23 @@ export function sessionMock(
 
   return {
     handle: ({ route, request, url, path, method }) => {
+      // Como el backend: una escritura cuya `X-Organization-Id` no es la organización de la sesión se rechaza antes de que
+      // llegue a ninguna otra feature, así que no escribe nada. Elegir organización y cerrar sesión no la comprueban.
+      const shown = request.headers()['x-organization-id']
+      const exempt = path === '/logout' || path === '/session/organization'
+      if (shown && method !== 'GET' && !exempt && signedIn && !refused && shown !== session().organization.id) {
+        return route.fulfill({
+          status: 409,
+          contentType: 'application/problem+json',
+          // El `detail` no se parece a ningún texto de la interfaz: la aplicación decide por el `type`.
+          body: JSON.stringify({
+            type: 'https://resolve.example/problems/organization-mismatch',
+            status: 409,
+            title: 'La organización cambió',
+            detail: 'Texto del servidor.',
+          }),
+        })
+      }
       if (method === 'GET' && path === '/me') {
         if (refused) {
           return route.fulfill({

@@ -16,6 +16,7 @@ import {
   type UnauthorizedDetail,
 } from './client'
 import type { Me } from './schema'
+import { adminMe } from '../test/api'
 
 describe('unwrap', () => {
   it('devuelve los datos de una respuesta correcta', async () => {
@@ -276,6 +277,149 @@ describe('CSRF', () => {
     expect(urlOf(network.sent[1]!)).toMatch(/\/api\/me$/)
   })
 
+  describe('la organización que muestra la pantalla viaja en X-Organization-Id (issue #60)', () => {
+    const mismatch = (detail = 'Texto que no se compara.') => problem(409, detail, PROBLEM_TYPES.organizationMismatch)
+    /** Un `Me` completo (el contrato no admite campos de más ni de menos) en esa organización. */
+    const meIn = (organizationId: string) =>
+      new Response(JSON.stringify({ ...adminMe, organization: { ...adminMe.organization, id: organizationId } }), {
+        status: 200,
+      })
+
+    /** La pantalla muestra `org-a`; `refreshed` cuenta las veces que la aplicación se puso al día. */
+    function showing(organization: string | null) {
+      const watch = {
+        organization,
+        refreshed: 0,
+      }
+      setSessionWatch({
+        identity: () => (watch.organization ? `${adminMe.user.id}:${watch.organization}` : null),
+        organization: () => watch.organization,
+        observe: () => {},
+        refresh: () => void (watch.refreshed += 1),
+      })
+      return watch
+    }
+
+    it.each(['POST', 'PATCH'] as const)('cada escritura (%s) lleva la organización de la pantalla', async (method) => {
+      showing('org-a')
+      const network = stubFetch()
+      if (method === 'POST')
+        await api.POST('/tickets', { body: { customerId: 'c-1', subject: 'Asunto', description: 'x' } })
+      else await api.PATCH('/me', { body: { name: 'Laura' } })
+      expect(network.at(0).headers.get('X-Organization-Id')).toBe('org-a')
+    })
+
+    it('las lecturas no la llevan', async () => {
+      showing('org-a')
+      const network = stubFetch()
+      await api.GET('/me')
+      expect(network.at(0).headers.has('X-Organization-Id')).toBe(false)
+    })
+
+    it('elegir organización y cerrar sesión no la llevan', async () => {
+      showing('org-a')
+      const network = stubFetch()
+      await api.POST('/session/organization', { body: organization })
+      await api.POST('/logout')
+      expect(network.at(0).headers.has('X-Organization-Id')).toBe(false)
+      expect(network.at(1).headers.has('X-Organization-Id')).toBe(false)
+    })
+
+    it('sin sesión cargada no hay organización que enviar', async () => {
+      showing(null)
+      const network = stubFetch()
+      await api.PATCH('/me', { body: { name: 'Laura' } })
+      expect(network.at(0).headers.has('X-Organization-Id')).toBe(false)
+    })
+
+    it('sin nadie que vigile la sesión tampoco se envía', async () => {
+      const network = stubFetch()
+      await api.PATCH('/me', { body: { name: 'Laura' } })
+      expect(network.at(0).headers.has('X-Organization-Id')).toBe(false)
+    })
+
+    it('lleva la organización del momento en que se compuso, no la que haya al salir tras esperar la guardia', async () => {
+      const watch = showing('org-a')
+      let release!: () => void
+      const held = new Promise<void>((resolve) => (release = resolve))
+      // La guardia espera una comprobación en vuelo; mientras tanto la pantalla ya muestra otra organización.
+      setWriteGuard(async () => {
+        await held
+        return false
+      })
+      const network = stubFetch()
+      const write = api.PATCH('/me', { body: { name: 'Laura' } })
+      watch.organization = 'org-b'
+      release()
+      await write
+      expect(network.at(0).headers.get('X-Organization-Id')).toBe('org-a')
+    })
+
+    it('el reintento de CSRF conserva la organización con la que se compuso la escritura', async () => {
+      const watch = showing('org-a')
+      const network = stubFetch(csrfRejection(), meIn('org-a'), new Response('{}', { status: 200 }))
+      const respond = globalThis.fetch
+      vi.stubGlobal('fetch', (input: Request | URL) => {
+        if (urlOf(input).endsWith('/api/me')) {
+          setCookie('token-nuevo')
+          watch.organization = 'org-a'
+        }
+        return respond(input)
+      })
+      await api.PATCH('/me', { body: { name: 'Laura' } })
+      expect(network.sent).toHaveLength(3)
+      expect(network.at(2).headers.get('X-Organization-Id')).toBe('org-a')
+    })
+
+    it('el 409 de organización distinta llega como el aviso de sesión cambiada y la aplicación se pone al día', async () => {
+      const watch = showing('org-a')
+      stubFetch(mismatch('Otro texto, de otro idioma.'))
+      const { response, error } = await api.PATCH('/me', { body: { name: 'Laura' } })
+      expect(response.status).toBe(409)
+      expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+      expect(watch.refreshed).toBe(1)
+    })
+
+    it('un 409 de otra cosa llega tal cual y no pone nada al día, diga lo que diga el detail', async () => {
+      const watch = showing('org-a')
+      stubFetch(problem(409, 'La organización cambió'))
+      const { response, error } = await api.PATCH('/me', { body: { name: 'Laura' } })
+      expect(response.status).toBe(409)
+      expect(error).toMatchObject({ detail: 'La organización cambió' })
+      expect(watch.refreshed).toBe(0)
+    })
+
+    it('también si lo recibe el segundo intento, tras reintentar por CSRF', async () => {
+      const watch = showing('org-a')
+      const network = stubFetch(csrfRejection(), meIn('org-a'), mismatch())
+      const respond = globalThis.fetch
+      vi.stubGlobal('fetch', (input: Request | URL) => {
+        if (urlOf(input).endsWith('/api/me')) setCookie('token-nuevo')
+        return respond(input)
+      })
+      const { response, error } = await api.PATCH('/me', { body: { name: 'Laura' } })
+      expect(network.sent).toHaveLength(3)
+      expect(response.status).toBe(409)
+      expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+      expect(watch.refreshed).toBe(1)
+    })
+
+    it('el 409 que da el propio cliente (el reintento de CSRF ve otra organización) no vuelve a pedir ponerse al día', async () => {
+      const watch = showing('org-a')
+      const network = stubFetch(csrfRejection(), meIn('org-b'), new Response('{}', { status: 200 }))
+      const respond = globalThis.fetch
+      vi.stubGlobal('fetch', (input: Request | URL) => {
+        if (urlOf(input).endsWith('/api/me')) setCookie('token-nuevo')
+        return respond(input)
+      })
+      const { response, error } = await api.PATCH('/me', { body: { name: 'Laura' } })
+      expect(response.status).toBe(409)
+      expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+      expect(network.sent).toHaveLength(2) // el PATCH y el GET /me: el reintento no sale
+      expect(watch.refreshed).toBe(0) // `observe` ya pone la pestaña al día; no hace falta pedirlo otra vez
+    })
+  })
+
   describe('el reintento también pasa por la comprobación de la sesión (H-2, L-1)', () => {
     const meResponse = (organizationId: string) =>
       new Response(JSON.stringify({ user: { id: 'u1' }, organization: { id: organizationId } }), { status: 200 })
@@ -283,7 +427,12 @@ describe('CSRF', () => {
     /** La sesión que la pantalla muestra, cambiable por el test; `observed` recoge lo que ve el reintento. */
     function watchSession(initial: string | null) {
       const watch = { shown: initial, observed: [] as Me[] }
-      setSessionWatch({ identity: () => watch.shown, observe: (me) => watch.observed.push(me) })
+      setSessionWatch({
+        identity: () => watch.shown,
+        organization: () => watch.shown?.split(':')[1] ?? null,
+        observe: (me) => watch.observed.push(me),
+        refresh: () => {},
+      })
       return watch
     }
 

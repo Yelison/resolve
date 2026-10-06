@@ -34,7 +34,17 @@ async function openShell(path = '/tickets/1046', lazyHome?: Promise<void>, query
     hold: Promise<void> | null
     patchStatus: number
     timeout: boolean
-  } = { me: inOrganization(acme), reads: 0, writes: 0, hold: null, patchStatus: 200, timeout: false }
+    /** `X-Organization-Id` de cada escritura que llegó al servidor, en orden. */
+    sentOrganizations: (string | null)[]
+  } = {
+    me: inOrganization(acme),
+    reads: 0,
+    writes: 0,
+    hold: null,
+    patchStatus: 200,
+    timeout: false,
+    sentOrganizations: [],
+  }
   mockApi({
     'GET /api/me': async () => {
       server.reads += 1
@@ -46,7 +56,16 @@ async function openShell(path = '/tickets/1046', lazyHome?: Promise<void>, query
       if (hold) await hold
       return answer
     },
-    'PATCH /api/me': () => {
+    'PATCH /api/me': (request) => {
+      const organization = request.headers.get('X-Organization-Id')
+      server.sentOrganizations.push(organization)
+      // Como el backend: la cabecera que no es la organización de la sesión se rechaza antes de escribir nada.
+      if (server.patchStatus === 200 && organization && server.me && organization !== server.me.organization.id) {
+        return {
+          status: 409,
+          body: { type: PROBLEM_TYPES.organizationMismatch, status: 409, title: 'La organización cambió' },
+        }
+      }
       server.writes += 1
       // Un 403 de este servidor simulado es siempre el rechazo por falta de token CSRF: el reintento lo reconoce por el type.
       return server.patchStatus === 200
@@ -336,6 +355,35 @@ describe('reintento de CSRF y sesión en pantalla (H-2)', () => {
     expect(await within(region()).findByText('Cambiaste a Northwind en otra pestaña')).toBeInTheDocument()
     expect(cachedTicket(queryClient)).toBeUndefined()
     expect(router.state.location.pathname).toBe('/')
+  })
+})
+
+describe('organización de la pantalla en las escrituras (issue #60)', () => {
+  it('la escritura lleva la organización que la pantalla muestra', async () => {
+    const { server } = await openShell()
+    expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
+    expect(server.sentOrganizations).toEqual(['org-1'])
+  })
+
+  it('si el backend la rechaza por organización distinta, llega el aviso de sesión cambiada y la pestaña se pone al día', async () => {
+    vi.unstubAllGlobals() // sin canal: nada avisó a esta pestaña
+    const { server, queryClient, router } = await openShell()
+    server.me = inOrganization(northwind) // otra pestaña cambió y esta aún muestra Acme
+
+    const { response, error } = await api.PATCH('/me', { body: { name: 'Yelisson' } })
+    expect(response.status).toBe(409)
+    expect(error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
+    expect(server.sentOrganizations).toEqual(['org-1'])
+    expect(server.writes).toBe(0) // el backend no escribió nada
+    expect(await within(region()).findByText('Cambiaste a Northwind en otra pestaña')).toBeInTheDocument()
+    expect(cachedTicket(queryClient)).toBeUndefined()
+    expect(sessionStorage.getItem('resolve-draft-1046')).toBeNull()
+    expect(router.state.location.pathname).toBe('/')
+    // Ya con Northwind en pantalla, la siguiente escritura lleva la organización nueva y sale.
+    expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    await screen.findByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })
+    expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
+    expect(server.sentOrganizations).toEqual(['org-1', 'org-2'])
   })
 })
 
