@@ -7,7 +7,7 @@ import { shouldRetry } from '../../lib/queryClient'
 import { adminMe, mockApi } from '../../test/api'
 import { sessionKeys } from './queries'
 import { SESSION_TAB_ID } from './sessionChannel'
-import { holdWrites, navigation, releaseWrites, sessionState } from './sessionLifecycle'
+import { focusContentWhenReady, holdWrites, navigation, releaseWrites, sessionState } from './sessionLifecycle'
 import { fromAnotherTab, renderShell, setCsrfCookie, FakeChannel } from './shellHarness'
 
 const acme = { id: 'org-1', name: 'Acme Studio' }
@@ -174,6 +174,25 @@ describe('mensajes durante una comprobación', () => {
     await waitFor(() => expect(readsSinceOpen()).toBe(2))
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(readsSinceOpen()).toBe(2)
+  })
+})
+
+describe('la cadena del foco no sobrevive a la shell', () => {
+  it('al desmontarse la shell deja de buscar #contenido', async () => {
+    const { unmount } = await openShell()
+    const dialog = document.createElement('dialog') // un diálogo abierto: la cadena reintenta sin llegar a enfocar
+    dialog.setAttribute('open', '')
+    document.body.append(dialog)
+    const getById = vi.spyOn(document, 'getElementById')
+    focusContentWhenReady()
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    expect(getById.mock.calls.length).toBeGreaterThan(0)
+
+    unmount()
+    dialog.remove()
+    const calls = getById.mock.calls.length
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(getById.mock.calls.length).toBe(calls)
   })
 })
 

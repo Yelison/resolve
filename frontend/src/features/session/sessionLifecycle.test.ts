@@ -1,7 +1,13 @@
 import { QueryClient } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { sessionKeys } from './queries'
-import { clearDrafts, clearSessionData, focusContentWhenReady, navigation } from './sessionLifecycle'
+import {
+  cancelFocusContent,
+  clearDrafts,
+  clearSessionData,
+  focusContentWhenReady,
+  navigation,
+} from './sessionLifecycle'
 
 afterEach(() => {
   sessionStorage.clear()
@@ -117,5 +123,44 @@ describe('focusContentWhenReady', () => {
     dialog.removeAttribute('open')
     vi.advanceTimersByTime(60)
     expect(main).toHaveFocus()
+  })
+
+  it('devuelve su cancelación: sin #contenido sigue reintentando y, al cancelar, no queda ningún temporizador', () => {
+    vi.useFakeTimers()
+    document.body.innerHTML = '<button id="otro">Otro</button>' // sin #contenido: la cadena reintenta
+    const getById = vi.spyOn(document, 'getElementById')
+    const cancel = focusContentWhenReady()
+    vi.advanceTimersByTime(500)
+    expect(getById.mock.calls.length).toBeGreaterThan(3)
+    expect(vi.getTimerCount()).toBe(1)
+
+    cancel()
+    expect(vi.getTimerCount()).toBe(0)
+    const calls = getById.mock.calls.length
+    vi.advanceTimersByTime(3_000)
+    expect(getById.mock.calls.length).toBe(calls)
+  })
+
+  it('cancelFocusContent corta la cadena en curso y una llamada nueva sustituye a la anterior', () => {
+    vi.useFakeTimers()
+    document.body.innerHTML = ''
+    focusContentWhenReady()
+    focusContentWhenReady() // una sola cadena a la vez
+    expect(vi.getTimerCount()).toBe(1)
+    cancelFocusContent()
+    expect(vi.getTimerCount()).toBe(0)
+    cancelFocusContent() // sin cadena en curso no hace nada
+  })
+
+  it('si el documento ya no existe cuando salta el temporizador, no lanza (una prueba terminada)', () => {
+    vi.useFakeTimers()
+    focusContentWhenReady()
+    vi.stubGlobal('document', undefined)
+    try {
+      expect(() => vi.advanceTimersByTime(60)).not.toThrow()
+      expect(vi.getTimerCount()).toBe(0) // y la cadena termina, no sigue reintentando
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })
