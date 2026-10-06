@@ -11,6 +11,7 @@ import com.resolve.api.common.error.PreconditionFailedException;
 import com.resolve.api.common.error.ResourceNotFoundException;
 import com.resolve.api.common.persistence.Ids;
 import com.resolve.api.common.security.CurrentMember;
+import com.resolve.api.common.web.DemoLimits;
 import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.Preconditions;
@@ -49,13 +50,16 @@ class CustomerService {
 
 	private final Clock clock;
 
+	private final DemoLimits demoLimits;
+
 	CustomerService(CustomerRepository customers, MembershipRepository memberships, PortalInvitations invitations,
-			CustomerMetricsQuery metrics, Clock clock) {
+			CustomerMetricsQuery metrics, Clock clock, DemoLimits demoLimits) {
 		this.customers = customers;
 		this.memberships = memberships;
 		this.invitations = invitations;
 		this.metrics = metrics;
 		this.clock = clock;
+		this.demoLimits = demoLimits;
 	}
 
 	@Transactional(readOnly = true)
@@ -81,6 +85,7 @@ class CustomerService {
 
 	@Transactional
 	CustomerDetailDto create(CurrentMember member, NewCustomer request) {
+		this.demoLimits.check(DemoLimits.Resource.CUSTOMERS, member.organizationId());
 		if (this.customers.emailTaken(member.organizationId(), request.email())) {
 			throw new ApiValidationException("email", DUPLICATE_EMAIL);
 		}

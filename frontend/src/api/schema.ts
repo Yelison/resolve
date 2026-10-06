@@ -1545,7 +1545,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description The action is not allowed in the current state of the resource (for example archiving twice). */
+        /** @description The action is not allowed in the current state of the resource (for example archiving twice). On the public demo (`resolve.demo.limits=true`) the creation of a ticket, customer, member or article also answers it, with the title "Límite de la demostración", when the organization already has the maximum of that resource (500 tickets, 200 customers, 50 team members, 100 articles). */
         Conflict: {
             headers: {
                 [name: string]: unknown;
@@ -1907,6 +1907,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             503: components["responses"]["LockTimeout"];
         };
     };
@@ -2169,6 +2170,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
         };
     };
     getCustomerMetrics: {
@@ -2420,6 +2422,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             503: components["responses"]["LockTimeout"];
         };
     };

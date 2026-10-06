@@ -13,6 +13,7 @@ import com.resolve.api.common.error.ResourceNotFoundException;
 import com.resolve.api.common.persistence.Ids;
 import com.resolve.api.common.persistence.LockTimeouts;
 import com.resolve.api.common.security.CurrentMember;
+import com.resolve.api.common.web.DemoLimits;
 import com.resolve.api.customers.CustomerRepository;
 import com.resolve.api.memberships.MemberDtos.TeamMemberDto;
 import com.resolve.api.memberships.MemberDtos.TeamMetricsDto;
@@ -59,9 +60,11 @@ class MemberService {
 
 	private final ObjectProvider<MemberGuardHook> guardHook;
 
+	private final DemoLimits demoLimits;
+
 	MemberService(MembershipRepository memberships, CustomerRepository customers, OrganizationRepository organizations,
 			UserDirectory directory, TeamMetricsQuery metrics, AssignedTicketReleaser tickets, JdbcClient jdbc,
-			Clock clock, ObjectProvider<MemberGuardHook> guardHook) {
+			Clock clock, ObjectProvider<MemberGuardHook> guardHook, DemoLimits demoLimits) {
 		this.memberships = memberships;
 		this.customers = customers;
 		this.organizations = organizations;
@@ -71,6 +74,7 @@ class MemberService {
 		this.jdbc = jdbc;
 		this.clock = clock;
 		this.guardHook = guardHook;
+		this.demoLimits = demoLimits;
 	}
 
 	/**
@@ -143,6 +147,7 @@ class MemberService {
 	TeamMemberDto invite(CurrentMember member, NewInvite request) {
 		UUID organizationId = member.organizationId();
 		lockTeam(organizationId);
+		this.demoLimits.check(DemoLimits.Resource.MEMBERS, organizationId);
 		// El correo de un cliente de la organización (también archivado) nunca entra como agente.
 		if (this.customers.emailTaken(organizationId, request.email())) {
 			throw new ApiValidationException("email", CUSTOMER_EMAIL);
