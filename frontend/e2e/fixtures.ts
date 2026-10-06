@@ -1,13 +1,8 @@
 import { test as base, type Page } from '@playwright/test'
 import type { Me } from '../src/api/schema'
-import { customersMock } from './mocks/customers'
-import { knowledgeMock, type ArticleStore } from './mocks/knowledge'
-import { reportsMock } from './mocks/reports'
-import { sessionMock, type SessionOptions } from './mocks/session'
-import { settingsMock } from './mocks/settings'
-import { json, type MockFeature } from './mocks/shared'
-import { teamMock } from './mocks/team'
-import { ticketsMock } from './mocks/tickets'
+import { createMockFeatures, dispatchMock } from './mocks/api'
+import type { ArticleStore } from './mocks/knowledge'
+import type { SessionOptions } from './mocks/session'
 
 export { articles, createArticleStore } from './mocks/knowledge'
 export { customers } from './mocks/customers'
@@ -19,34 +14,17 @@ export { tickets } from './mocks/tickets'
  * API simulada para las pruebas e2e deterministas: respuestas tipadas con el contrato (src/api/schema.ts), así que
  * si el contrato cambia, estas fixtures dejan de compilar. La prueba con backend real va aparte.
  *
- * Los datos y manejadores de cada feature viven en `e2e/mocks/<feature>.ts`; aquí solo se reúnen. Una feature nueva
- * añade su módulo y lo incorpora a la lista de `mockApi`. El estado se crea en cada llamada, nunca en el módulo.
+ * Los datos y manejadores de cada feature viven en `e2e/mocks/<feature>.ts` y se reúnen en `mocks/api.ts`; aquí solo se
+ * enganchan a Playwright. Una feature nueva añade su módulo y lo incorpora a la lista de `createMockFeatures`.
  */
 
-/**
- * `role` es el de la sesión simulada; las features que dependen de él (sesión, conocimiento) lo reciben.
- * `options.articleStore` reutiliza el estado de otra llamada (un `createArticleStore()` del test): cambiar de rol sobre
- * la misma página, como al abrir la sesión de un cliente, sigue viendo lo que el equipo acaba de publicar. El resto de
- * `options` ajusta cómo arranca la sesión (sin iniciar, varias organizaciones, nombres largos, cuenta desactivada).
- */
+/** Ver `createMockFeatures` para `role` y `options`. */
 export async function mockApi(
   page: Page,
   role: Me['role'] = 'admin',
   options: { articleStore?: ArticleStore } & SessionOptions = {},
 ) {
-  const customers = customersMock()
-  const settings = settingsMock(role)
-  const features: MockFeature[] = [
-    // La sesión va primero (gana el primer manejador): sirve `/me`, el cierre de sesión y la elección de organización
-    // a partir del `Me` que cambian los ajustes, que van justo después con el resto de `/me` (PATCH) y `/organization`.
-    sessionMock(role, options, settings.session),
-    settings,
-    knowledgeMock(role, options.articleStore),
-    reportsMock(),
-    ticketsMock(customers.customerRef),
-    teamMock(),
-    customers,
-  ]
+  const features = createMockFeatures(role, options)
 
   // En el contexto y no en la página: una ventana que abre la aplicación (el inicio de sesión en otra pestaña) también la usa.
   // Las rutas de página de cada test siguen teniendo prioridad.
@@ -54,13 +32,7 @@ export async function mockApi(
     const request = route.request()
     const url = new URL(request.url())
     const path = url.pathname.replace(/^\/api/, '')
-    const method = request.method()
-
-    for (const feature of features) {
-      const handled = feature.handle({ route, request, url, path, method })
-      if (handled) return handled
-    }
-    return json(route, { status: 501, title: `Sin fixture para ${method} ${path}` }, 501)
+    await dispatchMock(features, { route, request, url, appUrl: url.origin, path, method: request.method() })
   })
 }
 
