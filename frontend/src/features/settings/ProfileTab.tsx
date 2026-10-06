@@ -7,7 +7,7 @@ import { SettingsSection } from './SettingsSection'
 
 const placeholder: Me = {
   user: { id: '', name: '', email: '' },
-  organization: { id: '', name: '', timeZone: 'UTC', supportEmail: null },
+  organization: { id: '', name: '', timeZone: 'UTC', supportEmail: null, demo: false },
   role: 'agent',
   customerId: null,
 }
