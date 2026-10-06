@@ -6,8 +6,8 @@ const editable =
 
 /**
  * Atajos que abren la búsqueda: Ctrl+K (⌘K en Mac) desde cualquier sitio y `/` cuando el foco no está en un campo
- * editable ni hay otro diálogo abierto. Con la búsqueda ya abierta no hacen nada, pero Ctrl+K sigue sin abrir la del
- * navegador.
+ * editable. Con otro diálogo abierto ninguno la abre (se perdería lo escrito en él). Con la búsqueda ya abierta no
+ * hacen nada, pero Ctrl+K sigue sin abrir la del navegador.
  */
 export function useSearchShortcuts(open: boolean, onOpen: () => void) {
   const state = useRef({ open, onOpen })
@@ -21,7 +21,8 @@ export function useSearchShortcuts(open: boolean, onOpen: () => void) {
       const { open, onOpen } = state.current
       if (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey) && !event.altKey) {
         event.preventDefault()
-        if (!open) onOpen()
+        // Con otro diálogo abierto no se abre la búsqueda encima: se perdería lo escrito en él.
+        if (!open && !document.querySelector('dialog[open]')) onOpen()
         return
       }
       // `/` se escribe con Mayús en varias distribuciones (Mayús+7), así que Mayús no lo descarta.

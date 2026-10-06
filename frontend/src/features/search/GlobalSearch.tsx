@@ -95,13 +95,14 @@ function SearchPanel({ groups, onClose }: { groups: SearchGroupDefinition[]; onC
     const rows = rowsFor(group.id, result.items, go)
     rows.push({
       key: `${group.id}:all`,
-      run: () => go(`${listPath[group.id]}?${new URLSearchParams({ q: search.term })}`),
+      run: () => go(`${listPath[group.id]}?${new URLSearchParams({ q: text.trim() })}`),
       node: <span className={cx(styles.text, styles.seeAll)}>Ver todos los resultados de {group.seeAll}</span>,
     })
     sections.push({ group, kind: 'rows', rows, stale: result.stale })
   }
 
-  const rows = sections.flatMap((section) => section.rows)
+  // Las filas de un texto anterior se ven atenuadas pero no se recorren ni se activan.
+  const rows = sections.filter((section) => !section.stale).flatMap((section) => section.rows)
   const activeRow = rows.find((row) => row.key === activeKey)
   const optionId = (key: string) => `${listboxId}-${key}`
   const pending =
@@ -204,10 +205,11 @@ function SearchPanel({ groups, onClose }: { groups: SearchGroupDefinition[]; onC
                       id={optionId(row.key)}
                       role="option"
                       aria-selected={row.key === activeRow?.key}
+                      aria-disabled={section.stale || undefined}
                       className={cx(styles.option, row.key === activeRow?.key && styles.active)}
                       // El foco se queda en el campo: pulsar un resultado no debe quitárselo antes del clic.
                       onMouseDown={(event) => event.preventDefault()}
-                      onClick={row.run}
+                      onClick={section.stale ? undefined : row.run}
                     >
                       {row.node}
                     </div>

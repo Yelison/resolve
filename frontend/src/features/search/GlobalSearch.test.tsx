@@ -249,4 +249,40 @@ describe('GlobalSearch', () => {
     expect(screen.getByRole('dialog', { name: 'Buscar' })).toBeInTheDocument()
     expect(input).toHaveAttribute('aria-autocomplete', 'list')
   })
+
+  it('al cambiar el texto de golpe, los resultados del anterior no se recorren ni se activan', async () => {
+    mockApi({
+      ...ok,
+      'GET /api/tickets': (request) => {
+        const q = new URL(request.url).searchParams.get('q')
+        return {
+          body: q === 'xy' ? page([summary({ id: 't-xy', number: 7, subject: 'Otro asunto' })]) : page([summary()]),
+        }
+      },
+    })
+    const onClose = vi.fn()
+    const { input, router } = renderSearch(onClose)
+    await userEvent.type(input, 'ab')
+    await screen.findByRole('option', { name: /#1048/ })
+    await waitFor(() => expect(announcement()).toBe('3 resultados'))
+
+    // Borra y escribe otro texto antes de que acabe la espera: en pantalla siguen los resultados de «ab».
+    await userEvent.clear(input)
+    await userEvent.type(input, 'xy')
+    const old = screen.getByRole('option', { name: /#1048/ })
+    expect(old).toHaveAttribute('aria-disabled', 'true')
+    for (const option of screen.getAllByRole('option')) expect(option).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+    expect(input).not.toHaveAttribute('aria-activedescendant')
+    await userEvent.click(old)
+    await userEvent.click(screen.getByRole('option', { name: 'Ver todos los resultados de tickets' }))
+    expect(router.state.location.pathname).toBe('/clientes')
+    expect(onClose).not.toHaveBeenCalled()
+
+    // Con la respuesta de «xy» las filas se activan y «Ver todos» lleva al texto escrito.
+    const fresh = await screen.findByRole('option', { name: /#7 Otro asunto/ })
+    await waitFor(() => expect(fresh).not.toHaveAttribute('aria-disabled'))
+    await userEvent.click(screen.getByRole('option', { name: 'Ver todos los resultados de tickets' }))
+    expect(router.state.location.pathname + router.state.location.search).toBe('/tickets?q=xy')
+  })
 })

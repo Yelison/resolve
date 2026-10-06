@@ -159,4 +159,24 @@ describe('useGlobalSearch', () => {
     await wait(500)
     expect(result.current.tickets.items[0]?.subject).toBe('Respuesta nueva')
   })
+
+  it('mientras el campo no coincide con la consulta, los resultados en pantalla son de un texto anterior', async () => {
+    mockApi({
+      'GET /api/tickets': { body: page([summary()]) },
+      'GET /api/customers': { body: customerPage() },
+      'GET /api/knowledge/articles': { body: articlePage([]) },
+    })
+    const { result, rerender } = setup({ text: 'ab' })
+    await waitFor(() => expect(result.current.tickets.status).toBe('success'))
+    expect(result.current.tickets.stale).toBe(false)
+
+    // Borrar y escribir otra cosa antes de que acabe la espera: la consulta sigue siendo la de «ab».
+    rerender({ text: 'a', allowed: all })
+    rerender({ text: '', allowed: all })
+    rerender({ text: 'xy', allowed: all })
+    expect(result.current.settled).toBe(false)
+    expect(result.current.tickets.status).toBe('success')
+    expect(result.current.tickets.items).toHaveLength(1)
+    expect(result.current.tickets.stale).toBe(true)
+  })
 })
