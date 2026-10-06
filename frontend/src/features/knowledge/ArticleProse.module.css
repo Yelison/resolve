@@ -42,7 +42,7 @@
 }
 
 .prose a {
-  color: var(--color-brand);
+  color: var(--color-link);
   text-decoration: underline;
 }
 

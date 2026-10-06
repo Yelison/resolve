@@ -23,10 +23,14 @@ import { describe, expect, it } from 'vitest'
  * o de estado no textual (bordes, `--color-line`, `--color-disabled`, `--color-focus`, `--color-overlay`), que se
  * rigen por 1.4.11 (3:1) y no por 1.4.3.
  *
- * Límite conocido: este test solo compara tokens planos. El hover del botón primario
- * (`color-mix(in srgb, var(--color-brand) 88%, var(--color-ink))` en Button.module.css) es una mezcla que no se ve
- * aquí: en el tema oscuro aclara el fondo y `on-brand` sobre él da 3,32:1 (en claro, 5,36:1). Va en el issue #65 junto
- * con on-brand/brand; si #65 cambia brand o la mezcla, hay que recalcular ese par a mano.
+ * Texto de marca: `link` (referencia a `brand` en claro y a `blue-ink` en oscuro) es el token de los enlaces de
+ * ArticlePage y ArticleProse; `brand` ya no se pinta como texto. El hover del primario es el token `brand-hover`, no
+ * una mezcla, para que este test lo vea.
+ *
+ * No texto (1.4.11, ≥ 3:1): `brand` como relleno de borde o indicador (Checkbox y Radio marcados, Switch, barras y
+ * contorno de BarChart, ProgressBar) frente a `surface` y `bg`.
+ *
+ * Los valores de `brand`, `brand-hover` y `link` se ajustaron en el código (#65), no en Figma: este test los protege.
  */
 
 type Theme = Readonly<Record<string, string>>
@@ -42,8 +46,10 @@ const SEMANTIC_PAIRS = [
 interface Pair {
   text: string
   background: string
-  /** Si el par incumple hoy el mínimo, el motivo. El test se ejecuta con `it.fails` hasta que se corrija. */
-  pending?: Partial<Record<'light' | 'dark', string>>
+  /** Mínimo exigido: 4,5 (texto, 1.4.3) o 3 (no texto, 1.4.11). */
+  min?: 3 | 4.5
+  /** Temas en los que se comprueba el par; por defecto, los dos. */
+  themes?: readonly ('light' | 'dark')[]
 }
 
 const PAIRS: readonly Pair[] = [
@@ -55,30 +61,32 @@ const PAIRS: readonly Pair[] = [
   ...SEMANTIC_PAIRS.map(([text, background]) => ({ text, background })),
   { text: 'ink', background: 'amber-bg' },
   { text: 'muted', background: 'amber-bg' },
-  {
-    text: 'brand',
-    background: 'surface',
-    // Hallazgo fuera del alcance de #14: el enlace sobre surface del tema oscuro (#4779ff sobre #141f32) da 4,28:1.
-    // Tira en sentido opuesto a on-brand/brand: oscurecer brand en oscuro mejoraría aquel par y empeoraría este (#65).
-    pending: { dark: 'brand sobre surface en el tema oscuro: 4,28:1 (#65)' },
-  },
+  { text: 'link', background: 'surface' },
+  // En claro `link` es `brand` (4,35:1 sobre bg): los enlaces solo van dentro de tarjetas surface (4,66:1), así que
+  // el par sobre bg se exige solo en oscuro. Decisión pendiente del propietario en la entrega de #65.
+  { text: 'link', background: 'bg', themes: ['dark'] },
   { text: 'nav-text', background: 'nav' },
   { text: 'nav-text', background: 'nav-active' },
   { text: 'nav-ink', background: 'nav' },
   { text: 'nav-ink', background: 'nav-active' },
-  {
-    text: 'on-brand',
-    background: 'brand',
-    // Hallazgo fuera del alcance de #14: el blanco sobre el azul de marca del tema oscuro (#4779ff) da 3,86:1 en
-    // Button primary y en la marca de Checkbox/Radio. Es una decisión de diseño (Figma «Oscuro · brand»), recogida en
-    // el issue #65, que también cubre el hover del primario y brand/surface.
-    pending: { dark: 'on-brand sobre brand en el tema oscuro: 3,86:1 (#65)' },
-  },
+  { text: 'on-brand', background: 'brand' },
+  { text: 'on-brand', background: 'brand-hover' },
+  ...(['surface', 'bg'] as const).map((background) => ({ text: 'brand', background, min: 3 as const })),
 ]
 
+/** Tokens de color del bloque; `var(--color-x)` se resuelve contra el propio bloque (así se ve `link`). */
 function parseBlock(css: string): Theme {
+  const raw: Record<string, string> = Object.fromEntries(
+    [...css.matchAll(/--color-([a-z-]+):\s*(#[0-9a-f]{6}|var\(--color-[a-z-]+\))\s*;/gi)].map(([, name, value]) => [
+      name,
+      value,
+    ]),
+  )
   return Object.fromEntries(
-    [...css.matchAll(/--color-([a-z-]+):\s*(#[0-9a-f]{6})\s*;/gi)].map(([, name, value]) => [name, value]),
+    Object.entries(raw).map(([name, value]) => {
+      const ref = /^var\(--color-([a-z-]+)\)$/.exec(value)?.[1]
+      return [name, ref ? (raw[ref] ?? '') : value]
+    }),
   )
 }
 
@@ -138,12 +146,12 @@ describe('tokens.css · contraste AA del texto', () => {
     ['dark', dark],
   ] as const) {
     describe(`tema ${themeName === 'light' ? 'claro' : 'oscuro'}`, () => {
-      for (const pair of PAIRS) {
-        const name = `${pair.text} sobre ${pair.background} ≥ 4,5:1`
-        const check = () => expect(ratio(theme, pair), name).toBeGreaterThanOrEqual(4.5)
-        // `it.fails` documenta el par pendiente y obliga a convertirlo en test normal cuando se corrige.
-        if (pair.pending?.[themeName]) it.fails(`${name} (pendiente: ${pair.pending[themeName]})`, check)
-        else it(name, check)
+      for (const pair of PAIRS.filter((p) => p.themes?.includes(themeName) ?? true)) {
+        const min = pair.min ?? 4.5
+        const name = pair.min
+          ? `${pair.text} sobre ${pair.background}, no texto ≥ 3:1`
+          : `${pair.text} sobre ${pair.background} ≥ 4,5:1`
+        it(name, () => expect(ratio(theme, pair), name).toBeGreaterThanOrEqual(min))
       }
     })
   }

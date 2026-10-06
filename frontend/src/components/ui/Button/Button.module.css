@@ -35,7 +35,7 @@
 }
 
 .primary:not(:disabled, [aria-disabled='true']):hover {
-  background: color-mix(in srgb, var(--color-brand) 88%, var(--color-ink));
+  background: var(--color-brand-hover);
 }
 
 .secondary {

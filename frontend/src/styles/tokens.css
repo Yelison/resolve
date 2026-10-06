@@ -33,12 +33,14 @@
   --color-bg: #f5f7fb; /* light/bg */
   --color-surface: #ffffff; /* light/surface */
   --color-ink: #17243d; /* light/ink */
-  --color-muted: #616d81; /* light/muted — ajustado a AA, pendiente de sincronizar en Figma (#14) */
+  --color-muted: #616d81; /* light/muted — ajustado a AA en el código (#14); el test de contraste lo protege */
   --color-line: #e4e9f1; /* light/line */
   --color-nav: #111e35; /* light/nav */
   --color-nav-active: #263b5d; /* light/navActive */
   --color-nav-text: #a8b7d0; /* light/navText */
   --color-brand: #3569f6; /* light/brand */
+  --color-brand-hover: #3161e0; /* hover del primario: ajustado en el código (#65), no está en Figma; el test de contraste lo protege */
+  --color-link: var(--color-brand); /* texto de marca: token semántico del código (#65), no está en Figma */
   --color-blue-bg: #ebf1ff; /* light/blueBg */
   --color-blue-ink: #2455cd; /* light/blueInk */
   --color-green-bg: #e7f6ee; /* light/greenBg */
@@ -67,7 +69,9 @@
     --color-nav: #0a101c; /* dark/nav */
     --color-nav-active: #233652; /* dark/navActive */
     --color-nav-text: #a8b7d0; /* dark/navText */
-    --color-brand: #4779ff; /* dark/brand */
+    --color-brand: #3068ff; /* dark/brand — oscurecido a AA con on-brand en el código (#65), no en Figma; el test de contraste lo protege */
+    --color-brand-hover: #2a5ee6; /* hover del primario: ajustado en el código (#65), no está en Figma; el test de contraste lo protege */
+    --color-link: var(--color-blue-ink); /* texto de marca: token semántico del código (#65), no está en Figma */
     --color-blue-bg: #1a2c4e; /* dark/blueBg */
     --color-blue-ink: #9bbcff; /* dark/blueInk */
     --color-green-bg: #173a30; /* dark/greenBg */
@@ -96,7 +100,9 @@
   --color-nav: #0a101c; /* dark/nav */
   --color-nav-active: #233652; /* dark/navActive */
   --color-nav-text: #a8b7d0; /* dark/navText */
-  --color-brand: #4779ff; /* dark/brand */
+  --color-brand: #3068ff; /* dark/brand — oscurecido a AA con on-brand en el código (#65), no en Figma; el test de contraste lo protege */
+  --color-brand-hover: #2a5ee6; /* hover del primario: ajustado en el código (#65), no está en Figma; el test de contraste lo protege */
+  --color-link: var(--color-blue-ink); /* texto de marca: token semántico del código (#65), no está en Figma */
   --color-blue-bg: #1a2c4e; /* dark/blueBg */
   --color-blue-ink: #9bbcff; /* dark/blueInk */
   --color-green-bg: #173a30; /* dark/greenBg */

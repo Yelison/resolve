@@ -70,8 +70,8 @@
 
 /*
  * Segunda serie: relleno claro con contorno de marca. Se distingue de la primera por luminancia (relleno
- * brand/blue-bg: 4,12:1 en claro y 3,6:1 en oscuro) y por la forma (contorno), y frente al fondo la delimita el
- * contorno (brand/surface: 4,66:1 y 4,28:1), no solo el tono.
+ * brand/blue-bg: 4,12:1 en claro y 3,0:1 en oscuro) y por la forma (contorno), y frente al fondo la delimita el
+ * contorno (brand/surface: 4,66:1 y 3,58:1, ambos ≥ 3:1 de 1.4.11), no solo el tono.
  */
 .muted {
   fill: var(--color-blue-bg);
