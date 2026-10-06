@@ -92,7 +92,8 @@ class MemberService {
 	 * Toma el nombre del proveedor de identidad solo cuando el guardado es un marcador de posición (vacío o la parte
 	 * local del correo, como deja una invitación): nunca pisa un nombre que la persona eligió. El {@code UPDATE} repite
 	 * la condición, así que un cambio de nombre concurrente gana. Corre en el filtro del principal: si otra
-	 * transacción retiene la cuenta ({@code SKIP LOCKED}) no espera y deja el nombre para la petición siguiente.
+	 * transacción retiene la cuenta ({@code FOR NO KEY UPDATE SKIP LOCKED}, como el propio {@code UPDATE}) no espera
+	 * y deja el nombre para la petición siguiente.
 	 * @return el nombre que queda guardado
 	 */
 	String adoptIdentityName(UserAccount user, @Nullable String identityName) {
@@ -105,7 +106,7 @@ class MemberService {
 		int updated = this.jdbc
 			.sql("""
 					UPDATE users SET name = ? WHERE id = (SELECT id FROM users WHERE id = ?
-						AND (name = '' OR lower(name) = lower(?)) FOR UPDATE SKIP LOCKED)
+						AND (name = '' OR lower(name) = lower(?)) FOR NO KEY UPDATE SKIP LOCKED)
 					""")
 			.params(candidate, user.getId(), localPart)
 			.update();
