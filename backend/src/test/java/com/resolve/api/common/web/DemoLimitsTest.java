@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.ResultActions;
 
+import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -82,8 +83,9 @@ class DemoLimitsTest extends ApiIntegrationTest {
 			.content("{\"email\": \"%s\", \"role\": \"agent\"}".formatted(email)));
 	}
 
-	private static void limitReached(ResultActions result, String what) throws Exception {
+	private static void limitReached(ResultActions result, String operation, String what) throws Exception {
 		result.andExpect(status().isConflict())
+			.andExpect(matchesContract(operation))
 			.andExpect(jsonPath("$.title").value("Límite de la demostración"))
 			.andExpect(jsonPath("$.status").value(409))
 			.andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("2 " + what)));
@@ -93,21 +95,21 @@ class DemoLimitsTest extends ApiIntegrationTest {
 	void ticketsStopAtTheCapAndOnlyInThatOrganization() throws Exception {
 		createTicket(ANA, this.acmeCustomer).andExpect(status().isCreated());
 		createTicket(ANA, this.acmeCustomer).andExpect(status().isCreated());
-		limitReached(createTicket(ANA, this.acmeCustomer), "tickets");
+		limitReached(createTicket(ANA, this.acmeCustomer), "createTicket", "tickets");
 		createTicket(BEA, this.northwindCustomer).andExpect(status().isCreated());
 	}
 
 	@Test
 	void customersStopAtTheCapArchivedOnesIncluded() throws Exception {
 		createCustomer(ANA, "dos@cliente.example").andExpect(status().isCreated());
-		limitReached(createCustomer(ANA, "tres@cliente.example"), "clientes");
+		limitReached(createCustomer(ANA, "tres@cliente.example"), "createCustomer", "clientes");
 		createCustomer(BEA, "dos@cliente.example").andExpect(status().isCreated());
 	}
 
 	@Test
 	void articlesStopAtTheCap() throws Exception {
 		createArticle(ANA, this.acmeCategory, "Dos").andExpect(status().isCreated());
-		limitReached(createArticle(ANA, this.acmeCategory, "Tres"), "artículos");
+		limitReached(createArticle(ANA, this.acmeCategory, "Tres"), "createArticle", "artículos");
 		createArticle(BEA, this.northwindCategory, "Dos").andExpect(status().isCreated());
 	}
 
@@ -115,10 +117,10 @@ class DemoLimitsTest extends ApiIntegrationTest {
 	void membersStopAtTheCapAndARemovedMemberDoesNotCount() throws Exception {
 		// Ana ya es uno de los dos.
 		invite(ANA, "uno@acme.example").andExpect(status().isCreated());
-		limitReached(invite(ANA, "dos@acme.example"), "miembros");
+		limitReached(invite(ANA, "dos@acme.example"), "inviteMember", "miembros");
 		invite(BEA, "uno@northwind.example").andExpect(status().isCreated());
 		this.data.staff(this.acme, "agent", "Retirado", "retirado@acme.example", "removed");
-		limitReached(invite(ANA, "tres@acme.example"), "miembros");
+		limitReached(invite(ANA, "tres@acme.example"), "inviteMember", "miembros");
 	}
 
 	@Test

@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.availability.ApplicationAvailability;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.ReadinessState;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -58,6 +59,8 @@ public class MaintenanceMode {
 
 	private final ApplicationEventPublisher events;
 
+	private final ApplicationAvailability availability;
+
 	/** Hasta cuándo, medido con el reloj de la aplicación; {@code null} si no hay marca vigente. */
 	private volatile @Nullable Instant until;
 
@@ -65,10 +68,12 @@ public class MaintenanceMode {
 
 	private volatile boolean readFailing;
 
-	MaintenanceMode(JdbcClient jdbc, Clock clock, ApplicationEventPublisher events) {
+	MaintenanceMode(JdbcClient jdbc, Clock clock, ApplicationEventPublisher events,
+			ApplicationAvailability availability) {
 		this.jdbc = jdbc;
 		this.clock = clock;
 		this.events = events;
+		this.availability = availability;
 	}
 
 	public boolean active() {
@@ -91,11 +96,18 @@ public class MaintenanceMode {
 	public void refresh() {
 		this.until = read();
 		boolean active = active();
-		if (active != this.published) {
-			this.published = active;
-			AvailabilityChangeEvent.publish(this.events, this,
-					active ? ReadinessState.REFUSING_TRAFFIC : ReadinessState.ACCEPTING_TRAFFIC);
-			LOGGER.info("Demo maintenance mode {}", active ? "on" : "off");
+		// Se compara con la disponibilidad real y no con lo último que se publicó: al arrancar con una marca vigente, Spring
+		// Boot publica ACCEPTING_TRAFFIC al terminar el arranque, después de la primera lectura.
+		ReadinessState current = this.availability.getReadinessState();
+		if (active && current != ReadinessState.REFUSING_TRAFFIC) {
+			this.published = true;
+			AvailabilityChangeEvent.publish(this.events, this, ReadinessState.REFUSING_TRAFFIC);
+			LOGGER.info("Demo maintenance mode on");
+		}
+		else if (!active && this.published && current != ReadinessState.ACCEPTING_TRAFFIC) {
+			this.published = false;
+			AvailabilityChangeEvent.publish(this.events, this, ReadinessState.ACCEPTING_TRAFFIC);
+			LOGGER.info("Demo maintenance mode off");
 		}
 	}
 

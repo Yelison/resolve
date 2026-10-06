@@ -18,7 +18,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 60 escrituras por minuto por IP, con la IP que escribe el proxy ({@code Fly-Client-IP}) y no la que el cliente puede
  * escribir en {@code X-Forwarded-For}. El reloj es el de los tests: sin esperas.
  */
-@TestPropertySource(properties = { "resolve.demo.limits=true", "resolve.demo.client-ip-header=Fly-Client-IP" })
+// «framework» es lo que usa prod: envuelve la petición y cambia getRemoteAddr() por el primer X-Forwarded-For.
+@TestPropertySource(properties = { "resolve.demo.limits=true", "resolve.demo.client-ip-header=Fly-Client-IP",
+		"server.forward-headers-strategy=framework" })
 // Cada test usa sus propias direcciones: los cubos viven en la aplicación y el contexto se comparte entre tests.
 // Cada test usa sus propias direcciones: los cubos viven en la aplicación y el contexto se comparte entre tests.
 class WriteRateLimitTest extends ApiIntegrationTest {
@@ -72,10 +74,11 @@ class WriteRateLimitTest extends ApiIntegrationTest {
 	@Test
 	void aValueThatIsNotAnAddressFallsBackToTheConnectionInsteadOfOpeningABucketPerValue() throws Exception {
 		for (int i = 0; i < 60; i++) {
-			this.mvc.perform(write("valor-" + i)).andExpect(status().isUnauthorized());
+			this.mvc.perform(write("valor-" + i).header("X-Forwarded-For", "9.9.9." + i))
+				.andExpect(status().isUnauthorized());
 		}
 
-		this.mvc.perform(write("otro-valor")).andExpect(status().isTooManyRequests());
+		this.mvc.perform(write("otro-valor").header("X-Forwarded-For", "9.9.9.99")).andExpect(status().isTooManyRequests());
 	}
 
 }

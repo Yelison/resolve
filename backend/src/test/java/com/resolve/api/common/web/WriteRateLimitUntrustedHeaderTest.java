@@ -7,8 +7,11 @@ import org.springframework.test.context.TestPropertySource;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Sin {@code resolve.demo.client-ip-header} ninguna cabecera del cliente decide el cubo: cuenta la conexión. */
-@TestPropertySource(properties = "resolve.demo.limits=true")
+/**
+ * Sin {@code resolve.demo.client-ip-header} ninguna cabecera del cliente decide el cubo: cuenta la conexión. Con el
+ * {@code framework} de prod, que hace que {@code getRemoteAddr()} devuelva el primer {@code X-Forwarded-For}.
+ */
+@TestPropertySource(properties = { "resolve.demo.limits=true", "server.forward-headers-strategy=framework" })
 class WriteRateLimitUntrustedHeaderTest extends ApiIntegrationTest {
 
 	@Test
