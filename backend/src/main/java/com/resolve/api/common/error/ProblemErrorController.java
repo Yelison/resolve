@@ -4,6 +4,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -43,7 +44,7 @@ class ProblemErrorController implements ErrorController {
 		String instance = (String) request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
 		if (status.is5xxServerError()) {
 			// Sin el Throwable: Tomcat ya escribió la traza completa en ERROR y dos trazas por error son ruido.
-			Object exception = request.getAttribute(RequestDispatcher.ERROR_EXCEPTION);
+			Throwable exception = rootException(request.getAttribute(RequestDispatcher.ERROR_EXCEPTION));
 			log.error("Request failed with status {} on {} ({})", status.value(), instance,
 					(exception == null) ? "no exception" : exception.getClass().getName());
 		}
@@ -51,6 +52,19 @@ class ProblemErrorController implements ErrorController {
 		problem.setTitle(ErrorProblems.title(status));
 		problem.setInstance(instance(instance));
 		return ResponseEntity.status(status).contentType(MediaType.APPLICATION_PROBLEM_JSON).body(problem);
+	}
+
+	/**
+	 * Tomcat envuelve en {@link ServletException} lo que se escapa de un controlador o de un filtro: la clase útil para
+	 * el registro es la de la causa, no la del envoltorio.
+	 */
+	private static @Nullable Throwable rootException(@Nullable Object attribute) {
+		Throwable exception = (attribute instanceof Throwable throwable) ? throwable : null;
+		while (exception instanceof ServletException wrapper && wrapper.getRootCause() != null
+				&& wrapper.getRootCause() != exception) {
+			exception = wrapper.getRootCause();
+		}
+		return exception;
 	}
 
 	/** Una visita directa a la ruta, sin error de por medio, es un recurso que no existe. */
