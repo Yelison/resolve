@@ -13,11 +13,20 @@ import { describe, expect, it } from 'vitest'
  *    la práctica es bg (página), surface (paneles, tarjetas, menús), surface-hover (hover de filas y menús) o
  *    blue-bg (selección y chips). Se comprueban sobre los cuatro.
  *  - Los colores semánticos (`*-ink`) sin fondo propio (errores de campo, métricas, avisos) van sobre bg, surface y
- *    surface-hover.
+ *    surface-hover; los de Metric destacada y TicketRow seleccionada (deltas, urgente) también sobre blue-bg.
+ *  - Fondos de estado con texto heredado: las notas internas de Message y Editor (`.note`, amber-bg) llevan `ink` y
+ *    `muted`.
+ *  - `brand` como color de texto: los enlaces de ArticlePage (`.helpText a`) y ArticleProse (`.prose a`), siempre
+ *    dentro de tarjetas surface.
  *
  * Quedan fuera, a propósito: el texto deshabilitado (`opacity: .45` sobre cualquier par) y los elementos decorativos
  * o de estado no textual (bordes, `--color-line`, `--color-disabled`, `--color-focus`, `--color-overlay`), que se
  * rigen por 1.4.11 (3:1) y no por 1.4.3.
+ *
+ * Límite conocido: este test solo compara tokens planos. El hover del botón primario
+ * (`color-mix(in srgb, var(--color-brand) 88%, var(--color-ink))` en Button.module.css) es una mezcla que no se ve
+ * aquí: en el tema oscuro aclara el fondo y `on-brand` sobre él da 3,32:1 (en claro, 5,36:1). Va en el issue #65 junto
+ * con on-brand/brand; si #65 cambia brand o la mezcla, hay que recalcular ese par a mano.
  */
 
 type Theme = Readonly<Record<string, string>>
@@ -42,7 +51,17 @@ const PAIRS: readonly Pair[] = [
   ...(['blue-ink', 'green-ink', 'amber-ink', 'red-ink'] as const).flatMap((text) =>
     (['bg', 'surface', 'surface-hover'] as const).map((background) => ({ text, background })),
   ),
+  ...(['green-ink', 'amber-ink', 'red-ink'] as const).map((text) => ({ text, background: 'blue-bg' })),
   ...SEMANTIC_PAIRS.map(([text, background]) => ({ text, background })),
+  { text: 'ink', background: 'amber-bg' },
+  { text: 'muted', background: 'amber-bg' },
+  {
+    text: 'brand',
+    background: 'surface',
+    // Hallazgo fuera del alcance de #14: el enlace sobre surface del tema oscuro (#4779ff sobre #141f32) da 4,28:1.
+    // Tira en sentido opuesto a on-brand/brand: oscurecer brand en oscuro mejoraría aquel par y empeoraría este (#65).
+    pending: { dark: 'brand sobre surface en el tema oscuro: 4,28:1 (#65)' },
+  },
   { text: 'nav-text', background: 'nav' },
   { text: 'nav-text', background: 'nav-active' },
   { text: 'nav-ink', background: 'nav' },
@@ -51,8 +70,9 @@ const PAIRS: readonly Pair[] = [
     text: 'on-brand',
     background: 'brand',
     // Hallazgo fuera del alcance de #14: el blanco sobre el azul de marca del tema oscuro (#4779ff) da 3,86:1 en
-    // Button primary y en la marca de Checkbox/Radio. Es una decisión de diseño (Figma «Oscuro · brand»).
-    pending: { dark: 'on-brand sobre brand en el tema oscuro: 3,86:1' },
+    // Button primary y en la marca de Checkbox/Radio. Es una decisión de diseño (Figma «Oscuro · brand»), recogida en
+    // el issue #65, que también cubre el hover del primario y brand/surface.
+    pending: { dark: 'on-brand sobre brand en el tema oscuro: 3,86:1 (#65)' },
   },
 ]
 
