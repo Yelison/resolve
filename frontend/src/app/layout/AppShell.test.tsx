@@ -152,13 +152,12 @@ describe('AppShell · búsqueda global', () => {
     await waitFor(() => expect(screen.getByRole('main')).toHaveFocus())
   })
 
-  it('con el drawer abierto, Ctrl+K lo cierra y abre la búsqueda', async () => {
+  it('con el drawer abierto, Ctrl+K no abre la búsqueda encima', async () => {
     renderShell('/clientes')
     await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
-    expect(screen.getByRole('dialog', { name: 'Menú principal' })).toBeInTheDocument()
     await userEvent.keyboard('{Control>}k{/Control}')
-    expect(screen.queryByRole('dialog', { name: 'Menú principal' })).not.toBeInTheDocument()
-    expect(screen.getByRole('dialog', { name: 'Buscar' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Menú principal' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Buscar' })).not.toBeInTheDocument()
   })
 })
 

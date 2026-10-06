@@ -107,10 +107,7 @@ function AppFrame() {
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLButtonElement>(null)
   const searchWasOpen = useRef(false)
-  const openSearch = () => {
-    setDrawerOpen(false)
-    setSearchOpen(true)
-  }
+  const openSearch = () => setSearchOpen(true)
   useSearchShortcuts(searchOpen, openSearch)
   useEffect(() => {
     if (searchOpen) searchWasOpen.current = true

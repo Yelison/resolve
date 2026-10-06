@@ -61,4 +61,17 @@ describe('useSearchShortcuts', () => {
     dialog.remove()
     expect(onOpen).not.toHaveBeenCalled()
   })
+
+  it('Ctrl+K no abre la búsqueda sobre otro diálogo abierto, pero evita el atajo del navegador', () => {
+    const onOpen = vi.fn()
+    render(<Harness onOpen={onOpen} />)
+    const dialog = document.body.appendChild(document.createElement('dialog'))
+    dialog.setAttribute('open', '')
+    expect(fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true })).toBe(false)
+    fireEvent.keyDown(document.body, { key: 'k', metaKey: true })
+    expect(onOpen).not.toHaveBeenCalled()
+    dialog.remove()
+    fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true })
+    expect(onOpen).toHaveBeenCalledOnce()
+  })
 })

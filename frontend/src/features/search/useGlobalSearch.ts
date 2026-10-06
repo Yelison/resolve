@@ -97,12 +97,15 @@ export function useGlobalSearch(input: string, allowed: readonly SearchGroupId[]
     if (forbidden) refreshSessionOnForbidden(queryClient, forbidden)
   }, [forbidden, queryClient])
 
+  // Mientras el campo no coincide con la consulta, lo que hay en pantalla es de un texto anterior.
+  const settled = typed === debounced || typed.length < MIN_SEARCH_LENGTH
+
   return {
     term,
-    settled: typed === debounced || typed.length < MIN_SEARCH_LENGTH,
-    tickets: groupResult(tickets, enabled('tickets')),
-    customers: groupResult(customers, enabled('customers')),
-    articles: groupResult(articles, enabled('articles')),
+    settled,
+    tickets: groupResult(tickets, enabled('tickets'), settled),
+    customers: groupResult(customers, enabled('customers'), settled),
+    articles: groupResult(articles, enabled('articles'), settled),
   }
 }
 
@@ -115,6 +118,7 @@ function groupResult<T>(
     refetch: () => unknown
   },
   enabled: boolean,
+  settled: boolean,
 ): GroupResult<T> {
   const retry = () => void query.refetch()
   if (!enabled) return { status: 'idle', items: [], total: 0, stale: false, retry }
@@ -125,7 +129,7 @@ function groupResult<T>(
     status: 'success',
     items: query.data.items,
     total: query.data.totalItems,
-    stale: query.isPlaceholderData,
+    stale: query.isPlaceholderData || !settled,
     retry,
   }
 }
