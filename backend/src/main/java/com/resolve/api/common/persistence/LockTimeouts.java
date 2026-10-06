@@ -1,9 +1,10 @@
 package com.resolve.api.common.persistence;
 
 /**
- * Espera máxima por un bloqueo de fila. Va en {@code @QueryHints} de los finders con {@code PESSIMISTIC_WRITE}:
- * Hibernate emite {@code set local lock_timeout} alrededor de la consulta, y al vencer PostgreSQL responde 55P03,
- * que Spring traduce a {@code CannotAcquireLockException} y la API a un 503 con {@code Retry-After}.
+ * Espera máxima por un bloqueo de fila. Va en {@code @QueryHints} de los finders con {@code PESSIMISTIC_WRITE} o
+ * {@code PESSIMISTIC_READ}: Hibernate emite {@code set local lock_timeout} alrededor de la consulta, y al vencer PostgreSQL responde 55P03,
+ * que Spring traduce a {@code CannotAcquireLockException} y la API a un 503 con {@code Retry-After}. La pista no
+ * actúa sobre un {@code UPDATE} masivo: ahí se fija {@code set local lock_timeout} con el mismo valor.
  *
  * <p>
  * Las transacciones que compiten son cortas y sin E/S externa (milisegundos), así que 3 s solo se alcanzan con una
