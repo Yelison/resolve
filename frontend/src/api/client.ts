@@ -218,12 +218,20 @@ async function fetchWithCsrfRetry(request: Request): Promise<Response> {
   // ahora. Si no es la que tenía la pantalla al enviar (otra pestaña cambió mientras tanto) no se reintenta y se
   // devuelve el mismo 409 que la guardia.
   if (sessionWatch && me.ok) {
+    let current: Me | null = null
     try {
-      const current = (await me.clone().json()) as Me
+      const body = (await me.clone().json()) as Partial<Me> | null
+      if (body?.user?.id && body.organization?.id) current = body as Me
+    } catch {
+      // No es JSON.
+    }
+    if (current) {
       sessionWatch.observe(current)
       if (sentAs !== null && identityOf(current) !== sentAs) return sessionChangedResponse()
-    } catch {
-      // Una respuesta que no es un `Me` no dice nada de la sesión: se sigue con el reintento.
+    } else if (sentAs !== null) {
+      // Un 200 que no es un `Me` (un portal cautivo, un proxy) no dice quién es la sesión: sin saberlo no se reintenta una
+      // escritura hecha con la sesión de la pantalla, y quien llamó recibe el 403 original.
+      return response
     }
   }
   if (writeGuard && (await writeGuard())) return sessionChangedResponse()
