@@ -1,4 +1,6 @@
-import { mutationErrorDetail } from '../../lib/mutationError'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { useState } from 'react'
 import { Alert, Button, Modal, Select, useToast } from '../../components/ui'
 import { teamRoles, type TeamMember, type TeamRole } from '../../domain/member'
@@ -34,15 +36,16 @@ export function ChangeRoleDialog({ member, onClose }: ChangeRoleDialogProps) {
 
 function RoleForm({ member, onClose }: { member: TeamMember; onClose: () => void }) {
   const change = useChangeRole()
+  const submission = useRepeatableSubmission()
   const toast = useToast()
   const [role, setRole] = useState<TeamRole>(member.role === 'admin' ? 'admin' : 'agent')
   const unchanged = role === member.role
 
   function submit() {
     if (change.isPending || unchanged) return
-    change.mutate(
-      { userId: member.id, role },
-      {
+    const variables = { userId: member.id, role }
+    submission.send(() =>
+      change.mutate(variables, {
         onSuccess: () => {
           toast.show({
             title: 'Rol actualizado',
@@ -50,7 +53,7 @@ function RoleForm({ member, onClose }: { member: TeamMember; onClose: () => void
           })
           onClose()
         },
-      },
+      }),
     )
   }
 
@@ -64,7 +67,8 @@ function RoleForm({ member, onClose }: { member: TeamMember; onClose: () => void
         submit()
       }}
     >
-      {error && (
+      <LockTimeoutAlert error={error} pending={change.isPending} onRetry={submission.retry} what="cambiar el rol" />
+      {error && !isLockTimeout(error) && (
         <Alert tone="red" title="No se pudo cambiar el rol" live>
           {mutationErrorDetail(error)}
         </Alert>

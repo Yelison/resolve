@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, mockApi, type MockRoute } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { customerKeys } from '../customers/queries'
@@ -22,7 +23,7 @@ const fieldProblem = (field: string, message: string) => problem(400, { errors: 
 const requests = (fetchSpy: ReturnType<typeof mockApi>, method: string) =>
   fetchSpy.mock.calls.map(([input]) => input as Request).filter((request) => request.method === method)
 
-function render(routes: Record<string, MockRoute | (() => MockRoute | Promise<MockRoute>)> = {}) {
+function render(routes: Record<string, MockRoute | ((request: Request) => MockRoute | Promise<MockRoute>)> = {}) {
   const fetchSpy = mockApi({
     'GET /api/me': { body: adminMe },
     'GET /api/organization': { body: organizationSettings(), headers: etag(3) },
@@ -294,5 +295,72 @@ describe('OrganizationTab', () => {
       })
       expect(await screen.findByText('Sin configurar')).toBeInTheDocument()
     })
+  })
+})
+
+describe('OrganizationTab con un 503 de bloqueo', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Los ajustes tienen la versión 3 y, tras la primera escritura fallida, otra persona guarda la 4. */
+  async function renameWith(user: ReturnType<typeof userEvent.setup>, seen: SentRequest[], ...replies: MockRoute[]) {
+    let version = 3
+    const patch = inOrder(seen, ...replies)
+    render({
+      'GET /api/organization': () => ({
+        body: organizationSettings(version === 3 ? {} : { supportEmail: 'nuevo@acme.example', version }),
+        headers: etag(version),
+      }),
+      'PATCH /api/organization': async (request) => {
+        const reply = await patch(request)
+        if (reply.status === 503) version = 4
+        return reply
+      },
+    })
+    const name = await field('Nombre del espacio')
+    await user.clear(name)
+    await user.type(name, 'Acme Studio SL')
+    await user.click(save())
+    return name
+  }
+
+  it('conserva lo escrito, ofrece «Reintentar» y repite el PATCH con el mismo cuerpo y la misma versión', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const seen: SentRequest[] = []
+    const name = await renameWith(user, seen, lockTimeoutRoute(), {
+      body: organizationSettings({ name: 'Acme Studio SL', version: 5 }),
+      headers: etag(5),
+    })
+    expect(
+      await screen.findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('No se pudieron guardar los ajustes de la empresa')).not.toBeInTheDocument()
+    expect(name).toHaveValue('Acme Studio SL')
+
+    await retryAfterLockTimeout(user, 'Reintentar guardar los ajustes de la empresa')
+    expect(await screen.findByText('Cambios guardados')).toBeInTheDocument()
+    expect(screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.')).not.toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(seen[0]).toEqual({ body: JSON.stringify({ name: 'Acme Studio SL' }), ifMatch: '"3"' })
+  })
+
+  it('si otra persona guardó entretanto, el reintento lleva la versión original y recibe el 412 de siempre', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const seen: SentRequest[] = []
+    const name = await renameWith(user, seen, lockTimeoutRoute(), problem(412))
+    await screen.findByText('Otra persona está guardando este recurso; vuelve a intentarlo.')
+    // La versión 4 llega por la recarga que hace la mutación; el reintento no la usa.
+    expect(await field('Correo de soporte')).toHaveValue('nuevo@acme.example')
+    await retryAfterLockTimeout(user, 'Reintentar guardar los ajustes de la empresa')
+
+    expect(await screen.findByText('Los ajustes cambiaron mientras los editabas')).toBeInTheDocument()
+    expect(screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.')).not.toBeInTheDocument()
+    expect(name).toHaveValue('Acme Studio SL')
+    expect(seen.map((request) => request.ifMatch)).toEqual(['"3"', '"3"'])
   })
 })

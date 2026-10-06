@@ -3,6 +3,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, mockApi, type MockRoute } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { article, category } from './articleFixtures'
@@ -512,5 +513,141 @@ describe('ArticleEditorPage · vista previa', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Vista previa' }))
     await userEvent.click(screen.getByRole('tab', { name: 'Escribir' }))
     expect(screen.getByRole('textbox', { name: 'Contenido' })).toHaveValue(article().body)
+  })
+})
+
+describe('ArticleEditorPage · un 503 de bloqueo', () => {
+  const LOCK_MESSAGE = 'Otra persona está guardando este recurso; vuelve a intentarlo.'
+  const draftArticle = article({ status: 'draft', publishedAt: null, version: 5 })
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const setup = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+  it('crear: conserva lo escrito, ofrece «Reintentar» y repite la misma petición', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    api({
+      'POST /api/knowledge/articles': inOrder(seen, lockTimeoutRoute(), {
+        status: 201,
+        body: article({ version: 0 }),
+        headers: etag(0),
+      }),
+    })
+    const { router } = renderEditor('/conocimiento/nuevo')
+    await user.type(await screen.findByRole('textbox', { name: 'Título' }), 'Cómo recuperar')
+    await user.type(screen.getByRole('textbox', { name: 'Contenido' }), '## Paso')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Categoría' }), 'Cuenta y acceso')
+    await user.click(screen.getByRole('button', { name: 'Guardar borrador' }))
+
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    expect(screen.queryByText('No se pudo guardar el artículo')).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Cómo recuperar')
+    expect(screen.getByRole('textbox', { name: 'Contenido' })).toHaveValue('## Paso')
+
+    await retryAfterLockTimeout(user, 'Reintentar guardar el artículo')
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/conocimiento/${SLUG}/editar`))
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+  })
+
+  it('editar: repite el PATCH con el mismo cuerpo y la misma versión', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    api({
+      [`PATCH /api/knowledge/articles/${SLUG}`]: inOrder(seen, lockTimeoutRoute(), {
+        body: article({ title: 'Nuevo título', version: 4 }),
+        headers: etag(4),
+      }),
+    })
+    renderEditor()
+    const title = await screen.findByRole('textbox', { name: 'Título' })
+    await user.clear(title)
+    await user.type(title, 'Nuevo título')
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    expect(title).toHaveValue('Nuevo título')
+    await retryAfterLockTimeout(user, 'Reintentar guardar el artículo')
+    expect(await screen.findByText('Cambios guardados')).toBeInTheDocument()
+    expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(seen[0]).toEqual({ body: JSON.stringify({ title: 'Nuevo título' }), ifMatch: '"3"' })
+  })
+
+  it('editar: si otra persona guardó entretanto, el reintento lleva la versión original y recibe el 412', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    let current = article()
+    let currentEtag = 3
+    const patch = inOrder(seen, lockTimeoutRoute(), { status: 412, body: { status: 412, title: 'El recurso cambió' } })
+    api({
+      [`GET /api/knowledge/articles/${SLUG}`]: () => ({ body: current, headers: etag(currentEtag) }),
+      [`PATCH /api/knowledge/articles/${SLUG}`]: async (request) => {
+        const reply = await patch(request)
+        if (reply.status === 503) {
+          // Otra persona guarda mientras esta escritura esperaba el bloqueo.
+          current = article({ title: 'Título de otra persona', version: 4 })
+          currentEtag = 4
+        }
+        return reply
+      },
+    })
+    renderEditor()
+    await user.type(await screen.findByRole('textbox', { name: 'Título' }), ' (mío)')
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    await screen.findByText(LOCK_MESSAGE)
+    // La versión nueva llega por la recarga que hace la mutación; el reintento no la usa.
+    expect(await screen.findByText('Hay un borrador tuyo sin guardar')).toBeInTheDocument()
+    await retryAfterLockTimeout(user, 'Reintentar guardar el artículo')
+
+    await waitFor(() => expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument())
+    expect(seen.map((request) => request.ifMatch)).toEqual(['"3"', '"3"'])
+    expect(screen.getByRole('textbox', { name: 'Título' })).toHaveValue('Título de otra persona')
+    expect(screen.queryByText('Cambios guardados')).not.toBeInTheDocument()
+  })
+
+  it('publicar ofrece «Reintentar» en el panel y repite la misma petición', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    api({
+      [`GET /api/knowledge/articles/${SLUG}`]: { body: draftArticle, headers: etag(5) },
+      [`POST /api/knowledge/articles/${SLUG}/publish`]: inOrder(seen, lockTimeoutRoute(), {
+        body: article({ version: 6 }),
+        headers: etag(6),
+      }),
+    })
+    renderEditor()
+    await user.click(await screen.findByRole('button', { name: 'Publicar' }))
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    expect(screen.queryByText('No se pudo cambiar el estado')).not.toBeInTheDocument()
+    await retryAfterLockTimeout(user, 'Reintentar publicar el artículo')
+    expect(await screen.findByText('Artículo publicado')).toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+  })
+
+  it('despublicar ofrece «Reintentar despublicar el artículo» y, si el reintento da 409, lo explica como siempre', async () => {
+    const user = setup()
+    api({
+      [`POST /api/knowledge/articles/${SLUG}/unpublish`]: inOrder([], lockTimeoutRoute(), {
+        status: 409,
+        body: { status: 409, title: 'Conflicto' },
+      }),
+    })
+    renderEditor()
+    await user.click(await screen.findByRole('button', { name: 'Despublicar' }))
+    const dialog = await screen.findByRole('dialog', { name: '¿Despublicar este artículo?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Despublicar' }))
+    expect(await screen.findByText(LOCK_MESSAGE)).toBeInTheDocument()
+    await retryAfterLockTimeout(user, 'Reintentar despublicar el artículo')
+    expect(await screen.findByText('El artículo ya era un borrador')).toBeInTheDocument()
+    expect(screen.queryByText(LOCK_MESSAGE)).not.toBeInTheDocument()
   })
 })

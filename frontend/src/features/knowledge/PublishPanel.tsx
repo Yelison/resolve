@@ -22,6 +22,8 @@ export interface PublishPanelProps {
   unpublishing: boolean
   /** Error de la última publicación o despublicación. */
   stateError?: ReactNode
+  /** Aviso de bloqueo con «Reintentar» (`LockTimeoutAlert`); no pinta nada si no hay nada que avisar. */
+  stateNotice?: ReactNode
   onPublish: () => void
   onUnpublish: () => void
 }
@@ -42,6 +44,7 @@ export function PublishPanel({
   publishing,
   unpublishing,
   stateError,
+  stateNotice,
   onPublish,
   onUnpublish,
 }: PublishPanelProps) {
@@ -137,6 +140,7 @@ export function PublishPanel({
             {blockedReason}
           </p>
         )}
+        {stateNotice}
         {stateError && (
           <Alert tone="red" title="No se pudo cambiar el estado" live>
             {stateError}

@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -178,6 +178,20 @@ describe('NewTicketPage', () => {
       expect(await screen.findByRole('textbox', { name: 'Asunto' })).toHaveAccessibleDescription(
         'Ese asunto ya existe.',
       )
+      expect(
+        screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+      ).not.toBeInTheDocument()
+    })
+
+    it('un 503 de mantenimiento de la demostración no ofrece «Reintentar» y sigue el aviso genérico', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      await fillAndSend(user, [], {
+        status: 503,
+        body: { status: 503, title: 'Reinicio de la demostración en curso', detail: 'Vuelve en unos minutos.' },
+      })
+      const region = await screen.findByRole('region', { name: 'Notificaciones' })
+      expect(await within(region).findByText('No se pudo crear el ticket')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument()
       expect(
         screen.queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
       ).not.toBeInTheDocument()

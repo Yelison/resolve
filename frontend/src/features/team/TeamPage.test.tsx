@@ -1,7 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { sessionKeys } from '../session/queries'
@@ -438,5 +439,169 @@ describe('TeamPage', () => {
       const stale = (key: readonly unknown[]) => queryClient.getQueryState(key)?.isInvalidated
       await waitFor(() => expect(stale(memberKeys.assignees())).toBe(true))
     })
+  })
+})
+
+describe('TeamPage con un 503 de bloqueo', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const setup = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+
+  async function openMenu(user: ReturnType<typeof setup>, item: string, dialogName: string) {
+    await user.click(await screen.findByRole('button', { name: 'Acciones de Laura Méndez' }))
+    await user.click(screen.getByRole('menuitem', { name: item }))
+    return screen.findByRole('dialog', { name: dialogName })
+  }
+
+  it('invitar conserva lo escrito, ofrece «Reintentar» y repite la misma petición', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    mockApi({
+      ...baseRoutes,
+      'POST /api/members': inOrder(seen, lockTimeoutRoute(), {
+        status: 201,
+        body: teamMember({ id: 'u-nuevo', name: 'ana', email: 'ana@acme.example', status: 'invited' }),
+      }),
+    })
+    renderTeam()
+    await user.click(await screen.findByRole('button', { name: 'Invitar agente' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Invitar agente' })
+    const email = within(dialog).getByRole('textbox', { name: 'Correo' })
+    await user.type(email, 'ana@acme.example')
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Rol' }), 'admin')
+    await user.click(within(dialog).getByRole('button', { name: 'Invitar' }))
+
+    expect(
+      await within(dialog).findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByText('No se pudo crear la invitación')).not.toBeInTheDocument()
+    expect(email).toHaveValue('ana@acme.example')
+    expect(within(dialog).getByRole('combobox', { name: 'Rol' })).toHaveValue('admin')
+
+    await retryAfterLockTimeout(user, 'Reintentar crear la invitación')
+    expect(await screen.findByText('Invitación creada')).toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(JSON.parse(seen[0]?.body ?? '')).toEqual({ email: 'ana@acme.example', role: 'admin' })
+  })
+
+  it('invitar: si el reintento falla por validación, muestra el error del campo de siempre', async () => {
+    const user = setup()
+    mockApi({
+      ...baseRoutes,
+      'POST /api/members': inOrder([], lockTimeoutRoute(), {
+        status: 400,
+        body: {
+          status: 400,
+          title: 'Datos no válidos',
+          errors: [{ field: 'email', message: 'Ya forma parte del equipo.' }],
+        },
+      }),
+    })
+    renderTeam()
+    await user.click(await screen.findByRole('button', { name: 'Invitar agente' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Invitar agente' })
+    await user.type(within(dialog).getByRole('textbox', { name: 'Correo' }), 'laura@acme.example')
+    await user.click(within(dialog).getByRole('button', { name: 'Invitar' }))
+    await retryAfterLockTimeout(user, 'Reintentar crear la invitación')
+    await waitFor(() =>
+      expect(within(dialog).getByRole('textbox', { name: 'Correo' })).toHaveAccessibleDescription(
+        'Ya forma parte del equipo.',
+      ),
+    )
+    expect(
+      within(dialog).queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('cambiar el rol mantiene el diálogo, ofrece «Reintentar» y repite la misma petición', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    mockApi({
+      ...baseRoutes,
+      'POST /api/members/u-laura/role': inOrder(seen, lockTimeoutRoute(), { body: teamMember({ role: 'admin' }) }),
+    })
+    renderTeam()
+    const dialog = await openMenu(user, 'Cambiar rol', 'Cambiar rol')
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Rol' }), 'admin')
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar rol' }))
+
+    expect(
+      await within(dialog).findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByText('No se pudo cambiar el rol')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('combobox', { name: 'Rol' })).toHaveValue('admin')
+    await retryAfterLockTimeout(user, 'Reintentar cambiar el rol')
+    expect(await screen.findByText('Rol actualizado')).toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+    expect(JSON.parse(seen[0]?.body ?? '')).toEqual({ role: 'admin' })
+  })
+
+  it('cambiar el rol: si el reintento recibe un 409 muestra su detalle como siempre', async () => {
+    const user = setup()
+    mockApi({
+      ...baseRoutes,
+      'POST /api/members/u-laura/role': inOrder([], lockTimeoutRoute(), {
+        status: 409,
+        body: { status: 409, title: 'Conflicto', detail: 'Debe quedar al menos un administrador activo.' },
+      }),
+    })
+    renderTeam()
+    const dialog = await openMenu(user, 'Cambiar rol', 'Cambiar rol')
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Rol' }), 'admin')
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar rol' }))
+    await retryAfterLockTimeout(user, 'Reintentar cambiar el rol')
+    expect(await within(dialog).findByText('Debe quedar al menos un administrador activo.')).toBeInTheDocument()
+    expect(
+      within(dialog).queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('retirar mantiene el diálogo, ofrece «Reintentar» y repite la misma petición', async () => {
+    const user = setup()
+    const seen: SentRequest[] = []
+    mockApi({
+      ...baseRoutes,
+      'POST /api/members/u-laura/remove': inOrder(seen, lockTimeoutRoute(), {
+        body: teamMember({ status: 'removed' }),
+      }),
+    })
+    renderTeam()
+    const dialog = await openMenu(user, 'Retirar del equipo', '¿Retirar a este miembro del equipo?')
+    await user.click(within(dialog).getByRole('button', { name: 'Retirar del equipo' }))
+
+    expect(
+      await within(dialog).findByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+    ).toBeInTheDocument()
+    expect(within(dialog).queryByText('No se pudo retirar al miembro')).not.toBeInTheDocument()
+    await retryAfterLockTimeout(user, 'Reintentar retirar al miembro')
+    expect(await screen.findByText('Miembro retirado')).toBeInTheDocument()
+    expect(seen).toHaveLength(2)
+    expect(seen[1]).toEqual(seen[0])
+  })
+
+  it('retirar: si el reintento recibe un 404 muestra su detalle como siempre', async () => {
+    const user = setup()
+    mockApi({
+      ...baseRoutes,
+      'POST /api/members/u-laura/remove': inOrder([], lockTimeoutRoute(), {
+        status: 404,
+        body: { status: 404, title: 'No encontrado', detail: 'Ese miembro ya no existe.' },
+      }),
+    })
+    renderTeam()
+    const dialog = await openMenu(user, 'Retirar del equipo', '¿Retirar a este miembro del equipo?')
+    await user.click(within(dialog).getByRole('button', { name: 'Retirar del equipo' }))
+    await retryAfterLockTimeout(user, 'Reintentar retirar al miembro')
+    expect(await within(dialog).findByText('Ese miembro ya no existe.')).toBeInTheDocument()
+    expect(
+      within(dialog).queryByText('Otra persona está guardando este recurso; vuelve a intentarlo.'),
+    ).not.toBeInTheDocument()
   })
 })

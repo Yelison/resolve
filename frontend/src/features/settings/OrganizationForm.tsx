@@ -3,7 +3,9 @@ import { flushSync } from 'react-dom'
 import { Alert, Button, Input, Select, useToast } from '../../components/ui'
 import { isApiError } from '../../api/client'
 import type { OrganizationPatch, OrganizationSettings } from '../../api/schema'
-import { mutationErrorDetail } from '../../lib/mutationError'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { focusSectionHeading } from './focus'
 import { timeZoneGroups } from './timeZones'
 import { useUpdateOrganization } from './queries'
@@ -73,6 +75,9 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
   const [serverChanged, setServerChanged] = useState<FieldName[]>([])
   const [errors, setErrors] = useState<Errors>({})
   const [failure, setFailure] = useState<Failure>(null)
+  /** El 503 de bloqueo del último envío (nada se cambió); su aviso ofrece repetir ese mismo envío. */
+  const [lockError, setLockError] = useState<unknown>(null)
+  const submission = useRepeatableSubmission()
   const groups = useMemo(() => timeZoneGroups(settings.timeZone), [settings.timeZone])
 
   if (settings.version > seenVersion) {
@@ -98,6 +103,8 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
   function change(field: FieldName, value: string) {
     setValues((current) => ({ ...current, [field]: value }))
     setErrors((current) => ({ ...current, [field]: undefined }))
+    // El reintento repetiría lo enviado, no lo que se ve ahora: editar retira el aviso de bloqueo.
+    setLockError(null)
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -128,8 +135,15 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
     if (changed.includes('firstResponseTargetMinutes')) {
       changes.firstResponseTargetMinutes = Number(trimmed.firstResponseTargetMinutes)
     }
+    // El reintento de un 503 repite este envío con su versión: si otra persona guardó entretanto, responde el 412.
+    setLockError(null)
+    submission.send(() => void attempt(form, { version: settings.version, changes }))
+  }
+
+  async function attempt(form: HTMLFormElement, variables: { version: number; changes: OrganizationPatch }) {
     try {
-      const saved = await update.mutateAsync({ version: settings.version, changes })
+      const saved = await update.mutateAsync(variables)
+      setLockError(null)
       const next = toValues(saved)
       setValues(next)
       setBase(next)
@@ -138,7 +152,11 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
       toast.show({ title: 'Cambios guardados' })
       focusSectionHeading(form)
     } catch (error) {
-      if (isApiError(error, 412)) {
+      if (isLockTimeout(error)) {
+        setFailure(null)
+        setLockError(error)
+      } else if (isApiError(error, 412)) {
+        setLockError(null)
         setFailure({ kind: 'conflict' })
       } else if (isApiError(error, 400)) {
         const serverErrors: Errors = {}
@@ -147,6 +165,7 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
           if (message) serverErrors[field] = message
         }
         flushSync(() => {
+          setLockError(null)
           setErrors(serverErrors)
           setFailure(
             Object.keys(serverErrors).length > 0 ? null : { kind: 'error', detail: mutationErrorDetail(error) },
@@ -154,6 +173,7 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
         })
         form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
       } else {
+        setLockError(null)
         setFailure({ kind: 'error', detail: mutationErrorDetail(error) })
       }
     }
@@ -161,6 +181,12 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
 
   return (
     <form className={styles.form} onSubmit={(event) => void submit(event)} noValidate aria-busy={update.isPending}>
+      <LockTimeoutAlert
+        error={lockError}
+        pending={update.isPending}
+        onRetry={submission.retry}
+        what="guardar los ajustes de la empresa"
+      />
       {failure?.kind === 'conflict' && (
         <Alert tone="amber" title="Los ajustes cambiaron mientras los editabas" live>
           Otra persona los actualizó y ya cargamos la versión actual.

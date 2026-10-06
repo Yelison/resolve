@@ -14,7 +14,9 @@ import {
 } from '../../components/ui'
 import type { Article, ArticleCreate, ArticlePatch, ArticleVisibility } from '../../domain/article'
 import { clearDraft, useDraft } from '../../lib/useDraft'
-import { mutationErrorDetail } from '../../lib/mutationError'
+import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
+import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
+import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { draftKey, parseDraft, serializeDraft, type ArticleDraft } from './articleDraft'
@@ -179,6 +181,10 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
   const publish = usePublishArticle(article?.slug ?? '')
   const unpublish = useUnpublishArticle(article?.slug ?? '')
   const saving = create.isPending || update.isPending
+  // Un envío recordado por acción: el reintento de un 503 de bloqueo repite esa llamada tal cual, con su versión.
+  const saveSubmission = useRepeatableSubmission()
+  const stateSubmission = useRepeatableSubmission()
+  const [stateAction, setStateAction] = useState<'publish' | 'unpublish'>('publish')
 
   const textDirty = fields.title !== server.title || fields.body !== server.body
   const settingsDirty =
@@ -208,6 +214,9 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
   }, [attempt])
 
   function change(changes: Partial<Fields>) {
+    // El reintento repetiría lo enviado, no lo que se ve ahora: editar retira el aviso de bloqueo.
+    if (isLockTimeout(update.error)) update.reset()
+    if (isLockTimeout(create.error)) create.reset()
     setFields((current) => ({ ...current, ...changes }))
     setErrors((current) => {
       const next = { ...current }
@@ -243,15 +252,19 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
         visibility: fields.visibility,
         allowFeedback: fields.allowFeedback,
       }
-      create.mutate(body, {
-        onSuccess: (created) => {
-          // Se borra el borrador antes de navegar: el siguiente «Nuevo artículo» no debe abrirse con este texto.
-          clearDraft(key)
-          toast.show({ title: 'Borrador creado' })
-          void navigate(`/conocimiento/${created.slug}/editar`, { replace: true })
-        },
-        onError: () => setAttempt((count) => count + 1),
-      })
+      saveSubmission.send(() =>
+        create.mutate(body, {
+          onSuccess: (created) => {
+            // Se borra el borrador antes de navegar: el siguiente «Nuevo artículo» no debe abrirse con este texto.
+            clearDraft(key)
+            toast.show({ title: 'Borrador creado' })
+            void navigate(`/conocimiento/${created.slug}/editar`, { replace: true })
+          },
+          onError: (error) => {
+            if (!isLockTimeout(error)) setAttempt((count) => count + 1)
+          },
+        }),
+      )
       return
     }
     const changes: ArticlePatch = {}
@@ -261,9 +274,9 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
     if (fields.visibility !== server.visibility) changes.visibility = fields.visibility
     if (fields.allowFeedback !== server.allowFeedback) changes.allowFeedback = fields.allowFeedback
     if (Object.keys(changes).length === 0) return
-    update.mutate(
-      { version, changes },
-      {
+    const variables = { version, changes }
+    saveSubmission.send(() =>
+      update.mutate(variables, {
         onSuccess: (saved) => {
           setBase(saved)
           setFields(fieldsOf(saved))
@@ -271,10 +284,10 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
         },
         // Un 412 recarga el detalle (lo hace la mutación); la versión nueva se trata abajo, igual que si llegara sola.
         onError: (error) => {
-          if (isApiError(error, 412)) setConflictAt(version)
-          else setAttempt((count) => count + 1)
+          if (isApiError(error, 412)) setConflictAt(variables.version)
+          else if (!isLockTimeout(error)) setAttempt((count) => count + 1)
         },
-      },
+      }),
     )
   }
 
@@ -324,23 +337,28 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
   function changeState(action: 'publish' | 'unpublish') {
     const mutation = action === 'publish' ? publish : unpublish
     if (mutation.isPending) return
-    mutation.mutate(undefined, {
-      onSuccess: (changed) => {
-        // La respuesta es la nueva versión base: sin esto el siguiente guardado iría con un `If-Match` anterior.
-        setBase(changed)
-        toast.show({ title: action === 'publish' ? 'Artículo publicado' : 'Artículo despublicado' })
-      },
-      onError: (error) => {
-        if (isApiError(error, 409)) {
-          toast.show({
-            tone: 'error',
-            title: action === 'publish' ? 'El artículo ya estaba publicado' : 'El artículo ya era un borrador',
-          })
-        }
-      },
-    })
+    setStateAction(action)
+    stateSubmission.send(() =>
+      mutation.mutate(undefined, {
+        onSuccess: (changed) => {
+          // La respuesta es la nueva versión base: sin esto el siguiente guardado iría con un `If-Match` anterior.
+          setBase(changed)
+          toast.show({ title: action === 'publish' ? 'Artículo publicado' : 'Artículo despublicado' })
+        },
+        onError: (error) => {
+          if (isApiError(error, 409)) {
+            toast.show({
+              tone: 'error',
+              title: action === 'publish' ? 'El artículo ya estaba publicado' : 'El artículo ya era un borrador',
+            })
+          }
+        },
+      }),
+    )
   }
-  const stateError = [publish.error, unpublish.error].find((error) => error && !isApiError(error, 409))
+  const stateError = [publish.error, unpublish.error].find(
+    (error) => error && !isApiError(error, 409) && !isLockTimeout(error),
+  )
 
   const bodyErrorId = 'article-body-error'
   const bodyEmpty = fields.body.trim() === ''
@@ -384,8 +402,17 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
         </Alert>
       )}
       {slugTaken && <Alert tone="red" title="Otro artículo acaba de tomar esa dirección; vuelve a intentarlo" live />}
-      {(update.error && !isApiError(update.error, 412) && !isApiError(update.error, 400)) ||
-      (create.error && !slugTaken && !isApiError(create.error, 400)) ? (
+      <LockTimeoutAlert
+        error={update.error ?? create.error}
+        pending={saving}
+        onRetry={saveSubmission.retry}
+        what="guardar el artículo"
+      />
+      {(update.error &&
+        !isApiError(update.error, 412) &&
+        !isApiError(update.error, 400) &&
+        !isLockTimeout(update.error)) ||
+      (create.error && !slugTaken && !isApiError(create.error, 400) && !isLockTimeout(create.error)) ? (
         <Alert tone="red" title="No se pudo guardar el artículo" live>
           {mutationErrorDetail(update.error ?? create.error)}
         </Alert>
@@ -464,6 +491,14 @@ function ArticleForm({ article, reloading = false, reload }: ArticleFormProps) {
           publishing={publish.isPending}
           unpublishing={unpublish.isPending}
           stateError={stateError ? mutationErrorDetail(stateError) : undefined}
+          stateNotice={
+            <LockTimeoutAlert
+              error={[publish.error, unpublish.error].find(isLockTimeout)}
+              pending={publish.isPending || unpublish.isPending}
+              onRetry={stateSubmission.retry}
+              what={stateAction === 'publish' ? 'publicar el artículo' : 'despublicar el artículo'}
+            />
+          }
           onPublish={() => changeState('publish')}
           onUnpublish={() => changeState('unpublish')}
         />
