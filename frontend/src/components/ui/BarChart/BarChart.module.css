@@ -13,6 +13,7 @@
 .columns,
 .axisRow {
   display: grid;
+  justify-content: center;
   min-width: 0;
 }
 
@@ -52,7 +53,7 @@
   width: 100%;
   height: calc((100% - var(--label-space)) * var(--ratio));
   min-height: 0;
-  max-width: 32px;
+  max-width: 56px;
   margin: 0 auto;
   overflow: visible;
 }
@@ -95,8 +96,11 @@
   white-space: nowrap;
 }
 
-.axisStart {
-  text-align: start;
+/* Con una etiqueta cada *k* columnas el texto es más ancho que su celda: flex lo centra y lo extiende por ambos lados. */
+.axisSparse {
+  display: flex;
+  justify-content: center;
+  overflow: visible;
 }
 
 .legend {

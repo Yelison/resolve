@@ -47,7 +47,7 @@ describe('requestPoints', () => {
 function expectWeekLabels() {
   const days = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']
   const points = requestPoints(days.map((date, index) => ({ date, created: index, resolved: 0 })))
-  expect(points.map((point) => point.shortLabel)).toEqual(['L', 'M', 'X', 'J', 'V', 'S', 'D'])
+  expect(points.map((point) => point.shortLabel)).toEqual(['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'])
   expect(points[0]).toMatchObject({ key: '2026-09-28', label: 'lunes, 28 sept', values: { created: 0 } })
   expect(points[6]!.values).toEqual({ created: 6 })
 }

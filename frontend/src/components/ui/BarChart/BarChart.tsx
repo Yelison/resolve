@@ -47,6 +47,11 @@ const defaultFormatter = (n: number) => n.toLocaleString('es')
 // Unidades internas del viewBox de cada columna; el SVG se estira al ancho de su celda.
 const BAR_WIDTH = 10
 const BAR_GAP = 2
+/**
+ * Ancho máximo de cada columna en px. Con pocos puntos en pantallas anchas las columnas dejan de crecer y el conjunto
+ * se centra: la barra gana grosor (hasta el máximo del CSS) y la separación queda acotada (columna − barra).
+ */
+const COLUMN_MAX = 96
 const VIEW_HEIGHT = 100
 
 // Medidas aproximadas (texto de 12 px) con las que se decide qué cabe a cada ancho.
@@ -80,11 +85,14 @@ function useElementWidth<T extends HTMLElement>() {
  * a cualquier ancho; la tabla alternativa siempre está en el DOM y el botón la hace visible.
  *
  * Se adapta a la densidad según el ancho medido del contenedor:
+ * - las columnas miden como mucho 96 px y el conjunto se centra, de modo que con pocos puntos en pantallas anchas
+ *   las barras no se separan sin límite;
  * - la separación entre columnas baja de 8 px (hasta 14 puntos) a 2 px (hasta 40) y a 1 px;
  * - las cifras sobre las barras (solo con una serie) aparecen únicamente si caben; el `<title>` de cada barra
  *   y la tabla alternativa dan siempre el valor;
- * - el eje muestra una etiqueta cada *k* puntos (la más larga decide *k*) en lugar de recortarlas todas; una
- *   etiqueta ocupa *k* columnas desde su barra, y la última se omite si ya no le quedan columnas suficientes.
+ * - el eje muestra una etiqueta cada *k* puntos (la más larga decide *k*) en lugar de recortarlas todas; cada
+ *   etiqueta se centra bajo su barra (en la celda de su columna, sin recortarse: se extiende a ambos lados hacia las columnas
+ *   vacías vecinas), y la última se omite si ya no le quedan columnas suficientes.
  *
  * Límites: pensado para 1–2 series y hasta unos 90 puntos desde 256 px de contenedor (cada barra mide entonces
  * ~2 px, aún visible). Por encima de eso, o si cada punto debe poder leerse o señalarse, hay que agregar los
@@ -120,7 +128,7 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
 
   const count = points.length
   const gap = gapFor(count)
-  const columnWidth = ((plotWidth ?? FALLBACK_WIDTH) - gap * (count - 1)) / count
+  const columnWidth = Math.min(COLUMN_MAX, ((plotWidth ?? FALLBACK_WIDTH) - gap * (count - 1)) / count)
   const longest = (texts: string[]) => Math.max(...texts.map((text) => text.length))
   const axisLabelOf = (point: BarChartPoint) => point.shortLabel ?? point.label
   const axisStep = Math.max(
@@ -134,7 +142,7 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
         GLYPH_WIDTH +
         2
   const gridStyle: CSSProperties = {
-    gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))`,
+    gridTemplateColumns: `repeat(${count}, minmax(0, ${COLUMN_MAX}px))`,
     columnGap: `${gap}px`,
   }
 
@@ -193,8 +201,8 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
             index % axisStep === 0 && count - index >= axisStep ? (
               <span
                 key={point.key}
-                className={cx(styles.axis, axisStep > 1 && styles.axisStart)}
-                style={{ gridColumn: `${index + 1} / span ${axisStep}` }}
+                className={cx(styles.axis, axisStep > 1 && styles.axisSparse)}
+                style={{ gridColumn: index + 1 }}
               >
                 {axisLabelOf(point)}
               </span>
