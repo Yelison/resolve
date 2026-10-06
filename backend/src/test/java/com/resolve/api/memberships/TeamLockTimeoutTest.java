@@ -76,6 +76,21 @@ class TeamLockTimeoutTest extends TeamFixture {
 	}
 
 	@Test
+	void invitingWhileAnotherTransactionInsertsTheSameUserIsA503AndTheRetryWorks() throws Exception {
+		String invitation = "{\"email\": \"carrera@acme.example\", \"name\": \"Carrera\", \"role\": \"agent\"}";
+		try (RowLock lock = RowLock.hold(this.dataSource,
+				"insert into users (id, name, email) values (gen_random_uuid(), 'Otra', 'carrera@acme.example') returning id")) {
+			ResultActions blocked = assertTimeoutPreemptively(LIMIT, () -> this.mvc.perform(post(API + "/members")
+				.with(as(ADMIN))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(invitation)));
+			expectLockTimeout(blocked, "inviteMember");
+		}
+
+		assertThat(invite(ADMIN, invitation).getResponse().getStatus()).isEqualTo(201);
+	}
+
+	@Test
 	void renamingWhileTheUserRowIsHeldIsA503AndTheRetryWorks() throws Exception {
 		try (RowLock lock = RowLock.hold(this.dataSource, "select id from users where id = ? for no key update",
 				this.laura)) {
