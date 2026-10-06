@@ -4,7 +4,9 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 
 [![CI](https://github.com/Yelison/resolve/actions/workflows/ci.yml/badge.svg)](https://github.com/Yelison/resolve/actions/workflows/ci.yml)
 
-> **Status:** ready to deploy as a public demo, **not deployed yet**. The design system, the shared components (internally called **Forma UI**), the application shell and every area of the product are done, views and Spring Boot API: **Overview**, **Tickets**, **Customers**, **Team**, **Reports**, **Knowledge base** (reading and editing) and **Settings** (company, profile, appearance and the permissions matrix). Sign-in goes through OpenID Connect (the API is the client and keeps the session), one Docker image serves the API and the web app, and the pipeline is written, and the demo's Keycloak, the nightly reset and the runbooks were rehearsed locally; the pipeline stays switched off until the owner creates the Fly.io and Neon accounts (see [Live demo](#live-demo)). Still pending: tags, attachments and SLA for tickets, and article ratings; none of them is drawn as if it worked.
+**[Live demo (mock data, in your browser)](https://yelison.github.io/resolve/)**: the complete frontend running against the simulated API that the e2e tests use, so nothing leaves your browser and every change is forgotten on reload. It has no real backend and no Keycloak: you pick a demo user (admin, agent or customer) instead of signing in. See [Static demo](#static-demo).
+
+> **Status:** the [static demo](#static-demo) is online on GitHub Pages; the full deployment (API, Keycloak and PostgreSQL) is **ready, not deployed**. The design system, the shared components (internally called **Forma UI**), the application shell and every area of the product are done, views and Spring Boot API: **Overview**, **Tickets**, **Customers**, **Team**, **Reports**, **Knowledge base** (reading and editing) and **Settings** (company, profile, appearance and the permissions matrix). Sign-in goes through OpenID Connect (the API is the client and keeps the session), one Docker image serves the API and the web app, and the pipeline is written, and the demo's Keycloak, the nightly reset and the runbooks were rehearsed locally; the pipeline stays switched off until the owner creates the Fly.io and Neon accounts (see [Full deployment](#full-deployment-ready-not-deployed)). Still pending: tags, attachments and SLA for tickets, and article ratings; none of them is drawn as if it worked.
 
 | Ticket inbox | Ticket detail (dark) |
 | --- | --- |
@@ -201,7 +203,18 @@ Resolve has no passwords of its own. People sign in with an OpenID Connect ident
 
 Variables, headers and health checks of a deployment are in [docs/deploy/README.md](docs/deploy/README.md); the API side of sign-in is in the [API contract](docs/api/README.md#authentication).
 
-## Live demo
+## Static demo
+
+The [live demo](https://yelison.github.io/resolve/) is the complete frontend built with `npm run build:showcase` (`vite build --mode showcase`, base `/resolve/`) and published to GitHub Pages by [`pages.yml`](.github/workflows/pages.yml) on every push to `main`. `/api` is answered inside the browser by an adapter (`frontend/src/showcase`) that runs the same handlers and data as the e2e tests (`frontend/e2e/mocks`), so there is no second copy to keep in sync. It starts at `/entrar` with the demo-user picker; a deep link such as `/resolve/tickets/1048` goes there first and returns to it after you choose a user. State lives in memory and is reset on reload, and a permanent notice says so on every page.
+
+- **Not in it:** the Spring Boot API, PostgreSQL, Keycloak and any real sign-in, email or persistence.
+- **Not in production builds:** the mocks and the adapter only exist in the `showcase` mode; `frontend/e2e/production-bundle.spec.ts` fails if a fixture name reaches the production `dist/`.
+- **Run it:** `cd frontend && npm run build:showcase && npm run preview -- --mode showcase`, then open `http://localhost:4173/resolve/`. `npm run test:showcase` serves the build and checks it under `/resolve/`.
+- **Enable it (owner):** Settings > Pages > Source: «GitHub Actions».
+
+<a id="live-demo"></a>
+
+## Full deployment (ready, not deployed)
 
 **Not deployed yet.** Everything is ready, but nothing is online because the accounts it needs (Fly.io, Neon, the GitHub environment) are not created. The pipeline ([`deploy.yml`](.github/workflows/deploy.yml)) and the nightly reset ([`demo-reset.yml`](.github/workflows/demo-reset.yml)) skip every job until the owner sets the repository variable `DEPLOY_ENABLED=true`. The planned address is `https://resolve-demo.fly.dev` (a decision to confirm), and it will be written here after the first successful deployment, with the password below.
 
