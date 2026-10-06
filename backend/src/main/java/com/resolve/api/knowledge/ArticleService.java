@@ -11,6 +11,7 @@ import com.resolve.api.common.error.ConflictException;
 import com.resolve.api.common.error.PreconditionFailedException;
 import com.resolve.api.common.error.ResourceNotFoundException;
 import com.resolve.api.common.persistence.Ids;
+import com.resolve.api.common.persistence.LockTimeouts;
 import com.resolve.api.common.security.CurrentMember;
 import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
@@ -159,10 +160,7 @@ class ArticleService {
 	 * organización y no por slug: «Factura» y «Factura 2» compiten por {@code factura-2} con bases distintas.
 	 */
 	private void lockSlugs(UUID organizationId) {
-		this.jdbc.sql("SELECT count(*) FROM (SELECT pg_advisory_xact_lock(hashtextextended(?, 0))) AS locked")
-			.param("article-slug:" + organizationId)
-			.query(Long.class)
-			.single();
+		LockTimeouts.lockAdvisory(this.jdbc, "article-slug:" + organizationId);
 	}
 
 	private String freeSlug(UUID organizationId, String base) {
