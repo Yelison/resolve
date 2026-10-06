@@ -25,7 +25,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
  * <p>
  * Sustituye al {@code BasicErrorController} de Spring Boot, que respondía su propio JSON o una página HTML genérica. No
  * devuelve el mensaje ni la excepción originales: pueden contener detalles internos. Los 5xx se registran con la URI
- * original, que es la que el cliente ve en el {@code instance} del problema.
+ * original, que es la que el cliente ve en el {@code instance} del problema, y con la clase de la excepción pero sin su
+ * traza: Tomcat ya la escribió.
  *
  * <p>
  * Como todo controlador de {@code com.resolve.api}, {@code ApiPathPrefix} le antepone {@code /api}: la ruta es
@@ -41,8 +42,10 @@ class ProblemErrorController implements ErrorController {
 		HttpStatusCode status = status(request);
 		String instance = (String) request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
 		if (status.is5xxServerError()) {
-			log.error("Request failed with status {} on {}", status.value(), instance,
-					(Throwable) request.getAttribute(RequestDispatcher.ERROR_EXCEPTION));
+			// Sin el Throwable: Tomcat ya escribió la traza completa en ERROR y dos trazas por error son ruido.
+			Object exception = request.getAttribute(RequestDispatcher.ERROR_EXCEPTION);
+			log.error("Request failed with status {} on {} ({})", status.value(), instance,
+					(exception == null) ? "no exception" : exception.getClass().getName());
 		}
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ErrorProblems.detail(status));
 		problem.setTitle(ErrorProblems.title(status));
