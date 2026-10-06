@@ -258,7 +258,8 @@ With `RESOLVE_DEMO_LIMITS=true`:
   `RESOLVE_DEMO_CLIENT_IP_HEADER` (`Fly-Client-IP`), never from `X-Forwarded-For`, and with no header configured (or a
   value that is not an address) it is the socket's address. Note that with `forward-headers-strategy=framework` (`prod`)
   Spring makes `request.getRemoteAddr()` return the first `X-Forwarded-For`, which the client writes, so the filter
-  unwraps the request to the original one (tested with `framework` active). That is safe only if the container is reachable
+  unwraps the request to the original one (tested with `framework` active). An IPv6 client is counted by its **/64 prefix**, so rotating addresses inside a
+  subscriber's prefix does not give a new bucket. That is safe only if the container is reachable
   **only through Fly's proxy**, which `fly.toml` guarantees by publishing just `[http_service]`. Fly's documentation
   describes `Fly-Client-IP` as the address "from the perspective of Fly Proxy" and recommends it over
   `X-Forwarded-For`, but does not state that a client-sent copy is overwritten: **check that on the first deployment**
