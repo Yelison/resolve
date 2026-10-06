@@ -97,3 +97,12 @@ export function formatDateTime(date: Date, now: Date = new Date(), timeZone?: st
     : formatterFor('dayMonthYear', dayMonthYear, timeZone).format(date)
   return `${day}, ${time}`
 }
+
+/**
+ * Día de la semana en tres letras («lun», «mié», «sáb») de un día de calendario: el servidor envía `2026-09-28`, no
+ * un instante, así que `date` se lee en UTC (construida con `Date.UTC`) y el resultado no depende de la zona del
+ * navegador. Se quita el punto que algunos entornos añaden («lun.»).
+ */
+export function formatWeekdayShort(date: Date): string {
+  return formatterFor('weekdayShort', { weekday: 'short' }, 'UTC').format(date).replace('.', '')
+}
