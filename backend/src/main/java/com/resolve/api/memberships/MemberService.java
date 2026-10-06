@@ -76,7 +76,8 @@ class MemberService {
 	 * Activa una invitación en su propia transacción: el resolvedor del principal corre en una de solo lectura y la
 	 * activación debe confirmarse aunque la petición que la provoca falle después.
 	 * @return el estado en que queda la membresía; una retirada confirmada antes gana y devuelve
-	 * {@link MemberStatus#REMOVED}
+	 * {@link MemberStatus#REMOVED}. {@link MemberStatus#INVITED} si otra transacción retiene la fila: no se espera
+	 * y se activa en la petición siguiente
 	 */
 	@Transactional(propagation = Propagation.REQUIRES_NEW)
 	MemberStatus activate(UUID membershipId) {
@@ -89,7 +90,8 @@ class MemberService {
 	/**
 	 * Toma el nombre del proveedor de identidad solo cuando el guardado es un marcador de posición (vacío o la parte
 	 * local del correo, como deja una invitación): nunca pisa un nombre que la persona eligió. El {@code UPDATE} repite
-	 * la condición, así que un cambio de nombre concurrente gana.
+	 * la condición, así que un cambio de nombre concurrente gana. Corre en el filtro del principal: si otra
+	 * transacción retiene la cuenta ({@code SKIP LOCKED}) no espera y deja el nombre para la petición siguiente.
 	 * @return el nombre que queda guardado
 	 */
 	String adoptIdentityName(UserAccount user, @Nullable String identityName) {
@@ -100,7 +102,10 @@ class MemberService {
 			return current;
 		}
 		int updated = this.jdbc
-			.sql("UPDATE users SET name = ? WHERE id = ? AND (name = '' OR lower(name) = lower(?))")
+			.sql("""
+					UPDATE users SET name = ? WHERE id = (SELECT id FROM users WHERE id = ?
+						AND (name = '' OR lower(name) = lower(?)) FOR UPDATE SKIP LOCKED)
+					""")
 			.params(candidate, user.getId(), localPart)
 			.update();
 		return (updated == 1) ? candidate : current;
