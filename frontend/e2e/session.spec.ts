@@ -101,9 +101,20 @@ test.describe('sin saltos de layout al llegar /me', () => {
   }
 })
 
+test.describe('cuenta sin membresía', () => {
+  test('/entrar la explica por el tipo del problema y deja cerrar sesión', async ({ page }) => {
+    await mockApi(page, 'admin', { refused: 'no-membership' })
+    await page.setViewportSize({ width: 1024, height: 800 })
+    await page.goto('/tickets')
+    await expect(page).toHaveURL(/\/entrar$/)
+    await expect(page.getByRole('alert')).toContainText('no pertenece a ninguna organización')
+    await expect(page.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' })).toBeVisible()
+  })
+})
+
 test.describe('cuenta desactivada', () => {
   test('/entrar explica el motivo y deja cerrar sesión para entrar con otra cuenta', async ({ page }) => {
-    await mockApi(page, 'admin', { refused: true })
+    await mockApi(page, 'admin', { refused: 'access-deactivated' })
     await page.setViewportSize({ width: 1024, height: 800 })
     await page.goto('/tickets')
     await expect(page).toHaveURL(/\/entrar$/)
@@ -123,7 +134,7 @@ test.describe('cuenta desactivada', () => {
   for (const theme of themes) {
     for (const width of [320, 390, 768, 1440]) {
       test(`el motivo y el botón caben · ${theme} · ${width}px`, async ({ page }) => {
-        await mockApi(page, 'admin', { refused: true })
+        await mockApi(page, 'admin', { refused: 'access-deactivated' })
         await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
         await page.setViewportSize({ width, height: 700 })
         await page.goto('/entrar')

@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { PROBLEM_TYPES } from '../../api/client'
 import { appRoutes } from '../../app/router'
 import { adminMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
@@ -103,13 +104,23 @@ describe('sin sesión', () => {
 })
 
 describe('cuenta que el proveedor autentica pero la aplicación no admite', () => {
+  // Los `detail` no coinciden a propósito con los del backend: la pantalla decide por el `type` y escribe su propio texto.
   const deactivated = {
     status: 401,
-    body: { status: 401, title: 'No autenticado', detail: 'Tu acceso a esta organización fue desactivado' },
+    body: { type: PROBLEM_TYPES.accessDeactivated, status: 401, title: 'No autenticado', detail: 'Otro texto A.' },
+  }
+  const noMembership = {
+    status: 401,
+    body: { type: PROBLEM_TYPES.noMembership, status: 401, title: 'No autenticado', detail: 'Otro texto B.' },
   }
   const generic = {
     status: 401,
-    body: { status: 401, title: 'No autenticado', detail: 'Inicia sesión para usar la API.' },
+    body: { type: 'about:blank', status: 401, title: 'No autenticado', detail: 'Inicia sesión para usar la API.' },
+  }
+  // El texto de una cuenta desactivada en un problema que no lo es: no puede producir el aviso.
+  const genericWithDeactivatedText = {
+    status: 401,
+    body: { status: 401, title: 'No autenticado', detail: 'Tu acceso a esta organización fue desactivado' },
   }
 
   afterEach(() => setCsrfCookie(null))
@@ -125,6 +136,7 @@ describe('cuenta que el proveedor autentica pero la aplicación no admite', () =
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Esta cuenta no tiene acceso')
     expect(alert).toHaveTextContent('Tu acceso a esta organización fue desactivado')
+    expect(alert).not.toHaveTextContent('Otro texto A.')
 
     await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' }))
     await waitFor(() => expect(navigation.assign).toHaveBeenCalledWith('https://idp.example/logout'))
@@ -132,6 +144,27 @@ describe('cuenta que el proveedor autentica pero la aplicación no admite', () =
       .map(([input]) => input as Request)
       .find((request) => request.url.endsWith('/api/logout'))!
     expect(logout.headers.get('X-XSRF-TOKEN')).toBe('token-1')
+  })
+
+  it('una cuenta sin ninguna membresía se explica con su propio texto y también ofrece cerrar sesión', async () => {
+    setCsrfCookie('token-1')
+    mockApi({ 'GET /api/me': noMembership })
+    renderRoutes('/entrar')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Esta cuenta no tiene acceso')
+    expect(alert).toHaveTextContent('no pertenece a ninguna organización de Resolve')
+    expect(alert).not.toHaveTextContent('desactivado')
+    expect(alert).not.toHaveTextContent('Otro texto B.')
+    expect(screen.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' })).toBeInTheDocument()
+  })
+
+  it('el texto de «desactivado» en un 401 sin ese type no produce aviso ni botón de cerrar sesión', async () => {
+    setCsrfCookie('token-1')
+    mockApi({ 'GET /api/me': genericWithDeactivatedText })
+    renderRoutes('/entrar')
+    await settled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Cerrar sesión/ })).not.toBeInTheDocument()
   })
 
   it('sin sesión OIDC (sin cookie de CSRF) explica el motivo pero no ofrece cerrar sesión', async () => {

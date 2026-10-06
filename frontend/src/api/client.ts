@@ -69,8 +69,18 @@ const demoUser: Middleware = {
 export const CSRF_COOKIE = 'XSRF-TOKEN'
 export const CSRF_HEADER = 'X-XSRF-TOKEN'
 
-/** `detail` con el que el backend rechaza una petición sin token CSRF válido; el título es el de cualquier 403. */
-export const CSRF_REJECTION_DETAIL = 'Falta el token CSRF o no es válido.'
+/**
+ * `type` de los Problems que el cliente distingue (docs/api/README.md). Se compara siempre por `type`, nunca por el
+ * `detail`, que es texto en español para personas y puede cambiar. Son identificadores, no direcciones.
+ */
+export const PROBLEM_TYPES = {
+  /** 403: la escritura no trae un token CSRF válido. */
+  csrf: 'https://resolve.example/problems/csrf',
+  /** 401: la membresía se retiró o el cliente se archivó. */
+  accessDeactivated: 'https://resolve.example/problems/access-deactivated',
+  /** 401: el proveedor autenticó a la persona, pero no tiene ninguna membresía. */
+  noMembership: 'https://resolve.example/problems/no-membership',
+} as const
 
 /** Evento de `window` que avisa de un 401 de la API. Su `detail` es un {@link UnauthorizedDetail}. */
 export const UNAUTHORIZED_EVENT = 'resolve:unauthorized'
@@ -181,26 +191,21 @@ async function isCsrfRejection(response: Response): Promise<boolean> {
   if (response.status !== 403) return false
   try {
     const problem = (await response.clone().json()) as Problem
-    return problem.detail === CSRF_REJECTION_DETAIL
+    return problem.type === PROBLEM_TYPES.csrf
   } catch {
     return false
   }
 }
 
 /**
- * Envía la petición y reintenta **una sola vez** una escritura rechazada por falta de token CSRF. Justo tras iniciar
- * sesión la cookie aún no existe hasta el primer GET: se relee `/me` para que el navegador la reciba y se reenvía la
- * escritura con ella. Se reintenta en dos casos:
- * - la escritura salió **sin** token y recibió cualquier 403 (no depende del texto del backend);
- * - salió con token y el 403 trae el `detail` de CSRF (token caducado), como respaldo mientras el Problem no tenga un
- *   `type` estable.
- * El segundo intento no se vigila: un segundo 403 llega tal cual a quien llamó, nunca hay bucle. Sin cookie tras releer
- * `/me` (p. ej. el backend de demostración, sin CSRF) se devuelve el 403 original: cuesta un GET más por cada 403 de
- * una escritura en ese modo.
+ * Envía la petición y reintenta **una sola vez** una escritura rechazada por falta de token CSRF, que se reconoce por el
+ * `type` del Problem (nunca por su texto). Justo tras iniciar sesión la cookie aún no existe hasta el primer GET, y un
+ * token puede caducar: se relee `/me` para que el navegador reciba la cookie y se reenvía la escritura con ella. Un 403
+ * de otra cosa (el rol, p. ej.) llega tal cual, sin releer nada. El segundo intento no se vigila: un segundo 403 llega
+ * tal cual a quien llamó, nunca hay bucle. Sin cookie tras releer `/me` se devuelve el 403 original.
  */
 async function fetchWithCsrfRetry(request: Request): Promise<Response> {
   if (!UNSAFE_METHODS.has(request.method)) return globalThis.fetch(request)
-  const sentWithToken = request.headers.has(CSRF_HEADER)
   // La sesión con la que la pantalla compuso la escritura: es con la que se compara tras releer `/me`, no con la de ese
   // momento (la pestaña pudo ponerse al día entre tanto y entonces la comparación daría «misma sesión»).
   const sentAs = sessionWatch?.identity() ?? null
@@ -229,7 +234,7 @@ async function fetchWithCsrfRetry(request: Request): Promise<Response> {
     })
   const response = await globalThis.fetch(build(request.headers))
   if (response.status !== 403) return response
-  if (sentWithToken && !(await isCsrfRejection(response))) return response
+  if (!(await isCsrfRejection(response))) return response
   let me: Response
   try {
     me = await globalThis.fetch(new URL('/api/me', window.location.origin))

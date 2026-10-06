@@ -2,9 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   api,
   ApiError,
-  CSRF_REJECTION_DETAIL,
   DEMO_USER_STORAGE_KEY,
   isApiError,
+  PROBLEM_TYPES,
   readCsrfToken,
   SESSION_CHANGED_DETAIL,
   setSessionWatch,
@@ -101,12 +101,13 @@ describe('CSRF', () => {
     document.cookie = value === null ? 'XSRF-TOKEN=; Max-Age=0; Path=/' : `XSRF-TOKEN=${value}; Path=/`
   }
 
-  const problem = (status: number, detail: string) =>
-    new Response(JSON.stringify({ status, title: 'Problema', detail }), {
+  const problem = (status: number, detail: string, type?: string) =>
+    new Response(JSON.stringify({ ...(type && { type }), status, title: 'Problema', detail }), {
       status,
       headers: { 'Content-Type': 'application/problem+json' },
     })
-  const csrfRejection = () => problem(403, CSRF_REJECTION_DETAIL)
+  // El `detail` no se parece al del backend a propósito: lo que identifica el rechazo es el `type`.
+  const csrfRejection = () => problem(403, 'Texto de otro idioma o de otra versión.', PROBLEM_TYPES.csrf)
 
   afterEach(() => {
     setCookie(null)
@@ -242,12 +243,17 @@ describe('CSRF', () => {
     expect(network.sent).toHaveLength(1)
   })
 
-  it('una escritura sin token que recibe cualquier 403 relee /me y se reintenta con el token nuevo, sin depender del texto', async () => {
-    const network = stubFetch(
-      problem(403, 'Cualquier otro texto.'),
-      new Response('{}', { status: 200 }),
-      new Response('{}'),
-    )
+  it('una escritura sin token cuyo 403 no trae el type de CSRF no relee /me ni se reintenta, diga lo que diga el detail', async () => {
+    const network = stubFetch(problem(403, 'Falta el token CSRF o no es válido.'), new Response('{}', { status: 200 }))
+    setCookie(null)
+    const { response, error } = await api.POST('/session/organization', { body: organization })
+    expect(response.status).toBe(403)
+    expect(error).toMatchObject({ detail: 'Falta el token CSRF o no es válido.' })
+    expect(network.sent).toHaveLength(1)
+  })
+
+  it('una escritura sin token cuyo 403 trae el type de CSRF relee /me y se reintenta con el token nuevo, diga lo que diga el detail', async () => {
+    const network = stubFetch(csrfRejection(), new Response('{}', { status: 200 }), new Response('{}'))
     const respond = globalThis.fetch
     vi.stubGlobal('fetch', (input: Request | URL) => {
       if (urlOf(input).endsWith('/api/me')) setCookie('token-nuevo')
@@ -261,11 +267,11 @@ describe('CSRF', () => {
     expect(network.at(2).headers.get('X-XSRF-TOKEN')).toBe('token-nuevo')
   })
 
-  it('sin cookie ni siquiera tras releer /me (backend sin CSRF) devuelve el 403 original: un GET más y nada de reintento', async () => {
-    const network = stubFetch(problem(403, 'Tu rol no permite esta acción.'), new Response('{}', { status: 200 }))
+  it('sin cookie ni siquiera tras releer /me devuelve el 403 original: un GET más y nada de reintento', async () => {
+    const network = stubFetch(csrfRejection(), new Response('{}', { status: 200 }))
     const { response, error } = await api.POST('/session/organization', { body: organization })
     expect(response.status).toBe(403)
-    expect(error).toMatchObject({ detail: 'Tu rol no permite esta acción.' })
+    expect(error).toMatchObject({ type: PROBLEM_TYPES.csrf })
     expect(network.sent).toHaveLength(2)
     expect(urlOf(network.sent[1]!)).toMatch(/\/api\/me$/)
   })
@@ -346,12 +352,12 @@ describe('CSRF', () => {
       ['HTML', () => new Response('<html>portal</html>', { status: 200 })],
       ['un JSON que no es un Me', () => new Response('{"ok":true}', { status: 200 })],
     ])('un /me 200 que es %s: no se reintenta y se devuelve el 403 original', async (_name, answer) => {
-      const network = stubFetch(problem(403, 'Cualquier otro texto.'), answer(), new Response('{}'))
+      const network = stubFetch(csrfRejection(), answer(), new Response('{}'))
       cookieArrivesWithMe()
       watchSession('u1:org-a')
       const { response, error } = await api.POST('/session/organization', { body: organization })
       expect(response.status).toBe(403)
-      expect(error).toMatchObject({ detail: 'Cualquier otro texto.' })
+      expect(error).toMatchObject({ type: PROBLEM_TYPES.csrf })
       expect(network.sent).toHaveLength(2) // el POST y el GET /me: nada de reintento
     })
 
