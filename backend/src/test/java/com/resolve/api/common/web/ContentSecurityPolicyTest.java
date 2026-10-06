@@ -10,7 +10,7 @@ class ContentSecurityPolicyTest {
 
 	@Test
 	void theBasePolicyIsClosedToEveryOtherOrigin() {
-		String policy = ContentSecurityPolicy.build(List.of());
+		String policy = ContentSecurityPolicy.build(List.of(), List.of());
 
 		assertThat(policy).startsWith("default-src 'self'; script-src 'self'; ");
 		assertThat(policy).contains("object-src 'none'", "base-uri 'self'", "frame-ancestors 'none'",
@@ -37,7 +37,23 @@ class ContentSecurityPolicyTest {
 		assertThat(hashes).hasSize(2);
 		assertThat(hashes.get(0)).isEqualTo(sha256("var theme = 1"));
 		assertThat(hashes.get(1)).isEqualTo(sha256("\n  try { localStorage.getItem('x') } catch (error) {}\n"));
-		assertThat(ContentSecurityPolicy.build(hashes)).contains("script-src 'self' 'sha256-" + hashes.get(0) + "'");
+		assertThat(ContentSecurityPolicy.build(hashes, List.of())).contains("script-src 'self' 'sha256-" + hashes.get(0) + "'");
+	}
+
+	@Test
+	void formsMayAlsoGoToTheIdentityProviderBecauseTheirRedirectIsChecked() {
+		String policy = ContentSecurityPolicy.build(List.of(), List.of("https://idp.example:8443"));
+
+		assertThat(policy).contains("form-action 'self' https://idp.example:8443; frame-ancestors 'none'");
+	}
+
+	@Test
+	void theIssuerIsReducedToItsOriginAndAnAbsentOneAddsNothing() {
+		assertThat(new ContentSecurityPolicy("classpath:/nada/", "https://idp.example/realms/resolve").value())
+			.contains("form-action 'self' https://idp.example; ");
+		assertThat(new ContentSecurityPolicy("classpath:/nada/", "http://localhost:8182/realms/resolve").value())
+			.contains("form-action 'self' http://localhost:8182; ");
+		assertThat(new ContentSecurityPolicy("classpath:/nada/", "").value()).contains("form-action 'self'; ");
 	}
 
 	private static String sha256(String text) {
