@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cx } from '../../../lib/cx'
-import { Avatar } from '../Avatar/Avatar'
 import { IconButton } from '../Button/Button'
 import { Icon } from '../Icon/Icon'
 import styles from './Topbar.module.css'
@@ -26,16 +25,8 @@ export interface TopbarProps {
   onSearch: () => void
   /** Se llama al pulsar el botón de notificaciones; no se muestra en la barra móvil. */
   onNotifications: () => void
-  /** Nombre del usuario para el avatar. */
-  userName: string
   /** Presente en la barra móvil: abre el menú lateral y muestra la marca. */
   menuButton?: TopbarMenuButton
-  /**
-   * Sustituye al avatar por un control propio, p. ej. el menú de la cuenta. Recibe el avatar ya dimensionado y
-   * decorativo (sin nombre accesible propio) para usarlo como contenido; el control que lo envuelve debe llevar su
-   * nombre accesible y medir al menos 44 × 44 px. Sin esta prop se muestra el avatar, como siempre.
-   */
-  userMenu?: (avatar: ReactNode) => ReactNode
   /** Clase adicional del encabezado. */
   className?: string
 }
@@ -49,13 +40,10 @@ export function Topbar({
   onToggleTheme,
   onSearch,
   onNotifications,
-  userName,
   menuButton,
-  userMenu,
   className,
 }: TopbarProps) {
   const compact = Boolean(menuButton)
-  const avatarSize = compact ? 'small' : 'medium'
 
   return (
     <header className={cx(styles.topbar, className)}>
@@ -90,11 +78,6 @@ export function Topbar({
           onClick={onToggleTheme}
         />
         {!compact && <IconButton icon="bell" label="Notificaciones" onClick={onNotifications} />}
-        {userMenu ? (
-          <span className={styles.account}>{userMenu(<Avatar name={userName} size={avatarSize} decorative />)}</span>
-        ) : (
-          <Avatar name={userName} size={avatarSize} className={styles.avatar} />
-        )}
       </div>
     </header>
   )

@@ -1,10 +1,36 @@
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import type { QueryClient } from '@tanstack/react-query'
 import { act } from '@testing-library/react'
-import { vi } from 'vitest'
+import { afterEach, vi } from 'vitest'
 import { AppShell } from '../../app/layout/AppShell'
 import { renderWithProviders } from '../../test/render'
 import type { SessionMessageType } from './sessionChannel'
+
+const originalMatchMedia = window.matchMedia
+// El ancho simulado no pasa de un test al siguiente: tras cada uno vuelve el `matchMedia` de la configuración.
+afterEach(() => {
+  window.matchMedia = originalMatchMedia
+})
+
+/**
+ * Ancho de escritorio para la shell: el perfil con el menú de la cuenta vive en el sidebar, que por debajo de 768 px
+ * está en un drawer cerrado. jsdom no tiene viewport, así que las media queries de ancho mínimo se resuelven contra 1280 px.
+ */
+export function stubViewportWidth(width = 1280) {
+  window.matchMedia = (query: string) => {
+    const min = /\(min-width:\s*(\d+)px\)/.exec(query)
+    return {
+      matches: min !== null && Number(min[1]) <= width,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList
+  }
+}
 
 /** Estado de un test de sesión: la shell real con unas pocas rutas y la pantalla de entrada. */
 export function renderShell(
@@ -13,7 +39,10 @@ export function renderShell(
   lazyHome?: Promise<void>,
   /** El cliente de consultas, si el test necesita la política de reintentos real y no la de los tests (`retry: false`). */
   queryClient?: QueryClient,
+  /** Ancho simulado del viewport: 1280 (escritorio), 1024 (menú de iconos) o 390 (drawer). */
+  width = 1280,
 ) {
+  stubViewportWidth(width)
   const router = createMemoryRouter(
     [
       {

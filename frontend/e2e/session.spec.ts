@@ -79,8 +79,13 @@ test.describe('sin saltos de layout al llegar /me', () => {
       const theme = page.getByRole('button', { name: /^Cambiar a tema/ })
       await expect(theme).toBeVisible()
       const [before, headerBefore] = await Promise.all([theme.boundingBox(), page.getByRole('banner').boundingBox()])
+      const loaded = page.waitForResponse('**/api/me')
       release()
-      await expect(account(page)).toBeVisible()
+      await loaded
+      // El perfil con la cuenta está en el drawer por debajo de 768 px: se espera a que React pinte la respuesta.
+      if (width < 768)
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      else await expect(account(page)).toBeVisible()
       const [after, headerAfter] = await Promise.all([theme.boundingBox(), page.getByRole('banner').boundingBox()])
       expect(after).toEqual(before)
       expect(headerAfter).toEqual(headerBefore)
@@ -477,6 +482,8 @@ test.describe('menú de la cuenta', () => {
         await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
         await page.setViewportSize({ width, height: 800 })
         await page.goto('/')
+        // Por debajo de 768 px el perfil con la cuenta está al pie del drawer.
+        if (width < 768) await page.getByRole('button', { name: 'Abrir menú' }).click()
         const button = account(page)
         await expect(button).toBeVisible()
         const box = await button.boundingBox()
@@ -484,6 +491,9 @@ test.describe('menú de la cuenta', () => {
         expect(box!.height).toBeGreaterThanOrEqual(44)
         expect(box!.x + box!.width).toBeLessThanOrEqual(width)
         expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+        // Con 120 caracteres el nombre se recorta con puntos suspensivos dentro del perfil, sin desbordar el sidebar.
+        const sidebarBox = (await page.getByRole('navigation', { name: 'Principal' }).locator('..').boundingBox())!
+        expect(box!.x + box!.width).toBeLessThanOrEqual(sidebarBox.x + sidebarBox.width)
 
         await button.click()
         const menu = page.getByRole('menu', { name: 'Cuenta' })
@@ -520,6 +530,7 @@ test.describe('menú de la cuenta', () => {
     await mockApi(page, 'admin', { organizations: [acme, northwind] })
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/tickets/1048')
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
     await account(page).click()
     await page.getByRole('menuitem', { name: /Cambiar de organización/ }).click()
     const dialog = page.getByRole('dialog', { name: 'Cambiar de organización' })
@@ -529,9 +540,11 @@ test.describe('menú de la cuenta', () => {
 
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByRole('dialog')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })).toBeVisible()
-    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Ahora trabajas en Northwind')
     expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false)
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
+    await expect(page.getByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Ahora trabajas en Northwind')
   })
 
   test('con una sola organización el menú solo ofrece cerrar sesión', async ({ page }) => {

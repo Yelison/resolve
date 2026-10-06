@@ -32,6 +32,9 @@ async function enterAs(page: Page, label: string) {
 }
 
 const signOut = async (page: Page) => {
+  // Por debajo de 768 px el perfil con la cuenta está al pie del drawer.
+  const openMenu = page.getByRole('button', { name: 'Abrir menú' })
+  if (await openMenu.isVisible()) await openMenu.click()
   await page.getByRole('button', { name: /^Cuenta:/ }).click()
   await page.getByRole('menuitem', { name: 'Cerrar sesión' }).click()
   await expect(page.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()

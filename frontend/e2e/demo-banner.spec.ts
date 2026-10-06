@@ -94,17 +94,26 @@ for (const width of [320, 1440]) {
   test(`al tabular, el control enfocado no queda bajo el aviso · ${width}px`, async ({ page }) => {
     await openDemo(page, '/tickets', 'light', width)
     await expect(page.getByRole('link', { name: /Ticket|#/ }).first()).toBeVisible()
-    const bannerTop = (await page.getByRole('region', { name: NAME }).boundingBox())!.y
+    const bannerBox = (await page.getByRole('region', { name: NAME }).boundingBox())!
+    const bannerTop = bannerBox.y
     const obscured: string[] = []
     for (let step = 0; step < 60; step++) {
       await page.keyboard.press('Tab')
       const rect = await page.evaluate(() => {
         const active = document.activeElement
         if (!active || active === document.body) return null
-        const { top, bottom } = active.getBoundingClientRect()
-        return { top, bottom, label: active.getAttribute('aria-label') ?? active.textContent?.slice(0, 40) ?? '' }
+        const { top, bottom, left, right } = active.getBoundingClientRect()
+        return {
+          top,
+          bottom,
+          left,
+          right,
+          label: active.getAttribute('aria-label') ?? active.textContent?.slice(0, 40) ?? '',
+        }
       })
-      if (rect && rect.bottom > bannerTop && rect.top < 900) obscured.push(`${step}: ${rect.label}`)
+      // El perfil del sidebar llega al pie de la ventana, pero a la izquierda del aviso, que ocupa solo la columna principal.
+      const overlapsX = rect !== null && rect.right > bannerBox.x && rect.left < bannerBox.x + bannerBox.width
+      if (rect && overlapsX && rect.bottom > bannerTop && rect.top < 900) obscured.push(`${step}: ${rect.label}`)
     }
     expect(obscured, 'los controles enfocados quedan por encima del aviso').toEqual([])
   })

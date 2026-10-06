@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
 test.describe('shell', () => {
@@ -93,5 +94,101 @@ test.describe('shell', () => {
     await expect(page.getByRole('tooltip')).toHaveText('Clientes')
     await page.mouse.move(700, 400)
     await expect(page.getByRole('tooltip')).toHaveCount(0)
+  })
+
+  test.describe('perfil y menú de la cuenta', () => {
+    const account = (page: Page) => page.getByRole('button', { name: /^Cuenta:/ })
+
+    test('escritorio: un solo avatar, abajo a la izquierda, y el menú se abre hacia arriba dentro del viewport', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.goto('/tickets')
+      await expect(account(page)).toHaveCount(1)
+      await expect(page.getByRole('banner').getByRole('img', { name: 'Yelisson Ortiz' })).toHaveCount(0)
+      await expect(account(page)).toContainText('Yelisson Ortiz')
+      await expect(account(page)).toContainText('Administrador')
+      await account(page).click()
+      const menu = page.getByRole('menu', { name: 'Cuenta' })
+      await expect(menu.getByRole('menuitem', { name: 'Cerrar sesión' })).toBeFocused()
+      const [trigger, box] = await Promise.all([account(page).boundingBox(), menu.boundingBox()])
+      expect(box!.y + box!.height).toBeLessThanOrEqual(trigger!.y)
+      expect(box!.x).toBeGreaterThanOrEqual(0)
+      await page.keyboard.press('Escape')
+      await expect(menu).toBeHidden()
+      await expect(account(page)).toBeFocused()
+    })
+
+    test('el menú sigue dentro del viewport con poca altura y el sidebar con scroll', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 420 })
+      await page.goto('/tickets')
+      await account(page).scrollIntoViewIfNeeded()
+      await account(page).click()
+      const box = (await page.getByRole('menu', { name: 'Cuenta' }).boundingBox())!
+      expect(box.y).toBeGreaterThanOrEqual(0)
+      expect(box.y + box.height).toBeLessThanOrEqual(420)
+      expect(box.x + box.width).toBeLessThanOrEqual(1440)
+    })
+
+    test('colapsado: solo el avatar, con nombre accesible y tooltip, y el tooltip no tapa al menú ni frena Escape', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1024, height: 800 })
+      await page.goto('/tickets')
+      await expect(account(page)).not.toContainText('Administrador')
+      await account(page).hover()
+      await expect(page.getByRole('tooltip')).toHaveText('Yelisson Ortiz')
+      await account(page).click()
+      await expect(page.getByRole('menu', { name: 'Cuenta' })).toBeVisible()
+      await expect(page.getByRole('tooltip')).toHaveCount(0)
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('menu', { name: 'Cuenta' })).toBeHidden()
+      await expect(account(page)).toBeFocused()
+    })
+
+    test('móvil: el perfil está al pie del drawer y Escape cierra el menú sin cerrar el drawer', async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.goto('/tickets')
+      await expect(account(page)).toHaveCount(0)
+      await page.getByRole('button', { name: 'Abrir menú' }).click()
+      const drawer = page.getByRole('dialog', { name: 'Menú principal' })
+      await expect(account(page)).toBeVisible()
+      const [nav, trigger] = await Promise.all([
+        drawer.getByRole('navigation', { name: 'Principal' }).boundingBox(),
+        account(page).boundingBox(),
+      ])
+      expect(trigger!.y).toBeGreaterThan(nav!.y + nav!.height - 1)
+      expect(trigger!.height).toBeGreaterThanOrEqual(44)
+      await account(page).click()
+      const menu = page.getByRole('menu', { name: 'Cuenta' })
+      const box = (await menu.boundingBox())!
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(390)
+      expect(box.y).toBeGreaterThanOrEqual(0)
+      await page.keyboard.press('Escape')
+      await expect(menu).toBeHidden()
+      await expect(drawer).toBeVisible()
+      await expect(account(page)).toBeFocused()
+    })
+
+    test('sin /me aún, el perfil ocupa su sitio sin acciones y no se mueve al llegar los datos', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      await page.route('**/api/me', async (route) => {
+        await gate
+        await route.fallback()
+      })
+      await page.goto('/tickets')
+      await expect(account(page)).toHaveCount(0)
+      const placeholder = page
+        .getByRole('navigation', { name: 'Principal' })
+        .locator('xpath=following-sibling::div[last()]')
+      const before = (await placeholder.boundingBox())!
+      release()
+      const after = (await account(page).boundingBox())!
+      expect(after.y).toBeCloseTo(before.y, 0)
+      expect(after.height).toBeCloseTo(before.height, 0)
+    })
   })
 })

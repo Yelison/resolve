@@ -43,6 +43,11 @@ export interface TooltipProps {
    * ya tiene ese mismo texto como nombre accesible, para no leerlo dos veces.
    */
   describe?: boolean
+  /**
+   * Suprime el tooltip, p. ej. mientras el disparador tiene abierto un menú: sin esto, un tooltip que sigue abierto bajo
+   * el puntero captura el primer Escape y el menú no se cierra. Por defecto, `false`.
+   */
+  disabled?: boolean
   /** Recibe las props del disparador, que hay que esparcir en el elemento. */
   children: (trigger: TooltipTriggerProps) => ReactNode
 }
@@ -51,13 +56,13 @@ export interface TooltipProps {
  * Tooltip visible con puntero y con foco, colocado junto al disparador y dentro del viewport.
  * Se puede recorrer con el puntero y Escape lo oculta (WCAG 1.4.13).
  */
-export function Tooltip({ content, placement = 'right', describe = true, children }: TooltipProps) {
+export function Tooltip({ content, placement = 'right', describe = true, disabled = false, children }: TooltipProps) {
   const id = useId()
   const [pointerInside, setPointerInside] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [focused, setFocused] = useState(false)
   const [dismissed, setDismissed] = useState(false)
-  const open = (hovered || focused) && !dismissed
+  const open = (hovered || focused) && !dismissed && !disabled
   const hide = useCallback(() => {
     setPointerInside(false)
     setHovered(false)

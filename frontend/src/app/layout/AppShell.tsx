@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Outlet, useLocation, useMatches, useNavigate } from 'react-router'
 import { Breadcrumb, Sidebar, Topbar, useToast } from '../../components/ui'
+import type { SidebarProfile } from '../../components/ui/Sidebar/Sidebar'
 import { useModalDialog } from '../../components/ui/shared/useModalDialog'
 import { useDemoMaintenance } from '../../lib/demoMaintenance'
 import { isDemoMaintenance } from '../../lib/mutationError'
@@ -85,6 +86,13 @@ function AppFrame() {
   const location = useLocation()
   const navigate = useNavigate()
   const { pathname } = location
+  // Cualquier navegación cierra el drawer, también las que no salen de un enlace del menú: cambiar de organización
+  // desde el perfil lleva al resumen y deja ver la pantalla nueva.
+  const [drawerKey, setDrawerKey] = useState(location.key)
+  if (drawerKey !== location.key) {
+    setDrawerKey(location.key)
+    if (drawerOpen) setDrawerOpen(false)
+  }
   const mainRef = useRef<HTMLElement>(null)
   const previousPath = useRef(pathname)
   useEffect(() => {
@@ -118,6 +126,9 @@ function AppFrame() {
     sectionLabel: sessionFailed ? 'Sesión no disponible' : me.data?.role === 'customer' ? 'Soporte' : 'Gestión',
     workspace: workspaceName,
     user: { name: userName, role: me.data ? roleLabels[me.data.role] : '' },
+    // Sin la sesión cargada no se ofrece ninguna acción de cuenta, pero el perfil ya ocupa su sitio.
+    profileMenu: (profile: SidebarProfile) =>
+      me.data ? <AccountMenu me={me.data} profile={profile} /> : <AccountMenuPlaceholder profile={profile} />,
   }
 
   return (
@@ -166,11 +177,6 @@ function AppFrame() {
               title: 'Notificaciones no disponibles',
               description: 'Llegarán con la API de eventos.',
             })
-          }
-          userName={userName}
-          // Sin la sesión cargada no se ofrece ninguna acción de cuenta, pero el hueco ya tiene el tamaño del botón.
-          userMenu={(avatar) =>
-            me.data ? <AccountMenu me={me.data} avatar={avatar} /> : <AccountMenuPlaceholder avatar={avatar} />
           }
           breadcrumb={
             <Breadcrumb

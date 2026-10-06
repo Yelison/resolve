@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cx } from '../../../lib/cx'
 import { Avatar } from '../Avatar/Avatar'
@@ -31,6 +32,15 @@ export interface SidebarAction {
   onClick: () => void
 }
 
+export interface SidebarProfile {
+  /** Avatar y, si el sidebar está expandido, nombre y rol. Es decorativo: el control que lo envuelva lleva el nombre accesible. */
+  content: ReactNode
+  /** Clase de la caja del perfil (tamaño, alineación y, si es un `<button>`, hover y foco). Hay que aplicarla al control. */
+  className: string
+  /** Si el sidebar está colapsado y el perfil se reduce al avatar. */
+  collapsed: boolean
+}
+
 export interface SidebarProps {
   /** Secciones de la navegación principal. */
   items: SidebarNavItem[]
@@ -40,6 +50,12 @@ export interface SidebarProps {
   workspace: string
   /** Nombre y rol del perfil que se muestra al final; colapsado solo se ve el avatar. */
   user: { name: string; role: string }
+  /**
+   * Sustituye la caja del perfil por un control propio, p. ej. el menú de la cuenta. El sidebar no conoce sesiones: la
+   * función recibe el contenido ya maquetado y la clase, y devuelve el control, que debe medir al menos 44 × 44 px y
+   * llevar el nombre accesible de la cuenta (y, colapsado, un tooltip). Sin esta prop se muestra el perfil como texto.
+   */
+  profileMenu?: (profile: SidebarProfile) => ReactNode
   /** Muestra solo iconos con tooltip. Por defecto, `false`. */
   collapsed?: boolean
   /** Botón de la cabecera, junto a la marca: colapsar o expandir en escritorio, cerrar en el drawer móvil. Sin él no se muestra. */
@@ -78,11 +94,26 @@ export function Sidebar({
   sectionLabel,
   workspace,
   user,
+  profileMenu,
   collapsed = false,
   action,
   onNavigate,
   className,
 }: SidebarProps) {
+  // Con un control propio el avatar es decorativo: el nombre ya va en el control. Sin él, colapsado, es el único nombre.
+  const profileContent = (
+    <>
+      <Avatar name={user.name} decorative={!collapsed || profileMenu !== undefined} />
+      {!collapsed && (
+        <span className={styles.profileText}>
+          <span className={styles.profileName}>{user.name}</span>
+          {/* Sin rol (sesión cargando) la línea conserva su altura: el perfil no cambia de tamaño al llegar el rol. */}
+          <span className={styles.profileRole}>{user.role || '\u00a0'}</span>
+        </span>
+      )}
+    </>
+  )
+
   return (
     <div className={cx(styles.sidebar, collapsed && styles.collapsed, className)}>
       <div className={styles.header}>
@@ -116,15 +147,11 @@ export function Sidebar({
 
       <div className={styles.spacer} />
 
-      <div className={styles.profile}>
-        <Avatar name={user.name} decorative={!collapsed} />
-        {!collapsed && (
-          <span className={styles.profileText}>
-            <span className={styles.profileName}>{user.name}</span>
-            <span className={styles.profileRole}>{user.role}</span>
-          </span>
-        )}
-      </div>
+      {profileMenu ? (
+        profileMenu({ content: profileContent, className: cx(styles.profile), collapsed })
+      ) : (
+        <div className={styles.profile}>{profileContent}</div>
+      )}
     </div>
   )
 }

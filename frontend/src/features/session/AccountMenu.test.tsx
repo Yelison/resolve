@@ -337,3 +337,95 @@ describe('menú de la cuenta', () => {
     })
   })
 })
+
+describe('menú de la cuenta · en el perfil del sidebar', () => {
+  beforeEach(() => mockApi({ 'GET /api/me': { body: adminMe } }))
+
+  it('hay un solo avatar y es el botón del perfil, con nombre y rol; la barra superior no tiene cuenta', async () => {
+    renderShell()
+    const account = await accountButton()
+    expect(screen.getAllByRole('button', { name: /^Cuenta/ })).toHaveLength(1)
+    expect(account).toHaveTextContent('Yelisson Ortiz')
+    expect(account).toHaveTextContent('Administrador')
+    expect(screen.getByRole('banner')).not.toContainElement(account)
+    expect(screen.getByRole('navigation', { name: 'Principal' }).parentElement).toContainElement(account)
+    expect(screen.queryByRole('img', { name: 'Yelisson Ortiz' })).not.toBeInTheDocument()
+  })
+
+  it('el foco entra en el menú y Escape lo cierra devolviéndolo al perfil', async () => {
+    renderShell()
+    const menu = await openAccountMenu()
+    await waitFor(() => expect(within(menu).getByRole('menuitem', { name: 'Cerrar sesión' })).toHaveFocus())
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(await accountButton()).toHaveFocus()
+  })
+
+  it('colapsado, el perfil es solo el avatar con nombre accesible y tooltip', async () => {
+    renderShell('/tickets', undefined, undefined, 1024)
+    const account = await accountButton()
+    expect(account).not.toHaveTextContent('Administrador')
+    await userEvent.hover(account)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Yelisson Ortiz')
+  })
+
+  it('colapsado, con el puntero aún sobre el perfil el tooltip se aparta y el primer Escape cierra el menú', async () => {
+    renderShell('/tickets', undefined, undefined, 1024)
+    await userEvent.hover(await accountButton())
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+    await userEvent.click(await accountButton())
+    expect(screen.getByRole('menu', { name: 'Cuenta' })).toBeInTheDocument()
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('en el drawer móvil el perfil está al pie y su menú no cierra el drawer con Escape', async () => {
+    renderShell('/tickets', undefined, undefined, 390)
+    expect(screen.queryByRole('button', { name: /^Cuenta/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    const account = await within(drawer).findByRole('button', { name: /^Cuenta/ })
+    expect(drawer.querySelector('nav')!.compareDocumentPosition(account)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    await userEvent.click(account)
+    expect(within(drawer).getByRole('menu', { name: 'Cuenta' })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Menú principal' })).toBeInTheDocument()
+    expect(account).toHaveFocus()
+  })
+
+  it('desde el drawer, cambiar de organización abre su diálogo sin cerrar ni desmontar el drawer', async () => {
+    mockApi({ 'GET /api/me': { body: meWithOrganizations } })
+    renderShell('/tickets', undefined, undefined, 390)
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    const account = await within(drawer).findByRole('button', { name: /^Cuenta/ })
+    await userEvent.click(account)
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: /Cambiar de organización/ }))
+    const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
+    expect(drawer).toContainElement(dialog)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Cambiar de organización' })).toBeNull())
+    expect(screen.getByRole('dialog', { name: 'Menú principal' })).toBeInTheDocument()
+    expect(account).toHaveFocus()
+  })
+
+  it('al terminar el cambio de organización desde el drawer, este se cierra para dejar ver la pantalla nueva', async () => {
+    mockApi({
+      'GET /api/me': { body: meWithOrganizations },
+      'POST /api/session/organization': { body: meInNorthwind },
+    })
+    renderShell('/tickets', undefined, undefined, 390)
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    await userEvent.click(await within(drawer).findByRole('button', { name: /^Cuenta/ }))
+    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: /Cambiar de organización/ }))
+    const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'Northwind' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de organización' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    expect(document.body).not.toHaveFocus()
+  })
+})
