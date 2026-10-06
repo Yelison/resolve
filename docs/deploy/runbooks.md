@@ -197,13 +197,13 @@ Applies once authentication with Keycloak exists (F8) — **to verify after the 
 4. Record the date of the rotation in `<ops log>`. The old secret is not kept anywhere.
 
 **On the demo deployment** (`resolve-demo-idp`, see [Deployment](README.md#the-identity-provider-keycloak-on-flyio)):
-the realm is imported **only the first time**, so `RESOLVE_OIDC_CLIENT_SECRET` on the identity provider's Fly app is
-read once and **never again**. Rotating is therefore step 1 (the console of `https://resolve-demo-idp.fly.dev/admin`) and
-step 2 (`-a resolve-demo`) only. Do not expect `fly secrets set -a resolve-demo-idp` to change the client. The image refuses to start without
-that secret, so do not unset it: **update it to the new value** after rotating, so the one kept there is not a stale one that
-looks current. The realm file is
-never re-applied, so if the realm itself must be rebuilt (a lost database), drop the Keycloak database, set the secret
-on `resolve-demo-idp` to the value the API already uses, and redeploy: the first start imports the realm again.
+the image has **no administration console** (the features are disabled) and the realm is imported **only the first
+time**, so steps 1 and 2 above do not apply. Rotating is: (1) a new value in `fly secrets set RESOLVE_OIDC_CLIENT_SECRET=…`
+on **both** `resolve-demo-idp` and `resolve-demo` (the entrypoint refuses to start without it, so it is never unset); (2)
+empty the Keycloak database (**not** the demo database) and run the deploy workflow by hand, so the next start imports the
+realm again with the new secret; (3) restart the API and check the sign-in. Sign-ins fail between steps 1 and 3, and every
+session ends. The same procedure applies if the realm itself must be rebuilt. The exceptional alternative (an image with the
+console, once, through `fly proxy`) is in the deployment guide.
 Keycloak also offers a client-secret rotation policy that keeps the previous secret valid for a period; it would remove
 the sign-in gap of the warning above and is **to verify** on the first deployment.
 

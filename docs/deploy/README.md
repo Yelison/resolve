@@ -181,19 +181,36 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
 **Passwords of the demo users.** They are *demonstration* accounts with fictitious addresses, so the default password
 `demo` is **public on purpose**: it is the same one the development realm uses and it is written in this repository, and
 a password that a visitor must ask for would defeat the purpose of a public demo. The data behind them is reset every night. If the owner prefers another value, set
-`RESOLVE_DEMO_USER_PASSWORD` as a Fly secret **before the first start** (it is substituted at import). What must never be in
-the repository is an administrator password: `KC_BOOTSTRAP_ADMIN_*` are Fly secrets used for the first start only.
+`RESOLVE_DEMO_USER_PASSWORD` as a Fly secret **before the first start** (it is substituted at import). The image has no administrator at all (see below), so there is no administrator password anywhere.
 
-**The administration console is public. This is an open decision, not a solved one.** Fly publishes the whole application, so `/admin` and the `master` realm answer
-on the same host as the sign-in pages. There is no path filtering in front of Keycloak. What limits the exposure: no
-administrator exists in the repository or in the image; the bootstrap account is a **temporary** one that Keycloak itself
-asks to replace; the owner must create a permanent administrator with a long random password and a second factor, delete
-the bootstrap account and **unset `KC_BOOTSTRAP_ADMIN_*`** right after the first start; and the `master` realm should have
-brute-force detection switched on (it is off by default). Restricting the console to a network is a **decision pending for the owner**, because it needs a second route or a proxy
-in front, which this change does not add. The options: (1) reach it only through Fly's private network (`fly proxy`) and
-stop publishing `/admin` and `/realms/master`, which needs a proxy that filters those paths in front of Keycloak; (2) a
-separate administration hostname (`KC_HOSTNAME_ADMIN`) on a second Fly app or service reachable only from the private
-network; (3) leave it public with the mitigations above.
+**No administration surface.** The image is built with `KC_FEATURES_DISABLED=admin,admin-api,client-admin-api,account,account-api`
+(names checked with `kc.sh build --help` in 26.7.5): no administration console, no administration REST API, no account
+console. The realm lives in the repository and is imported at start, so nothing is administered while it runs, and the
+demo users enter and leave through OIDC and cannot change their demonstration password. Measured on the image started
+with `start --optimized`: `/admin`, `/admin/`, `/admin/master/console/`, `/admin/realms`, `/admin/realms/resolve`,
+`/realms/master/account` and `/realms/resolve/account` answer **404**; `…/clients-registrations/openid-connect`
+answers 404 to a `GET` and **403** to an anonymous `POST` (Keycloak's own policies refuse it; the discovery document still
+lists the endpoint); the sign-in, the theme and the OIDC flow against the API (`prod,oidc`) work.
+
+- **There is no administrator.** Keycloak starts, creates `master` and imports the realm **without** `KC_BOOTSTRAP_ADMIN_*`
+  (tested), so those variables are not part of the deployment and there is no account to guess in `master`.
+- **Brute-force detection** is on in `resolve`: five failures lock the account for 60 s, growing by 60 s up to 15 minutes
+  (not permanent). Measured: after six wrong passwords the right one is refused. `master` has no users, so there is
+  nothing to attack there.
+
+**An urgent change** (a wrong redirect URI, a user to remove, a leaked client secret) goes through the repository: edit
+[`resolve-realm.prod.json`](../../deploy/keycloak/resolve-realm.prod.json), merge it, and **make the next start import
+it**. The import skips a realm that exists, so the realm has to be created again: empty the **Keycloak** database (not
+the demo one; check the name twice, it holds Keycloak's tables and nothing of the application) and run the workflow
+by hand (**Run workflow** on `main`). Signed-in users are signed out, and nothing else is lost: the demo users are in the
+file.
+
+*Exceptionally*, when that is not enough, one image with the features enabled can be deployed **once**
+(`KC_FEATURES_DISABLED` changed in the `Dockerfile`, a bootstrap administrator given as a Fly secret for that start),
+reached **only** through `fly proxy` to the private network (never by the public URL: `/admin` answers there as soon as the
+feature is on), and the next deployment returns to the disabled image and the temporary administrator is deleted and its
+secrets unset. It is not the normal path and it leaves the console public for the minutes the machine runs; prefer the
+repository.
 
 ## The pipeline: GitHub Actions → GHCR → Fly.io## The pipeline: GitHub Actions → GHCR → Fly.io
 
@@ -246,8 +263,7 @@ without cancellation, so a deployment is never cut in half.
 | Fly | app `resolve-demo-idp` | app | `fly apps create resolve-demo-idp`, in the same region as `resolve-demo` (`iad`) |
 | Neon | a database for Keycloak | database | A **second database** in the same project (for example `resolve_idp`) and its own role. Not the demo database: the reset empties that one |
 | Fly (`fly secrets set -a resolve-demo-idp`) | `KC_DB_URL`, `KC_DB_USERNAME`, `KC_DB_PASSWORD` | secrets | The Keycloak database: `jdbc:postgresql://<direct-endpoint>/<database>?sslmode=require`, and its role |
-| Fly (`-a resolve-demo-idp`) | `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` | secrets | **First start only** (a temporary administrator, random password). Create a permanent administrator, delete this one and `fly secrets unset` both |
-| Fly (`-a resolve-demo-idp`) | `RESOLVE_OIDC_CLIENT_SECRET` | secret | A long random value, **the same** as the API's secret of the same name. Read only at the first import |
+| Fly (`-a resolve-demo-idp`) | `RESOLVE_OIDC_CLIENT_SECRET` | secret | A long random value, **the same** as the API's secret of the same name. Read only at the first import (the entrypoint still requires it on every start) |
 | Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret, optional | Password of the four demo users instead of the public `demo`. Before the first start |
 | Fly (`-a resolve-demo`) | `RESOLVE_OIDC_ISSUER` | secret | **`https://resolve-demo-idp.fly.dev/realms/resolve`** (the existing row lists it with the other `RESOLVE_OIDC_*`) |
 | GitHub environment `demo` | `FLY_API_TOKEN_IDP` | secret | `fly tokens create deploy -a resolve-demo-idp` (a token per app) |
@@ -400,6 +416,5 @@ Things that could not be checked without accounts, in the order they matter:
    proxy does route to the machine (a first deployment that never becomes reachable means the check, not the application) and **`:9000` is not reachable** from the
    outside (`curl https://resolve-demo-idp.fly.dev:9000/` must fail); (d) sign in with a demo user from the public URL,
    sign out and land back on the application (no *Invalid redirect uri*); (e) the sign-in page has no registration or
-   "forgot password" link; (f) the bootstrap administrator was replaced, `KC_BOOTSTRAP_ADMIN_*` unset and `master` has
-   brute-force detection on; (g) whether the 2 GB machine of `deploy/keycloak/fly.toml` is enough for Keycloak
+   "forgot password" link; (f) `/admin`, `/admin/master/console/` and `/realms/master/account` on the public URL answer 404 (the features really are off in the deployed image); (g) whether the 2 GB machine of `deploy/keycloak/fly.toml` is enough for Keycloak
    plus the first import without restarts (`fly status`); (h) Neon suspends the Keycloak database too when nobody signs in.
