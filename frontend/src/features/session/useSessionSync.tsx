@@ -136,6 +136,10 @@ export function useSessionSync() {
           queryKey: sessionKeys.me,
           queryFn: ({ signal }) => fetchMe(signal),
           staleTime: 0,
+          // Sin reintentos: heredaría los de las consultas (dos más para un `TimeoutError`, ≈ 33 s con `/me` colgado) y las
+          // escrituras esperan a esta lectura. El plazo es el de `fetchMe` (`ME_TIMEOUT_MS`); el siguiente foco o mensaje
+          // vuelve a comprobar.
+          retry: false,
         })
         const changed = previous.user.id !== current.user.id || previous.organization.id !== current.organization.id
         if (changed) {
