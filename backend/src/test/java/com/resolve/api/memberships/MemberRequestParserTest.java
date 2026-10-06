@@ -26,7 +26,10 @@ class MemberRequestParserTest {
 
 	private static final String CONTROLS = "No admite caracteres de control.";
 
-	/** Controles que el recorte de espacios no elimina: NUL, escape, salto de línea y tabulador, dentro y fuera. */
+	/**
+	 * NUL dentro y en los extremos; escape, DEL, salto de línea y tabulador solo dentro: {@code strip()} quita de los
+	 * extremos el salto de línea y el tabulador.
+	 */
 	private static final String[] CONTROL_TEXTS = { "Ana\\u0000Gómez", "\\u0000Ana", "Ana\\u0000", "Ana\\u001bGómez",
 			"Ana\\nGómez", "Ana\\tGómez", "Ana\\u007fGómez" };
 
