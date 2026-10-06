@@ -199,14 +199,26 @@ async function isCsrfRejection(response: Response): Promise<boolean> {
  * una escritura en ese modo.
  */
 async function fetchWithCsrfRetry(request: Request): Promise<Response> {
-  const unsafe = UNSAFE_METHODS.has(request.method)
-  const retry = unsafe ? request.clone() : null
+  if (!UNSAFE_METHODS.has(request.method)) return globalThis.fetch(request)
   const sentWithToken = request.headers.has(CSRF_HEADER)
   // La sesión con la que la pantalla compuso la escritura: es con la que se compara tras releer `/me`, no con la de ese
   // momento (la pestaña pudo ponerse al día entre tanto y entonces la comparación daría «misma sesión»).
-  const sentAs = unsafe ? (sessionWatch?.identity() ?? null) : null
-  const response = await globalThis.fetch(request)
-  if (!retry || response.status !== 403) return response
+  const sentAs = sessionWatch?.identity() ?? null
+  // El cuerpo se lee una sola vez y cada envío (el primero y el posible reintento) se construye desde ese buffer. Nada de
+  // `request.clone()`: un clon que se descarta sin 403 deja inutilizable el cuerpo de la original cuando undici (Node,
+  // los tests) lo recolecta, y el test que lo lee falla de forma intermitente bajo carga.
+  const body = request.body === null ? null : await request.arrayBuffer()
+  const build = (headers: Headers) =>
+    new Request(request.url, {
+      method: request.method,
+      headers,
+      body,
+      signal: request.signal,
+      credentials: request.credentials,
+      redirect: request.redirect,
+    })
+  const response = await globalThis.fetch(build(request.headers))
+  if (response.status !== 403) return response
   if (sentWithToken && !(await isCsrfRejection(response))) return response
   let me: Response
   try {
@@ -220,8 +232,8 @@ async function fetchWithCsrfRetry(request: Request): Promise<Response> {
   if (sessionWatch && me.ok) {
     let current: Me | null = null
     try {
-      const body = (await me.clone().json()) as Partial<Me> | null
-      if (body?.user?.id && body.organization?.id) current = body as Me
+      const parsed = (await me.clone().json()) as Partial<Me> | null
+      if (parsed?.user?.id && parsed.organization?.id) current = parsed as Me
     } catch {
       // No es JSON.
     }
@@ -237,8 +249,9 @@ async function fetchWithCsrfRetry(request: Request): Promise<Response> {
   if (writeGuard && (await writeGuard())) return sessionChangedResponse()
   const token = readCsrfToken()
   if (!token) return response
-  retry.headers.set(CSRF_HEADER, token)
-  return globalThis.fetch(retry)
+  const headers = new Headers(request.headers)
+  headers.set(CSRF_HEADER, token)
+  return globalThis.fetch(build(headers))
 }
 
 // URL absoluta: el navegador resuelve la relativa, pero Request de Node (tests) no.
