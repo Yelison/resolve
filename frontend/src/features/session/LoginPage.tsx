@@ -3,6 +3,7 @@ import { Navigate, useSearchParams } from 'react-router'
 import { isApiError, PROBLEM_TYPES, readCsrfToken } from '../../api/client'
 import { cx } from '../../lib/cx'
 import { Alert, Button, EmptyState, Skeleton } from '../../components/ui'
+import { Brand } from '../../components/ui/Sidebar/Brand'
 import { DemoUserPicker } from './DemoUserPicker'
 import { ShowcaseLoginFrame } from './ShowcaseLoginFrame'
 import { useMe } from './queries'
@@ -66,9 +67,8 @@ export function LoginPage() {
   const page = (
     <main className={styles.login}>
       <div className={styles.card}>
-        <p className={styles.brand} aria-hidden="true">
-          resolve
-        </p>
+        {/* Solo el logo: el título ya dice «Resolve», así que el nombre de la marca no se repite justo encima. */}
+        <Brand showName={false} />
         {me.isError && !unauthenticated ? (
           <EmptyState
             kind="error"

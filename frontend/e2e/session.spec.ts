@@ -52,6 +52,9 @@ test.describe('sin sesión', () => {
         const box = await button.boundingBox()
         const card = await page.getByRole('heading', { level: 1 }).boundingBox()
         expect(box!.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 40)
+        // Una sola marca: el logo de la shell, sin el nombre «resolve» repetido junto al título.
+        await expect(page.locator('main [aria-hidden="true"]').filter({ hasText: /^R$/ })).toHaveCount(1)
+        await expect(page.getByText('resolve', { exact: true })).toHaveCount(0)
         expect(card!.x).toBeGreaterThanOrEqual(0)
         expect(card!.x + card!.width).toBeLessThanOrEqual(width)
       })
