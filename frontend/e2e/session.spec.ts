@@ -255,6 +255,10 @@ test.describe('sesión caducada durante una escritura', () => {
         const notice = page.getByRole('region', { name: 'Notificaciones' })
         const action = notice.getByRole('button', { name: 'Volver a entrar' })
         await expect(action).toBeVisible()
+        // El aviso anima su entrada con una traslación fraccionaria que altera la medida: se mide cuando termina.
+        await notice.evaluate((el) =>
+          Promise.all(el.getAnimations({ subtree: true }).map((animation) => animation.finished)),
+        )
         const [box, region] = await Promise.all([
           action.boundingBox(),
           notice.getByText('Tu sesión caducó').boundingBox(),
