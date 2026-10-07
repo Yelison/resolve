@@ -1,4 +1,4 @@
-import type { ComboboxOption, DonutSegment } from '../../components/ui'
+import type { ComboboxOption, DonutSegment, LineChartPoint } from '../../components/ui'
 import type { TicketSummary } from '../../domain/ticket'
 
 /** Momento de referencia de los datos de demostración, fijado al cargar el módulo. */
@@ -118,5 +118,40 @@ export const demoDonutLongNames: DonutSegment[] = [
     value: 30,
     color: 2,
     valueText: '30 % · 30 tickets',
+  },
+]
+
+/** Serie sintética de `n` días para `LineChart` y `Sparkline`; `shape` decide si crece, oscila o baja de 0. */
+export function demoLinePoints(days: number, shape: 'growing' | 'negative' = 'growing'): LineChartPoint[] {
+  let total = 0
+  return Array.from({ length: days }, (_, index) => {
+    total += shape === 'growing' ? ((index * 7) % 9) - 2 : ((index * 5) % 7) - 4
+    return {
+      key: `d${index}`,
+      label: `Día ${index + 1}`,
+      shortLabel: String(index + 1),
+      value: Math.max(shape === 'growing' ? 0 : -50, total),
+    }
+  })
+}
+
+export const demoLongNamePoints: LineChartPoint[] = [
+  {
+    key: 'a',
+    label: 'Semana del lunes 28 de septiembre al domingo 4 de octubre de 2026',
+    shortLabel: '28 sept – 4 oct',
+    value: 12,
+  },
+  {
+    key: 'b',
+    label: 'Semana del lunes 5 de octubre al domingo 11 de octubre de 2026',
+    shortLabel: '5 – 11 oct',
+    value: 30,
+  },
+  {
+    key: 'c',
+    label: 'Semana del lunes 12 de octubre al domingo 18 de octubre de 2026',
+    shortLabel: '12 – 18 oct',
+    value: 21,
   },
 ]
