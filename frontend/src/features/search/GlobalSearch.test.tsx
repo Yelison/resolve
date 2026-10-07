@@ -271,7 +271,12 @@ describe('GlobalSearch', () => {
     await userEvent.type(input, 'xy')
     const old = screen.getByRole('option', { name: /#1048/ })
     expect(old).toHaveAttribute('aria-disabled', 'true')
-    for (const option of screen.getAllByRole('option')) expect(option).toHaveAttribute('aria-disabled', 'true')
+    // Las opciones de «ab» siguen dentro de la lista y el combobox no se declara cerrado mientras se ven.
+    const list = screen.getByRole('listbox', { name: 'Resultados de la búsqueda' })
+    expect(input).toHaveAttribute('aria-expanded', 'true')
+    expect(input).toHaveAttribute('aria-controls', list.id)
+    expect(within(list).getAllByRole('option').length).toBeGreaterThan(0)
+    for (const option of within(list).getAllByRole('option')) expect(option).toHaveAttribute('aria-disabled', 'true')
     await userEvent.keyboard('{ArrowDown}{Enter}')
     expect(input).not.toHaveAttribute('aria-activedescendant')
     await userEvent.click(old)
