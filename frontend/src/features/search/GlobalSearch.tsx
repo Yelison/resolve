@@ -104,6 +104,8 @@ function SearchPanel({ groups, onClose }: { groups: SearchGroupDefinition[]; onC
   // Las filas de un texto anterior se ven atenuadas pero no se recorren ni se activan.
   const rows = sections.filter((section) => !section.stale).flatMap((section) => section.rows)
   const activeRow = rows.find((row) => row.key === activeKey)
+  // La lista existe mientras haya opciones pintadas, también las desactivadas de un texto anterior.
+  const hasOptions = sections.some((section) => section.kind === 'rows')
   const optionId = (key: string) => `${listboxId}-${key}`
   const pending =
     !search.settled || groups.some((group) => results[group.id].status === 'loading' || results[group.id].stale)
@@ -141,8 +143,8 @@ function SearchPanel({ groups, onClose }: { groups: SearchGroupDefinition[]; onC
         autoComplete="off"
         role="combobox"
         aria-autocomplete="list"
-        aria-expanded={rows.length > 0}
-        aria-controls={rows.length > 0 ? listboxId : undefined}
+        aria-expanded={hasOptions}
+        aria-controls={hasOptions ? listboxId : undefined}
         aria-activedescendant={activeRow ? optionId(activeRow.key) : undefined}
         // Escape siempre cierra el diálogo. Con texto, el navegador lo usaría antes para vaciar el campo de búsqueda
         // (y SearchField, para borrarlo): se cierra aquí y se impide ese uso.
@@ -178,9 +180,9 @@ function SearchPanel({ groups, onClose }: { groups: SearchGroupDefinition[]; onC
           />
         ) : (
           <div
-            id={rows.length > 0 ? listboxId : undefined}
-            role={rows.length > 0 ? 'listbox' : undefined}
-            aria-label={rows.length > 0 ? 'Resultados de la búsqueda' : undefined}
+            id={hasOptions ? listboxId : undefined}
+            role={hasOptions ? 'listbox' : undefined}
+            aria-label={hasOptions ? 'Resultados de la búsqueda' : undefined}
             className={styles.list}
           >
             {sections.map((section) =>

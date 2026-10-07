@@ -150,20 +150,26 @@ test.describe('búsqueda global', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     let release!: () => void
     const held = new Promise<void>((resolve) => (release = resolve))
-    await page.route('**/api/*?*q=zq*', async (route) => {
-      await held
-      await route.fallback()
-    })
+    // Un predicado y no un glob: `*` no cruza `/` y `/api/knowledge/articles` quedaría sin retener.
+    await page.route(
+      (url) => url.searchParams.get('q') === 'zq',
+      async (route) => {
+        await held
+        await route.fallback()
+      },
+    )
     await page.goto('/equipo')
     await searchButton(page, 1440).click()
     await combobox(page).fill('ac')
     const options = page.getByRole('listbox', { name: 'Resultados de la búsqueda' }).getByRole('option')
-    await expect(options.first()).toBeVisible()
-    expect(await options.count()).toBeGreaterThan(0)
+    await expect(live(page)).toHaveText(/^\d+ resultados$/)
+    const shown = await options.count()
+    expect(shown).toBeGreaterThan(0)
 
     // Menos de 250 ms entre borrar y escribir: la consulta sigue siendo la de «ac».
     await combobox(page).fill('')
     await combobox(page).pressSequentially('zq')
+    await expect(options).toHaveCount(shown)
     for (const option of await options.all()) await expect(option).toHaveAttribute('aria-disabled', 'true')
     await page.keyboard.press('ArrowDown')
     await expect(combobox(page)).not.toHaveAttribute('aria-activedescendant')
