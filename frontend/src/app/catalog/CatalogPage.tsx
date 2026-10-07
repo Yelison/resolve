@@ -10,6 +10,7 @@ import {
   Checkbox,
   Combobox,
   DonutChart,
+  DotPlot,
   Editor,
   EmptyState,
   FilterChip,
@@ -60,6 +61,8 @@ import {
   demoDonutChannels,
   demoDonutLongNames,
   demoDonutTiny,
+  demoDotLongNames,
+  demoDotRows,
   demoLinePoints,
   demoLongNamePoints,
   demoNow,
@@ -598,6 +601,28 @@ export default function CatalogPage() {
           />
           <DonutChart label="Nombres largos (demostración)" segments={demoDonutLongNames} size={128} />
           <DonutChart label="Sin solicitudes (demostración)" segments={[]} />
+        </div>
+        <div className={styles.stack} data-testid="dot-gallery">
+          <DotPlot
+            label="Primera respuesta frente al objetivo (demostración)"
+            rows={demoDotRows}
+            target={{ value: 30, label: 'objetivo 30 min' }}
+            valueFormatter={(n) => `${n} min`}
+            tickFormatter={String}
+            valueColumn="Primera respuesta"
+          />
+          <DotPlot
+            label="Nombres largos (demostración)"
+            rows={demoDotLongNames}
+            target={{ value: 30, label: 'objetivo 30 min' }}
+            valueFormatter={(n) => `${n} min`}
+            tickFormatter={String}
+          />
+          <DotPlot
+            label="Sin primeras respuestas (demostración)"
+            rows={[]}
+            target={{ value: 30, label: 'objetivo 30 min' }}
+          />
         </div>
         <div className={styles.grid} data-testid="line-gallery">
           <LineChart

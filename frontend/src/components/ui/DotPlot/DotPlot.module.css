@@ -1,0 +1,175 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+  margin: 0;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Por debajo de 768 px cada fila apila el nombre, el valor y el eje, todos a todo el ancho. */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'name'
+    'value'
+    'track';
+  gap: 0;
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--color-line);
+}
+
+.name {
+  grid-area: name;
+  min-width: 0;
+  font: var(--font-body);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.value {
+  grid-area: value;
+  min-width: 0;
+  font: var(--font-body);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  font: var(--font-strong);
+}
+
+.track {
+  grid-area: track;
+  min-width: 0;
+}
+
+/* El carril deja margen a ambos lados: un punto en 0 o en el máximo no se sale del panel. */
+.rail {
+  position: relative;
+  margin: 0 var(--space-8);
+}
+
+.track .rail {
+  height: var(--touch-target);
+}
+
+.gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--color-line);
+}
+
+.target {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 2px dashed var(--color-ink);
+}
+
+.stem {
+  position: absolute;
+  top: calc(50% - 1px);
+  left: 0;
+  height: 2px;
+  background: var(--color-line);
+}
+
+.hit {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--touch-target);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateX(-50%);
+  cursor: default;
+}
+
+.hit:focus-visible {
+  outline: none;
+}
+
+.dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-round);
+  background: var(--color-chart-1);
+  box-shadow: 0 0 0 2px var(--color-surface);
+  transform: translate(-50%, -50%);
+}
+
+.over {
+  background: var(--color-red-ink);
+}
+
+.hit:focus-visible .dot {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 4px;
+}
+
+.axis {
+  padding-top: var(--space-4);
+}
+
+.ticks,
+.targetRow {
+  position: relative;
+  height: var(--space-20);
+}
+
+.tick,
+.targetLabel {
+  position: absolute;
+  transform: translateX(-50%);
+  font: var(--font-caption);
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+.targetLabel {
+  font: var(--font-strong);
+  color: var(--color-ink);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-24) var(--space-16);
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-panel);
+  color: var(--color-muted);
+  font: var(--font-body);
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .row {
+    grid-template-columns: 11rem minmax(0, 1fr) 12rem;
+    grid-template-areas: 'name track value';
+    align-items: center;
+    padding-top: 0;
+  }
+
+  .axis {
+    display: grid;
+    grid-template-columns: 11rem minmax(0, 1fr) 12rem;
+    gap: 0 var(--space-12);
+  }
+
+  .axis .rail {
+    grid-column: 2;
+  }
+}

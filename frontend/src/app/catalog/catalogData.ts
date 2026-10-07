@@ -1,4 +1,4 @@
-import type { ComboboxOption, DonutSegment, LineChartPoint } from '../../components/ui'
+import type { ComboboxOption, DonutSegment, DotPlotRow, LineChartPoint } from '../../components/ui'
 import type { TicketSummary } from '../../domain/ticket'
 
 /** Momento de referencia de los datos de demostración, fijado al cargar el módulo. */
@@ -154,4 +154,20 @@ export const demoLongNamePoints: LineChartPoint[] = [
     shortLabel: '12 – 18 oct',
     value: 21,
   },
+]
+
+/** Datos de demostración para `DotPlot`: minutos hasta la primera respuesta frente a un objetivo de 30. */
+export const demoDotRows: DotPlotRow[] = [
+  { key: 'laura', label: 'Laura Méndez', value: 14 },
+  { key: 'daniel', label: 'Daniel Santos', value: 28 },
+  { key: 'ana', label: 'Ana Ruiz', value: 41 },
+]
+
+export const demoDotLongNames: DotPlotRow[] = [
+  {
+    key: 'a',
+    label: 'Alejandra Fernández de la Fuente y Montenegro, responsable de la cuenta de clientes corporativos del norte',
+    value: 21,
+  },
+  { key: 'b', label: 'Pablo Viejo', value: 64 },
 ]
