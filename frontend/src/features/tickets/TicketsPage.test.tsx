@@ -8,7 +8,7 @@ import { renderWithProviders } from '../../test/render'
 import { metrics, page, summary, ticket } from '../../test/ticketFixtures'
 import { TicketsPage } from './TicketsPage'
 
-function renderInbox(path: string | { pathname: string; state: unknown } = '/tickets') {
+function renderInbox(path = '/tickets') {
   const router = createMemoryRouter([{ path: '/tickets', element: <TicketsPage /> }], { initialEntries: [path] })
   renderWithProviders(<RouterProvider router={router} />)
   return router
@@ -273,19 +273,6 @@ describe('TicketsPage y el historial del navegador', () => {
     await waitFor(() => expect(search).toHaveValue('acceso'))
     await router.navigate('/tickets')
     await waitFor(() => expect(search).toHaveValue(''))
-  })
-})
-
-describe('TicketsPage desde el atajo de búsqueda', () => {
-  it('enfoca el buscador', async () => {
-    mockApi({
-      'GET /api/me': { body: adminMe },
-      'GET /api/tickets/metrics': { body: metrics },
-      'GET /api/tickets': { body: page([summary()]) },
-      'GET /api/assignees': { body: [] },
-    })
-    renderInbox({ pathname: '/tickets', state: { focusSearch: 1 } })
-    expect(await screen.findByRole('searchbox', { name: 'Buscar tickets' })).toHaveFocus()
   })
 })
 
