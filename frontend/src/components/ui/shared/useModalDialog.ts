@@ -11,7 +11,10 @@ export function useModalDialog(open: boolean, onClose: () => void) {
   const onCloseRef = useRef(onClose)
   /** Cierre iniciado por el propio hook al pasar `open` a false: no debe volver a avisar al padre. */
   const closingRef = useRef(false)
-  /** Solo cuenta como clic en el fondo si el puntero también se pulsó en el fondo (no al terminar una selección). */
+  /**
+   * Solo cuenta como clic en el fondo si el puntero se pulsó en él y no se soltó en otro sitio: una selección que
+   * termina en el fondo, o una pulsación en el fondo que se suelta dentro, es un arrastre, no un clic.
+   */
   const pressedOnBackdropRef = useRef(false)
 
   useEffect(() => {
@@ -52,6 +55,11 @@ export function useModalDialog(open: boolean, onClose: () => void) {
     },
     onPointerDown(event: PointerEvent<HTMLDialogElement>) {
       pressedOnBackdropRef.current = event.target === event.currentTarget
+    },
+    onPointerUp(event: PointerEvent<HTMLDialogElement>) {
+      // El navegador envía el clic de una pulsación y una suelta en elementos distintos a su ancestro común, que es el
+      // propio diálogo: sin esto, una pulsación en el fondo soltada dentro lo cerraría.
+      if (event.target !== event.currentTarget) pressedOnBackdropRef.current = false
     },
     onClick(event: MouseEvent<HTMLDialogElement>) {
       const pressedOnBackdrop = pressedOnBackdropRef.current

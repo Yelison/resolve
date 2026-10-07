@@ -52,11 +52,24 @@ describe('Modal', () => {
     expect(onClose).not.toHaveBeenCalled()
     const dialog = screen.getByRole('dialog')
     fireEvent.pointerDown(screen.getByText('¿Eliminar este ticket?'))
+    fireEvent.pointerUp(dialog)
     fireEvent.click(dialog)
     expect(onClose).not.toHaveBeenCalled()
     fireEvent.pointerDown(dialog)
+    fireEvent.pointerUp(dialog)
     fireEvent.click(dialog)
     expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('no se cierra si una pulsación en el fondo se suelta dentro del diálogo', async () => {
+    const onClose = vi.fn()
+    render(<Harness onClose={onClose} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Eliminar' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.pointerDown(dialog)
+    fireEvent.pointerUp(screen.getByText('¿Eliminar este ticket?'))
+    fireEvent.click(dialog)
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('sincroniza el estado cuando el diálogo se cierra de forma nativa', async () => {
