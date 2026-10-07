@@ -16,6 +16,7 @@ import {
   Icon,
   IconButton,
   Input,
+  LineChart,
   Menu,
   Message,
   Metric,
@@ -28,6 +29,7 @@ import {
   Select,
   Sidebar,
   Skeleton,
+  Sparkline,
   Switch,
   Table,
   TableCell,
@@ -58,6 +60,8 @@ import {
   demoDonutChannels,
   demoDonutLongNames,
   demoDonutTiny,
+  demoLinePoints,
+  demoLongNamePoints,
   demoNow,
   demoTickets,
   demoTwoSeries,
@@ -594,6 +598,36 @@ export default function CatalogPage() {
           />
           <DonutChart label="Nombres largos (demostración)" segments={demoDonutLongNames} size={128} />
           <DonutChart label="Sin solicitudes (demostración)" segments={[]} />
+        </div>
+        <div className={styles.grid} data-testid="line-gallery">
+          <LineChart
+            label="Pendientes acumulados en 14 días (demostración)"
+            points={demoLinePoints(14)}
+            endLabel="+10 pendientes"
+            valueColumn="Pendientes"
+          />
+          <LineChart
+            label="Pendientes acumulados en 90 días (demostración)"
+            points={demoLinePoints(90)}
+            color={3}
+            valueColumn="Pendientes"
+          />
+          <LineChart
+            label="Saldo con valores negativos (demostración)"
+            points={demoLinePoints(30, 'negative')}
+            color={4}
+          />
+          <LineChart label="Pendientes con etiquetas largas (demostración)" points={demoLongNamePoints} color={2} />
+          <LineChart label="Sin actividad (demostración)" points={[]} />
+          <div className={styles.stack}>
+            <Sparkline
+              values={[21, 24, 18, 26, 30, 22, 31]}
+              label="Minigráfico de tendencia con nombre (demostración)"
+            />
+            <Sparkline values={[21, 24, 18, 26, 30, 22, 31]} color={2} />
+            <Sparkline values={[0, 0, 0, 0, 0, 0, 0]} color={3} />
+            <Sparkline values={[7]} color={4} />
+          </div>
         </div>
         <div className={styles.stack}>
           <Message kind="customer" author="María Pérez" sentAt={demoNow} footer="Correo electrónico">

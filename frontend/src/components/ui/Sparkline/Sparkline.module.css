@@ -1,0 +1,38 @@
+.sparkline {
+  display: block;
+  flex: none;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.color1 {
+  --sparkline-color: var(--color-chart-1);
+}
+
+.color2 {
+  --sparkline-color: var(--color-chart-2);
+}
+
+.color3 {
+  --sparkline-color: var(--color-chart-3);
+}
+
+.color4 {
+  --sparkline-color: var(--color-chart-4);
+}
+
+.line {
+  fill: none;
+  stroke: var(--sparkline-color);
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* El anillo de 2 px del color de la superficie va por fuera del punto: el trazo se pinta debajo del relleno. */
+.dot {
+  fill: var(--sparkline-color);
+  stroke: var(--color-surface);
+  stroke-width: 4px;
+  paint-order: stroke;
+}
