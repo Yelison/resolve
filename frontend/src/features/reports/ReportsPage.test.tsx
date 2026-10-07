@@ -119,7 +119,7 @@ describe('ReportsPage', () => {
     mockApi(baseRoutes)
     renderReports()
     expect(await screen.findByRole('img', { name: 'Solicitudes y resueltos por día' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ver como tabla' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver como tabla: Solicitudes y resueltos por día' })).toBeInTheDocument()
     const email = screen.getByRole('progressbar', { name: 'Correo' })
     expect(email).toHaveAttribute('aria-valuetext', '71,5 % · 258 tickets')
     expect(screen.getByRole('progressbar', { name: 'Chat' })).toBeInTheDocument()

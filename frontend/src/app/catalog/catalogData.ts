@@ -1,4 +1,4 @@
-import type { ComboboxOption } from '../../components/ui'
+import type { ComboboxOption, DonutSegment } from '../../components/ui'
 import type { TicketSummary } from '../../domain/ticket'
 
 /** Momento de referencia de los datos de demostración, fijado al cargar el módulo. */
@@ -89,4 +89,34 @@ export const demoAgents: ComboboxOption[] = [
   { value: 'u-1', label: 'Laura Méndez', description: 'Administradora' },
   { value: 'u-2', label: 'Daniel Santos', description: 'Agente' },
   { value: 'u-3', label: 'Ana Ruiz', description: 'Agente' },
+]
+
+/** Datos de demostración para `DonutChart`: el color sigue al canal, no a su posición. */
+export const demoDonutChannels: DonutSegment[] = [
+  { id: 'email', label: 'Correo', value: 56, color: 1, valueText: '45,5 % · 56 tickets' },
+  { id: 'chat', label: 'Chat', value: 41, color: 2, valueText: '33,3 % · 41 tickets' },
+  { id: 'web', label: 'Web', value: 17, color: 4, valueText: '13,8 % · 17 tickets' },
+  { id: 'phone', label: 'Teléfono', value: 9, color: 3, valueText: '7,3 % · 9 tickets' },
+]
+
+export const demoDonutTiny: DonutSegment[] = [
+  { id: 'email', label: 'Correo', value: 3900, color: 1, valueText: '99,9 % · 3.900 tickets' },
+  { id: 'phone', label: 'Teléfono', value: 3, color: 3, valueText: '0,1 % · 3 tickets' },
+]
+
+export const demoDonutLongNames: DonutSegment[] = [
+  {
+    id: 'a',
+    label: 'Soporte técnico de la región norte con un nombre larguísimo que no cabe en una línea',
+    value: 70,
+    color: 1,
+    valueText: '70 % · 70 tickets',
+  },
+  {
+    id: 'b',
+    label: 'Facturación y cobros de clientes corporativos',
+    value: 30,
+    color: 2,
+    valueText: '30 % · 30 tickets',
+  },
 ]

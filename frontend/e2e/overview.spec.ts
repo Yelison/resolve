@@ -21,7 +21,7 @@ test.describe('resumen', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/')
     // El nombre cambia entre «Ver como tabla» y «Ocultar tabla»: el localizador no depende de él.
-    const toggle = page.getByRole('button', { name: /tabla$/ })
+    const toggle = page.getByRole('button', { name: /^(Ver como|Ocultar) tabla/ })
     await expect(toggle).toBeVisible()
     // Solo con Tab: enfocar el botón por programa no demostraría que está en el orden de tabulación.
     let presses = 0
@@ -37,7 +37,7 @@ test.describe('resumen', () => {
     expect((await wrap.boundingBox())!.height).toBeLessThanOrEqual(1)
     await page.keyboard.press('Enter')
     await expect(toggle).toHaveAttribute('aria-expanded', 'true')
-    await expect(toggle).toHaveText('Ocultar tabla')
+    await expect(toggle).toHaveText(/^Ocultar tabla/)
     await expect(toggle).toBeFocused()
     expect((await wrap.boundingBox())!.height).toBeGreaterThan(100)
     await expect(table.getByRole('row')).toHaveCount(8) // encabezado + 7 días

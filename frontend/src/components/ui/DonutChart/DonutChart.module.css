@@ -1,0 +1,141 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+  margin: 0;
+}
+
+.body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-16) var(--space-24);
+  min-width: 0;
+}
+
+.ring {
+  position: relative;
+  flex: none;
+  max-width: 100%;
+}
+
+.svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.segment {
+  stroke: none;
+}
+
+.color1 {
+  fill: var(--color-chart-1);
+  background: var(--color-chart-1);
+}
+
+.color2 {
+  fill: var(--color-chart-2);
+  background: var(--color-chart-2);
+}
+
+.color3 {
+  fill: var(--color-chart-3);
+  background: var(--color-chart-3);
+}
+
+.color4 {
+  fill: var(--color-chart-4);
+  background: var(--color-chart-4);
+}
+
+/* Segmento señalado o enfocado: contorno de tinta, visible aunque el color de la serie sea parecido al del fondo. */
+.active {
+  stroke: var(--color-ink);
+  stroke-width: 2px;
+  paint-order: stroke;
+}
+
+.centerValue {
+  fill: var(--color-ink);
+  font: var(--font-metric);
+}
+
+.centerLabel {
+  fill: var(--color-muted);
+  font: var(--font-caption);
+}
+
+/* Cada botón cubre el gráfico entero pero se recorta a su sector; el indicador de foco es el contorno del sector. */
+.hit {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.hit:focus-visible {
+  outline: none;
+}
+
+.legend {
+  flex: 1 1 160px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  min-width: 0;
+  font: var(--font-body);
+  color: var(--color-ink);
+}
+
+.swatch {
+  flex: none;
+  align-self: center;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-small);
+}
+
+.legendText {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0 var(--space-8);
+  min-width: 0;
+}
+
+.legendLabel {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.legendValue {
+  margin-left: auto;
+  color: var(--color-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-24) var(--space-16);
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-panel);
+  color: var(--color-muted);
+  font: var(--font-body);
+  text-align: center;
+}

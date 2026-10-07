@@ -14,6 +14,7 @@ export { Button, IconButton, type ButtonProps, type IconButtonProps } from './Bu
 export { buttonClassName, type ButtonVariant } from './Button/buttonClassName'
 export { Checkbox, type CheckboxProps } from './Checkbox/Checkbox'
 export { Combobox, type ComboboxOption, type ComboboxProps } from './Combobox/Combobox'
+export { DonutChart, type DonutChartProps, type DonutColor, type DonutSegment } from './DonutChart/DonutChart'
 export { Editor, type EditorMode, type EditorProps, type EditorStatus } from './Editor/Editor'
 export { EmptyState, type EmptyStateKind, type EmptyStateProps } from './EmptyState/EmptyState'
 export { Field, type FieldControlProps, type FieldProps } from './Field/Field'

@@ -1,0 +1,50 @@
+.toggle {
+  align-self: flex-start;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-12);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: var(--font-label);
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: var(--color-surface-hover);
+}
+
+.wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--font-body);
+}
+
+.table th,
+.table td {
+  padding: var(--space-8) var(--space-12);
+  border-bottom: 1px solid var(--color-line);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.table th {
+  font: var(--font-label);
+  color: var(--color-muted);
+}
+
+.table tbody th {
+  color: var(--color-ink);
+}
+
+.caption {
+  padding: var(--space-8) var(--space-12);
+  font: var(--font-strong);
+  text-align: left;
+}
