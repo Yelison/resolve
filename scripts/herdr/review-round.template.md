@@ -43,4 +43,6 @@ describes (one numbered decision per finding, in Spanish, in the format of the c
 Do not edit tracked files (restore anything you reverted and leave `git status --short` empty), no commits, no push, no
 branch switches, never run `/effort` with a level.
 
-End your turn with a single line: `REVISIÓN {{LANE}}: <verdict>` and the path of the report.
+Write `REVISIÓN {{LANE}}: <verdict>` as the **last line of the report file** too (the coordinator's monitor reads it from
+there), then end your turn with that same single line and the path of the report. For the effort level, copy
+`effort.level` from your task's `task.json`: you cannot see your session header, so do not guess it.

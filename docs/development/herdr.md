@@ -54,7 +54,7 @@ Slot `n` (1–9) uses:
 
 | Variable | Port | Used by |
 | --- | --- | --- |
-| `DEV_SERVER_PORT` | 5180 + n | `vite` (`frontend/vite.config.ts` reads it; strict port) |
+| `DEV_SERVER_PORT` | 5180 + n | `vite` (`frontend/vite.config.ts` reads it; strict port). The `catalog` Playwright project also starts the dev server on it, because `/catalogo` exists only in development; `PLAYWRIGHT_DEV_PORT` overrides it |
 | `PLAYWRIGHT_PORT` | 4180 + n | the preview server Playwright starts (`frontend/playwright.config.ts`) |
 | `SERVER_PORT` | 8080 + n | Spring Boot |
 | `POSTGRES_PORT` | 5440 + n | the host port of `docker-compose.yml`, project `COMPOSE_PROJECT_NAME=resolve-<task-id>` |
@@ -462,13 +462,13 @@ Parallel tasks should not edit the same shared files, so each feature declares i
 
 - **Routes.** `frontend/src/features/<feature>/routes.tsx` exports a `FeatureRoutes` function that returns the section's
   `element` or its `children`. Add one line to the `featureRoutes` registry in `frontend/src/app/router.tsx`, keyed by the
-  entry's `to` in `navigation.ts`; a section with no entry shows the pending page. `lazyRoute` arrives as a parameter,
+  entry's `to` in `navigation.ts`; a section with no entry makes the router throw at start-up, so it fails in tests
+  instead of shipping an empty page. `lazyRoute` arrives as a parameter,
   so the feature never imports from the router at runtime. Route tests for the feature go in
   `features/<feature>/routes.test.tsx`; `router.test.tsx` keeps only the cross-cutting cases.
   A **new navigation section** is the exception: it also adds its entry to `frontend/src/app/navigation.ts` and to the
-  `cubre todas las secciones de personal` list in `router.test.tsx`. Building a pending section (today, Configuración)
-  only registers it in `featureRoutes` and removes it from `pendingRoutes` in `router.tsx`; the pending-section tests
-  pick it up through `hasFeatureRoutes`.
+  `cubre todas las secciones de personal` list in `router.test.tsx`, and registers its routes in `featureRoutes` in
+  the same change.
 - **Responsive sweep widths.** `frontend/e2e/routes/<feature>.ts` exports the `SweepRoute[]` that `responsive.spec.ts`
   measures (with an optional `ready` to wait for data), and `e2e/routes/index.ts` gathers it. The widths and themes stay in
   the spec.

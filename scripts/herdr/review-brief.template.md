@@ -68,4 +68,6 @@ Un commit nuevo encima de `{{SHA}}`, trailer `Co-Authored-By: Claude Sonnet 5.5 
 
 If any finding is medium or high, do not write it: those decisions are the coordinator's.
 
-End your turn with a single line: `REVISIÓN {{LANE}}: <verdict>` and the path of the report.
+Write `REVISIÓN {{LANE}}: <verdict>` as the **last line of the report file** too (the coordinator's monitor reads it from
+there), then end your turn with that same single line and the path of the report. For the effort level, copy
+`effort.level` from your task's `task.json`: you cannot see your session header, so do not guess it.

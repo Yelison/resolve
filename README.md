@@ -61,7 +61,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 
 ## Forma UI
 
-Forma UI is the in-house component library in `frontend/src/components/ui` (one folder per component, with CSS Modules, design tokens, tests and JSDoc on every prop). The living catalog at `/catalogo` shows each one with demo data, and a test fails if an exported component is missing from it. The criteria for extracting it into its own package are in [ADR 0001](docs/decisions/0001-forma-ui-extraction.md).
+Forma UI is the in-house component library in `frontend/src/components/ui` (one folder per component, with CSS Modules, design tokens, tests and JSDoc on every prop). The living catalog at `/catalogo` (development server only, not in production or the static demo) shows each one with demo data, and a test fails if an exported component is missing from it. The criteria for extracting it into its own package are in [ADR 0001](docs/decisions/0001-forma-ui-extraction.md).
 
 - **Actions and feedback:** Alert, Button (and IconButton), Toast, Tooltip, Modal, Menu
 - **Forms:** Input, Textarea, Select, Combobox, SearchField, Checkbox, Radio, Switch, Upload, Editor (ticket and article), Field (shared label, hint and error)
@@ -79,7 +79,7 @@ docs/development/   # How to work on several tasks in parallel with Herdr
 frontend/
   src/
     api/            # Types generated from the contract and the typed client
-    app/            # Shell, routes, pages, theme and the /catalogo route
+    app/            # Shell, routes, pages, theme and the /catalogo route (development only)
     components/ui/  # Forma UI: one folder per component (tsx, module.css, tests)
     features/       # Product features (tickets, customers, team, session…): pages, queries and their tests
     domain/         # Domain types, re-exported from the generated contract types
