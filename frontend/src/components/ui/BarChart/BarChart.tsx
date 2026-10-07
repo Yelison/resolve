@@ -1,16 +1,21 @@
-import { useId, useLayoutEffect, useState, type CSSProperties } from 'react'
+import { useId, type CSSProperties } from 'react'
 import { cx } from '../../../lib/cx'
+import { ChartTable } from '../shared/ChartTable'
+import { useElementWidth } from '../shared/useElementWidth'
 import styles from './BarChart.module.css'
 
-/** `brand`: relleno sólido de marca. `muted`: relleno claro con contorno de marca (distinguible sin depender del tono). */
-export type BarChartColor = 'brand' | 'muted'
+/**
+ * `brand`: relleno sólido de marca. `muted`: relleno claro con contorno de marca (distinguible sin depender del tono).
+ * `chart1`…`chart4`: relleno sólido con el color de la serie correspondiente de la paleta de gráficos.
+ */
+export type BarChartColor = 'brand' | 'muted' | 'chart1' | 'chart2' | 'chart3' | 'chart4'
 
 export interface BarChartSeries {
   /** Identificador de la serie; es la clave que se busca en `values` de cada punto */
   id: string
   /** Nombre de la serie; aparece en la leyenda, en los títulos de las barras y en la cabecera de la tabla */
   label: string
-  /** Estilo de relleno; si falta se asigna por posición: 'brand' a la primera serie y 'muted' a la segunda */
+  /** Estilo de relleno; si falta se asigna por posición: 'brand' a la primera serie y 'muted' a la segunda. */
   color?: BarChartColor
 }
 
@@ -63,24 +68,6 @@ const FALLBACK_WIDTH = 300 // Sin medida (render de servidor, tests): se supone 
 const gapFor = (count: number) => (count <= 14 ? 8 : count <= 40 ? 2 : 1)
 
 /**
- * Ancho del elemento observado, o `null` hasta que se mide (o si el entorno no tiene ResizeObserver).
- * Usa un callback ref con estado: el elemento puede montarse después (p. ej. al llegar los datos).
- */
-function useElementWidth<T extends HTMLElement>() {
-  const [element, setElement] = useState<T | null>(null)
-  const [width, setWidth] = useState<number | null>(null)
-  useLayoutEffect(() => {
-    if (!element || typeof ResizeObserver === 'undefined') return
-    const measure = () => setWidth(element.getBoundingClientRect().width || null)
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [element])
-  return [setElement, width] as const
-}
-
-/**
  * Gráfico de barras en SVG propio. Las etiquetas viven en HTML para conservar su tamaño legible
  * a cualquier ancho; la tabla alternativa siempre está en el DOM y el botón la hace visible.
  *
@@ -103,7 +90,6 @@ function useElementWidth<T extends HTMLElement>() {
 export function BarChart({ label, series, points, valueFormatter = defaultFormatter, className }: BarChartProps) {
   const tableId = useId()
   const summaryId = useId()
-  const [tableVisible, setTableVisible] = useState(false)
   const [setPlot, plotWidth] = useElementWidth<HTMLDivElement>()
 
   if (points.length === 0) {
@@ -222,41 +208,17 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
         </ul>
       )}
 
-      <button
-        type="button"
-        className={styles.toggle}
-        aria-expanded={tableVisible}
-        aria-controls={tableId}
-        onClick={() => setTableVisible((visible) => !visible)}
-      >
-        {tableVisible ? 'Ocultar tabla' : 'Ver como tabla'}
-      </button>
-
-      <div id={tableId} className={cx(styles.tableWrap, !tableVisible && 'visually-hidden')}>
-        <table className={styles.table}>
-          <caption className={styles.caption}>{label}</caption>
-          <thead>
-            <tr>
-              <th scope="col">Periodo</th>
-              {series.map((item) => (
-                <th key={item.id} scope="col">
-                  {item.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {points.map((point) => (
-              <tr key={point.key}>
-                <th scope="row">{point.label}</th>
-                {series.map((item) => (
-                  <td key={item.id}>{valueFormatter(point.values[item.id] ?? 0)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <ChartTable
+        id={tableId}
+        label={label}
+        firstColumn="Periodo"
+        columns={series.map((item) => item.label)}
+        rows={points.map((point) => ({
+          key: point.key,
+          header: point.label,
+          cells: series.map((item) => valueFormatter(point.values[item.id] ?? 0)),
+        }))}
+      />
     </figure>
   )
 }

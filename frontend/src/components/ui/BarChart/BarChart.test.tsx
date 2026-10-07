@@ -32,16 +32,19 @@ describe('BarChart', () => {
   it('el botón muestra y oculta la tabla', async () => {
     const user = userEvent.setup()
     render(<BarChart label="Solicitudes por día" series={series} points={points} />)
-    const button = screen.getByRole('button', { name: 'Ver como tabla' })
+    const button = screen.getByRole('button', { name: 'Ver como tabla: Solicitudes por día' })
     const wrap = screen.getByRole('table', { hidden: true }).parentElement
     expect(button).toHaveAttribute('aria-expanded', 'false')
     expect(wrap).toHaveClass('visually-hidden')
 
     await user.click(button)
-    expect(screen.getByRole('button', { name: 'Ocultar tabla' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Ocultar tabla: Solicitudes por día' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
     expect(wrap).not.toHaveClass('visually-hidden')
 
-    await user.click(screen.getByRole('button', { name: 'Ocultar tabla' }))
+    await user.click(screen.getByRole('button', { name: 'Ocultar tabla: Solicitudes por día' }))
     expect(wrap).toHaveClass('visually-hidden')
   })
 
@@ -174,5 +177,21 @@ describe('BarChart con muchos puntos', () => {
     rerender(<BarChart label="Solicitudes" series={series} points={week} />)
     // Con el ancho de reserva (300 px) estas cifras de 4 dígitos no cabrían; a 1100 px sí.
     expect(container.querySelectorAll('.value')).toHaveLength(30)
+  })
+
+  it('pinta cada serie con el color de la paleta de gráficos que se le pide', () => {
+    const { container } = render(
+      <BarChart
+        label="Solicitudes y resueltos"
+        series={[
+          { id: 'a', label: 'Solicitudes', color: 'chart1' },
+          { id: 'b', label: 'Resueltos', color: 'chart2' },
+        ]}
+        points={[{ key: 'mon', label: 'Lunes', values: { a: 4, b: 2 } }]}
+      />,
+    )
+    const bars = [...container.querySelectorAll('rect')]
+    expect(bars[0]!.getAttribute('class')).toMatch(/chart1/)
+    expect(bars[1]!.getAttribute('class')).toMatch(/chart2/)
   })
 })

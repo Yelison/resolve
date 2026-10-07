@@ -9,6 +9,7 @@ import {
   Button,
   Checkbox,
   Combobox,
+  DonutChart,
   Editor,
   EmptyState,
   FilterChip,
@@ -54,6 +55,9 @@ import {
   demoChartPoints,
   demoChartSeries,
   demoDailyPoints,
+  demoDonutChannels,
+  demoDonutLongNames,
+  demoDonutTiny,
   demoNow,
   demoTickets,
   demoTwoSeries,
@@ -573,6 +577,23 @@ export default function CatalogPage() {
             series={demoChartSeries}
             points={demoDailyPoints(90)}
           />
+        </div>
+        <div className={styles.grid} data-testid="chart-gallery">
+          <DonutChart
+            label="Solicitudes por canal (demostración)"
+            segments={demoDonutChannels}
+            centerValue="123"
+            centerLabel="solicitudes"
+            valueColumn="Solicitudes"
+          />
+          <DonutChart
+            label="Un canal casi único (demostración)"
+            segments={demoDonutTiny}
+            size={128}
+            centerValue="3.903"
+          />
+          <DonutChart label="Nombres largos (demostración)" segments={demoDonutLongNames} size={128} />
+          <DonutChart label="Sin solicitudes (demostración)" segments={[]} />
         </div>
         <div className={styles.stack}>
           <Message kind="customer" author="María Pérez" sentAt={demoNow} footer="Correo electrónico">
