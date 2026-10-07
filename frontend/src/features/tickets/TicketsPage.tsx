@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { Link, useLocation, useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import {
   Alert,
   Button,
@@ -88,13 +88,6 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
   // Un cliente no tiene vistas ni filtro de responsable: se ignoran si llegan en la URL para no pedir datos de equipo.
   const state: InboxState = isStaff ? parsedState : { ...parsedState, view: 'all', assignee: undefined }
   const [searchText, setSearchText] = useState(state.q)
-  const searchRef = useRef<HTMLInputElement>(null)
-  const focusSearch = (useLocation().state as { focusSearch?: number } | null)?.focusSearch
-
-  // Ctrl o ⌘ + K desde cualquier página trae aquí con la petición de enfocar el buscador.
-  useEffect(() => {
-    if (focusSearch) searchRef.current?.focus()
-  }, [focusSearch])
   const debouncedSearch = useDebouncedValue(searchText)
 
   const update = (changes: Partial<InboxState>) =>
@@ -183,7 +176,6 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
 
         <div className={styles.filters}>
           <SearchField
-            ref={searchRef}
             label="Buscar tickets"
             placeholder="Buscar por asunto, cliente o número…"
             value={searchText}
