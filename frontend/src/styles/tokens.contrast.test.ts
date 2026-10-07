@@ -28,7 +28,7 @@ import { describe, expect, it } from 'vitest'
  * una mezcla, para que este test lo vea.
  *
  * No texto (1.4.11, ≥ 3:1): `brand` como relleno de borde o indicador (Checkbox y Radio marcados, Switch, barras y
- * contorno de BarChart) frente a `surface` y `bg`, y como relleno de progreso frente a `progress-track`, la pista de
+ * contorno de BarChart) frente a `surface` y `bg`, las series `chart-1…4` de los gráficos frente a `surface`, y como relleno de progreso frente a `progress-track`, la pista de
  * ProgressBar y de la subida de Attachment (token del código, #75: en el tema oscuro `line` y `disabled` dejaban
  * el relleno en 2,52 y 2,14).
  *
@@ -74,19 +74,24 @@ const PAIRS: readonly Pair[] = [
     background,
     min: 3 as const,
   })),
+  // Series de los gráficos (1.4.11): cada color frente a la superficie del panel que los pinta.
+  ...(['chart-1', 'chart-2', 'chart-3', 'chart-4'] as const).map((text) => ({
+    text,
+    background: 'surface',
+    min: 3 as const,
+  })),
 ]
 
 /** Tokens de color del bloque; `var(--color-x)` se resuelve contra el propio bloque (así se ve `link`). */
 function parseBlock(css: string): Theme {
   const raw: Record<string, string> = Object.fromEntries(
-    [...css.matchAll(/--color-([a-z-]+):\s*(#[0-9a-f]{6}|var\(--color-[a-z-]+\))\s*;/gi)].map(([, name, value]) => [
-      name,
-      value,
-    ]),
+    [...css.matchAll(/--color-([a-z0-9-]+):\s*(#[0-9a-f]{6}|var\(--color-[a-z0-9-]+\))\s*;/gi)].map(
+      ([, name, value]) => [name, value],
+    ),
   )
   return Object.fromEntries(
     Object.entries(raw).map(([name, value]) => {
-      const ref = /^var\(--color-([a-z-]+)\)$/.exec(value)?.[1]
+      const ref = /^var\(--color-([a-z0-9-]+)\)$/.exec(value)?.[1]
       return [name, ref ? (raw[ref] ?? '') : value]
     }),
   )
