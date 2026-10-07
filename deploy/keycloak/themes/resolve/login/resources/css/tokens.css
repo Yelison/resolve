@@ -59,6 +59,10 @@
   --color-disabled: #d2dae7; /* light/disabled */
   --color-overlay: #0b1220; /* light/overlay */
   --color-progress-track: var(--color-line); /* pista de progreso: token del código (#75), no está en Figma */
+  --color-chart-1: #3569f6; /* serie 1 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-2: #e5603f; /* serie 2 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-3: #0f9b85; /* serie 3 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-4: #a854d6; /* serie 4 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -91,6 +95,10 @@
     --color-disabled: #34445c; /* dark/disabled */
     --color-overlay: #000000; /* dark/overlay */
     --color-progress-track: #202b3d; /* pista de progreso: tono de line, más oscuro para brand ≥ 3:1 (#75); no está en Figma */
+    --color-chart-1: #3068ff; /* serie 1 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+    --color-chart-2: #e5603f; /* serie 2 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+    --color-chart-3: #139e88; /* serie 3 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+    --color-chart-4: #a95ee0; /* serie 4 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
   }
 }
 
@@ -123,4 +131,8 @@
   --color-disabled: #34445c; /* dark/disabled */
   --color-overlay: #000000; /* dark/overlay */
   --color-progress-track: #202b3d; /* pista de progreso: tono de line, más oscuro para brand ≥ 3:1 (#75); no está en Figma */
+  --color-chart-1: #3068ff; /* serie 1 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-2: #e5603f; /* serie 2 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-3: #139e88; /* serie 3 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-4: #a95ee0; /* serie 4 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
 }
