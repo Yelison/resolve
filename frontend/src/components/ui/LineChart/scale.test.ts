@@ -6,6 +6,11 @@ describe('niceScale', () => {
     expect(niceScale([3, 9, 47])).toEqual({ min: 0, max: 60, ticks: [0, 20, 40, 60] })
   })
 
+  it('parte de 0 aunque todos los valores sean altos: la línea no puede exagerar una variación pequeña', () => {
+    expect(niceScale([30, 40, 50]).min).toBe(0)
+    expect(niceScale([30, 40, 50]).ticks[0]).toBe(0)
+  })
+
   it('incluye el 0 y amplía hacia abajo con valores negativos', () => {
     const scale = niceScale([-8, -3, 4])
     expect(scale.min).toBeLessThanOrEqual(-8)
