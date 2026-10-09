@@ -115,10 +115,10 @@ export function LineChart({
   const showAllDots = count <= MAX_VISIBLE_DOTS
   const polyline = points.map((point, index) => `${xOf(index)},${100 - heightOf(point.value)}`).join(' ')
   const lastHeight = heightOf(last.value)
-  // La etiqueta del final va en el lado donde no pasa la línea: debajo si la serie sube hacia el último punto, encima
-  // si baja; y al lado contrario si el punto queda pegado a ese borde del dibujo.
+  // La etiqueta del final va del lado por donde no pasa la línea: encima si la serie sube hacia el último punto (la línea
+  // llega desde abajo), debajo si baja; y al lado contrario si el punto queda pegado a ese borde del dibujo.
   const rising = count < 2 || last.value >= points[count - 2]!.value
-  const labelBelow = rising ? lastHeight > 12 : lastHeight > 80
+  const labelBelow = rising ? lastHeight > 80 : lastHeight > 12
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const target =
