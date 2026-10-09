@@ -7,6 +7,11 @@
   margin: 0;
 }
 
+.withEnd {
+  /* Sitio para la etiqueta del final (17 px de línea y 12 px de separación) por encima del dibujo. */
+  padding-top: var(--space-32);
+}
+
 .color1 {
   --line-color: var(--color-chart-1);
 }
