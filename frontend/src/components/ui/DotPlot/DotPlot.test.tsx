@@ -111,4 +111,29 @@ describe('DotPlot', () => {
     render(plot({ rows: [] }))
     expect(screen.getByText('Primera respuesta frente al objetivo: sin datos en este periodo')).toBeInTheDocument()
   })
+
+  it('con todos los valores dentro del objetivo ancla al borde la etiqueta del objetivo, que cae en el extremo del eje', () => {
+    const { container } = render(
+      plot({
+        rows: [
+          { key: 'a', label: 'Ana', value: 20 },
+          { key: 'b', label: 'Beto', value: 28 },
+        ],
+      }),
+    )
+    const label = container.querySelector<HTMLElement>('[class*="targetLabel"]')!
+    expect(label).toHaveTextContent('objetivo 30 min')
+    // Sin anclar, `translateX(-50%)` la sacaría medio ancho del eje por la derecha.
+    expect(label.style.right).toBe('0px')
+    expect(label.style.transform).toBe('')
+    const ticks = [...container.querySelectorAll<HTMLElement>('span[class*="tick"]')]
+    expect(ticks.every((tick) => tick.style.left !== '' || tick.style.right !== '')).toBe(true)
+  })
+
+  it('ancla al borde izquierdo una marca del eje en 0 que, centrada, se saldría', () => {
+    const { container } = render(plot())
+    const first = container.querySelector<HTMLElement>('span[class*="tick"]')!
+    expect(first).toHaveTextContent('0')
+    expect(first.style.left).toBe('0px')
+  })
 })

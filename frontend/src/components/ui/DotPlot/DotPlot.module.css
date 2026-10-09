@@ -134,7 +134,6 @@
 .tick,
 .targetLabel {
   position: absolute;
-  transform: translateX(-50%);
   font: var(--font-caption);
   color: var(--color-muted);
   white-space: nowrap;
