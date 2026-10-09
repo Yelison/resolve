@@ -30,7 +30,20 @@ const byPeriod =
     }
   }
 
-const baseRoutes = { 'GET /api/me': { body: adminMe }, 'GET /api/reports/summary': byPeriod() }
+const teamMetrics = {
+  staff: 4,
+  assignedOpen: 31,
+  unassignedOpen: 7,
+  averageLoad: 7.8,
+  firstResponseMinutes: 18,
+  firstResponseTargetMinutes: 30,
+}
+
+const baseRoutes = {
+  'GET /api/me': { body: adminMe },
+  'GET /api/reports/summary': byPeriod(),
+  'GET /api/members/metrics': { body: teamMetrics },
+}
 
 function renderReports(path = '/reportes') {
   const router = createMemoryRouter([{ path: '/reportes', element: <ReportsPage /> }], { initialEntries: [path] })
@@ -115,16 +128,191 @@ describe('ReportsPage', () => {
     expect(metricCard('Resueltos').textContent).not.toContain('por cada 100 creados')
   })
 
-  it('dibuja el gráfico con su tabla alternativa y un ProgressBar por canal con su etiqueta en español', async () => {
+  it('dibuja el gráfico de barras con su tabla alternativa', async () => {
     mockApi(baseRoutes)
     renderReports()
     expect(await screen.findByRole('img', { name: 'Solicitudes y resueltos por día' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ver como tabla: Solicitudes y resueltos por día' })).toBeInTheDocument()
-    const email = screen.getByRole('progressbar', { name: 'Correo' })
-    expect(email).toHaveAttribute('aria-valuetext', '71,5 % · 258 tickets')
-    expect(screen.getByRole('progressbar', { name: 'Chat' })).toBeInTheDocument()
-    expect(screen.getByRole('progressbar', { name: 'Web' })).toBeInTheDocument()
-    expect(screen.queryByRole('progressbar', { name: 'Teléfono' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Ver como tabla de Solicitudes y resueltos por día' }),
+    ).toBeInTheDocument()
+  })
+
+  it('dibuja los canales como un anillo con el valor de cada uno y el color de su canal', async () => {
+    mockApi(baseRoutes)
+    renderReports()
+    const donut = await screen.findByRole('img', { name: 'Solicitudes por canal' })
+    expect(donut).toHaveAccessibleDescription(
+      /Correo 71,5 % · 258 tickets; Chat 19,9 % · 72 tickets; Web 8,6 % · 31 tickets/,
+    )
+    expect(screen.getByRole('button', { name: 'Correo: 71,5 % · 258 tickets' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Teléfono/ })).not.toBeInTheDocument()
+    // El color sigue al canal: Web es la serie 4 aunque sea el tercero de la lista.
+    const classes = [...donut.querySelectorAll('path')].map((path) => path.getAttribute('class'))
+    expect(classes[0]).toMatch(/color1/)
+    expect(classes[1]).toMatch(/color2/)
+    expect(classes[2]).toMatch(/color4/)
+    expect(within(donut).getByText('361')).toBeInTheDocument()
+    // La alternativa tabular del anillo se alcanza con el botón.
+    await userEvent.click(screen.getByRole('button', { name: 'Ver como tabla de Solicitudes por canal' }))
+    expect(screen.getByRole('table', { name: 'Solicitudes por canal' })).toBeVisible()
+  })
+
+  it('las dos primeras tarjetas llevan un minigráfico decorativo y la de primera respuesta, la barra con sus marcas', async () => {
+    mockApi(baseRoutes)
+    renderReports()
+    const created = await findMetricCard('Solicitudes')
+    const resolved = metricCard('Resueltos')
+    expect(created.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    expect(resolved.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    const created7 = created.querySelector('polyline')!.getAttribute('points')!.split(' ')
+    expect(created7).toHaveLength(7)
+    const firstResponse = metricCard('Primera respuesta')
+    expect(within(firstResponse).getByText('antes 22')).toBeInTheDocument()
+    expect(within(firstResponse).getByText(/^objetivo 30\smin$/)).toBeInTheDocument()
+    expect(metricCard('Resolución').querySelector('svg')).toBeNull()
+  })
+
+  it('sin primera respuesta ni periodo anterior la barra solo marca el objetivo', async () => {
+    mockApi({
+      ...baseRoutes,
+      'GET /api/reports/summary': byPeriod({ firstResponseMinutes: { value: null, previous: null, target: 30 } }),
+    })
+    renderReports()
+    const card = await findMetricCard('Primera respuesta')
+    expect(within(card).queryByText(/^antes/)).not.toBeInTheDocument()
+    expect(within(card).getByText(/^objetivo 30\smin$/)).toBeInTheDocument()
+  })
+
+  describe('pendientes acumulados', () => {
+    it('dibuja la línea de solicitudes menos resueltos acumulados y rotula el último valor', async () => {
+      mockApi(baseRoutes)
+      renderReports()
+      const chart = await screen.findByRole('img', { name: 'Pendientes acumulados' })
+      // 361 creados menos 6 resueltos (0+1+2+0+1+2+0) en la serie de prueba.
+      expect(chart.closest('figure')!.querySelector('[class*="endLabel"]')).toHaveTextContent('+355 pendientes')
+      expect(chart.querySelector('polyline')!.getAttribute('points')!.split(' ')).toHaveLength(7)
+      expect(screen.getByRole('button', { name: /domingo.*: \+355 pendientes/ })).toBeInTheDocument()
+    })
+
+    it('si se resuelve más de lo que llega, el último valor es negativo con el menos tipográfico', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/reports/summary': byPeriod({
+          byDay: reportDays(7, [0]).map((day, index) => ({ ...day, created: index === 0 ? 1 : 0, resolved: 2 })),
+        }),
+      })
+      renderReports()
+      expect(await screen.findByText('−11 pendientes')).toBeInTheDocument()
+    })
+  })
+
+  describe('abiertos con y sin responsable', () => {
+    it('dibuja el estado actual de useTeamMetrics con asignados y sin asignar', async () => {
+      mockApi(baseRoutes)
+      renderReports()
+      const donut = await screen.findByRole('img', { name: 'Abiertos con y sin responsable' })
+      expect(donut).toHaveAccessibleDescription(/Asignados 31; Sin asignar 7/)
+      expect(within(donut).getByText('38')).toBeInTheDocument()
+    })
+
+    it('si su consulta falla muestra su propio error con Reintentar y el resto del informe sigue ahí', async () => {
+      let fail = true
+      mockApi({
+        ...baseRoutes,
+        'GET /api/members/metrics': () => (fail ? problem : { body: teamMetrics }),
+      })
+      renderReports()
+      expect(await screen.findByText('No pudimos cargar los tickets abiertos')).toBeInTheDocument()
+      // El informe no se ve afectado: cifras, gráficos y agentes siguen visibles.
+      expect(metricCard('Solicitudes')).toBeInTheDocument()
+      expect(screen.getByRole('img', { name: 'Solicitudes por canal' })).toBeInTheDocument()
+      expect(screen.getByRole('table', { name: 'Rendimiento por agente' })).toBeInTheDocument()
+      expect(screen.queryByText('No pudimos cargar el informe')).not.toBeInTheDocument()
+      // Su reintento tiene un nombre distinto al del informe.
+      const retry = screen.getByRole('button', { name: /^Reintentar la carga de abiertos/ })
+      fail = false
+      await userEvent.click(retry)
+      expect(await screen.findByRole('img', { name: 'Abiertos con y sin responsable' })).toBeInTheDocument()
+    })
+
+    it('sin tickets abiertos muestra un estado vacío', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/members/metrics': { body: { ...teamMetrics, assignedOpen: 0, unassignedOpen: 0 } },
+      })
+      renderReports()
+      expect(await screen.findByText('No hay tickets abiertos')).toBeInTheDocument()
+      expect(screen.queryByRole('img', { name: 'Abiertos con y sin responsable' })).not.toBeInTheDocument()
+    })
+
+    it('no se atenúa al cambiar de periodo: es el estado actual', async () => {
+      let release: () => void = () => {}
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      mockApi({
+        ...baseRoutes,
+        'GET /api/reports/summary': async (request) => {
+          if (new URL(request.url).searchParams.get('period') === '30d') await gate
+          return byPeriod()(request)
+        },
+      })
+      renderReports()
+      await screen.findByRole('img', { name: 'Abiertos con y sin responsable' })
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Periodo' }), '30d')
+      await screen.findByText('Actualizando el informe…')
+      expect(screen.getByRole('region', { name: 'Abiertos con y sin responsable' })).not.toHaveClass('updating')
+      expect(screen.getByRole('region', { name: 'Solicitudes por canal' })).toHaveClass('updating')
+      release()
+    })
+  })
+
+  describe('primera respuesta de los agentes', () => {
+    it('dibuja un punto por agente con primera respuesta y nombra aparte a quien no la tiene', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/reports/summary': byPeriod({
+          byAgent: [
+            reportAgent({ member: { id: 'u-1', name: 'Laura Méndez' }, firstResponseMinutes: 14 }),
+            reportAgent({ member: { id: 'u-2', name: 'Daniel Santos' }, firstResponseMinutes: 45 }),
+            reportAgent({ member: { id: 'u-3', name: 'Pablo Viejo' }, firstResponseMinutes: null }),
+            reportAgent({ member: { id: 'u-4', name: 'Sofía Ríos' }, firstResponseMinutes: null }),
+          ],
+        }),
+      })
+      renderReports()
+      const plot = await screen.findByRole('group', { name: 'Primera respuesta frente al objetivo' })
+      expect(within(plot).getAllByRole('button', { name: /min/ })).toHaveLength(2)
+      expect(within(plot).queryByText('Pablo Viejo')).not.toBeInTheDocument()
+      expect(screen.getByText('Sin primeras respuestas en el periodo: Pablo Viejo y Sofía Ríos.')).toBeInTheDocument()
+      // Quien supera el objetivo (30 min) lo dice con texto, no solo con color.
+      const [laura, daniel] = within(plot).getAllByRole('listitem')
+      expect(daniel).toHaveTextContent('Daniel Santos')
+      expect(daniel).toHaveTextContent('45 min · por encima del objetivo')
+      expect(laura).not.toHaveTextContent('por encima')
+      // La tabla de agentes no cambia: sigue incluyendo a quien no tiene dato.
+      expect(screen.getByRole('table', { name: 'Rendimiento por agente' })).toHaveAccessibleDescription(
+        'Mostrando 4 agentes',
+      )
+    })
+
+    it('si nadie tiene primera respuesta no dibuja el gráfico y lo explica en la nota', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/reports/summary': byPeriod({
+          byAgent: [reportAgent({ firstResponseMinutes: null })],
+        }),
+      })
+      renderReports()
+      expect(await screen.findByText('Sin primeras respuestas en el periodo: Laura Méndez.')).toBeInTheDocument()
+      expect(screen.queryByRole('group', { name: 'Primera respuesta frente al objetivo' })).not.toBeInTheDocument()
+    })
+
+    it('con el teclado se llega a un punto y su tooltip da el valor exacto', async () => {
+      mockApi(baseRoutes)
+      renderReports()
+      const point = await screen.findByRole('button', { name: 'Laura Méndez: 15 min' })
+      point.focus()
+      expect(await screen.findByRole('tooltip')).toHaveTextContent('Laura Méndez: 15 min')
+    })
   })
 
   it('lista a los agentes y rotula a quien ya no está en el equipo activo', async () => {
@@ -231,8 +419,10 @@ describe('ReportsPage', () => {
         }),
       })
       renderReports()
-      expect(await screen.findByText('Sin actividad en este periodo')).toBeInTheDocument()
+      // Sin actividad ni las barras ni la línea de pendientes tienen nada que dibujar.
+      expect(await screen.findAllByText('Sin actividad en este periodo')).toHaveLength(2)
       expect(screen.queryByRole('img', { name: /Solicitudes y resueltos/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('img', { name: 'Pendientes acumulados' })).not.toBeInTheDocument()
       expect(screen.getByText('Ningún ticket se creó en este periodo.')).toBeInTheDocument()
     })
 

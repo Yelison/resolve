@@ -14,6 +14,8 @@ async function holdSummary(page: Page, held: (url: string) => boolean) {
 }
 
 const panelsTop = (page: Page) => page.getByTestId('report-panels').evaluate((el) => el.getBoundingClientRect().top)
+const topOf = (page: Page, testId: string) => page.getByTestId(testId).evaluate((el) => el.getBoundingClientRect().top)
+const agentsTop = (page: Page) => topOf(page, 'report-agents')
 const rangeBox = (page: Page) =>
   page
     .getByText(/America\/Bogota/)
@@ -27,10 +29,10 @@ test.describe('reportes', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Reportes' })).toBeVisible()
     await expect(page.getByText('61 más (20 %) frente a los 7 días anteriores')).toBeVisible()
     await expect(page.getByText('83 resueltos por cada 100 creados')).toBeVisible()
-    await expect(page.getByRole('progressbar', { name: 'Correo' })).toBeVisible()
+    await expect(page.getByRole('img', { name: 'Solicitudes por canal' })).toBeVisible()
 
     // La alternativa tabular del gráfico se alcanza con el teclado.
-    await page.getByRole('button', { name: 'Ver como tabla' }).focus()
+    await page.getByRole('button', { name: 'Ver como tabla de Solicitudes y resueltos por día' }).focus()
     await page.keyboard.press('Enter')
     await expect(page.getByRole('table', { name: 'Solicitudes y resueltos por día' })).toBeVisible()
 
@@ -61,7 +63,7 @@ test.describe('reportes', () => {
     await request
     await expect(page).toHaveURL(/\?period=30d$/)
     await expect(page.getByText(/frente a los 30 días anteriores/)).toBeVisible()
-    await expect(page.getByRole('progressbar', { name: 'Teléfono' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Teléfono: 15,2 %/ })).toBeVisible()
 
     await page.getByRole('combobox', { name: 'Periodo' }).selectOption('90d')
     await expect(page.getByRole('img', { name: 'Solicitudes y resueltos por semana' })).toBeVisible()
@@ -118,10 +120,18 @@ test.describe('reportes', () => {
       )
       await page.goto('/reportes')
       await expect(page.getByText('Cargando el informe…')).toBeAttached()
-      const loading = { top: await panelsTop(page), range: await rangeBox(page) }
+      const loading = {
+        top: await panelsTop(page),
+        current: await topOf(page, 'report-panels-current'),
+        agents: await agentsTop(page),
+        range: await rangeBox(page),
+      }
       releaseFirst()
       await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
+      await expect(page.getByRole('img', { name: 'Abiertos con y sin responsable' })).toBeVisible()
       expect(await panelsTop(page), 'los paneles no se mueven al llegar el informe').toBeCloseTo(loading.top, 0)
+      expect(await topOf(page, 'report-panels-current'), 'la segunda fila no se mueve').toBeCloseTo(loading.current, 0)
+      expect(await agentsTop(page), 'los agentes no se mueven').toBeCloseTo(loading.agents, 0)
       expect(await rangeBox(page), 'la línea del rango conserva su altura').toBeCloseTo(loading.range, 0)
     })
 
@@ -130,7 +140,12 @@ test.describe('reportes', () => {
       const releaseSecond = await holdSummary(page, (url) => url.includes('period=30d'))
       await page.goto('/reportes')
       await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
-      const before = { top: await panelsTop(page), range: await rangeBox(page) }
+      const before = {
+        top: await panelsTop(page),
+        current: await topOf(page, 'report-panels-current'),
+        agents: await agentsTop(page),
+        range: await rangeBox(page),
+      }
 
       await page.getByRole('combobox', { name: 'Periodo' }).selectOption('30d')
       await expect(page.getByText('Actualizando el informe…')).toBeAttached()
@@ -138,11 +153,96 @@ test.describe('reportes', () => {
       await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeDisabled()
       expect(await panelsTop(page)).toBeCloseTo(before.top, 0)
+      expect(await topOf(page, 'report-panels-current')).toBeCloseTo(before.current, 0)
       expect(await rangeBox(page)).toBeCloseTo(before.range, 0)
 
       releaseSecond()
       await expect(page.getByText(/frente a los 30 días anteriores/)).toBeVisible()
+      expect(await topOf(page, 'report-panels-current'), 'al llegar el periodo nuevo tampoco salta').toBeCloseTo(
+        before.current,
+        0,
+      )
+      expect(await agentsTop(page)).toBeCloseTo(before.agents, 0)
       await expect(page.getByRole('button', { name: 'Exportar CSV' })).toBeEnabled()
     })
   }
+
+  for (const theme of ['light', 'dark']) {
+    for (const width of [390, 1024, 1440, 1920]) {
+      test(`los paneles salen en su orden y nada desborda · ${theme} · ${width}px`, async ({ page }) => {
+        await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto('/reportes')
+        await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
+
+        const titles = [
+          'Solicitudes y resueltos por día',
+          'Solicitudes por canal',
+          'Pendientes acumulados',
+          'Abiertos con y sin responsable',
+          'Rendimiento por agente',
+        ]
+        const boxes = []
+        for (const name of titles) {
+          boxes.push(
+            await page.getByRole('heading', { level: 2, name }).evaluate((el) => {
+              const { top, left } = el.getBoundingClientRect()
+              return { top, left }
+            }),
+          )
+        }
+        // Orden de lectura: fila por fila y, dentro de cada fila, de izquierda a derecha.
+        const order = boxes.map((box, index) => ({ ...box, index }))
+        order.sort((a, b) => (Math.abs(a.top - b.top) < 4 ? a.left - b.left : a.top - b.top))
+        expect(order.map((box) => box.index)).toEqual([0, 1, 2, 3, 4])
+        if (width >= 1200) {
+          expect(Math.abs(boxes[0]!.top - boxes[1]!.top), 'gráfico y canales en paralelo').toBeLessThan(4)
+          expect(Math.abs(boxes[2]!.top - boxes[3]!.top), 'pendientes y abiertos en paralelo').toBeLessThan(4)
+        } else {
+          expect(boxes[1]!.top, 'apilados por debajo de 1200 px').toBeGreaterThan(boxes[0]!.top)
+        }
+
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        )
+        expect(overflow, 'sin scroll horizontal de página').toBeLessThanOrEqual(0)
+        const clipped = await page.evaluate(
+          () =>
+            [...document.querySelectorAll<HTMLElement>('section[aria-labelledby]')].filter(
+              (panel) => panel.scrollWidth > panel.clientWidth + 1,
+            ).length,
+        )
+        expect(clipped, 'ningún panel desborda').toBe(0)
+      })
+    }
+  }
+
+  test('el anillo de canales muestra el porcentaje y los tickets de cada uno y su tabla', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/reportes')
+    const channels = page.getByRole('region', { name: 'Solicitudes por canal' })
+    const legend = channels.locator('li')
+    await expect(legend.filter({ hasText: 'Correo' })).toContainText('71,5 % · 258 tickets')
+    await expect(legend.filter({ hasText: 'Chat' })).toContainText('19,9 % · 72 tickets')
+    await expect(legend.filter({ hasText: 'Web' })).toContainText('8,6 % · 31 tickets')
+    await channels.getByRole('button', { name: 'Ver como tabla de Solicitudes por canal' }).click()
+    const table = channels.getByRole('table', { name: 'Solicitudes por canal' })
+    await expect(table).toBeVisible()
+    await expect(table.getByRole('row', { name: /Correo.*71,5 % · 258 tickets/ })).toBeVisible()
+  })
+
+  test('con el teclado un punto del gráfico de agentes enseña su tooltip con el valor exacto', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/reportes')
+    const point = page.getByRole('button', { name: 'Laura Méndez: 14 min' })
+    await expect(point).toBeVisible()
+    await point.focus()
+    await expect(page.getByRole('tooltip')).toHaveText('Laura Méndez: 14 min')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('tooltip')).toHaveCount(0)
+    const over = page.getByRole('button', { name: /^Pablo Viejo: 45 min, por encima del objetivo/ })
+    await over.focus()
+    await expect(page.getByRole('tooltip')).toContainText('por encima del objetivo')
+    await expect(page.getByText(/Sin primeras respuestas en el periodo: Sofía Ríos/)).toBeVisible()
+  })
 })

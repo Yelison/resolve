@@ -42,8 +42,7 @@ export function ChartTable({ id, label, firstColumn, columns, rows, className }:
         aria-controls={id}
         onClick={() => setVisible((current) => !current)}
       >
-        {visible ? 'Ocultar tabla' : 'Ver como tabla'}
-        <span className="visually-hidden">: {label}</span>
+        {visible ? 'Ocultar tabla' : 'Ver como tabla'} <span className="visually-hidden">de {label}</span>
       </button>
       <div id={id} className={cx(styles.wrap, !visible && 'visually-hidden')}>
         <table className={styles.table}>
@@ -51,8 +50,8 @@ export function ChartTable({ id, label, firstColumn, columns, rows, className }:
           <thead>
             <tr>
               <th scope="col">{firstColumn}</th>
-              {columns.map((column) => (
-                <th key={column} scope="col">
+              {columns.map((column, index) => (
+                <th key={index} scope="col">
                   {column}
                 </th>
               ))}
@@ -63,7 +62,7 @@ export function ChartTable({ id, label, firstColumn, columns, rows, className }:
               <tr key={row.key}>
                 <th scope="row">{row.header}</th>
                 {row.cells.map((cell, index) => (
-                  <td key={columns[index]}>{cell}</td>
+                  <td key={index}>{cell}</td>
                 ))}
               </tr>
             ))}

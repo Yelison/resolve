@@ -32,6 +32,23 @@
   overflow-wrap: anywhere;
 }
 
+/* El gráfico va junto al valor si cabe (mínimo 8 rem) y, si no, pasa debajo y ocupa todo el ancho. */
+.valueRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-8) var(--space-12);
+  min-width: 0;
+}
+
+.chart {
+  display: flex;
+  flex: 1 1 8rem;
+  justify-content: flex-end;
+  min-width: 0;
+  margin: 0;
+}
+
 .detail {
   margin: 0;
   font: var(--font-caption);

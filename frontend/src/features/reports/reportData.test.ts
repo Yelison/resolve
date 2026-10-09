@@ -1,17 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import type { ReportAgent, ReportDay } from '../../api/schema'
 import {
+  agentResponses,
   agentsCsv,
   agentStatusLabel,
+  channelColors,
+  channelSegments,
   channelValueText,
   chartData,
   compareCount,
+  cumulativePending,
   csvFileName,
   formatHours,
   formatMinutes,
   formatRange,
   hasActivity,
+  missingResponsesNote,
+  pendingPoints,
+  pendingText,
   resolvedShare,
+  signedInteger,
 } from './reportData'
 
 describe('compareCount', () => {
@@ -185,5 +193,105 @@ describe('agentStatusLabel', () => {
     expect(agentStatusLabel(agent())).toBeNull()
     expect(agentStatusLabel(agent({ status: 'removed' }))).toBe('Retirado')
     expect(agentStatusLabel(agent({ status: 'invited' }))).toBe('Invitación pendiente')
+  })
+})
+
+const dated = (date: string, created: number, resolved: number): ReportDay => ({ date, created, resolved })
+
+describe('cumulativePending', () => {
+  it('acumula día a día las solicitudes menos los resueltos', () => {
+    expect(
+      cumulativePending([dated('2026-09-28', 10, 4), dated('2026-09-29', 5, 8), dated('2026-09-30', 7, 0)]),
+    ).toEqual([6, 3, 10])
+  })
+
+  it('puede bajar de 0 cuando se resuelve más de lo que llega', () => {
+    expect(cumulativePending([dated('2026-09-28', 1, 5), dated('2026-09-29', 0, 2)])).toEqual([-4, -6])
+  })
+
+  it('sin días no hay nada que acumular y con días sin actividad todo es 0', () => {
+    expect(cumulativePending([])).toEqual([])
+    expect(cumulativePending([dated('2026-09-28', 0, 0), dated('2026-09-29', 0, 0)])).toEqual([0, 0])
+  })
+})
+
+describe('pendingPoints', () => {
+  it('lleva un punto por día con su nombre completo, el valor acumulado y la etiqueta corta del eje', () => {
+    const points = pendingPoints([dated('2026-09-28', 10, 4), dated('2026-09-29', 5, 8)])
+    expect(points.map((point) => point.value)).toEqual([6, 3])
+    expect(points[0]!.key).toBe('2026-09-28')
+    expect(points[0]!.label).toMatch(/lunes/)
+    expect(points[0]!.shortLabel).toMatch(/^lun/)
+  })
+
+  it('con más de 30 días abrevia con el día y el mes', () => {
+    const days = Array.from({ length: 31 }, (_, index) => dated(`2026-09-${String(index + 1).padStart(2, '0')}`, 1, 0))
+    expect(pendingPoints(days)[0]!.shortLabel).toMatch(/1 sept/)
+  })
+})
+
+describe('pendingText', () => {
+  it('escribe el signo, usa el menos tipográfico y concuerda el singular', () => {
+    expect(pendingText(10)).toBe('+10 pendientes')
+    expect(pendingText(1)).toBe('+1 pendiente')
+    expect(pendingText(0)).toBe('0 pendientes')
+    expect(pendingText(-1)).toBe('−1 pendiente')
+    expect(pendingText(-12)).toBe('−12 pendientes')
+    expect(signedInteger(-3)).toBe('−3')
+  })
+})
+
+describe('channelSegments', () => {
+  it('da a cada canal su color fijo aunque cambie su puesto por volumen', () => {
+    const { segments } = channelSegments([
+      { channel: 'web', created: 80, share: 80 },
+      { channel: 'email', created: 20, share: 20 },
+    ])
+    expect(segments.map((segment) => [segment.id, segment.color])).toEqual([
+      ['web', channelColors.web],
+      ['email', channelColors.email],
+    ])
+    expect(channelColors).toEqual({ email: 1, chat: 2, phone: 3, web: 4 })
+  })
+
+  it('lleva en cada segmento el texto «45,5 % · 56 tickets», el nombre del canal y el total', () => {
+    const { segments, total } = channelSegments([
+      { channel: 'email', created: 56, share: 45.5 },
+      { channel: 'chat', created: 67, share: 54.5 },
+    ])
+    expect(segments[0]).toMatchObject({ label: 'Correo', value: 56, valueText: '45,5 % · 56 tickets' })
+    expect(total).toBe(123)
+  })
+
+  it('sin canales no hay segmentos ni total', () => {
+    expect(channelSegments([])).toEqual({ segments: [], total: 0 })
+  })
+})
+
+describe('agentResponses', () => {
+  it('deja fuera del gráfico a quien no tiene primera respuesta y lo nombra aparte, sin convertirlo en 0', () => {
+    const { rows, missing } = agentResponses([
+      agent({ member: { id: 'a', name: 'Ana' }, firstResponseMinutes: 12 }),
+      agent({ member: { id: 'b', name: 'Beto' }, firstResponseMinutes: null }),
+      agent({ member: { id: 'c', name: 'Cata' }, firstResponseMinutes: 0 }),
+    ])
+    expect(rows).toEqual([
+      { key: 'a', label: 'Ana', value: 12 },
+      { key: 'c', label: 'Cata', value: 0 },
+    ])
+    expect(missing).toEqual(['Beto'])
+  })
+
+  it('si nadie tiene primera respuesta no hay filas', () => {
+    expect(agentResponses([agent({ firstResponseMinutes: null })]).rows).toEqual([])
+  })
+})
+
+describe('missingResponsesNote', () => {
+  it('une los nombres como una lista en español', () => {
+    expect(missingResponsesNote(['Pablo Viejo'])).toBe('Sin primeras respuestas en el periodo: Pablo Viejo.')
+    expect(missingResponsesNote(['Ana', 'Luis', 'Marta'])).toBe(
+      'Sin primeras respuestas en el periodo: Ana, Luis y Marta.',
+    )
   })
 })

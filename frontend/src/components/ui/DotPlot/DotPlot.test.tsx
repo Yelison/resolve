@@ -72,7 +72,7 @@ describe('DotPlot', () => {
     expect(within(pablo).getByRole('cell', { hidden: true, name: 'por encima del objetivo' })).toBeInTheDocument()
     const laura = within(table).getByRole('row', { hidden: true, name: /Laura Méndez/ })
     expect(within(laura).getByRole('cell', { hidden: true, name: 'dentro del objetivo' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ver como tabla: Primera respuesta frente al objetivo' }))
+    await user.click(screen.getByRole('button', { name: 'Ver como tabla de Primera respuesta frente al objetivo' }))
     expect(table.parentElement).not.toHaveClass('visually-hidden')
   })
 
