@@ -1,7 +1,8 @@
-import { useId } from 'react'
+import { useId, type CSSProperties } from 'react'
 import { cx } from '../../../lib/cx'
 import { niceScale } from '../LineChart/scale'
 import { ChartTable } from '../shared/ChartTable'
+import { useElementWidth } from '../shared/useElementWidth'
 import { Tooltip } from '../Tooltip/Tooltip'
 import styles from './DotPlot.module.css'
 
@@ -45,6 +46,10 @@ export interface DotPlotProps {
 const defaultFormatter = (n: number) => n.toLocaleString('es')
 const percent = (n: number) => `${Math.round(n * 1000) / 1000}%`
 
+// Medidas aproximadas (texto de 12 px) con las que se decide si una etiqueta cabe centrada bajo su marca.
+const GLYPH_WIDTH = 7
+const FALLBACK_WIDTH = 300
+
 /**
  * Gráfico de puntos: una fila por entidad con su nombre, un punto de 12 px sobre un eje común y el valor escrito. Una
  * línea vertical discontinua marca el objetivo; quien lo supera lleva el punto en `--color-red-ink` **y** el texto
@@ -67,6 +72,7 @@ export function DotPlot({
 }: DotPlotProps) {
   const tableId = useId()
   const summaryId = useId()
+  const [setAxis, axisWidth] = useElementWidth<HTMLDivElement>()
 
   if (rows.length === 0) {
     return (
@@ -87,6 +93,15 @@ export function DotPlot({
       ? `todas ${withinText}`
       : `${above.length} ${aboveText}: ${above.map((row) => row.label).join(', ')}`
   }. ${target.label}. El detalle completo está en la tabla alternativa que sigue al gráfico, junto al botón «Ver como tabla».`
+  /** Centrada bajo su marca; si así se saldría del eje, pegada al borde más cercano (sin desbordar el panel). */
+  const labelStyle = (value: number, text: string): CSSProperties => {
+    const width = axisWidth ?? FALLBACK_WIDTH
+    const half = (text.length * GLYPH_WIDTH) / 2
+    const centre = (xOf(value) / 100) * width
+    if (centre + half > width) return { right: 0 }
+    if (centre - half < 0) return { left: 0 }
+    return { left: percent(xOf(value)), transform: 'translateX(-50%)' }
+  }
   // La marca del objetivo tiene su propia fila: una marca del eje que caiga encima de ella se omite.
   const ticks = scale.ticks.filter((tick) => tick !== target.value)
 
@@ -146,16 +161,16 @@ export function DotPlot({
         })}
       </ul>
       <div className={styles.axis} aria-hidden="true">
-        <div className={styles.rail}>
+        <div ref={setAxis} className={styles.rail}>
           <div className={styles.ticks}>
             {ticks.map((tick) => (
-              <span key={tick} className={styles.tick} style={{ left: percent(xOf(tick)) }}>
+              <span key={tick} className={styles.tick} style={labelStyle(tick, formatTick(tick))}>
                 {formatTick(tick)}
               </span>
             ))}
           </div>
           <div className={styles.targetRow}>
-            <span className={styles.targetLabel} style={{ left: percent(xOf(target.value)) }}>
+            <span className={styles.targetLabel} style={labelStyle(target.value, target.label)}>
               {target.label}
             </span>
           </div>

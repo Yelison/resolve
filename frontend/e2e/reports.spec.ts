@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
+import type { ReportSummary } from '../src/api/schema'
 import { expect, me, test } from './fixtures'
 
 /** Retiene las respuestas del informe que cumplan `held` hasta llamar a la función devuelta. */
@@ -11,6 +12,15 @@ async function holdSummary(page: Page, held: (url: string) => boolean) {
     await route.fallback()
   })
   return release
+}
+
+/** Llega al elemento solo con Tab: enfocarlo por programa no demostraría que está en el orden de tabulación. */
+async function tabTo(page: Page, target: Locator, max = 80) {
+  for (let presses = 0; presses < max; presses += 1) {
+    if (await target.evaluate((element) => element === document.activeElement)) return
+    await page.keyboard.press('Tab')
+  }
+  throw new Error('El elemento no recibe el foco con Tab')
 }
 
 const panelsTop = (page: Page) => page.getByTestId('report-panels').evaluate((el) => el.getBoundingClientRect().top)
@@ -236,13 +246,58 @@ test.describe('reportes', () => {
     await page.goto('/reportes')
     const point = page.getByRole('button', { name: 'Laura Méndez: 14 min' })
     await expect(point).toBeVisible()
-    await point.focus()
+    await tabTo(page, point)
     await expect(page.getByRole('tooltip')).toHaveText('Laura Méndez: 14 min')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('tooltip')).toHaveCount(0)
     const over = page.getByRole('button', { name: /^Pablo Viejo: 45 min, por encima del objetivo/ })
-    await over.focus()
+    await tabTo(page, over)
     await expect(page.getByRole('tooltip')).toContainText('por encima del objetivo')
     await expect(page.getByText(/Sin primeras respuestas en el periodo: Sofía Ríos/)).toBeVisible()
+  })
+
+  test('con todo el equipo dentro del objetivo el gráfico de agentes no desborda el panel a 320 px', async ({
+    page,
+  }) => {
+    const report: ReportSummary = {
+      period: { from: '2026-09-28T05:00:00Z', to: '2026-10-04T15:00:00Z', days: 7, timeZone: 'America/Bogota' },
+      created: { value: 20, previous: 18 },
+      resolved: { value: 19, previous: 17 },
+      firstResponseMinutes: { value: 20, previous: 25, target: 30 },
+      resolutionHours: { value: 5, previous: 6 },
+      byDay: ['28', '29', '30'].map((day) => ({ date: `2026-09-${day}`, created: 5, resolved: 4 })),
+      byChannel: [{ channel: 'email', created: 20, share: 100 }],
+      byAgent: [
+        {
+          member: { id: 'u-1', name: 'Laura Méndez' },
+          status: 'active',
+          resolved: 10,
+          firstResponseMinutes: 14,
+          openAssigned: 1,
+        },
+        {
+          member: { id: 'u-2', name: 'Daniel Santos' },
+          status: 'active',
+          resolved: 9,
+          firstResponseMinutes: 28,
+          openAssigned: 2,
+        },
+      ],
+    }
+    await page.route('**/api/reports/summary*', (route) => route.fulfill({ json: report }))
+    await page.setViewportSize({ width: 320, height: 900 })
+    await page.goto('/reportes')
+    const targetLabel = page.getByTestId('report-agents').locator('[class*="targetLabel"]')
+    await expect(targetLabel).toBeVisible()
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(overflow, 'sin scroll horizontal de página').toBeLessThanOrEqual(0)
+    const panel = await page.getByTestId('report-agents').evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(panel, 'el panel de agentes no desborda').toBeLessThanOrEqual(0)
+    // La etiqueta del objetivo queda dentro del panel.
+    const label = await targetLabel.boundingBox()
+    const box = await page.getByTestId('report-agents').boundingBox()
+    expect(label!.x + label!.width).toBeLessThanOrEqual(box!.x + box!.width + 0.5)
   })
 })
