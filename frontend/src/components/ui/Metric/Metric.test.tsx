@@ -24,4 +24,15 @@ describe('Metric', () => {
     render(<Metric label="Solicitudes" value="123" />)
     expect(screen.getAllByRole('definition')).toHaveLength(1)
   })
+
+  it.each([false, true])('el dl solo contiene divs que agrupan dt y dd (con gráfico: %s)', (withChart) => {
+    const { container } = render(
+      <Metric label="Solicitudes" value="123" detail="13 más" chart={withChart ? <span>gráfico</span> : undefined} />,
+    )
+    const dl = container.querySelector('dl')!
+    expect([...dl.children].map((child) => child.tagName)).toEqual(['DIV'])
+    const group = dl.firstElementChild!
+    expect([...group.children].every((child) => ['DT', 'DD'].includes(child.tagName))).toBe(true)
+    expect(group.querySelectorAll('dt')).toHaveLength(1)
+  })
 })

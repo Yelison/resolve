@@ -14,10 +14,21 @@
 }
 
 .pair {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
   margin: 0;
+}
+
+/* Etiqueta y detalle ocupan toda la línea; el valor y el gráfico comparten la suya si caben (el gráfico mide 8 rem como mínimo). */
+.group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-8) var(--space-12);
+  min-width: 0;
+}
+
+.label,
+.detail {
+  flex: 1 1 100%;
 }
 
 .label {
@@ -30,15 +41,6 @@
   font: var(--font-metric);
   color: var(--color-ink);
   overflow-wrap: anywhere;
-}
-
-/* El gráfico va junto al valor si cabe (mínimo 8 rem) y, si no, pasa debajo y ocupa todo el ancho. */
-.valueRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-8) var(--space-12);
-  min-width: 0;
 }
 
 .chart {
