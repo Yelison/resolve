@@ -30,11 +30,15 @@ Commands to run in your worktree:
 {{COMMANDS}}
 ```
 
-The machine (12 cores) is shared by three or four agents; without limits the load reaches 30:
+The machine (12 cores) is shared by several projects and their agents; without limits the load reaches 30:
 
-- Run Vitest with `npm test -- --maxWorkers=3` and Playwright always with `--workers=3`.
-- Do not run the whole Playwright suite on the base commit (`main` is green in CI); run the specs of the feature while
-  you iterate and the whole suite once, at the reviewed commit, only if the change reaches shared UI.
+- Run every heavy test through the machine-wide lock, `scripts/herdr/heavy.sh`: any Playwright run (mutations
+  included), Vitest in a browser and `./mvnw -B verify`. From `frontend/`, for example:
+  `../scripts/herdr/heavy.sh npx playwright test e2e/<feature>.spec.ts --workers=2`.
+- Run Vitest with `npm test -- --maxWorkers=2` and Playwright always with `--workers=2`.
+- Never run the whole Playwright suite locally: CI runs it on the pull request before the merge. Run the specs the
+  change can affect (the feature's, those of the shared components it touches, those it changes) and list them in
+  the report.
 - If a test times out or fails only under load, rerun it alone before drawing conclusions, and say so in the report.
 
 {{EXTRA_POINTS}}
