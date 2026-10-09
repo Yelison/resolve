@@ -5,9 +5,10 @@ Los de la ficha, en inglés, Conventional Commits; cada uno compila y pasa por s
 
 ## Uso de la máquina (varios agentes en paralelo)
 
-- **No ejecutes la batería completa de Playwright sobre la base**: `main` ya está en verde en la CI. Para confirmar la base basta `npm test` (o `./mvnw -B verify` si tocas backend).
-- Mientras iteras, ejecuta solo las specs de tu feature (`npx playwright test e2e/<feature>.spec.ts`); la batería completa, **una vez**, antes de entregar.
-- Vitest con `npm test -- --maxWorkers=3` y Playwright siempre con `--workers=3` (la máquina, de 12 núcleos, la comparten tres o cuatro agentes; sin límite la carga llega a 30). Si un test falla solo bajo carga, repítelo aislado antes de tocar código y anótalo en la entrega.
+- **Toda prueba pesada pasa por el candado de la máquina**, `scripts/herdr/heavy.sh`: Playwright (cualquier ejecución, incluidas las mutaciones), Vitest en navegador y `./mvnw -B verify`. Ejemplo desde `frontend/`: `../scripts/herdr/heavy.sh npx playwright test e2e/<feature>.spec.ts --workers=2`. Solo corre una batería a la vez entre todos los agentes y proyectos, y a prioridad baja; si otra está en marcha, la tuya espera su turno. No lo esquives.
+- **Nunca ejecutes la batería completa de Playwright en local**, ni sobre la base ni antes de entregar: la ejecuta la CI en el PR antes de fusionar (`ship.sh` espera los checks obligatorios). En local, ejecuta las specs que tu cambio puede afectar (las de tu feature, las de los componentes compartidos que toques y las que cambies), y lista en la entrega qué specs ejecutaste.
+- Para confirmar la base basta `npm test` (o `./mvnw -B verify` si tocas backend).
+- Vitest con `npm test -- --maxWorkers=2` y Playwright siempre con `--workers=2` (la máquina, de 12 núcleos, la comparten varios proyectos). Si un test falla solo bajo carga, repítelo aislado antes de tocar código y anótalo en la entrega.
 
 ## Mutaciones y órdenes peligrosas
 

@@ -289,8 +289,9 @@ round}`. **Reviews with only low findings.** When every finding is low (or there
 `fixes-N.md`: header, the report and verdict line, one numbered decision per finding (`corregir`, `descartar` or
 `aplazar`, with the reason) and the closing paragraph about the new commit and the delivery. The coordinator approves
 it, annotates it and copies it to `tasks/<id>/fixes-N.md`. With any medium or high finding the decisions stay with the
-coordinator. The templates also carry the machine limits (`--maxWorkers=3`, `--workers=3`, no full Playwright run on
-the base).
+coordinator. The templates also carry the machine limits: `--maxWorkers=2` and `--workers=2`, every heavy test behind
+`scripts/herdr/heavy.sh` (one machine-wide lock at nice 10, shared with every project on the machine), and no full
+Playwright run locally, because CI runs it on the pull request before `ship.sh` merges.
 
 An implementation done at `medium` may need a `high` review when it touches permissions, data or shared
 contracts. Acceptance criteria and tests are the same at every level. Retire the review worktree once the verdict is
