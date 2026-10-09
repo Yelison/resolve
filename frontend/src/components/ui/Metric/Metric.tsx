@@ -37,16 +37,13 @@ export function Metric({
   return (
     <div className={cx(styles.metric, highlighted && styles.highlighted, className)}>
       <dl className={styles.pair}>
-        <dt className={styles.label}>{label}</dt>
-        {chart ? (
-          <div className={styles.valueRow}>
-            <dd className={styles.value}>{value}</dd>
-            <dd className={styles.chart}>{chart}</dd>
-          </div>
-        ) : (
+        {/* Un solo grupo con la etiqueta y todos sus valores: es lo que HTML admite dentro de un `dl`. */}
+        <div className={styles.group}>
+          <dt className={styles.label}>{label}</dt>
           <dd className={styles.value}>{value}</dd>
-        )}
-        {detail && <dd className={cx(styles.detail, styles[trend])}>{detail}</dd>}
+          {chart && <dd className={styles.chart}>{chart}</dd>}
+          {detail && <dd className={cx(styles.detail, styles[trend])}>{detail}</dd>}
+        </div>
       </dl>
     </div>
   )
