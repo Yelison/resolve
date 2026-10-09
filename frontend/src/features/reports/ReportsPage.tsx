@@ -211,6 +211,7 @@ const ghostPanels = {
     <LineChart
       label=""
       points={ghostDays.map((day) => ({ key: day.date, label: BLANK, shortLabel: BLANK, value: day.created }))}
+      endLabel={BLANK}
     />
   ),
   assigned: (

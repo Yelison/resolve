@@ -170,7 +170,7 @@ describe('LineChart', () => {
     expect(endLabel(down.container)).toMatch(/endLabelBelow/)
   })
 
-  it('si la serie sube y el punto queda arriba del todo, la etiqueta pasa debajo; si baja y queda abajo del todo, encima', () => {
+  it('si la serie sube la etiqueta va siempre encima, también con el punto arriba del todo, y el gráfico reserva sitio; si baja, debajo salvo pegada al fondo', () => {
     const top = render(
       <LineChart
         label="Tope"
@@ -181,7 +181,8 @@ describe('LineChart', () => {
         endLabel="x"
       />,
     )
-    expect(top.container.querySelector('[class*="endLabel"]')!.className).toMatch(/endLabelBelow/)
+    expect(top.container.querySelector('[class*="endLabel"]')!.className).not.toMatch(/endLabelBelow/)
+    expect(top.container.querySelector('figure')!.className).toMatch(/withEnd/)
     const bottom = render(
       <LineChart
         label="Suelo"

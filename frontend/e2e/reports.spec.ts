@@ -300,4 +300,58 @@ test.describe('reportes', () => {
     const box = await page.getByTestId('report-agents').boundingBox()
     expect(label!.x + label!.width).toBeLessThanOrEqual(box!.x + box!.width + 0.5)
   })
+
+  for (const width of [320, 1440]) {
+    test(`la etiqueta del último valor no tapa la línea ni los puntos de pendientes acumulados · ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/reportes')
+      const panel = page.getByRole('region', { name: 'Pendientes acumulados' })
+      const label = panel.locator('[class*="endLabel"]', { hasText: '+361 pendientes' })
+      await expect(label).toBeVisible()
+      const geometry = await panel.evaluate((section) => {
+        const rect = (element: Element) => {
+          const { left, top, right, bottom } = element.getBoundingClientRect()
+          return { left, top, right, bottom }
+        }
+        const svg = section.querySelector('[class*="live"] svg[role="img"]')!
+        const box = svg.getBoundingClientRect()
+        const vertices = svg
+          .querySelector('polyline')!
+          .getAttribute('points')!
+          .split(' ')
+          .map((pair) => pair.split(',').map(Number) as [number, number])
+          .map(([x, y]) => ({ x: box.left + (x / 100) * box.width, y: box.top + (y / 100) * box.height }))
+        const dots = [...section.querySelectorAll('[class*="live"] [class*="dot"]')]
+          .filter((dot) => getComputedStyle(dot).opacity !== '0')
+          .map(rect)
+        const labelElement = [...section.querySelectorAll('[class*="endLabel"]')].find((element) =>
+          element.textContent?.includes('+361'),
+        )!
+        return { label: rect(labelElement), vertices, dots }
+      })
+      const inside = (x: number, y: number) =>
+        x > geometry.label.left && x < geometry.label.right && y > geometry.label.top && y < geometry.label.bottom
+      // Se muestrean los tramos de la polilínea: ningún punto de la línea cae dentro de la etiqueta.
+      for (let index = 1; index < geometry.vertices.length; index += 1) {
+        const from = geometry.vertices[index - 1]!
+        const to = geometry.vertices[index]!
+        for (let step = 0; step <= 40; step += 1) {
+          const t = step / 40
+          expect(inside(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t), 'la línea cruza la etiqueta').toBe(
+            false,
+          )
+        }
+      }
+      for (const dot of geometry.dots) {
+        const overlaps =
+          dot.left < geometry.label.right &&
+          dot.right > geometry.label.left &&
+          dot.top < geometry.label.bottom &&
+          dot.bottom > geometry.label.top
+        expect(overlaps, 'un punto visible queda bajo la etiqueta').toBe(false)
+      }
+    })
+  }
 })
