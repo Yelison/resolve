@@ -40,7 +40,7 @@ describe('DonutChart', () => {
     expect(within(table).getByRole('cell', { hidden: true, name: '21,1 % · 26 tickets' })).toBeInTheDocument()
     const wrap = table.parentElement!
     expect(wrap).toHaveClass('visually-hidden')
-    await user.click(screen.getByRole('button', { name: 'Ver como tabla: Solicitudes por canal' }))
+    await user.click(screen.getByRole('button', { name: 'Ver como tabla de Solicitudes por canal' }))
     expect(wrap).not.toHaveClass('visually-hidden')
   })
 

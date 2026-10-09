@@ -1,0 +1,78 @@
+.bar {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Las marcas sobresalen 4 px de la barra por arriba y por abajo. */
+.track {
+  position: relative;
+  height: var(--space-8);
+  margin: var(--space-4) 0;
+  border-radius: var(--radius-small);
+  background: var(--color-progress-track);
+}
+
+.fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: var(--radius-small);
+  background: var(--color-chart-1);
+}
+
+.previous,
+.target {
+  position: absolute;
+  top: calc(var(--space-4) * -1);
+  bottom: calc(var(--space-4) * -1);
+  transform: translateX(-1px);
+}
+
+.previous {
+  border-left: 2px dashed var(--color-muted);
+}
+
+.target {
+  border-left: 2px solid var(--color-ink);
+}
+
+.marks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  white-space: nowrap;
+}
+
+.mark:last-child {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+
+.previousGlyph,
+.targetGlyph {
+  width: 0;
+  height: var(--space-12);
+}
+
+.previousGlyph {
+  border-left: 2px dashed var(--color-muted);
+}
+
+.targetGlyph {
+  border-left: 2px solid var(--color-ink);
+}

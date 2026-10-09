@@ -26,6 +26,8 @@ export interface LineChartProps {
   color?: 1 | 2 | 3 | 4
   /** Formatea los valores en el eje, el tooltip y la tabla; por defecto `toLocaleString('es')`. */
   valueFormatter?: (n: number) => string
+  /** Formatea las marcas del eje vertical (p. ej. sin la unidad); por defecto usa `valueFormatter`. */
+  tickFormatter?: (n: number) => string
   /** Texto junto al último punto (p. ej. «+10 pendientes»). Si falta no se muestra ninguno. */
   endLabel?: string
   /** Cabecera de la columna de valores en la tabla alternativa. Por defecto, «Valor». */
@@ -60,6 +62,7 @@ export function LineChart({
   points,
   color = 1,
   valueFormatter = defaultFormatter,
+  tickFormatter = valueFormatter,
   endLabel,
   valueColumn = 'Valor',
   className,
@@ -112,8 +115,10 @@ export function LineChart({
   const showAllDots = count <= MAX_VISIBLE_DOTS
   const polyline = points.map((point, index) => `${xOf(index)},${100 - heightOf(point.value)}`).join(' ')
   const lastHeight = heightOf(last.value)
-  // La etiqueta del final va encima del punto salvo que este quede arriba del todo.
-  const labelBelow = lastHeight > 80
+  // La etiqueta del final va en el lado donde no pasa la línea: debajo si la serie sube hacia el último punto, encima
+  // si baja; y al lado contrario si el punto queda pegado a ese borde del dibujo.
+  const rising = count < 2 || last.value >= points[count - 2]!.value
+  const labelBelow = rising ? lastHeight > 12 : lastHeight > 80
 
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     const target =
@@ -141,7 +146,7 @@ export function LineChart({
         <div className={styles.yAxis} aria-hidden="true">
           {scale.ticks.map((tick) => (
             <span key={tick} className={styles.yLabel} style={{ bottom: percent(heightOf(tick)) }}>
-              {valueFormatter(tick)}
+              {tickFormatter(tick)}
             </span>
           ))}
         </div>

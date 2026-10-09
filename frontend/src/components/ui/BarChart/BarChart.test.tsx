@@ -32,19 +32,19 @@ describe('BarChart', () => {
   it('el botón muestra y oculta la tabla', async () => {
     const user = userEvent.setup()
     render(<BarChart label="Solicitudes por día" series={series} points={points} />)
-    const button = screen.getByRole('button', { name: 'Ver como tabla: Solicitudes por día' })
+    const button = screen.getByRole('button', { name: 'Ver como tabla de Solicitudes por día' })
     const wrap = screen.getByRole('table', { hidden: true }).parentElement
     expect(button).toHaveAttribute('aria-expanded', 'false')
     expect(wrap).toHaveClass('visually-hidden')
 
     await user.click(button)
-    expect(screen.getByRole('button', { name: 'Ocultar tabla: Solicitudes por día' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Ocultar tabla de Solicitudes por día' })).toHaveAttribute(
       'aria-expanded',
       'true',
     )
     expect(wrap).not.toHaveClass('visually-hidden')
 
-    await user.click(screen.getByRole('button', { name: 'Ocultar tabla: Solicitudes por día' }))
+    await user.click(screen.getByRole('button', { name: 'Ocultar tabla de Solicitudes por día' }))
     expect(wrap).toHaveClass('visually-hidden')
   })
 

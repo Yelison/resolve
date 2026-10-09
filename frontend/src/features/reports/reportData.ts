@@ -6,7 +6,14 @@ import type {
   ReportRange,
   TicketChannel,
 } from '../../api/schema'
-import type { BarChartPoint, MetricTrend } from '../../components/ui'
+import type {
+  BarChartPoint,
+  DonutColor,
+  DonutSegment,
+  DotPlotRow,
+  LineChartPoint,
+  MetricTrend,
+} from '../../components/ui'
 import { memberStatusLabels } from '../../domain/member'
 import { formatWeekdayShort } from '../../lib/format'
 import { toCsv } from './csv'
@@ -163,3 +170,78 @@ export function agentsCsv(agents: ReportAgent[]): string {
     ]),
   )
 }
+
+/**
+ * Color de cada canal en los gráficos. Va con la entidad y no con su puesto: «Correo» es siempre la serie 1 aunque el
+ * canal con más volumen cambie de un periodo a otro.
+ */
+export const channelColors: Record<TicketChannel, DonutColor> = { email: 1, chat: 2, phone: 3, web: 4 }
+
+/** Segmentos del anillo de canales y su total, en el orden en que llegan (de mayor a menor volumen). */
+export function channelSegments(channels: ReportChannel[]): { segments: DonutSegment[]; total: number } {
+  return {
+    segments: channels.map((channel) => ({
+      id: channel.channel,
+      label: channelLabels[channel.channel],
+      value: channel.created,
+      color: channelColors[channel.channel],
+      valueText: channelValueText(channel),
+    })),
+    total: channels.reduce((sum, channel) => sum + channel.created, 0),
+  }
+}
+
+/** Valor con signo explícito y menos tipográfico: «+10», «0», «−3». */
+export const signedInteger = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '') + integer.format(Math.abs(n))
+
+/** «+10 pendientes», «0 pendientes», «−1 pendiente»: lo que se acumula respecto al comienzo del periodo. */
+export const pendingText = (n: number) => `${signedInteger(n)} ${Math.abs(n) === 1 ? 'pendiente' : 'pendientes'}`
+
+/** Solicitudes menos resueltos acumulados día a día: lo que el periodo suma (o resta) a los pendientes con que empezó. */
+export function cumulativePending(days: ReportDay[]): number[] {
+  let total = 0
+  return days.map((day) => (total += day.created - day.resolved))
+}
+
+/** Puntos de la línea de pendientes acumulados: uno por día, con la etiqueta corta según cuántos haya. */
+export function pendingPoints(days: ReportDay[]): LineChartPoint[] {
+  const totals = cumulativePending(days)
+  return days.map((day, index) => {
+    const date = calendarDate(day.date)
+    return {
+      key: day.date,
+      label: longDay.format(date),
+      shortLabel:
+        days.length <= WEEK
+          ? formatWeekdayShort(date)
+          : days.length <= MAX_DAILY_POINTS
+            ? String(date.getUTCDate())
+            : shortDay.format(date),
+      value: totals[index] ?? 0,
+    }
+  })
+}
+
+export interface AgentResponses {
+  /** Agentes con primera respuesta en el periodo, en el orden de la API. */
+  rows: DotPlotRow[]
+  /** Nombres de quienes no la tienen (`null`): no salen en el gráfico y se nombran en una nota. */
+  missing: string[]
+}
+
+/** Separa a los agentes con primera respuesta de quienes no tienen: un `null` no es 0 minutos y no puede dibujarse. */
+export function agentResponses(agents: ReportAgent[]): AgentResponses {
+  const rows: DotPlotRow[] = []
+  const missing: string[] = []
+  for (const agent of agents) {
+    if (agent.firstResponseMinutes === null) missing.push(agent.member.name)
+    else rows.push({ key: agent.member.id, label: agent.member.name, value: agent.firstResponseMinutes })
+  }
+  return { rows, missing }
+}
+
+const names = new Intl.ListFormat('es', { style: 'long', type: 'conjunction' })
+
+/** «Sin primeras respuestas en el periodo: Ana, Luis y Marta.» */
+export const missingResponsesNote = (missing: string[]) =>
+  `Sin primeras respuestas en el periodo: ${names.format(missing)}.`

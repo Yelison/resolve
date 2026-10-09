@@ -104,10 +104,50 @@
   color: var(--color-muted);
 }
 
-.channels {
+.chartBody {
   display: flex;
   flex-direction: column;
   gap: var(--space-16);
+  min-width: 0;
+}
+
+/* Alto reservado: la copia oculta y el contenido real comparten celda y manda el más alto (ver `Reserved`). */
+.reserved {
+  display: grid;
+  min-width: 0;
+}
+
+.reserve,
+.live {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.reserve {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.live {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.panelSkeleton {
+  flex: 1;
+}
+
+.subtitle {
+  font: var(--font-strong);
+  color: var(--color-ink);
+}
+
+.agentsChart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
 }
 
 .agents {
@@ -129,10 +169,10 @@
     gap: var(--space-24);
   }
 
-  /* Gráfico 2/3 y canales 1/3. */
+  /* Gráfico 2/3 y el panel de al lado 1/3, de la misma altura. */
   .panels {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-    align-items: start;
+    align-items: stretch;
   }
 
   .panel {

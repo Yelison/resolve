@@ -50,7 +50,7 @@ describe('LineChart', () => {
     expect(within(table).getByRole('columnheader', { hidden: true, name: 'Pendientes' })).toBeInTheDocument()
     expect(within(table).getByRole('rowheader', { hidden: true, name: 'martes, 29 sept' })).toBeInTheDocument()
     expect(within(table).getByRole('cell', { hidden: true, name: '9' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ver como tabla: Pendientes acumulados' }))
+    await user.click(screen.getByRole('button', { name: 'Ver como tabla de Pendientes acumulados' }))
     expect(table.parentElement).not.toHaveClass('visually-hidden')
   })
 
@@ -79,7 +79,7 @@ describe('LineChart', () => {
     await user.keyboard('{End}')
     expect(screen.getByRole('button', { name: 'miércoles, 30 sept: 10' })).toHaveFocus()
     await user.tab()
-    expect(screen.getByRole('button', { name: 'Ver como tabla: Pendientes acumulados' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Ver como tabla de Pendientes acumulados' })).toHaveFocus()
     await user.tab()
     expect(screen.getByRole('button', { name: 'Siguiente' })).toHaveFocus()
   })
