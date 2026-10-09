@@ -145,4 +145,53 @@ describe('LineChart', () => {
     expect(labels[labels.length - 1]).toHaveTextContent('90')
     expect(labels[labels.length - 1]!.style.right).toBe('0px')
   })
+
+  it('pone la etiqueta del final encima si la serie sube y debajo si baja, nunca sobre la línea', () => {
+    const endLabel = (container: HTMLElement) => container.querySelector('[class*="endLabel"]')!.className
+    const up = render(
+      <LineChart
+        label="Sube"
+        points={[5, 40, 10, 20].map((value, index) => ({ key: `u${index}`, label: `U${index}`, value }))}
+        endLabel="+20 pendientes"
+      />,
+    )
+    expect(endLabel(up.container)).not.toMatch(/endLabelBelow/)
+    const down = render(
+      <LineChart
+        label="Baja"
+        points={[
+          { key: 'a', label: 'A', value: 10 },
+          { key: 'b', label: 'B', value: 6 },
+          { key: 'c', label: 'C', value: 4 },
+        ]}
+        endLabel="4 pendientes"
+      />,
+    )
+    expect(endLabel(down.container)).toMatch(/endLabelBelow/)
+  })
+
+  it('si la serie sube y el punto queda arriba del todo, la etiqueta pasa debajo; si baja y queda abajo del todo, encima', () => {
+    const top = render(
+      <LineChart
+        label="Tope"
+        points={[
+          { key: 'a', label: 'A', value: 0 },
+          { key: 'b', label: 'B', value: 40 },
+        ]}
+        endLabel="x"
+      />,
+    )
+    expect(top.container.querySelector('[class*="endLabel"]')!.className).toMatch(/endLabelBelow/)
+    const bottom = render(
+      <LineChart
+        label="Suelo"
+        points={[
+          { key: 'a', label: 'A', value: 40 },
+          { key: 'b', label: 'B', value: 0 },
+        ]}
+        endLabel="x"
+      />,
+    )
+    expect(bottom.container.querySelector('[class*="endLabel"]')!.className).not.toMatch(/endLabelBelow/)
+  })
 })
