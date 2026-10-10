@@ -303,12 +303,12 @@ describe('missingResponsesNote', () => {
 })
 
 describe('statusSegments', () => {
-  it('da siempre Abierto, En curso y En espera, con los colores 1–3 y el total', () => {
+  it('da siempre Abierto, En progreso y Esperando cliente (los nombres de Tickets), con los colores 1–3 y el total', () => {
     const { segments, total } = statusSegments({ open: 9, inProgress: 14, waiting: 0 })
     expect(segments.map(({ label, value, color, valueText }) => [label, value, color, valueText])).toEqual([
       ['Abierto', 9, 1, '9'],
-      ['En curso', 14, 2, '14'],
-      ['En espera', 0, 3, '0'],
+      ['En progreso', 14, 2, '14'],
+      ['Esperando cliente', 0, 3, '0'],
     ])
     expect(total).toBe(23)
   })
@@ -350,6 +350,12 @@ describe('resolutionPoints', () => {
     const points = resolutionPoints([...sample])
     expect(points.map((point) => point.label)).toEqual(['< 1 h', '1–4 h', '4–8 h', '8–24 h', '1–3 d', '> 3 d'])
     expect(points.map((point) => point.values.resolved)).toEqual([24, 96, 78, 54, 36, 1])
+  })
+
+  it('el eje lleva la etiqueta compacta y el tooltip y la tabla, la completa', () => {
+    const points = resolutionPoints([...sample])
+    expect(points.map((point) => point.shortLabel)).toEqual(['<1h', '1–4h', '4–8h', '8–24h', '1–3d', '>3d'])
+    expect(points.map((point) => point.label)).toEqual(['< 1 h', '1–4 h', '4–8 h', '8–24 h', '1–3 d', '> 3 d'])
   })
 
   it('un tramo que falta cuenta como 0', () => {

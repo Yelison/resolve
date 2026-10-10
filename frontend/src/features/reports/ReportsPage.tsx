@@ -719,6 +719,7 @@ function ResolutionPanel({ data, className }: { data: ReportSummary; className?:
             points={resolutionPoints(data.resolutionTimes)}
             valueFormatter={integer.format}
             categoryColumn="Tiempo hasta resolver"
+            showEveryLabel
             focusable
           />
         ) : (

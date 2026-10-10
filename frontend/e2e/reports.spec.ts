@@ -366,6 +366,7 @@ test.describe('reportes', () => {
       'dom',
     ])
     await expect(heat.getByRole('grid').getByRole('columnheader')).toHaveText([
+      '',
       '0',
       '2',
       '4',
@@ -444,7 +445,11 @@ test.describe('reportes', () => {
       await expect(histogram.locator('[class*="axis"]', { hasText: label }).first()).toBeVisible()
     }
     const status = page.getByRole('region', { name: 'Estado de los abiertos' })
-    await expect(status.locator('[class*="live"] li')).toHaveText([/Abierto\s*9/, /En curso\s*14/, /En espera\s*5/])
+    await expect(status.locator('[class*="live"] li')).toHaveText([
+      /Abierto\s*9/,
+      /En progreso\s*14/,
+      /Esperando cliente\s*5/,
+    ])
     const priority = page.getByRole('region', { name: 'Prioridad de los abiertos' })
     await expect(priority.locator('[class*="live"] li')).toHaveText([
       /Urgente\s*2/,
@@ -584,6 +589,68 @@ test.describe('reportes', () => {
       await expect(page.getByText(/frente a los 30 días anteriores/)).toBeVisible()
       expect(await topOf(page, 'report-panels-open')).toBeCloseTo(before.open, 0)
       expect(await topOf(page, 'report-heatmap')).toBeCloseTo(before.heat, 0)
+    })
+  }
+
+  for (const theme of ['light', 'dark']) {
+    for (const width of [320, 1200, 1366]) {
+      test(`el histograma muestra las etiquetas de sus seis tramos, sin cruzarse ni salirse · ${theme} · ${width}px`, async ({
+        page,
+      }) => {
+        await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto('/reportes')
+        const histogram = page.getByRole('group', { name: 'Cuánto tarda la resolución' })
+        await expect(histogram).toBeVisible()
+        const labels = await histogram.evaluate((plot) =>
+          [...plot.querySelectorAll<HTMLElement>('[class*="axis"]:not([class*="axisRow"])')].map((el) => {
+            // Se mide el texto (Range): la caja del span puede ser más estrecha que el texto que centra.
+            const range = document.createRange()
+            range.selectNodeContents(el)
+            const { left, right } = range.getBoundingClientRect()
+            return { text: el.textContent, left, right }
+          }),
+        )
+        expect(labels.map((label) => label.text)).toEqual(['<1h', '1–4h', '4–8h', '8–24h', '1–3d', '>3d'])
+        const panel = await histogram.evaluate((plot) => {
+          const { left, right } = plot.closest('section')!.getBoundingClientRect()
+          return { left, right }
+        })
+        labels.forEach((label, index) => {
+          expect(label.left, `«${label.text}» dentro del panel`).toBeGreaterThanOrEqual(panel.left)
+          expect(label.right, `«${label.text}» dentro del panel`).toBeLessThanOrEqual(panel.right)
+          if (index > 0)
+            expect(label.left, `«${label.text}» no cruza a su vecina`).toBeGreaterThanOrEqual(labels[index - 1]!.right)
+        })
+        // El tooltip y la tabla conservan el nombre completo.
+        await expect(histogram.getByRole('button', { name: /^< 1 h: \d+$/ })).toBeVisible()
+      })
+    }
+
+    test(`las celdas del primer paso llevan el contorno de línea y las del último no · ${theme}`, async ({ page }) => {
+      await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.goto('/reportes')
+      const grid = page.getByRole('grid', { name: 'Cuándo llegan las solicitudes' })
+      await expect(grid).toBeVisible()
+      const colors = await grid.evaluate((element) => {
+        const probe = document.createElement('div')
+        document.body.append(probe)
+        // `--color-line` resuelto por el navegador, en el mismo formato que `border-top-color`.
+        probe.style.borderTopColor = 'var(--color-line)'
+        probe.style.borderTopStyle = 'solid'
+        const line = getComputedStyle(probe).borderTopColor
+        probe.remove()
+        const border = (step: string) => {
+          const cell = element.querySelector(`[data-step="${step}"]`)
+          return cell ? getComputedStyle(cell).borderTopColor : null
+        }
+        return { line, step1: border('1'), step2: border('2'), step4: border('4') }
+      })
+      expect(colors.step1, 'hay celdas del paso 1').not.toBeNull()
+      expect(colors.step1).toBe(colors.line)
+      expect(colors.step2).toBe(colors.line)
+      expect(colors.step4, 'el paso más intenso no lleva contorno de línea').not.toBe(colors.line)
     })
   }
 

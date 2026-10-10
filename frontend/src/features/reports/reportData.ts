@@ -20,7 +20,7 @@ import type {
   LineChartPoint,
   MetricTrend,
 } from '../../components/ui'
-import { ticketPriority } from '../../components/ui'
+import { ticketPriority, ticketStatus } from '../../components/ui'
 import { memberStatusLabels } from '../../domain/member'
 import { formatWeekdayShort } from '../../lib/format'
 import { toCsv } from './csv'
@@ -253,14 +253,17 @@ const names = new Intl.ListFormat('es', { style: 'long', type: 'conjunction' })
 export const missingResponsesNote = (missing: string[]) =>
   `Sin primeras respuestas en el periodo: ${names.format(missing)}.`
 
-/** Estado de los tickets abiertos: color fijo por estado (series 1–3), igual que los canales. */
+/**
+ * Estado de los tickets abiertos: color fijo por estado (series 1–3), igual que los canales. Los nombres son los de
+ * Tickets (`ticketStatus`), para que el mismo estado se llame igual en toda la aplicación.
+ */
 const openStatuses = [
-  { key: 'open', label: 'Abierto', color: 1 },
-  { key: 'inProgress', label: 'En curso', color: 2 },
-  { key: 'waiting', label: 'En espera', color: 3 },
+  { key: 'open', label: ticketStatus.open.label, color: 1 },
+  { key: 'inProgress', label: ticketStatus.in_progress.label, color: 2 },
+  { key: 'waiting', label: ticketStatus.waiting.label, color: 3 },
 ] as const satisfies readonly { key: keyof ReportStatusCounts; label: string; color: DonutColor }[]
 
-/** Segmentos del anillo de estado y su total, siempre Abierto, En curso y En espera (los de valor 0 solo salen en la leyenda). */
+/** Segmentos del anillo de estado y su total, siempre Abierto, En progreso y Esperando cliente (los de valor 0 solo salen en la leyenda). */
 export function statusSegments(counts: ReportStatusCounts): { segments: DonutSegment[]; total: number } {
   const segments = openStatuses.map(({ key, label, color }) => ({
     id: key,
@@ -296,20 +299,24 @@ export function prioritySegments(counts: ReportPriorityCounts): { segments: Donu
 }
 
 /** Tramos del histograma de resolución: su orden y su rótulo no dependen del orden en que lleguen. */
-const resolutionBuckets: { bucket: ReportResolutionBucket['bucket']; label: string }[] = [
-  { bucket: 'under1h', label: '< 1 h' },
-  { bucket: 'from1To4h', label: '1–4 h' },
-  { bucket: 'from4To8h', label: '4–8 h' },
-  { bucket: 'from8To24h', label: '8–24 h' },
-  { bucket: 'from1To3d', label: '1–3 d' },
-  { bucket: 'over3d', label: '> 3 d' },
+const resolutionBuckets: { bucket: ReportResolutionBucket['bucket']; label: string; shortLabel: string }[] = [
+  { bucket: 'under1h', label: '< 1 h', shortLabel: '<1h' },
+  { bucket: 'from1To4h', label: '1–4 h', shortLabel: '1–4h' },
+  { bucket: 'from4To8h', label: '4–8 h', shortLabel: '4–8h' },
+  { bucket: 'from8To24h', label: '8–24 h', shortLabel: '8–24h' },
+  { bucket: 'from1To3d', label: '1–3 d', shortLabel: '1–3d' },
+  { bucket: 'over3d', label: '> 3 d', shortLabel: '>3d' },
 ]
 
-/** Un punto por tramo, en el orden fijo de menos a más tiempo; un tramo que falta cuenta como 0. */
+/**
+ * Un punto por tramo, en el orden fijo de menos a más tiempo; un tramo que falta cuenta como 0. El eje lleva la etiqueta
+ * compacta («<1h») para que quepan los seis tramos; el tooltip y la tabla, la completa («< 1 h»).
+ */
 export function resolutionPoints(buckets: ReportResolutionBucket[]): BarChartPoint[] {
-  return resolutionBuckets.map(({ bucket, label }) => ({
+  return resolutionBuckets.map(({ bucket, label, shortLabel }) => ({
     key: bucket,
     label,
+    shortLabel,
     values: { resolved: buckets.find((item) => item.bucket === bucket)?.resolved ?? 0 },
   }))
 }

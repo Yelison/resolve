@@ -171,4 +171,36 @@ describe('Heatmap', () => {
     renderMap()
     expect(screen.getByRole('table', { hidden: true })).toHaveClass('wide')
   })
+
+  it('es de solo lectura y cada fila, con la cabecera, tiene una celda por columna más la de la cabecera', () => {
+    renderMap()
+    const grid = screen.getByRole('grid')
+    expect(grid).toHaveAttribute('aria-readonly', 'true')
+    const rowsOfGrid = within(grid).getAllByRole('row')
+    expect(rowsOfGrid).toHaveLength(3)
+    // La esquina es una cabecera de columna con el nombre de la columna de filas: las filas de datos y la de cabecera miden lo mismo.
+    expect(rowsOfGrid.map((row) => row.children.length)).toEqual([4, 4, 4])
+    expect(within(rowsOfGrid[0]!).getByRole('columnheader', { name: 'Día' })).toBeInTheDocument()
+    expect(within(rowsOfGrid[1]!).getAllByRole('gridcell')).toHaveLength(3)
+  })
+
+  it('si la cuadrícula se encoge, la celda activa se acota y sigue habiendo una parada de Tab', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderMap()
+    await user.tab()
+    await user.keyboard('{Control>}{End}{/Control}')
+    await user.tab()
+    rerender(
+      <Heatmap
+        label="Cuándo llegan las solicitudes"
+        rows={rows.slice(0, 1)}
+        columns={columns.slice(0, 2)}
+        values={[[5, 6]]}
+      />,
+    )
+    const cells = screen.getAllByRole('gridcell')
+    expect(cells).toHaveLength(2)
+    expect(cells.filter((cell) => cell.tabIndex === 0)).toHaveLength(1)
+    expect(cells[1]!.tabIndex).toBe(0)
+  })
 })

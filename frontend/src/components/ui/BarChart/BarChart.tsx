@@ -43,6 +43,12 @@ export interface BarChartProps {
   points: BarChartPoint[]
   /** Formatea los valores en cifras, títulos y tabla; por defecto `toLocaleString('es')` */
   valueFormatter?: (n: number) => string
+  /**
+   * Muestra la etiqueta de cada punto en el eje, sin aclararlo. Pensado para pocas categorías (p. ej. los seis tramos de
+   * un histograma), donde cada etiqueta es imprescindible; la etiqueta se centra bajo su barra y puede sobresalir un
+   * poco hacia las separaciones vecinas. Por defecto, `false`: el eje muestra una etiqueta cada *k* puntos.
+   */
+  showEveryLabel?: boolean
   /** Cabecera de la primera columna de la tabla alternativa. Por defecto, «Periodo». */
   categoryColumn?: string
   /**
@@ -102,6 +108,7 @@ export function BarChart({
   points,
   valueFormatter = defaultFormatter,
   categoryColumn = 'Periodo',
+  showEveryLabel = false,
   focusable = false,
   className,
 }: BarChartProps) {
@@ -134,10 +141,9 @@ export function BarChart({
   const columnWidth = Math.min(COLUMN_MAX, ((plotWidth ?? FALLBACK_WIDTH) - gap * (count - 1)) / count)
   const longest = (texts: string[]) => Math.max(...texts.map((text) => text.length))
   const axisLabelOf = (point: BarChartPoint) => point.shortLabel ?? point.label
-  const axisStep = Math.max(
-    1,
-    Math.ceil((longest(points.map(axisLabelOf)) * GLYPH_WIDTH + LABEL_PADDING) / (columnWidth + gap)),
-  )
+  const axisStep = showEveryLabel
+    ? 1
+    : Math.max(1, Math.ceil((longest(points.map(axisLabelOf)) * GLYPH_WIDTH + LABEL_PADDING) / (columnWidth + gap)))
   const showValues =
     single &&
     columnWidth >=
@@ -229,7 +235,7 @@ export function BarChart({
             index % axisStep === 0 && count - index >= axisStep ? (
               <span
                 key={point.key}
-                className={cx(styles.axis, axisStep > 1 && styles.axisSparse)}
+                className={cx(styles.axis, (axisStep > 1 || showEveryLabel) && styles.axisSparse)}
                 style={{ gridColumn: index + 1 }}
               >
                 {axisLabelOf(point)}

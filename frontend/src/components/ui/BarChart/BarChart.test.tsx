@@ -218,4 +218,19 @@ describe('BarChart con muchos puntos', () => {
     await user.tab()
     expect(screen.getByRole('button', { name: 'Martes: 61' })).toHaveFocus()
   })
+
+  it('con `showEveryLabel` el eje muestra todas las etiquetas aunque no quepan con holgura', () => {
+    const many = Array.from({ length: 6 }, (_, index) => ({
+      key: String(index),
+      label: `Tramo largo ${index}`,
+      shortLabel: `T${index}`,
+      values: { requests: index + 1 },
+    }))
+    const axis = (container: HTMLElement) =>
+      [...container.querySelectorAll('[class*="axis"]:not([class*="axisRow"])')].map((el) => el.textContent)
+    const { container, rerender } = render(<BarChart label="Tramos" series={series} points={many} showEveryLabel />)
+    expect(axis(container)).toEqual(['T0', 'T1', 'T2', 'T3', 'T4', 'T5'])
+    rerender(<BarChart label="Tramos" series={series} points={many} />)
+    expect(axis(container).length).toBeLessThanOrEqual(6)
+  })
 })

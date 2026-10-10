@@ -356,7 +356,7 @@ describe('ReportsPage', () => {
       mockApi(baseRoutes)
       renderReports()
       const donut = await screen.findByRole('img', { name: 'Estado de los abiertos' })
-      expect(donut).toHaveAccessibleDescription(/Abierto 9; En curso 14; En espera 5/)
+      expect(donut).toHaveAccessibleDescription(/Abierto 9; En progreso 14; Esperando cliente 5/)
       expect(within(donut).getByText('28')).toBeInTheDocument()
       expect(within(donut).getByText('abiertos')).toBeInTheDocument()
       expect(
@@ -386,6 +386,11 @@ describe('ReportsPage', () => {
           .getAllByRole('button')
           .map((button) => button.getAttribute('aria-label')),
       ).toEqual(['< 1 h: 24', '1–4 h: 96', '4–8 h: 78', '8–24 h: 54', '1–3 d: 36', '> 3 d: 12'])
+      // El eje usa las etiquetas compactas; el nombre accesible y la tabla, las completas.
+      expect(chart.querySelectorAll('[class*="axis"]:not([class*="axisRow"])')).toHaveLength(6)
+      expect(
+        [...chart.querySelectorAll('[class*="axis"]:not([class*="axisRow"])')].map((el) => el.textContent),
+      ).toEqual(['<1h', '1–4h', '4–8h', '8–24h', '1–3d', '>3d'])
       await userEvent.click(screen.getByRole('button', { name: 'Ver como tabla de Cuánto tarda la resolución' }))
       const table = screen.getByRole('table', { name: 'Cuánto tarda la resolución' })
       expect(within(table).getByRole('columnheader', { name: 'Tiempo hasta resolver' })).toBeInTheDocument()
@@ -401,7 +406,8 @@ describe('ReportsPage', () => {
           .getAllByRole('rowheader')
           .map((header) => header.textContent),
       ).toEqual(['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'])
-      expect(within(grid).getAllByRole('columnheader')).toHaveLength(12)
+      // Doce franjas y la esquina («Día»), que da a cada fila el mismo número de celdas.
+      expect(within(grid).getAllByRole('columnheader')).toHaveLength(13)
       expect(within(grid).getAllByRole('gridcell')).toHaveLength(84)
       // Lunes 9 h (60) cae en la franja de 8 a 10 h y lunes 10 h (52) en la de 10 a 12 h.
       expect(within(grid).getByRole('gridcell', { name: 'lun 8–10 h: 60 solicitudes' })).toBeInTheDocument()

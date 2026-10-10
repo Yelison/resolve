@@ -69,6 +69,11 @@ export function Heatmap({
   const tableId = useId()
   const cells = useRef(new Map<string, HTMLElement>())
   const [active, setActive] = useState({ row: 0, column: 0 })
+  // Si la cuadrícula se encoge, la celda activa se acota a la nueva: el mapa nunca se queda sin parada de Tab.
+  const current = {
+    row: Math.min(active.row, Math.max(0, rows.length - 1)),
+    column: Math.min(active.column, Math.max(0, columns.length - 1)),
+  }
   const valueAt = (row: number, column: number) => values[row]?.[column] ?? 0
   const max = Math.max(0, ...rows.flatMap((_, row) => columns.map((_, column) => valueAt(row, column))))
 
@@ -103,7 +108,7 @@ export function Heatmap({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const { row, column } = active
+    const { row, column } = current
     const last = { row: rows.length - 1, column: columns.length - 1 }
     const target: Record<string, [number, number]> = {
       ArrowRight: [row, column + 1],
@@ -129,6 +134,7 @@ export function Heatmap({
           className={styles.grid}
           role="grid"
           aria-label={label}
+          aria-readonly="true"
           aria-describedby={`${tableId}-summary`}
           aria-details={tableId}
           aria-rowcount={rows.length + 1}
@@ -136,7 +142,7 @@ export function Heatmap({
           onKeyDown={onKeyDown}
         >
           <div className={styles.row} role="row">
-            <span className={styles.corner} role="presentation" />
+            <span className={styles.corner} role="columnheader" aria-label={rowColumn} />
             {columns.map((column) => (
               <span key={column.key} className={styles.columnHeader} role="columnheader" aria-label={nameOf(column)}>
                 {column.label}
@@ -151,7 +157,7 @@ export function Heatmap({
               {columns.map((column, columnIndex) => {
                 const value = valueAt(rowIndex, columnIndex)
                 const step: HeatStep = heatStep(value, max)
-                const current = active.row === rowIndex && active.column === columnIndex
+                const isActive = current.row === rowIndex && current.column === columnIndex
                 const text = describe(rowIndex, columnIndex)
                 return (
                   <Tooltip key={column.key} placement="bottom-start" describe={false} content={text}>
@@ -160,7 +166,7 @@ export function Heatmap({
                         className={cx(styles.cell, styles[`step${step}`])}
                         role="gridcell"
                         aria-label={text}
-                        tabIndex={current ? 0 : -1}
+                        tabIndex={isActive ? 0 : -1}
                         data-step={step}
                         {...trigger}
                         ref={(node) => {
