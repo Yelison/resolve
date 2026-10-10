@@ -223,14 +223,15 @@ describe('BarChart con muchos puntos', () => {
     const many = Array.from({ length: 6 }, (_, index) => ({
       key: String(index),
       label: `Tramo largo ${index}`,
-      shortLabel: `T${index}`,
+      // Unos 10 caracteres: a 300 px (sin medida en jsdom) no caben con holgura y el eje, sin el prop, se aclara.
+      shortLabel: `Tramo ${index}-xx`,
       values: { requests: index + 1 },
     }))
     const axis = (container: HTMLElement) =>
       [...container.querySelectorAll('[class*="axis"]:not([class*="axisRow"])')].map((el) => el.textContent)
     const { container, rerender } = render(<BarChart label="Tramos" series={series} points={many} showEveryLabel />)
-    expect(axis(container)).toEqual(['T0', 'T1', 'T2', 'T3', 'T4', 'T5'])
+    expect(axis(container)).toHaveLength(6)
     rerender(<BarChart label="Tramos" series={series} points={many} />)
-    expect(axis(container).length).toBeLessThanOrEqual(6)
+    expect(axis(container).length).toBeLessThan(6)
   })
 })
