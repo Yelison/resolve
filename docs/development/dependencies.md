@@ -63,6 +63,25 @@ workflow never skips them, and a failing check leaves the pull request open. Its
 Prerequisites, in the repository settings: «Allow auto-merge» and «Allow rebase merging» are on (checked on
 2026-10-10), and the ruleset has required status checks. Without them `--auto` has nothing to wait for.
 
-A merge made with the workflow's `GITHUB_TOKEN` does not start new workflow runs: GitHub does not trigger workflows from
-events created with that token. Anything that must run after the merge on `main` has to be started by hand (or by a
-trigger that does not depend on the push).
+### Synchronising inside a Dependabot pull request
+
+A patch that changes tokens fails `tokens.sync.test.ts` and stays open, but `--auto` was already enabled when the workflow
+ran. GitHub only turns auto-merge off when someone **without** write permissions pushes to the head branch, so if the
+owner pushes the `npm run sync:forma-tokens` result to that branch, GitHub merges as soon as the checks pass, without
+another review. Before synchronising there, disable it:
+
+```sh
+gh pr merge --disable-auto <number>
+```
+
+or run the synchronisation in a pull request of your own and close the Dependabot one. Look at the visual change either way.
+
+### Limitation: a merge made with `GITHUB_TOKEN`
+
+GitHub does not start new workflow runs from events created with the workflow's `GITHUB_TOKEN`. If that also covers the merge
+that `--auto` performs (not verified here, it needs the first real patch), the automatic merge would not trigger what runs
+on `push` to `main`: `ci.yml` and `pages.yml` (Pages, the static demo), and therefore not `deploy.yml` either, which starts
+from the `workflow_run` of `ci.yml`. The pull request's own checks do run before the merge, because they come from
+Dependabot's `pull_request` event. If that turns out to be the case, the options are a GitHub App token or a personal
+access token for the merge step (it needs a secret, so it is the owner's call), or starting those workflows by hand after
+an automatic merge. Nothing in the repository settings or in the other workflows was changed for this.
