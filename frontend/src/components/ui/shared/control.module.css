@@ -18,7 +18,7 @@
   opacity: 1;
 }
 
-.control:hover:not(:disabled, :focus) {
+.control:hover:not(:disabled, :focus, [readonly]) {
   background: var(--color-surface-hover);
 }
 
@@ -36,8 +36,22 @@
   outline-color: var(--color-red-ink);
 }
 
+/* Solo lectura no es deshabilitado: el valor sigue legible, seleccionable y enfocable, así que conserva el color del texto
+   y cambia el estilo del borde, que no depende solo del color. Es la regla de `Input` del paquete: Select y Textarea
+   (y Combobox) tienen el mismo aspecto. */
+.control[readonly] {
+  border-style: dashed;
+  background: var(--color-bg);
+}
+
 .control:disabled {
   background: var(--color-bg);
   color: var(--color-muted);
   cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control {
+    transition: none;
+  }
 }

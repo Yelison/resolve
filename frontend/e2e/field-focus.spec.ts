@@ -38,3 +38,32 @@ for (const scheme of ['light', 'dark'] as const) {
     }
   })
 }
+
+/** El buscador comparte barra con selectores: los dos enfocan con el mismo anillo (ADR 0002: ya no queda ningún campo de 1 px). */
+for (const scheme of ['light', 'dark'] as const) {
+  test(`el buscador y los selectores de la barra de filtros de /tickets enfocan con el mismo anillo · ${scheme}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: scheme })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
+
+    const search = page.getByRole('searchbox')
+    const select = page.getByRole('combobox').first()
+    const ringOf = (selector: 'search' | 'select') => async () => {
+      const target = selector === 'search' ? search : select
+      await target.focus()
+      await expect(target).toBeFocused()
+      // El anillo del buscador lo dibuja su contenedor (`label`), no el `input`.
+      return target.evaluate((el, own) => {
+        const { outlineWidth, outlineStyle } = getComputedStyle(own === 'search' ? (el.closest('label') ?? el) : el)
+        return { outlineWidth, outlineStyle }
+      }, selector)
+    }
+    const searchRing = await ringOf('search')()
+    const selectRing = await ringOf('select')()
+    expect(selectRing).toEqual({ outlineWidth: '2px', outlineStyle: 'solid' })
+    expect(searchRing).toEqual(selectRing)
+  })
+}

@@ -60,8 +60,15 @@ has to change something a component sets (for example `.header .toggle` on the s
    application (`e2e/shell.spec.ts` for the sidebar, `e2e/production-bundle.spec.ts` for the search dialog, which fails when a
    Resolve class sets a property that the package sets later).
 
-Today the only Resolve class that overrides a package property is the sidebar's; `GlobalSearch`'s `.dialog` only defines a
-custom property of its own.
+Today two Resolve classes override a package property, and both follow rule 2:
+
+- the sidebar's (`.header .toggle…`, on the `IconButton`);
+- `.periodField` of Reports (`features/reports/ReportsPage.module.css`), which reaches the package's `.forma-field` through the
+  `fieldClassName` of `Select` and overrides its `min-width`. It is written as `.toolbar .periodField`, so it wins by
+  specificity and not only by order.
+
+`GlobalSearch`'s `.dialog` only defines a custom property of its own, and the other classes that reach a `Select`
+(`.sort`, `.select`) only set `flex`, which the package does not set.
 
 ## The theme
 

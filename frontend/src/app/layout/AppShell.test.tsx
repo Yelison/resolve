@@ -73,13 +73,13 @@ describe('AppShell en móvil', () => {
     const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
     await within(drawer).findByText('Yelisson Ortiz')
     expect(menuButton).toHaveAttribute('aria-expanded', 'true')
-    expect(document.documentElement).toHaveClass('scroll-locked')
+    expect(document.documentElement).toHaveClass('forma-scroll-locked')
 
     await userEvent.click(within(drawer).getByRole('link', { name: 'Clientes' }))
     expect(router.state.location.pathname).toBe('/clientes')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('main')).toHaveFocus()
-    expect(document.documentElement).not.toHaveClass('scroll-locked')
+    expect(document.documentElement).not.toHaveClass('forma-scroll-locked')
   })
 
   it('cierra el drawer con su botón', async () => {

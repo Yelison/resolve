@@ -18,9 +18,10 @@ Forma UI extracted the components listed above. It kept their public API and beh
 
 ## The readiness criteria of 0001, measured at the adoption commit
 
-The table below is measured at `4f05c10`, the last commit of the code of the adoption pull request, with 0001's
-method (the commits after it only touch documentation; the pull request is squash-merged, so that hash lives on the
-branch). The script is `measure-adr.mjs` in the task evidence; what each column means:
+The table below is measured on the code of the adoption pull request (this PR), with 0001's method; the commit that
+squash-merges it carries its number. The pull request changes nothing the columns look at after the measurement
+(documentation, tests and the CSS of the field controls only). The script is `measure-adr.mjs` in the task evidence;
+what each column means:
 
 - **Areas:** the folders of `frontend/src/features/*` with a non-test file that imports the component from
   `components/ui` (the shell, `app/pages` and `/catalogo` do not count).
@@ -31,7 +32,7 @@ branch). The script is `measure-adr.mjs` in the task evidence; what each column 
   counts `TooltipProps` and `TooltipTriggerProps`).
 - **No domain types:** the package's published modules import only `react` and their own modules.
 - **Token-only values:** `px` literals in the published `styles.css`, with 0001's exclusions (borders, outlines,
-  offsets of 1–2 px, breakpoints).
+  offsets of 1–2 px, breakpoints) and the distances of animations (see criterion 4 below).
 - **Test and catalog:** a test file of its own in the package at the `@yelison/forma-ui@0.1.0` tag, and a `<Component>` in
   Resolve's catalog (`/catalogo`, development build).
 
@@ -44,7 +45,7 @@ branch). The script is `measure-adr.mjs` in the task evidence; what each column 
 | Input | 5 | no (package 0.1.0, no earlier release) | 5/5 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
 | Icon | 4 | no (package 0.1.0, no earlier release) | 3/3 | yes (imports only react and its own modules) | yes (no CSS of its own: size by prop, 20 px by default) | test: yes; catalog: yes |
 | Tooltip | 1 | no (package 0.1.0, no earlier release) | 11/11 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
-| Modal (Dialog) | 5 | no (package 0.1.0, no earlier release) | 8/8 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
+| Modal (Dialog) | 5 | no (package 0.1.0, no earlier release) | 8/8 | yes (imports only react and its own modules) | yes (no size literals; one 8 px animation offset, a motion exception) | test: yes; catalog: yes |
 
 For reference, the measurement at `c3f02f8` found the following failures:
 - **Stability:** every component failed criterion 1's stability clause.
@@ -61,7 +62,7 @@ For reference, the measurement at `c3f02f8` found the following failures:
   - IconButton is used in 2 areas (Customers and Team), but it lives in Button's file and shares its tokens and styles.
 
   The three travel as dependencies of components that qualify. None of them is adopted on its own merit.
-- **Criterion 4.** Every literal size became a token in Forma UI with the same value: `--spinner-size`, `--badge-min-height`, `--tooltip-max-width`, `--dialog-width`, `--dialog-width-wide` and the `--z-*` scale. Nothing shifts visually. The one `px` literal left in the published CSS is `--icon-size: 20px`, a custom property local to `IconButton` (the size of its icons, the default of `Icon`).
+- **Criterion 4.** Every literal size became a token in Forma UI with the same value: `--spinner-size`, `--badge-min-height`, `--tooltip-max-width`, `--dialog-width`, `--dialog-width-wide` and the `--z-*` scale. Nothing shifts visually. The `px` literals left in the published CSS are `--icon-size: 20px`, a custom property local to `IconButton` (the size of its icons, the default of `Icon`), and the `translateY(8px)` of the `@keyframes forma-dialog__enter`, the entrance of the dialog. That 8 px is a motion exception, like the borders and the 1–2 px offsets: a distance travelled by an animation, not a size of a box, and 0001's measurement did not count it either (`Modal.module.css` already had it).
 - **Criterion 5.**
   - **Tests:** every component has its own test file in Forma UI, plus browser tests.
   - **Catalog:** the catalog requirement becomes «an entry in `/catalogo` (development build)». The `ui-copy` work keeps `/catalogo` only in development builds, and the parity test still applies there. Field still has no entry of its own: it is a dependency of Input and of Resolve's Select, Textarea and Combobox, and its label, hint and error show in every specimen of those.
@@ -112,11 +113,11 @@ For reference, the measurement at `c3f02f8` found the following failures:
 
 Comparing the computed style of the whole page, before and after, in both themes at 1440 and 390 px (`/catalogo`, tickets, a ticket, customers, team with the invite dialog open, settings and the global search, with hover and focus states and the sidebar tooltips), the package introduces these differences, decided by the owner:
 
-- **The focus ring of the fields goes from 1 px to 2 px.** Resolve drew `outline: 1px solid var(--color-focus)`; the package's control draws `outline: var(--focus-ring)` (`2px solid`, the token the buttons use). So that no form mixes both, Resolve's own `Select`, `Textarea` and `Combobox` use the same token in this pull request (`shared/control.module.css`): the focus of every field is 2 px, like the buttons'. `Combobox`'s list option rows keep their own rule, and `SearchField` keeps its 1 px ring until it moves to the same token. The border colour and the offset (0) do not change.
-- **Read-only fields** get a dashed border and the `--color-bg` background (`.forma-field-control[readonly]`), by Forma UI's rule that loading, disabled and read-only are different states. It will be the look of read-only fields the day they exist; Resolve uses no `readOnly` today.
-- **`prefers-reduced-motion` is respected:** the control's colour transition is removed for users who ask for it, as `Button` and `Dialog` already do.
+- **The focus ring of the fields goes from 1 px to 2 px.** Resolve drew `outline: 1px solid var(--color-focus)`; the package's control draws `outline: var(--focus-ring)` (`2px solid`, the token the buttons use). So that no form mixes both, Resolve's own `Select`, `Textarea` and `Combobox` use the same token in this pull request (`shared/control.module.css`): the focus of every field is 2 px, like the buttons'. `SearchField`, which shares the filter bars of tickets, customers and the knowledge base with `Select`, moves to the same token too (owner decision: «2 px en todos»), so no field control keeps a 1 px ring: `Input`, `Select`, `Textarea`, `Combobox` and `SearchField` focus with `--focus-ring`, and a test measures them side by side in the build. `Combobox`'s list option rows keep their own rule (already 2 px). The editor's frame (`.editor:has(textarea:focus-visible)` in `Editor.module.css`) is not a field control and still draws 1 px; it is left for a later decision. The border colour and the offset (0) do not change.
+- **Read-only fields** get a dashed border and the `--color-bg` background (`.forma-field-control[readonly]`), by Forma UI's rule that loading, disabled and read-only are different states. It will be the look of read-only fields the day they exist; Resolve uses no `readOnly` today. Resolve's own control box (`Select`, `Textarea`, `Combobox`) adopts the same rule, so it does not depend on the component: `shared/control.parity.test.ts` compares the declarations of every control rule of the package with Resolve's copy.
+- **`prefers-reduced-motion` is respected:** the control's colour transition is removed for users who ask for it, as `Button` and `Dialog` already do; Resolve's control box has the same rule.
 
-Nothing else differs: the only changes in the measurement besides the above are the clock and animated elements (spinners and skeletons), and the name of the dialog's `@keyframes` (`forma-dialog__enter`), with the same duration and frames.
+Nothing else differs, measured twice: on the development server with all the properties the first round chose, and on the production build (a showcase build of the base and of the branch, side by side) with every computed property, the box, the attributes and the pseudo-elements of each node, in both themes at 1440 and 390 px. The only changes besides the above are the clock and animated elements (spinners and skeletons) and the name of the dialog's `@keyframes` (`forma-dialog__enter`), with the same duration and frames.
 
 ## Consequences
 
@@ -124,4 +125,5 @@ Nothing else differs: the only changes in the measurement besides the above are 
 - **The version Resolve runs is explicit.** A change Resolve needs waits for a Forma UI release, or takes the urgent path above. Exact pinning keeps the running version visible.
 - **Domain and shell components stay here, under 0001.** That covers TicketRow, Message, Editor, Timeline, Sidebar, Topbar and the rest of the catalog. The next families to extract (Checkbox, Switch, Tabs, NavItem) will be measured against 0001's criteria and recorded by amending this ADR.
 - **0001 is marked «Superseded in part by 0002»** for the eight components above, in the same pull request.
-- **Two scroll locks.** The dialog of the package locks the page scroll with its own counter and class (`forma-scroll-locked`, from `base.css`), and Resolve's `lib/scrollLock` (`scroll-locked`) still serves the mobile drawer. Both only hide the overflow, so they do not fight; when a dialog opens over the open drawer (the account menu lives in the drawer on mobile) the scrollbar compensation of the page may be released by whichever closes first. It is not covered by a test and only affects a page with a classic scrollbar behind an inert drawer; if it ever matters, the drawer moves to the package's `useScrollLock`.
+- **One scroll lock.** The drawer of the shell (`shared/useModalDialog.ts`) locks the page scroll with the package's public `useScrollLock`, the same counter and the same class (`forma-scroll-locked`, from `base.css`) as the package's `Dialog`. A dialog opened over the open drawer (the account menu lives in the drawer on mobile) and closed again leaves the lock and the scrollbar compensation as the drawer needs them; an e2e with classic scrollbars checks it. Resolve's own `lib/scrollLock` and `html.scroll-locked` are gone.
+- **Copies of helpers the package does not export.** Until the drawer and `Menu` have a counterpart in the package, Resolve keeps its own `useModalDialog` (the drawer's, which also uses the package's `useScrollLock`) and its own `useFloating` and `position` (for `Menu`), next to the copies inside the package's `Dialog` and `Tooltip`. They are part of the initial JavaScript and the reason it does not shrink with the extraction.
