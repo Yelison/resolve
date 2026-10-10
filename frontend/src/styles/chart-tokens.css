@@ -1,0 +1,40 @@
+/* Colores de los gráficos: capa propia de Resolve, fuera del `tokens.css` generado desde `@yelison/forma-ui`.
+ * Se quedan aquí hasta que Forma UI tenga gráficos. Misma estructura de bloques que `tokens.css` (claro, oscuro por
+ * preferencia del sistema y oscuro por `data-theme`), para que `tokens.contrast.test.ts` los lea igual y compruebe que
+ * los dos oscuros declaran los mismos valores. Ningún nombre de este archivo existe en el paquete. El login de Keycloak
+ * no usa gráficos, así que no se copia a su tema. */
+
+:root {
+  --color-chart-1: #3569f6; /* serie 1 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-2: #e5603f; /* serie 2 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-3: #0f9b85; /* serie 3 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-4: #a854d6; /* serie 4 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-seq-1: #1d3f9e; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-seq-2: #3569f6; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-seq-3: #7fa0f8; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; exento en `tokens.contrast.test.ts` (ver su cabecera) */
+  --color-chart-seq-4: #bccdfb; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; exento en `tokens.contrast.test.ts` (ver su cabecera) */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-chart-1: #3068ff; /* serie 1 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+    --color-chart-2: #e5603f; /* serie 2 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+    --color-chart-3: #139e88; /* serie 3 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+    --color-chart-4: #a95ee0; /* serie 4 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+    --color-chart-seq-1: #c3d3ff; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; `tokens.contrast.test.ts` la protege */
+    --color-chart-seq-2: #7fa0ff; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; `tokens.contrast.test.ts` la protege */
+    --color-chart-seq-3: #3068ff; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; exento en `tokens.contrast.test.ts` (ver su cabecera) */
+    --color-chart-seq-4: #22428f; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; exento en `tokens.contrast.test.ts` (ver su cabecera) */
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-chart-1: #3068ff; /* serie 1 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-2: #e5603f; /* serie 2 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-3: #139e88; /* serie 3 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-4: #a95ee0; /* serie 4 de los gráficos: paleta «Coral» del código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-seq-1: #c3d3ff; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-seq-2: #7fa0ff; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; `tokens.contrast.test.ts` la protege */
+  --color-chart-seq-3: #3068ff; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; exento en `tokens.contrast.test.ts` (ver su cabecera) */
+  --color-chart-seq-4: #22428f; /* rampa secuencial de un solo tono, de más a menos intensa: código, no está en Figma; exento en `tokens.contrast.test.ts` (ver su cabecera) */
+}
