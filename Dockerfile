@@ -17,7 +17,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # --- Jar de la API con la aplicación web en static/ ---------------------------------------------------------------
-FROM maven:3.10-eclipse-temurin-25@sha256:0396dcd8cd0d46a0d2026449b714b2a5bbe53cce030975b5a41f8ffa3f5f0525 AS api
+FROM maven:3-eclipse-temurin-27@sha256:d0d38ebffce1172d5c9c0be2e28691f598f9a91f578858a77d133abeb91434f9 AS api
 WORKDIR /api
 COPY backend/pom.xml ./
 COPY backend/src ./src
