@@ -28,9 +28,20 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Fly.io está descartado (la demo es estática en GitHub Pages); deploy.yml sigue inactivo sin DEPLOY_ENABLED.
+      - dependency-name: 'superfly/flyctl-actions/*'
   - package-ecosystem: docker
     directories:
       - /
       - /deploy/keycloak
     schedule:
       interval: weekly
+    ignore:
+      # Node sigue a .nvmrc (22, LTS) y Java a Temurin 25 (LTS): un salto de major se decide aparte, nunca por Dependabot.
+      # La imagen de Maven lleva el JDK en el sufijo de la etiqueta (3.10-eclipse-temurin-25), así que su salto de JDK no es
+      # un major de Maven: esos PR se cierran a mano y Dependabot no vuelve a proponer esa versión.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
+      - dependency-name: eclipse-temurin
+        update-types: ['version-update:semver-major']
