@@ -98,7 +98,7 @@ docker-compose.yml  # PostgreSQL and Keycloak for local development
 
 ## Getting started
 
-Requirements: Node 22.12+, Java 25 and Docker (for PostgreSQL, Keycloak and the backend tests).
+Requirements: Node 22.22.2+ (or 24.15+), Java 25 and Docker (for PostgreSQL, Keycloak and the backend tests).
 
 ```sh
 # Frontend
