@@ -6,7 +6,7 @@ import type { ReportSummary } from '../../api/schema'
 import { adminMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { ReportsPage } from './ReportsPage'
-import { reportAgent, reportDays, reportSummary } from './reportFixtures'
+import { reportAgent, reportDays, reportResolutionTimes, reportSummary } from './reportFixtures'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -334,6 +334,143 @@ describe('ReportsPage', () => {
     const note = screen.getByText('Incluye a quien ya no está en el equipo si atendió tickets en el periodo.')
     expect(table.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText('Quién aparece aquí')).not.toBeInTheDocument()
+  })
+
+  describe('estado, prioridad, tiempo de resolución y horario', () => {
+    const titles = [
+      'Estado de los abiertos',
+      'Prioridad de los abiertos',
+      'Cuánto tarda la resolución',
+      'Cuándo llegan las solicitudes',
+    ]
+
+    it('añade los cuatro paneles tras «Rendimiento por agente», en su orden', async () => {
+      mockApi(baseRoutes)
+      renderReports()
+      await screen.findByRole('table', { name: 'Rendimiento por agente' })
+      const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
+      expect(headings.slice(headings.indexOf('Rendimiento por agente'))).toEqual(['Rendimiento por agente', ...titles])
+    })
+
+    it('el estado de los abiertos es un anillo con el total en el centro y los colores 1–3', async () => {
+      mockApi(baseRoutes)
+      renderReports()
+      const donut = await screen.findByRole('img', { name: 'Estado de los abiertos' })
+      expect(donut).toHaveAccessibleDescription(/Abierto 9; En curso 14; En espera 5/)
+      expect(within(donut).getByText('28')).toBeInTheDocument()
+      expect(within(donut).getByText('abiertos')).toBeInTheDocument()
+      expect(
+        [...donut.querySelectorAll('path')].map((path) => /color(\d)/.exec(path.getAttribute('class') ?? '')?.[1]),
+      ).toEqual(['1', '2', '3'])
+      await userEvent.click(screen.getByRole('button', { name: 'Ver como tabla de Estado de los abiertos' }))
+      const table = screen.getByRole('table', { name: 'Estado de los abiertos' })
+      expect(within(table).getByRole('cell', { name: '14' })).toBeInTheDocument()
+    })
+
+    it('la prioridad usa un solo tono, de la rampa más intensa a la más suave, y no los colores de estado', async () => {
+      mockApi(baseRoutes)
+      renderReports()
+      const donut = await screen.findByRole('img', { name: 'Prioridad de los abiertos' })
+      expect(donut).toHaveAccessibleDescription(/Urgente 2; Alta 8; Media 13; Baja 5/)
+      const classes = [...donut.querySelectorAll('path')].map((path) => path.getAttribute('class') ?? '')
+      expect(classes.map((c) => /colorseq(\d)/.exec(c)?.[1])).toEqual(['1', '2', '3', '4'])
+      expect(screen.getByRole('button', { name: 'Urgente: 2' })).toBeInTheDocument()
+    })
+
+    it('el histograma da los seis tramos en orden, con su valor exacto con el teclado y su tabla', async () => {
+      mockApi(baseRoutes)
+      renderReports()
+      const chart = await screen.findByRole('group', { name: 'Cuánto tarda la resolución' })
+      expect(
+        within(chart)
+          .getAllByRole('button')
+          .map((button) => button.getAttribute('aria-label')),
+      ).toEqual(['< 1 h: 24', '1–4 h: 96', '4–8 h: 78', '8–24 h: 54', '1–3 d: 36', '> 3 d: 12'])
+      await userEvent.click(screen.getByRole('button', { name: 'Ver como tabla de Cuánto tarda la resolución' }))
+      const table = screen.getByRole('table', { name: 'Cuánto tarda la resolución' })
+      expect(within(table).getByRole('columnheader', { name: 'Tiempo hasta resolver' })).toBeInTheDocument()
+      expect(within(table).getAllByRole('row')).toHaveLength(7)
+    })
+
+    it('el mapa de calor pone lunes a domingo y las franjas de dos horas, con 0 en las celdas que no llegan', async () => {
+      mockApi(baseRoutes)
+      renderReports()
+      const grid = await screen.findByRole('grid', { name: 'Cuándo llegan las solicitudes' })
+      expect(
+        within(grid)
+          .getAllByRole('rowheader')
+          .map((header) => header.textContent),
+      ).toEqual(['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'])
+      expect(within(grid).getAllByRole('columnheader')).toHaveLength(12)
+      expect(within(grid).getAllByRole('gridcell')).toHaveLength(84)
+      // Lunes 9 h (60) cae en la franja de 8 a 10 h y lunes 10 h (52) en la de 10 a 12 h.
+      expect(within(grid).getByRole('gridcell', { name: 'lun 8–10 h: 60 solicitudes' })).toBeInTheDocument()
+      expect(within(grid).getByRole('gridcell', { name: 'lun 10–12 h: 52 solicitudes' })).toBeInTheDocument()
+      expect(within(grid).getByRole('gridcell', { name: 'mar 0–2 h: 0 solicitudes' })).toBeInTheDocument()
+      await userEvent.click(screen.getByRole('button', { name: 'Ver como tabla de Cuándo llegan las solicitudes' }))
+      expect(screen.getByRole('table', { name: 'Cuándo llegan las solicitudes' })).toBeVisible()
+    })
+
+    it('cada panel muestra su vacío sin esconder a los demás', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/reports/summary': byPeriod({
+          openByStatus: { open: 0, inProgress: 0, waiting: 0 },
+          openByPriority: { urgent: 0, high: 0, medium: 0, low: 0 },
+          resolutionTimes: reportResolutionTimes([0, 0, 0, 0, 0, 0]),
+          createdByWeekdayHour: [],
+        }),
+      })
+      renderReports()
+      expect(await screen.findAllByRole('heading', { level: 3, name: 'Sin tickets abiertos' })).toHaveLength(2)
+      expect(screen.getByRole('heading', { level: 3, name: 'Sin resoluciones en este periodo' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 3, name: 'Sin solicitudes en este periodo' })).toBeInTheDocument()
+      for (const title of titles) expect(screen.getByRole('heading', { level: 2, name: title })).toBeInTheDocument()
+      expect(screen.queryByRole('grid')).not.toBeInTheDocument()
+      expect(screen.getByRole('table', { name: 'Rendimiento por agente' })).toBeInTheDocument()
+    })
+
+    it('un anillo con tickets en un solo estado sigue dibujándose', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/reports/summary': byPeriod({
+          openByStatus: { open: 1, inProgress: 0, waiting: 0 },
+          openByPriority: { urgent: 0, high: 0, medium: 0, low: 1 },
+        }),
+      })
+      renderReports()
+      const donut = await screen.findByRole('img', { name: 'Estado de los abiertos' })
+      expect(within(donut).getByText('abierto')).toBeInTheDocument()
+      expect(screen.getByRole('img', { name: 'Prioridad de los abiertos' })).toBeInTheDocument()
+    })
+
+    it('el esqueleto de carga no repite los títulos ni se lee', () => {
+      mockApi({ ...baseRoutes, 'GET /api/reports/summary': never })
+      renderReports()
+      for (const title of titles) expect(screen.queryByRole('heading', { name: title })).not.toBeInTheDocument()
+      expect(screen.queryByRole('grid')).not.toBeInTheDocument()
+    })
+
+    it('se atenúan con el periodo que cambia, como el resto del informe', async () => {
+      let release: () => void = () => {}
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      mockApi({
+        ...baseRoutes,
+        'GET /api/reports/summary': async (request) => {
+          if (new URL(request.url).searchParams.get('period') === '30d') await gate
+          return byPeriod()(request)
+        },
+      })
+      renderReports()
+      await screen.findByRole('grid')
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Periodo' }), '30d')
+      await screen.findByText('Actualizando el informe…')
+      for (const title of titles) {
+        expect(screen.getByRole('heading', { level: 2, name: title }).closest('section')).toHaveClass('updating')
+      }
+      release()
+      await waitFor(() => expect(screen.queryByText('Actualizando el informe…')).not.toBeInTheDocument())
+    })
   })
 
   describe('periodo', () => {
