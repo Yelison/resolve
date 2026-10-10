@@ -291,8 +291,10 @@ round}`. **Reviews with only low findings.** When every finding is low (or there
 `fixes-N.md`: header, the report and verdict line, one numbered decision per finding (`corregir`, `descartar` or
 `aplazar`, with the reason) and the closing paragraph about the new commit and the delivery. The coordinator approves
 it, annotates it and copies it to `tasks/<id>/fixes-N.md`. With any medium or high finding the decisions stay with the
-coordinator. The templates also carry the machine limits: `--maxWorkers=2` and `--workers=2`, every heavy test behind
-`scripts/herdr/heavy.sh` (one machine-wide lock at nice 10, shared with every project on the machine), and no full
+coordinator. The templates also carry the machine limits: `--maxWorkers=2` and `--workers=2`, every heavy test through
+`scripts/herdr/heavy.sh` (nice 10; since 2026-10-10 without a lock, so batteries of different agents and projects
+run in parallel; `touch ~/.herdr-heavy-serial` brings the machine-wide lock back for every agent and project until the file is
+removed, and `HERDR_HEAVY_SERIAL=1` does it for one command), and no full
 Playwright run locally, because CI runs it on the pull request before `ship.sh` merges.
 
 **Merge method and review rounds (owner decision, 2026-10-09).** Tasks are squash-merged by default, so only the tip

@@ -28,8 +28,8 @@ Commands to run in your worktree:
 
 The machine (12 cores) is shared by several projects and their agents; without limits the load reaches 30:
 
-- Run every heavy test through the machine-wide lock, `scripts/herdr/heavy.sh`: any Playwright run (mutations
-  included), Vitest in a browser and `./mvnw -B verify`. From `frontend/`, for example:
+- Run every heavy test at low priority with `scripts/herdr/heavy.sh` (no lock since 2026-10-10): any Playwright run
+  (mutations included), Vitest in a browser and `./mvnw -B verify`. From `frontend/`, for example:
   `../scripts/herdr/heavy.sh npx playwright test e2e/<feature>.spec.ts --workers=2`.
 - Run Vitest with `npm test -- --maxWorkers=2` and Playwright always with `--workers=2`.
 - Never run the whole Playwright suite locally: CI runs it on the pull request before the merge. Run the specs the
