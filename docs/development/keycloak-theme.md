@@ -19,23 +19,27 @@ outside the implementation plan, so it is recorded here as a decision.
   Keycloak prints under it, gives page alerts `role="alert"`, and swaps in `img/favicon.svg` (Keycloak can only declare
   a `favicon.ico`).
 - Inter is served from the theme (`resources/fonts/`, from `@fontsource-variable/inter`, with its OFL licence). The
-  `@font-face` family is named `Inter` to match `--font-family`.
+  `@font-face` family is named `Inter`, the fallback after `'Inter Variable'` in `--font-family` (see below).
 - Spanish: the realm has `internationalizationEnabled`, `supportedLocales: ["es"]`, `defaultLocale: "es"` and
   `loginTheme: "resolve"`. `messages_es.properties` overrides only the strings that do not sound like Resolve.
 
 ## One source of truth for colours
 
-`resources/css/tokens.css` is a **literal copy** of `frontend/src/styles/tokens.css`. `resolve.css` only paints with
-those variables (and sizes from the same scale: 12/14/17/30 px, radii of 8 and 12 px, 1 px borders).
+`resources/css/tokens.css` is a **literal copy** of `frontend/src/styles/tokens.css`, which is itself generated from the
+tokens of `@yelison/forma-ui` ([Dependencies](dependencies.md)). `resolve.css` only paints with those variables (and
+sizes from the same scale: 12/14/17/30 px, radii of 8 and 12 px, 1 px borders).
 `frontend/src/styles/tokens.keycloak.test.ts` fails if the copy differs from the original, if `resolve.css` uses a
-hard-coded colour or an unknown variable, or if a text/background pair the page paints drops under 4.5:1. After
-changing the tokens:
+hard-coded colour or an unknown variable, or if a text/background pair the page paints drops under 4.5:1. Do not edit
+either file by hand; after the package's tokens change, regenerate both with one command:
 
 ```sh
-cp frontend/src/styles/tokens.css deploy/keycloak/themes/resolve/login/resources/css/tokens.css
+cd frontend && npm run sync:forma-tokens
 ```
 
-A test was chosen over a generator because the copy needs no build step. Dark mode is `prefers-color-scheme` only
+The chart colours are Resolve's own and are not in the generated file, so the login theme does not carry them.
+`--font-family` now starts with `'Inter Variable'`, the name `@fontsource-variable/inter` gives the face in the app. The
+theme's `@font-face` is named `Inter`, so there Inter is the fallback right after it and the text renders the same.
+The copy needs no build step on the Keycloak side: it is served as it is. Dark mode is `prefers-color-scheme` only
 (`darkMode=false` in `theme.properties` turns off PatternFly's own switch so there is a single mechanism). The primary
 button's hover and focus use `--color-brand-hover` and links use `--color-link` (both from #65), never `brand` as text
 colour; the test checks their contrast pairs (`on-brand` on `brand` and on `brand-hover`, `link` on `surface`).
