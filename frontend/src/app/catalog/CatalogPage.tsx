@@ -14,6 +14,7 @@ import {
   Editor,
   EmptyState,
   FilterChip,
+  Heatmap,
   Icon,
   IconButton,
   Input,
@@ -59,6 +60,11 @@ import {
   demoChartSeries,
   demoDailyPoints,
   demoDonutChannels,
+  demoDonutPriority,
+  demoHeatmapColumns,
+  demoHeatmapDense,
+  demoHeatmapOffice,
+  demoHeatmapRows,
   demoDonutLongNames,
   demoDonutTiny,
   demoDotLongNames,
@@ -601,6 +607,37 @@ export default function CatalogPage() {
           />
           <DonutChart label="Nombres largos (demostración)" segments={demoDonutLongNames} size={128} />
           <DonutChart label="Sin solicitudes (demostración)" segments={[]} />
+          <DonutChart
+            label="Prioridad de los abiertos (demostración)"
+            segments={demoDonutPriority}
+            size={128}
+            centerValue="38"
+            valueColumn="Tickets"
+          />
+        </div>
+        <div className={styles.stack} data-testid="heatmap-gallery">
+          <Heatmap
+            label="Cuándo llegan las solicitudes (demostración)"
+            rows={demoHeatmapRows}
+            columns={demoHeatmapColumns}
+            values={demoHeatmapOffice}
+            rowColumn="Día"
+            cellText={(value) => `${value} ${value === 1 ? 'solicitud' : 'solicitudes'}`}
+          />
+          <Heatmap
+            label="Todas las franjas con datos (demostración)"
+            rows={demoHeatmapRows}
+            columns={demoHeatmapColumns}
+            values={demoHeatmapDense}
+            rowColumn="Día"
+            cellText={(value) => `${value} ${value === 1 ? 'solicitud' : 'solicitudes'}`}
+          />
+          <Heatmap
+            label="Sin solicitudes (demostración)"
+            rows={demoHeatmapRows}
+            columns={demoHeatmapColumns}
+            values={demoHeatmapRows.map(() => demoHeatmapColumns.map(() => 0))}
+          />
         </div>
         <div className={styles.stack} data-testid="dot-gallery">
           <DotPlot

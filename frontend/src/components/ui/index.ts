@@ -20,6 +20,7 @@ export { Editor, type EditorMode, type EditorProps, type EditorStatus } from './
 export { EmptyState, type EmptyStateKind, type EmptyStateProps } from './EmptyState/EmptyState'
 export { Field, type FieldControlProps, type FieldProps } from './Field/Field'
 export { FilterChip, type FilterChipProps } from './FilterChip/FilterChip'
+export { Heatmap, type HeatmapColumn, type HeatmapProps, type HeatmapRow } from './Heatmap/Heatmap'
 export { Icon, type IconName, type IconProps } from './Icon/Icon'
 export { Input, type InputProps } from './Input/Input'
 export { LineChart, type LineChartPoint, type LineChartProps } from './LineChart/LineChart'
