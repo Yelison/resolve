@@ -80,6 +80,22 @@ s_squashbase() { mk; series; review_on_tip; echo release >"$T/state/gh/base"; ou
 s_squashhead() { mk; series; review_on_tip; echo "$W" >"$T/state/gh/late-commit"; out=$(ship); rc=$?; kept_after "head is not the local tip" "but feat/impl-a is at"
   check "head is not the local tip: the kept branch has the late commit" test "$(git -C "$T/repo" log -1 --format=%s feat/impl-a)" = "feat: late"; }
 s_squashancestor() { mk; series; review_on_tip; git -C "$W" rev-parse HEAD >"$T/state/gh/merge-commit"; out=$(ship); rc=$?; kept_after "merge commit not on origin/main" "is not on origin/main"; }
+# A merge commit that is not a SHA (a ref name that git resolves) is not a merge commit: it must not pass as an ancestor.
+s_squashbadsha() { mk; series; review_on_tip; echo main >"$T/state/gh/merge-commit"; out=$(ship); rc=$?; kept_after "merge commit is a ref name" "the merge commit main is not on origin/main"; }
+# A MERGED pull request whose fields gh reports as null, empty or missing keeps the branches, with a note that says which.
+s_squashnull() { local c f note
+  while IFS='|' read -r c f note; do
+    mk; series; review_on_tip; printf '%s' "$f" >"$T/state/gh/view-jq"; out=$(ship); rc=$?; kept_after "$c" "$note"
+  done <<'CASES'
+mergeCommit null|.mergeCommit = null|the merge commit (unknown) is not on origin/main
+mergeCommit without oid|.mergeCommit = {}|the merge commit (unknown) is not on origin/main
+headRefOid null|.headRefOid = null|GitHub squash-merged an unknown head
+headRefOid empty|.headRefOid = ""|GitHub squash-merged an unknown head
+baseRefName missing|del(.baseRefName)|merged into 'an unknown base', not main
+baseRefName empty|.baseRefName = ""|merged into 'an unknown base', not main
+baseRefName main-x|.baseRefName = "main-x"|merged into 'main-x', not main
+CASES
+}
 # The review's branch follows the same rule: a review that holds a commit of its own is not the head that was merged.
 s_squashreview() { mk; series; review_on_tip; R=$T/root/worktrees/review-impl-a
   echo notes >"$R/notes.txt"; git -C "$R" add notes.txt; git -C "$R" commit -q -m "review: notes"
@@ -172,6 +188,6 @@ s_working() { mk; jq '.agent_status="working"' "$T/state/agents/rev-impl-a" >"$T
   out=$(ship); check "working agent: stops" test $? -ne 0; check "working agent: says so" says x 'is working, so it was not sent /exit'; check "working agent: no /exit sent" bash -c "! grep -q '/exit' '$T/state/prompts.log' 2>/dev/null"
   check "working agent: the merge is reported" says x "merged "; check "working agent: reviewer still live" test -e "$T/state/agents/rev-impl-a"; }
 
-scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin squashclean squashbase squashhead squashancestor squashreview happy rebase badmethod reuse red absent multi queued closed open dirtyreview stale lease foreign ahead race working)
+scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin squashclean squashbase squashhead squashancestor squashbadsha squashnull squashreview happy rebase badmethod reuse red absent multi queued closed open dirtyreview stale lease foreign ahead race working)
 for s in "${scen[@]}"; do echo "== $s"; "s_$s"; done
 finish

@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
   case $1 in
     --id) need_arg "$1" $#; ID=${2:-}; shift 2 ;;
     --delete-branch) DELETE_BRANCH=1; shift ;;
-    --squashed-head) need_arg "$1" $#; SQUASHED_HEAD=${2:-}; shift 2 ;;
+    --squashed-head) need_arg "$1" $#; SQUASHED_HEAD=${2:-}; [ -n "$SQUASHED_HEAD" ] || die "--squashed-head needs a full 40-character commit SHA, not an empty value (nothing was removed)"; shift 2 ;;
     --volumes) VOLUMES=1; shift ;;
     --force-leftovers) FORCE_LEFTOVERS=1; shift ;;
     -h | --help) usage; exit 0 ;;

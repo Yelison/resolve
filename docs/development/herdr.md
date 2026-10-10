@@ -441,7 +441,8 @@ In order, stopping at the first problem and saying what it did and did not do:
    (a commit made after the push makes it differ); and, after `git fetch`, the merge commit is an ancestor of
    `origin/main`. It then calls `remove-task.sh --delete-branch --squashed-head <merged head>`. If any fails, it
    writes a `note:` saying which and keeps the branches; the task is retired all the same. A review branch that holds
-   a commit of its own is not the merged head, so it stays. With `--merge rebase` nothing changes: the branches are
+   a commit of its own is not the merged head, so it stays, and so does one left at an earlier round (or at an earlier
+   commit than the merged head): the comparison is exact, and `ship.sh` does not guess; delete those by hand. With `--merge rebase` nothing changes: the branches are
    kept (`git branch -d` cannot see a rebased series as merged either), and so is the `--no-cleanup` case. The remote
    branch is not touched here: the repository deletes it on merge (`delete_branch_on_merge`, on in Resolve); where
    that is off, delete it by hand.

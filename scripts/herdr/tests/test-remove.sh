@@ -73,6 +73,8 @@ check "a short SHA: refused, nothing removed" refused --delete-branch --squashed
 check "a ref that is not a SHA: refused, nothing removed" refused --delete-branch --squashed-head main
 check "an unknown commit: refused, nothing removed" refused --delete-branch --squashed-head 0000000000000000000000000000000000000000; check "an unknown commit: says so" says x 'is not a commit of this repository'
 check "no value: refused, nothing removed" refused --delete-branch --squashed-head
+check "an empty value: refused, nothing removed" refused --delete-branch --squashed-head ""; check "an empty value: says it needs a SHA" says x 'not an empty value'
+check "an empty value without --delete-branch: refused, nothing removed" refused --squashed-head ""
 echo "# local edit" >>"$w/.gitignore"
 check "a dirty worktree: refused, the branch is intact" refused --delete-branch --squashed-head "$head"; check "a dirty worktree: says uncommitted" says x 'uncommitted'
 git -C "$w" checkout -q -- .gitignore

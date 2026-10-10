@@ -165,8 +165,8 @@ log "Auto-merge ($METHOD) scheduled for #$PR; waiting for it…"
 SECONDS=0
 MERGED_SHA= MERGED_HEAD= MERGED_BASE=
 while :; do
-  # "-" stands for a missing value: tab is IFS whitespace, so an empty field would shift the ones after it.
-  if ! view=$(gh pr view "$PR" --json state,mergeCommit,headRefOid,baseRefName --jq '[.state, (.headRefOid // "-"), (.baseRefName // "-"), (.mergeCommit.oid // "-")] | @tsv'); then
+  # "-" stands for a missing or empty value: tab is IFS whitespace, so an empty field would shift the ones after it.
+  if ! view=$(gh pr view "$PR" --json state,mergeCommit,headRefOid,baseRefName --jq 'def d: if . == null or . == "" then "-" else . end; [.state, (.headRefOid | d), (.baseRefName | d), (.mergeCommit.oid | d)] | @tsv'); then
     [ "$SECONDS" -lt "$TIMEOUT" ] || die "gh could not read pull request #$PR in ${TIMEOUT}s; the auto-merge stays scheduled"
     log "gh could not read #$PR; retrying…"
     sleep "$POLL"
@@ -199,7 +199,7 @@ if [ "$METHOD" = squash ]; then
     squash_note="the pull request was merged into '${MERGED_BASE:-an unknown base}', not main"
   elif [ -z "$MERGED_HEAD" ] || [ "$MERGED_HEAD" != "$local_tip" ]; then
     squash_note="GitHub squash-merged ${MERGED_HEAD:-an unknown head} but $BRANCH is at ${local_tip:-nowhere}"
-  elif [ -z "$MERGED_SHA" ] || ! git -C "$TASK_REPO" merge-base --is-ancestor "$MERGED_SHA" origin/main; then
+  elif ! [[ $MERGED_SHA =~ ^[0-9a-f]{40}$ ]] || ! git -C "$TASK_REPO" merge-base --is-ancestor "$MERGED_SHA^{commit}" origin/main; then
     squash_note="the merge commit ${MERGED_SHA:-(unknown)} is not on origin/main"
   else
     SQUASHED_HEAD=$MERGED_HEAD
