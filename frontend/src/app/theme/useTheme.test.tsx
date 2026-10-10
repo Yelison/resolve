@@ -75,3 +75,52 @@ describe('useTheme', () => {
     expect(second.result.current.preference).toBe('system')
   })
 })
+
+/** Un `matchMedia` que se puede mover: el sistema pasa a oscuro o a claro mientras la aplicación está abierta. */
+function mockSystemTheme(initial: 'light' | 'dark') {
+  let dark = initial === 'dark'
+  const listeners = new Set<() => void>()
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query) =>
+      ({
+        get matches() {
+          return dark
+        },
+        media: query,
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      }) as unknown as MediaQueryList,
+  )
+  return (next: 'light' | 'dark') => {
+    dark = next === 'dark'
+    listeners.forEach((listener) => listener())
+  }
+}
+
+describe('useTheme · preferencia guardada y sistema', () => {
+  it('con «light» guardado y el sistema en oscuro, el tema es claro desde el primer render y no cambia', () => {
+    mockSystemTheme('dark')
+    localStorage.setItem(THEME_STORAGE_KEY, 'light')
+    const { result } = renderHook(() => useTheme())
+    expect(result.current.preference).toBe('light')
+    expect(result.current.resolved).toBe('light')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+  })
+
+  it('«system» sigue al sistema en vivo, sin atributo, y una preferencia fija no lo sigue', () => {
+    const setSystem = mockSystemTheme('light')
+    const { result } = renderHook(() => useTheme())
+    expect(result.current.resolved).toBe('light')
+    act(() => setSystem('dark'))
+    expect(result.current.preference).toBe('system')
+    expect(result.current.resolved).toBe('dark')
+    expect(document.documentElement).not.toHaveAttribute('data-theme')
+    act(() => setSystem('light'))
+    expect(result.current.resolved).toBe('light')
+
+    act(() => result.current.setPreference('light'))
+    act(() => setSystem('dark'))
+    expect(result.current.resolved).toBe('light')
+    expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+  })
+})
