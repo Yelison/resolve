@@ -6,6 +6,7 @@ import type { ActivityFeedItem, ReportSummary } from '../../api/schema'
 import { adminMe, mockApi } from '../../test/api'
 import { createTestQueryClient, renderWithProviders } from '../../test/render'
 import { metrics, page, summary } from '../../test/ticketFixtures'
+import { reportDays, reportSummary } from '../reports/reportFixtures'
 import { ticketKeys } from '../tickets/queries'
 import { OverviewPage } from './OverviewPage'
 
@@ -13,18 +14,8 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-const days = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']
-
-const report = (created: number[] = [44, 61, 54, 72, 65, 35, 30]): ReportSummary => ({
-  period: { from: '2026-09-28T05:00:00Z', to: '2026-10-04T15:00:00Z', days: 7, timeZone: 'America/Bogota' },
-  created: { value: 361, previous: 300 },
-  resolved: { value: 300, previous: 280 },
-  firstResponseMinutes: { value: 18, previous: 22, target: 30 },
-  resolutionHours: { value: 6.5, previous: null },
-  byDay: days.map((date, index) => ({ date, created: created[index] ?? 0, resolved: 0 })),
-  byChannel: [],
-  byAgent: [],
-})
+const report = (created: number[] = [44, 61, 54, 72, 65, 35, 30]): ReportSummary =>
+  reportSummary({ byDay: reportDays(7, created), byChannel: [], byAgent: [] })
 
 const feed: ActivityFeedItem[] = [
   {

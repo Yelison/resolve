@@ -574,7 +574,9 @@ export interface paths {
          * @description Staff only. Everything is computed on the server, per organization, in the organization time zone.
          *     The period covers the last `days` calendar days of the organization, today included: it starts at
          *     00:00 of `today - (days - 1)` and ends now. `previous` figures cover the adjacent period of the same
-         *     duration (`[from - (to - from), from)`). Without data the counts are `0` and the medians `null`.
+         *     duration (`[from - (to - from), from)`). Without data the counts are `0` and the medians `null`. The open
+         *     counts (`openByStatus`, `openByPriority`) are the exception: they describe the tickets that are not
+         *     `resolved` right now and ignore the period.
          */
         get: operations["getReportSummary"];
         put?: never;
@@ -1232,6 +1234,55 @@ export interface components {
          *           "firstResponseMinutes": 15,
          *           "openAssigned": 4
          *         }
+         *       ],
+         *       "openByStatus": {
+         *         "open": 9,
+         *         "inProgress": 14,
+         *         "waiting": 5
+         *       },
+         *       "openByPriority": {
+         *         "urgent": 2,
+         *         "high": 8,
+         *         "medium": 13,
+         *         "low": 5
+         *       },
+         *       "resolutionTimes": [
+         *         {
+         *           "bucket": "under1h",
+         *           "resolved": 4
+         *         },
+         *         {
+         *           "bucket": "from1To4h",
+         *           "resolved": 11
+         *         },
+         *         {
+         *           "bucket": "from4To8h",
+         *           "resolved": 9
+         *         },
+         *         {
+         *           "bucket": "from8To24h",
+         *           "resolved": 6
+         *         },
+         *         {
+         *           "bucket": "from1To3d",
+         *           "resolved": 4
+         *         },
+         *         {
+         *           "bucket": "over3d",
+         *           "resolved": 1
+         *         }
+         *       ],
+         *       "createdByWeekdayHour": [
+         *         {
+         *           "weekday": 1,
+         *           "hour": 9,
+         *           "created": 3
+         *         },
+         *         {
+         *           "weekday": 1,
+         *           "hour": 10,
+         *           "created": 5
+         *         }
          *       ]
          *     }
          */
@@ -1254,6 +1305,26 @@ export interface components {
              *     resolved first (ties by name, then id). `status` tells them apart.
              */
             byAgent: components["schemas"]["ReportAgent"][];
+            openByStatus: components["schemas"]["ReportStatusCounts"];
+            openByPriority: components["schemas"]["ReportPriorityCounts"];
+            /**
+             * @description Always the six buckets of `ReportResolutionBucket`, in this order: `under1h`, `from1To4h`, `from4To8h`,
+             *     `from8To24h`, `from1To3d`, `over3d`; a bucket without tickets is `0`, never missing. It counts the same
+             *     tickets as `resolved.value` (the distinct tickets that entered `resolved` in the period), so the
+             *     `resolved` values add up to exactly `resolved.value`. Each ticket is placed by the time from its
+             *     creation to the **first** time it entered `resolved`, the same duration `resolutionHours` takes its
+             *     median from; unlike that median, the population is the tickets resolved in the period, whenever they
+             *     were created, not the tickets created in it. Bounds are `[min, max)`: exactly one hour is in
+             *     `from1To4h`.
+             */
+            resolutionTimes: components["schemas"]["ReportResolutionBucket"][];
+            /**
+             * @description Tickets created in the period by ISO weekday and local hour of the organization time zone, sparse:
+             *     only the combinations with at least one ticket, ordered by `weekday` and then `hour`. The `created`
+             *     values add up to exactly `created.value`. A daylight-saving change follows the local clock: the hour
+             *     that is repeated adds up in the same cell, and the hour that does not exist has no cell.
+             */
+            createdByWeekdayHour: components["schemas"]["ReportWeekdayHour"][];
         };
         /**
          * @description The window the report covers. `from` is the start of the first day in the organization time zone and
@@ -1368,6 +1439,113 @@ export interface components {
              * @example 4
              */
             openAssigned: number;
+        };
+        /**
+         * @description Tickets that are not `resolved` **right now**, by `TicketStatus` (`resolved` is not counted). It is a
+         *     snapshot of the organization, so it does not depend on `period`. Each ticket counts once, in its current
+         *     status.
+         * @example {
+         *       "open": 9,
+         *       "inProgress": 14,
+         *       "waiting": 5
+         *     }
+         */
+        ReportStatusCounts: {
+            /**
+             * @description Tickets in `open`.
+             * @example 9
+             */
+            open: number;
+            /**
+             * @description Tickets in `in_progress`.
+             * @example 14
+             */
+            inProgress: number;
+            /**
+             * @description Tickets in `waiting`.
+             * @example 5
+             */
+            waiting: number;
+        };
+        /**
+         * @description Tickets that are not `resolved` **right now**, by `TicketPriority`. It is a snapshot of the organization,
+         *     so it does not depend on `period`. Each ticket counts once, under its current priority: one whose
+         *     priority changed counts under the last one. The four values add up to the same total as `ReportStatusCounts`.
+         * @example {
+         *       "urgent": 2,
+         *       "high": 8,
+         *       "medium": 13,
+         *       "low": 5
+         *     }
+         */
+        ReportPriorityCounts: {
+            /**
+             * @description Tickets with priority `urgent`.
+             * @example 2
+             */
+            urgent: number;
+            /**
+             * @description Tickets with priority `high`.
+             * @example 8
+             */
+            high: number;
+            /**
+             * @description Tickets with priority `medium`.
+             * @example 13
+             */
+            medium: number;
+            /**
+             * @description Tickets with priority `low`.
+             * @example 5
+             */
+            low: number;
+        };
+        /**
+         * @description Tickets resolved in the period whose time from creation to their first resolution falls in the bucket.
+         *     Bounds are `[min, max)`: `under1h` is less than 1 hour; `from1To4h` is 1 hour or more and less than 4;
+         *     `from4To8h`, 4 or more and less than 8; `from8To24h`, 8 or more and less than 24 hours; `from1To3d`, 24
+         *     hours or more and less than 3 days (72 hours); `over3d`, 3 days or more. Durations are elapsed time.
+         * @example {
+         *       "bucket": "from1To4h",
+         *       "resolved": 11
+         *     }
+         */
+        ReportResolutionBucket: {
+            /**
+             * @example from1To4h
+             * @enum {string}
+             */
+            bucket: "under1h" | "from1To4h" | "from4To8h" | "from8To24h" | "from1To3d" | "over3d";
+            /**
+             * @description Distinct tickets in the bucket.
+             * @example 11
+             */
+            resolved: number;
+        };
+        /**
+         * @description Tickets created in one cell of the week, in the organization time zone.
+         * @example {
+         *       "weekday": 1,
+         *       "hour": 9,
+         *       "created": 3
+         *     }
+         */
+        ReportWeekdayHour: {
+            /**
+             * @description ISO weekday, `1` Monday to `7` Sunday.
+             * @example 1
+             */
+            weekday: number;
+            /**
+             * @description Hour of the day on the local clock, `0` to `23`.
+             * @example 9
+             */
+            hour: number;
+            /**
+             * @description Tickets created in that weekday and hour during the period; at least `1`.
+             * @example 3
+             */
+            created: number;
         };
         /**
          * @description `draft` is only visible to staff; `published` follows the article visibility.
@@ -1689,6 +1867,10 @@ export type ReportResolution = components['schemas']['ReportResolution'];
 export type ReportDay = components['schemas']['ReportDay'];
 export type ReportChannel = components['schemas']['ReportChannel'];
 export type ReportAgent = components['schemas']['ReportAgent'];
+export type ReportStatusCounts = components['schemas']['ReportStatusCounts'];
+export type ReportPriorityCounts = components['schemas']['ReportPriorityCounts'];
+export type ReportResolutionBucket = components['schemas']['ReportResolutionBucket'];
+export type ReportWeekdayHour = components['schemas']['ReportWeekdayHour'];
 export type ArticleStatus = components['schemas']['ArticleStatus'];
 export type ArticleVisibility = components['schemas']['ArticleVisibility'];
 export type CategoryRef = components['schemas']['CategoryRef'];
@@ -3134,6 +3316,7 @@ export const statusChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequire
 export const priorityChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PriorityChangedActivity"]["type"]> = ["priority_changed"];
 export const assigneeChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AssigneeChangedActivity"]["type"]> = ["assignee_changed"];
 export const reportRangeDaysValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportRange"]["days"]> = [7, 30, 90];
+export const reportResolutionBucketBucketValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportResolutionBucket"]["bucket"]> = ["under1h", "from1To4h", "from4To8h", "from8To24h", "from1To3d", "over3d"];
 export const articleStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ArticleStatus"]> = ["draft", "published"];
 export const articleVisibilityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ArticleVisibility"]> = ["internal", "public"];
 export const componentsParametersReportPeriodValues: ReadonlyArray<FlattenedDeepRequired<components>["parameters"]["ReportPeriod"]> = ["7d", "30d", "90d"];

@@ -887,7 +887,9 @@ paths:
         Staff only. Everything is computed on the server, per organization, in the organization time zone.
         The period covers the last `days` calendar days of the organization, today included: it starts at
         00:00 of `today - (days - 1)` and ends now. `previous` figures cover the adjacent period of the same
-        duration (`[from - (to - from), from)`). Without data the counts are `0` and the medians `null`.
+        duration (`[from - (to - from), from)`). Without data the counts are `0` and the medians `null`. The open
+        counts (`openByStatus`, `openByPriority`) are the exception: they describe the tickets that are not
+        `resolved` right now and ignore the period.
       parameters:
         - $ref: '#/components/parameters/ReportPeriod'
       responses:
@@ -1898,7 +1900,19 @@ components:
     ReportSummary:
       type: object
       additionalProperties: false
-      required: [period, created, resolved, firstResponseMinutes, resolutionHours, byDay, byChannel, byAgent]
+      required:
+        - period
+        - created
+        - resolved
+        - firstResponseMinutes
+        - resolutionHours
+        - byDay
+        - byChannel
+        - byAgent
+        - openByStatus
+        - openByPriority
+        - resolutionTimes
+        - createdByWeekdayHour
       properties:
         period: { $ref: '#/components/schemas/ReportRange' }
         created: { $ref: '#/components/schemas/ReportCount' }
@@ -1922,6 +1936,30 @@ components:
             resolved first (ties by name, then id). `status` tells them apart.
           type: array
           items: { $ref: '#/components/schemas/ReportAgent' }
+        openByStatus: { $ref: '#/components/schemas/ReportStatusCounts' }
+        openByPriority: { $ref: '#/components/schemas/ReportPriorityCounts' }
+        resolutionTimes:
+          description: |
+            Always the six buckets of `ReportResolutionBucket`, in this order: `under1h`, `from1To4h`, `from4To8h`,
+            `from8To24h`, `from1To3d`, `over3d`; a bucket without tickets is `0`, never missing. It counts the same
+            tickets as `resolved.value` (the distinct tickets that entered `resolved` in the period), so the
+            `resolved` values add up to exactly `resolved.value`. Each ticket is placed by the time from its
+            creation to the **first** time it entered `resolved`, the same duration `resolutionHours` takes its
+            median from; unlike that median, the population is the tickets resolved in the period, whenever they
+            were created, not the tickets created in it. Bounds are `[min, max)`: exactly one hour is in
+            `from1To4h`.
+          type: array
+          minItems: 6
+          maxItems: 6
+          items: { $ref: '#/components/schemas/ReportResolutionBucket' }
+        createdByWeekdayHour:
+          description: |
+            Tickets created in the period by ISO weekday and local hour of the organization time zone, sparse:
+            only the combinations with at least one ticket, ordered by `weekday` and then `hour`. The `created`
+            values add up to exactly `created.value`. A daylight-saving change follows the local clock: the hour
+            that is repeated adds up in the same cell, and the hour that does not exist has no cell.
+          type: array
+          items: { $ref: '#/components/schemas/ReportWeekdayHour' }
       examples:
         - period: { from: '2026-09-28T05:00:00Z', to: '2026-10-04T15:00:00Z', days: 7, timeZone: America/Bogota }
           created: { value: 42, previous: 38 }
@@ -1939,6 +1977,18 @@ components:
               resolved: 20
               firstResponseMinutes: 15
               openAssigned: 4
+          openByStatus: { open: 9, inProgress: 14, waiting: 5 }
+          openByPriority: { urgent: 2, high: 8, medium: 13, low: 5 }
+          resolutionTimes:
+            - { bucket: under1h, resolved: 4 }
+            - { bucket: from1To4h, resolved: 11 }
+            - { bucket: from4To8h, resolved: 9 }
+            - { bucket: from8To24h, resolved: 6 }
+            - { bucket: from1To3d, resolved: 4 }
+            - { bucket: over3d, resolved: 1 }
+          createdByWeekdayHour:
+            - { weekday: 1, hour: 9, created: 3 }
+            - { weekday: 1, hour: 10, created: 5 }
 
     ReportRange:
       description: |
@@ -2065,6 +2115,85 @@ components:
           type: integer
           minimum: 0
           examples: [4]
+
+    ReportStatusCounts:
+      description: |
+        Tickets that are not `resolved` **right now**, by `TicketStatus` (`resolved` is not counted). It is a
+        snapshot of the organization, so it does not depend on `period`. Each ticket counts once, in its current
+        status.
+      type: object
+      additionalProperties: false
+      required: [open, inProgress, waiting]
+      properties:
+        open: { description: 'Tickets in `open`.', type: integer, minimum: 0, examples: [9] }
+        inProgress: { description: 'Tickets in `in_progress`.', type: integer, minimum: 0, examples: [14] }
+        waiting: { description: 'Tickets in `waiting`.', type: integer, minimum: 0, examples: [5] }
+      examples:
+        - { open: 9, inProgress: 14, waiting: 5 }
+
+    ReportPriorityCounts:
+      description: |
+        Tickets that are not `resolved` **right now**, by `TicketPriority`. It is a snapshot of the organization,
+        so it does not depend on `period`. Each ticket counts once, under its current priority: one whose
+        priority changed counts under the last one. The four values add up to the same total as `ReportStatusCounts`.
+      type: object
+      additionalProperties: false
+      required: [urgent, high, medium, low]
+      properties:
+        urgent: { description: 'Tickets with priority `urgent`.', type: integer, minimum: 0, examples: [2] }
+        high: { description: 'Tickets with priority `high`.', type: integer, minimum: 0, examples: [8] }
+        medium: { description: 'Tickets with priority `medium`.', type: integer, minimum: 0, examples: [13] }
+        low: { description: 'Tickets with priority `low`.', type: integer, minimum: 0, examples: [5] }
+      examples:
+        - { urgent: 2, high: 8, medium: 13, low: 5 }
+
+    ReportResolutionBucket:
+      description: |
+        Tickets resolved in the period whose time from creation to their first resolution falls in the bucket.
+        Bounds are `[min, max)`: `under1h` is less than 1 hour; `from1To4h` is 1 hour or more and less than 4;
+        `from4To8h`, 4 or more and less than 8; `from8To24h`, 8 or more and less than 24 hours; `from1To3d`, 24
+        hours or more and less than 3 days (72 hours); `over3d`, 3 days or more. Durations are elapsed time.
+      type: object
+      additionalProperties: false
+      required: [bucket, resolved]
+      properties:
+        bucket:
+          type: string
+          enum: [under1h, from1To4h, from4To8h, from8To24h, from1To3d, over3d]
+          examples: [from1To4h]
+        resolved:
+          description: Distinct tickets in the bucket.
+          type: integer
+          minimum: 0
+          examples: [11]
+      examples:
+        - { bucket: from1To4h, resolved: 11 }
+
+    ReportWeekdayHour:
+      description: Tickets created in one cell of the week, in the organization time zone.
+      type: object
+      additionalProperties: false
+      required: [weekday, hour, created]
+      properties:
+        weekday:
+          description: ISO weekday, `1` Monday to `7` Sunday.
+          type: integer
+          minimum: 1
+          maximum: 7
+          examples: [1]
+        hour:
+          description: Hour of the day on the local clock, `0` to `23`.
+          type: integer
+          minimum: 0
+          maximum: 23
+          examples: [9]
+        created:
+          description: Tickets created in that weekday and hour during the period; at least `1`.
+          type: integer
+          minimum: 1
+          examples: [3]
+      examples:
+        - { weekday: 1, hour: 9, created: 3 }
 
     ArticleStatus:
       description: '`draft` is only visible to staff; `published` follows the article visibility.'
