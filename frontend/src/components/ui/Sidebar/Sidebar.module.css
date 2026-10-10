@@ -96,44 +96,21 @@
   flex: 1;
 }
 
-.toggle {
-  display: inline-grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: var(--touch-target);
-  height: var(--touch-target);
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
+/* El botón es `IconButton` del paquete (tamaño, radio, transición, doble flecha y giro); aquí solo cambian los colores
+ * del fondo oscuro del sidebar y el desplazamiento del foco, que va por dentro para no salirse del borde del sidebar.
+ * Las reglas cuelgan de `.header` para ganar por especificidad: el CSS de este componente se enlaza antes que `styles.css`
+ * del paquete (que entra con global.css), y a igual especificidad ganaría el paquete. */
+.header .toggle {
   color: var(--color-nav-text);
-  cursor: pointer;
-  transition:
-    background-color var(--duration-fast) ease,
-    color var(--duration-fast) ease;
 }
 
-.toggle:hover {
+.header .toggle:hover {
   background: var(--color-nav-active);
   color: var(--color-nav-ink);
 }
 
-.toggle:focus-visible {
+.header .toggle:focus-visible {
   outline-offset: -2px;
-}
-
-/* Flecha doble hecha con dos chevrons del conjunto; «expandir» es la misma, girada. */
-.chevrons {
-  display: inline-flex;
-  align-items: center;
-}
-
-.chevrons > svg + svg {
-  margin-left: -14px;
-}
-
-.expand {
-  transform: rotate(180deg);
 }
 
 .profile {

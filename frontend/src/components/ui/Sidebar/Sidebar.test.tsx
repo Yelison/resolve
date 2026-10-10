@@ -99,6 +99,37 @@ describe('Sidebar · botón de colapsar', () => {
     expect(screen.getByRole('button', { name: 'Expandir menú' })).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('la doble flecha de colapsar se gira con `flip` al expandir, y cerrar lleva una sola sin girar', () => {
+    function iconsOf(kind: 'collapse' | 'expand' | 'close', label: string) {
+      const { unmount } = render(
+        <MemoryRouter>
+          <Sidebar
+            items={items}
+            sectionLabel="Gestión"
+            workspace="Acme Studio"
+            user={{ name: 'Yelisson Ortiz', role: 'Administrador' }}
+            action={{ label, kind, onClick: () => {} }}
+          />
+        </MemoryRouter>,
+      )
+      const toggle = screen.getByRole('button', { name: label })
+      const icons = toggle.querySelector('svg')!.parentElement!
+      const result = { arrows: icons.querySelectorAll('svg').length, flipped: /flip/.test(icons.className) }
+      unmount()
+      return result
+    }
+    expect(iconsOf('collapse', 'Colapsar menú')).toEqual({ arrows: 2, flipped: false })
+    expect(iconsOf('expand', 'Expandir menú')).toEqual({ arrows: 2, flipped: true })
+    expect(iconsOf('close', 'Cerrar menú')).toEqual({ arrows: 1, flipped: false })
+  })
+
+  it('conserva el nombre accesible y llama a onClick al pulsar', async () => {
+    const onClick = vi.fn()
+    renderSidebar(false, onClick)
+    await userEvent.click(screen.getByRole('button', { name: 'Colapsar menú' }))
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
   it('el botón de cerrar del drawer no anuncia estado de expansión', () => {
     render(
       <MemoryRouter>
