@@ -23,9 +23,14 @@ import com.resolve.api.reports.ReportDtos.Channel;
 import com.resolve.api.reports.ReportDtos.Count;
 import com.resolve.api.reports.ReportDtos.Day;
 import com.resolve.api.reports.ReportDtos.FirstResponse;
+import com.resolve.api.reports.ReportDtos.PriorityCounts;
 import com.resolve.api.reports.ReportDtos.Range;
 import com.resolve.api.reports.ReportDtos.ReportSummaryDto;
 import com.resolve.api.reports.ReportDtos.Resolution;
+import com.resolve.api.reports.ReportDtos.ResolutionBucket;
+import com.resolve.api.reports.ReportDtos.ResolutionTime;
+import com.resolve.api.reports.ReportDtos.StatusCounts;
+import com.resolve.api.reports.ReportDtos.WeekdayHour;
 import com.resolve.api.tickets.TicketChannel;
 import org.jspecify.annotations.Nullable;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -162,6 +167,75 @@ class ReportSummaryQuery {
 			ORDER BY coalesce(r.resolved, 0) DESC, lower(u.name), u.id
 			""";
 
+	/**
+	 * Tickets sin resolver ahora (no depende del periodo), por estado y por prioridad actual, en una pasada por los
+	 * tickets abiertos de la organización.
+	 */
+	private static final String OPEN_NOW = """
+			SELECT
+			  count(*) FILTER (WHERE status = 'open') AS open,
+			  count(*) FILTER (WHERE status = 'in_progress') AS in_progress,
+			  count(*) FILTER (WHERE status = 'waiting') AS waiting,
+			  count(*) FILTER (WHERE priority = 'urgent') AS urgent,
+			  count(*) FILTER (WHERE priority = 'high') AS high,
+			  count(*) FILTER (WHERE priority = 'medium') AS medium,
+			  count(*) FILTER (WHERE priority = 'low') AS low
+			FROM tickets
+			WHERE organization_id = :organizationId AND status <> 'resolved'
+			""";
+
+	/**
+	 * Los tickets de {@link #RESOLVED} (los que entraron en {@code resolved} dentro del periodo, así la suma de tramos es
+	 * {@code resolved.value}) puestos en su tramo por el tiempo desde la creación hasta su <em>primera</em> resolución, la
+	 * misma duración que {@code resolutionHours}. La primera resolución se busca sin cota inferior: un ticket creado
+	 * antes del periodo y reabierto también cuenta. Los límites son {@code [mín, máx)} sobre segundos transcurridos (nunca
+	 * sumas de intervalos de calendario, que dependerían de la zona); el agregado sin {@code GROUP BY} devuelve siempre
+	 * una fila, aunque no haya datos.
+	 */
+	private static final String RESOLUTION_TIMES = """
+			WITH resolved_in_period AS (
+			  SELECT DISTINCT ticket_id
+			  FROM ticket_activities
+			  WHERE organization_id = :organizationId AND type = 'status_changed' AND to_value = 'resolved'
+			    AND created_at >= :from AND created_at <= :to
+			), durations AS (
+			  SELECT extract(epoch FROM fr.resolved_at - t.created_at) AS seconds
+			  FROM resolved_in_period r
+			  JOIN tickets t ON t.id = r.ticket_id AND t.organization_id = :organizationId
+			  CROSS JOIN LATERAL (
+			    SELECT min(a.created_at) AS resolved_at
+			    FROM ticket_activities a
+			    WHERE a.ticket_id = r.ticket_id AND a.organization_id = :organizationId
+			      AND a.type = 'status_changed' AND a.to_value = 'resolved'
+			  ) fr
+			)
+			SELECT
+			  count(*) FILTER (WHERE seconds < 3600) AS under_1h,
+			  count(*) FILTER (WHERE seconds >= 3600 AND seconds < 14400) AS from_1_to_4h,
+			  count(*) FILTER (WHERE seconds >= 14400 AND seconds < 28800) AS from_4_to_8h,
+			  count(*) FILTER (WHERE seconds >= 28800 AND seconds < 86400) AS from_8_to_24h,
+			  count(*) FILTER (WHERE seconds >= 86400 AND seconds < 259200) AS from_1_to_3d,
+			  count(*) FILTER (WHERE seconds >= 259200) AS over_3d
+			FROM durations
+			""";
+
+	/**
+	 * Tickets creados en el periodo por día ISO ({@code isodow}: lunes 1 … domingo 7; {@code dow} daría 0 al domingo) y
+	 * hora del reloj local de la organización, con el mismo {@code AT TIME ZONE} que {@link #BY_DAY}: la hora repetida
+	 * de un cambio de horario suma en la misma celda. Solo salen las celdas con tickets.
+	 */
+	private static final String BY_WEEKDAY_HOUR = """
+			SELECT extract(isodow FROM local_at)::int AS weekday, extract(hour FROM local_at)::int AS hour,
+			       count(*) AS created
+			FROM (
+			  SELECT created_at AT TIME ZONE CAST(:zone AS text) AS local_at
+			  FROM tickets
+			  WHERE organization_id = :organizationId AND created_at >= :from AND created_at <= :to
+			) c
+			GROUP BY 1, 2
+			ORDER BY 1, 2
+			""";
+
 	/** Décimas de punto porcentual que se reparten entre los canales: 100,0 %. */
 	private static final int SHARE_UNITS = 1000;
 
@@ -177,7 +251,7 @@ class ReportSummaryQuery {
 		this.clock = clock;
 	}
 
-	/** Una sola instantánea: las cinco consultas ven el mismo estado aunque se cree un ticket entre ellas. */
+	/** Una sola instantánea: las ocho consultas ven el mismo estado aunque se cree un ticket entre ellas. */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	ReportSummaryDto compute(UUID organizationId, ReportPeriod period) {
 		Organization organization = this.organizations.findById(organizationId).orElseThrow();
@@ -190,12 +264,14 @@ class ReportSummaryQuery {
 
 		TicketFigures tickets = tickets(window);
 		int[] resolved = resolved(window);
+		int[] openNow = openNow(window);
 		return new ReportSummaryDto(new Range(from, to, period.days(), zone.getId()),
 				new Count(tickets.created(), tickets.createdPrevious()), new Count(resolved[0], resolved[1]),
 				new FirstResponse(tickets.firstResponse(), tickets.firstResponsePrevious(),
 						organization.getFirstResponseTargetMinutes()),
 				new Resolution(tickets.resolution(), tickets.resolutionPrevious()), days(window), channels(window),
-				agents(window));
+				agents(window), openByStatus(openNow), openByPriority(openNow), resolutionTimes(window),
+				weekdayHours(window));
 	}
 
 	private TicketFigures tickets(Window window) {
@@ -210,6 +286,43 @@ class ReportSummaryQuery {
 		return window.bind(this.jdbc.sql(RESOLVED))
 			.query((row, index) -> new int[] { row.getInt("resolved"), row.getInt("resolved_previous") })
 			.single();
+	}
+
+	/** Estados en las posiciones 0–2 y prioridades en las 3–6, de la misma pasada. */
+	private int[] openNow(Window window) {
+		return window.bind(this.jdbc.sql(OPEN_NOW))
+			.query((row, index) -> new int[] { row.getInt("open"), row.getInt("in_progress"), row.getInt("waiting"),
+					row.getInt("urgent"), row.getInt("high"), row.getInt("medium"), row.getInt("low") })
+			.single();
+	}
+
+	private static StatusCounts openByStatus(int[] openNow) {
+		return new StatusCounts(openNow[0], openNow[1], openNow[2]);
+	}
+
+	private static PriorityCounts openByPriority(int[] openNow) {
+		return new PriorityCounts(openNow[3], openNow[4], openNow[5], openNow[6]);
+	}
+
+	/** Siempre los seis tramos, en el orden del enum. */
+	private List<ResolutionTime> resolutionTimes(Window window) {
+		int[] counts = window.bind(this.jdbc.sql(RESOLUTION_TIMES))
+			.query((row, index) -> new int[] { row.getInt("under_1h"), row.getInt("from_1_to_4h"),
+					row.getInt("from_4_to_8h"), row.getInt("from_8_to_24h"), row.getInt("from_1_to_3d"),
+					row.getInt("over_3d") })
+			.single();
+		ResolutionBucket[] buckets = ResolutionBucket.values();
+		List<ResolutionTime> times = new ArrayList<>();
+		for (int i = 0; i < buckets.length; i++) {
+			times.add(new ResolutionTime(buckets[i], counts[i]));
+		}
+		return times;
+	}
+
+	private List<WeekdayHour> weekdayHours(Window window) {
+		return window.bind(this.jdbc.sql(BY_WEEKDAY_HOUR))
+			.query((row, index) -> new WeekdayHour(row.getInt("weekday"), row.getInt("hour"), row.getInt("created")))
+			.list();
 	}
 
 	private List<Day> days(Window window) {

@@ -1,4 +1,4 @@
-import type { ReportAgent, ReportSummary } from '../../src/api/schema'
+import type { ReportAgent, ReportResolutionBucket, ReportSummary, ReportWeekdayHour } from '../../src/api/schema'
 import { daniel, json, laura, problem, type MockFeature } from './shared'
 
 /**
@@ -32,6 +32,49 @@ const reportAgents: ReportAgent[] = [
   // Un nombre que empieza como una fórmula: el CSV debe neutralizarlo.
   reportAgent({ member: { id: 'u-formula', name: '=Carlos, "Fórmula"' }, resolved: 1 }),
 ]
+/**
+ * Reparte `total` en partes enteras proporcionales a `weights`; la suma es exactamente `total` (el resto va a la
+ * primera parte), para que los datos de demostración cuadren con `created` y `resolved`.
+ */
+const distribute = (total: number, weights: number[]): number[] => {
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0)
+  const parts = weights.map((weight) => Math.floor((total * weight) / weightSum))
+  parts[0] = (parts[0] ?? 0) + total - parts.reduce((sum, part) => sum + part, 0)
+  return parts
+}
+const resolutionBuckets: ReportResolutionBucket['bucket'][] = [
+  'under1h',
+  'from1To4h',
+  'from4To8h',
+  'from8To24h',
+  'from1To3d',
+  'over3d',
+]
+/** Seis tramos fijos en su orden, con la suma igual a `resolved`. */
+const resolutionTimesFor = (resolved: number): ReportResolutionBucket[] =>
+  distribute(resolved, [8, 32, 26, 18, 12, 4]).map((count, index) => ({
+    bucket: resolutionBuckets[index]!,
+    resolved: count,
+  }))
+/** Horario de oficina de lunes a viernes (9–15 h) y algo de fin de semana; solo celdas con tickets, con la suma igual a `created`. */
+const weekdayHoursFor = (created: number): ReportWeekdayHour[] => {
+  const cells = [
+    ...[1, 2, 3, 4, 5].flatMap((weekday) => [9, 10, 11, 12, 13, 14, 15].map((hour) => ({ weekday, hour }))),
+    { weekday: 6, hour: 10 },
+    { weekday: 7, hour: 11 },
+  ]
+  return distribute(
+    created,
+    cells.map((_, index) => 1 + ((index * 7) % 4)),
+  )
+    .map((count, index) => ({ ...cells[index]!, created: count }))
+    .filter((cell) => cell.created > 0)
+}
+/** Tickets sin resolver ahora: no dependen del periodo, así que son los mismos en los tres informes. */
+const openNow: Pick<ReportSummary, 'openByStatus' | 'openByPriority'> = {
+  openByStatus: { open: 9, inProgress: 14, waiting: 5 },
+  openByPriority: { urgent: 2, high: 8, medium: 13, low: 5 },
+}
 const reportSummaries: Record<'7d' | '30d' | '90d', ReportSummary> = {
   '7d': {
     period: { from: '2026-09-28T05:00:00Z', to: '2026-10-04T15:00:00Z', days: 7, timeZone: 'America/Bogota' },
@@ -46,6 +89,9 @@ const reportSummaries: Record<'7d' | '30d' | '90d', ReportSummary> = {
       { channel: 'web', created: 31, share: 8.6 },
     ],
     byAgent: reportAgents,
+    ...openNow,
+    resolutionTimes: resolutionTimesFor(300),
+    createdByWeekdayHour: weekdayHoursFor(361),
   },
   '30d': {
     period: { from: '2026-09-05T05:00:00Z', to: '2026-10-04T15:00:00Z', days: 30, timeZone: 'America/Bogota' },
@@ -65,6 +111,9 @@ const reportSummaries: Record<'7d' | '30d' | '90d', ReportSummary> = {
       { channel: 'web', created: 90, share: 6.8 },
     ],
     byAgent: reportAgents,
+    ...openNow,
+    resolutionTimes: resolutionTimesFor(1180),
+    createdByWeekdayHour: weekdayHoursFor(1320),
   },
   '90d': {
     period: { from: '2026-07-07T05:00:00Z', to: '2026-10-04T15:00:00Z', days: 90, timeZone: 'America/Bogota' },
@@ -79,6 +128,9 @@ const reportSummaries: Record<'7d' | '30d' | '90d', ReportSummary> = {
     })),
     byChannel: [{ channel: 'email', created: 3900, share: 100 }],
     byAgent: reportAgents,
+    ...openNow,
+    resolutionTimes: resolutionTimesFor(3500),
+    createdByWeekdayHour: weekdayHoursFor(3900),
   },
 }
 

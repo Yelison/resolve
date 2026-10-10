@@ -283,6 +283,20 @@ test.describe('reportes', () => {
           openAssigned: 2,
         },
       ],
+      openByStatus: { open: 2, inProgress: 1, waiting: 0 },
+      openByPriority: { urgent: 0, high: 1, medium: 2, low: 0 },
+      resolutionTimes: [
+        { bucket: 'under1h', resolved: 3 },
+        { bucket: 'from1To4h', resolved: 6 },
+        { bucket: 'from4To8h', resolved: 5 },
+        { bucket: 'from8To24h', resolved: 3 },
+        { bucket: 'from1To3d', resolved: 2 },
+        { bucket: 'over3d', resolved: 0 },
+      ],
+      createdByWeekdayHour: [
+        { weekday: 1, hour: 9, created: 12 },
+        { weekday: 3, hour: 14, created: 8 },
+      ],
     }
     await page.route('**/api/reports/summary*', (route) => route.fulfill({ json: report }))
     await page.setViewportSize({ width: 320, height: 900 })

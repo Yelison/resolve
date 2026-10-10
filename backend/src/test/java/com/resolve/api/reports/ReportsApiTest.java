@@ -307,7 +307,7 @@ class ReportsApiTest extends ReportsFixture {
 		assertThat(summary.at("/created/value").asInt()).isEqualTo(1);
 	}
 
-	/** Las cinco consultas del informe se ejecutan en una transacción de solo lectura con aislamiento REPEATABLE READ. */
+	/** Las ocho consultas del informe se ejecutan en una transacción de solo lectura con aislamiento REPEATABLE READ. */
 	@Test
 	void allTheFiguresComeFromOneSnapshot() throws Exception {
 		List<String> observed = new CopyOnWriteArrayList<>();
@@ -320,8 +320,9 @@ class ReportsApiTest extends ReportsFixture {
 
 		summary(LAURA, "7d");
 
-		// Ticket, resueltos, días, canales y agentes: todas con transacción activa, de solo lectura y nivel 4.
-		assertThat(observed).containsExactly("true/true/4", "true/true/4", "true/true/4", "true/true/4", "true/true/4");
+		// Ticket, resueltos, abiertos ahora, tramos de resolución, mapa por día y hora, días, canales y agentes: todas con
+		// transacción activa, de solo lectura y nivel 4.
+		assertThat(observed).hasSize(8).containsOnly("true/true/4");
 	}
 
 	// --- Medianas ---
