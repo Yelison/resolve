@@ -10,13 +10,12 @@
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Resolve</title>
-    <script>
-      // Aplica el tema guardado antes del primer pintado para evitar un destello del tema contrario.
-      try {
-        var theme = localStorage.getItem('resolve-theme')
-        if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme)
-      } catch (error) {}
-    </script>
+    <!-- Aplica el tema guardado antes del primer pintado para evitar un destello del tema contrario. Es la salida literal de
+         `themeScript({ storageKey: 'resolve-theme' })` de @yelison/forma-ui, byte a byte (lo comprueba
+         `src/app/theme/firstPaint.test.ts`): el backend admite este script en la CSP con el hash de su contenido, así que
+         no se reformatea ni se edita a mano. -->
+    <!-- prettier-ignore -->
+    <script>try{const t=localStorage.getItem("resolve-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch{}</script>
   </head>
   <body>
     <div id="root"></div>

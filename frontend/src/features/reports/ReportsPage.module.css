@@ -5,7 +5,9 @@
   gap: var(--space-8) var(--space-16);
 }
 
-.periodField {
+/* Llega a `.forma-field` por el `fieldClassName` de Select y pisa su `min-width`: con `.toolbar` por delante gana por
+ * especificidad y no depende del orden de las hojas (docs/development/dependencies.md). */
+.toolbar .periodField {
   flex: 0 1 220px;
   min-width: min(100%, 160px);
 }

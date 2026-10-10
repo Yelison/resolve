@@ -1,7 +1,7 @@
 import type { ComponentProps, ReactNode } from 'react'
 import { cx } from '../../../lib/cx'
 import { Field } from '../Field/Field'
-import fieldStyles from '../Field/Field.module.css'
+import fieldStyles from '../shared/control.module.css'
 import { Icon } from '../Icon/Icon'
 import styles from './Select.module.css'
 

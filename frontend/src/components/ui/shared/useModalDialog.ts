@@ -1,5 +1,5 @@
 import { useEffect, useRef, type MouseEvent, type PointerEvent, type SyntheticEvent } from 'react'
-import { lockScroll } from '../../../lib/scrollLock'
+import { useScrollLock } from '@yelison/forma-ui'
 
 /**
  * Gestiona un <dialog> nativo controlado: lo abre como modal (foco atrapado y fondo inerte),
@@ -7,6 +7,9 @@ import { lockScroll } from '../../../lib/scrollLock'
  * El contenido debe ir dentro de un hijo que ocupe todo el diálogo para distinguir el clic en el fondo.
  */
 export function useModalDialog(open: boolean, onClose: () => void) {
+  // El bloqueo de scroll es el del paquete, el mismo contador que usa su `Dialog`: si un diálogo se abre sobre este
+  // (el menú de cuenta vive en el drawer), cerrar uno no suelta el bloqueo ni la compensación de la barra del otro.
+  useScrollLock(open)
   const ref = useRef<HTMLDialogElement>(null)
   const onCloseRef = useRef(onClose)
   /** Cierre iniciado por el propio hook al pasar `open` a false: no debe volver a avisar al padre. */
@@ -27,14 +30,12 @@ export function useModalDialog(open: boolean, onClose: () => void) {
 
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
     dialog.showModal()
-    const unlockScroll = lockScroll()
 
     return () => {
       if (dialog.open) {
         closingRef.current = true
         dialog.close()
       }
-      unlockScroll()
       previouslyFocused?.focus()
     }
   }, [open])

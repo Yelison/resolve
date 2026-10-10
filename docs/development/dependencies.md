@@ -2,7 +2,8 @@
 
 Resolve depends on [`@yelison/forma-ui`](https://www.npmjs.com/package/@yelison/forma-ui), the component and token
 library extracted from it. This page records how that dependency is pinned, how its tokens reach the app and how updates
-are merged. The owner decided it; the adoption ADR (0002) arrives with the components, in the next task.
+are merged. The owner decided it; the decision and how each of the extraction criteria was handled are in
+[ADR 0002](../decisions/0002-adopt-forma-ui.md).
 
 ## Pinned to an exact version
 
@@ -33,8 +34,52 @@ npm run sync:forma-tokens -- --check # writes nothing; fails if a copy differs f
   - chart colours (`--color-chart-1…4` and the sequential ramp `--color-chart-seq-1…4`) are in
     `frontend/src/styles/chart-tokens.css`, with the same three theme blocks as `tokens.css`, until Forma UI has charts.
     `tokens.contrast.test.ts` reads both files.
-- **Order of the stylesheets** (the package README's): `tokens.css`, then `base.css`, then Resolve's own CSS.
-  `global.css` imports them in that order. `styles.css`, the components' rules, joins them with the components.
+- **Order of the stylesheets.** The package README asks for `tokens.css`, `styles.css`, `base.css` and then your own CSS.
+  Resolve keeps that order in the page, but not with a single `@import` list, because Vite links the CSS of a shared
+  chunk before the CSS of the entry point:
+  - `components/ui/index.ts` imports `@yelison/forma-ui/styles.css` as its **first line**. In the build it opens
+    `ui-*.css`, which the page links first, so every `.forma-*` rule comes before all of Resolve's CSS;
+  - `global.css` imports `tokens.css`, `@yelison/forma-ui/base.css` and `chart-tokens.css` (custom properties and
+    classes that do not depend on the order) and then holds Resolve's own layer.
+
+  `src/styles/global.order.test.ts` pins both, and `e2e/production-bundle.spec.ts` checks the build: the first stylesheet is
+  `ui-*.css` and starts with a package rule, and no other stylesheet carries `.forma-*` component rules.
+
+## Overriding a package class
+
+The package's classes (`forma-<module>__<class>`) are not an API: restyle through the tokens. When a Resolve class
+has to change something a component sets (for example `.header .toggle` on the sidebar's `IconButton`, or the class that
+`GlobalSearch` passes to `Modal`), the rule is:
+
+1. **By order.** A `className` passed to a component has the same specificity as the component's own rule, and the
+   package's CSS is first in the build (see above), so the Resolve class wins. Use a single class selector.
+2. **By specificity, as a defence.** Where the property matters (colours, outlines, sizes of a control), also raise the
+   specificity of Resolve's selector (`.header .toggle`, not `.toggle`). It keeps working if the order ever changes, and
+   the package's state selectors use `:where()` so a class of yours can win over them.
+3. **Check it in the build.** jsdom loads no CSS: a test that needs the cascade runs in Playwright against the built
+   application (`e2e/shell.spec.ts` for the sidebar, `e2e/production-bundle.spec.ts` for the search dialog, which fails when a
+   Resolve class sets a property that the package sets later).
+
+Today two Resolve classes override a package property, and both follow rule 2:
+
+- the sidebar's (`.header .toggle…`, on the `IconButton`);
+- `.periodField` of Reports (`features/reports/ReportsPage.module.css`), which reaches the package's `.forma-field` through the
+  `fieldClassName` of `Select` and overrides its `min-width`. It is written as `.toolbar .periodField`, so it wins by
+  specificity and not only by order.
+
+`GlobalSearch`'s `.dialog` only defines a custom property of its own, and the other classes that reach a `Select`
+(`.sort`, `.select`) only set `flex`, which the package does not set.
+
+## The theme
+
+`useTheme` (`src/app/theme/`) delegates to `createThemeStore({ storageKey: 'resolve-theme' })`, one store for the whole
+application; the key is the one Resolve always used, so stored preferences survive. `index.html` carries the output of
+`themeScript({ storageKey: 'resolve-theme' })` byte for byte, between `<!-- prettier-ignore -->` and the script: the
+backend admits the inline script in the Content-Security-Policy by the SHA-256 hash of its content
+(`ContentSecurityPolicy.java` computes it when it starts, from the `index.html` it serves), so the script is neither
+reformatted nor edited by hand. If `@yelison/forma-ui` changes `themeScript`, `src/app/theme/firstPaint.test.ts` fails until
+`index.html` is updated with the new output; no hash is written anywhere. `e2e/theme.spec.ts` serves the build with a
+hash-only policy computed like the backend does.
 
 ## Dependabot and auto-merge
 

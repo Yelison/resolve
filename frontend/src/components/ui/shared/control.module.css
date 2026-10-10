@@ -1,26 +1,4 @@
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-  min-width: 0;
-}
-
-.label {
-  font: var(--font-label);
-  color: var(--color-ink);
-}
-
-.hint {
-  font: var(--font-caption);
-  color: var(--color-muted);
-}
-
-.error {
-  font: var(--font-caption);
-  color: var(--color-red-ink);
-}
-
-/* Caja compartida por Input, Select y Textarea; :where() la deja sin especificidad para que cada control la ajuste. */
+/* Caja compartida por Select, Textarea y Combobox (Input es del paquete y lleva la suya); :where() la deja sin especificidad para que cada control la ajuste. */
 :where(.control) {
   width: 100%;
   min-height: var(--control-height);
@@ -40,13 +18,13 @@
   opacity: 1;
 }
 
-.control:hover:not(:disabled, :focus) {
+.control:hover:not(:disabled, :focus, [readonly]) {
   background: var(--color-surface-hover);
 }
 
 .control:focus-visible {
   border-color: var(--color-focus);
-  outline: 1px solid var(--color-focus);
+  outline: var(--focus-ring);
   outline-offset: 0;
 }
 
@@ -58,8 +36,22 @@
   outline-color: var(--color-red-ink);
 }
 
+/* Solo lectura no es deshabilitado: el valor sigue legible, seleccionable y enfocable, así que conserva el color del texto
+   y cambia el estilo del borde, que no depende solo del color. Es la regla de `Input` del paquete: Select y Textarea
+   (y Combobox) tienen el mismo aspecto. */
+.control[readonly] {
+  border-style: dashed;
+  background: var(--color-bg);
+}
+
 .control:disabled {
   background: var(--color-bg);
   color: var(--color-muted);
   cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control {
+    transition: none;
+  }
 }

@@ -1,6 +1,6 @@
 # 0001 · Forma UI stays in the application until a second consumer exists
 
-- **Status:** accepted, 2026-10-05
+- **Status:** accepted, 2026-10-05. **Superseded in part by [0002](0002-adopt-forma-ui.md)** (2026-10-10), for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal: they were extracted into `@yelison/forma-ui` and are adopted from npm. This ADR still applies to every other component in `frontend/src/components/ui`.
 - **Plan reference:** [T7.2](../plans/2026-10-04-resolve-implementation-plan.md) (Fixed stack: "no package called `forma-ui`")
 
 ## Context
