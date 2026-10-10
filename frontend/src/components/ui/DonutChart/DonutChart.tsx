@@ -5,8 +5,12 @@ import { Tooltip } from '../Tooltip/Tooltip'
 import { sectorPath, sliceAngles } from './geometry'
 import styles from './DonutChart.module.css'
 
-/** Posición del color en la paleta de gráficos (`--color-chart-1…4`). Es fija por entidad, no por orden de aparición. */
-export type DonutColor = 1 | 2 | 3 | 4
+/**
+ * Posición del color en la paleta de gráficos (`--color-chart-1…4`). Es fija por entidad, no por orden de aparición.
+ * `seq1…seq4` toman la rampa secuencial de un solo tono (`--color-chart-seq-1…4`, de más a menos intensa) para datos
+ * ordenados, como la prioridad; los pasos 3 y 4 llevan un contorno de 1 px para no fundirse con la superficie.
+ */
+export type DonutColor = 1 | 2 | 3 | 4 | 'seq1' | 'seq2' | 'seq3' | 'seq4'
 
 export interface DonutSegment {
   /** Clave única del segmento. */

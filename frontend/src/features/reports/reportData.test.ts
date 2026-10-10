@@ -18,7 +18,13 @@ import {
   missingResponsesNote,
   pendingPoints,
   pendingText,
+  prioritySegments,
+  requestsText,
+  resolutionPoints,
   resolvedShare,
+  hasResolutions,
+  statusSegments,
+  weekdayHourGrid,
   signedInteger,
 } from './reportData'
 
@@ -293,5 +299,140 @@ describe('missingResponsesNote', () => {
     expect(missingResponsesNote(['Ana', 'Luis', 'Marta'])).toBe(
       'Sin primeras respuestas en el periodo: Ana, Luis y Marta.',
     )
+  })
+})
+
+describe('statusSegments', () => {
+  it('da siempre Abierto, En progreso y Esperando cliente (los nombres de Tickets), con los colores 1–3 y el total', () => {
+    const { segments, total } = statusSegments({ open: 9, inProgress: 14, waiting: 0 })
+    expect(segments.map(({ label, value, color, valueText }) => [label, value, color, valueText])).toEqual([
+      ['Abierto', 9, 1, '9'],
+      ['En progreso', 14, 2, '14'],
+      ['Esperando cliente', 0, 3, '0'],
+    ])
+    expect(total).toBe(23)
+  })
+
+  it('sin tickets abiertos el total es 0', () => {
+    expect(statusSegments({ open: 0, inProgress: 0, waiting: 0 }).total).toBe(0)
+  })
+})
+
+describe('prioritySegments', () => {
+  it('va de urgente a baja en un solo tono de la rampa, de más a menos intenso', () => {
+    const { segments, total } = prioritySegments({ urgent: 2, high: 8, medium: 13, low: 5 })
+    expect(segments.map(({ label, value, color }) => [label, value, color])).toEqual([
+      ['Urgente', 2, 'seq1'],
+      ['Alta', 8, 'seq2'],
+      ['Media', 13, 'seq3'],
+      ['Baja', 5, 'seq4'],
+    ])
+    expect(total).toBe(28)
+  })
+
+  it('no usa los colores de la paleta categórica ni los de estado', () => {
+    const colors = prioritySegments({ urgent: 1, high: 1, medium: 1, low: 1 }).segments.map((s) => s.color)
+    expect(colors.every((color) => typeof color === 'string' && color.startsWith('seq'))).toBe(true)
+  })
+})
+
+describe('resolutionPoints', () => {
+  const sample = [
+    { bucket: 'over3d', resolved: 1 },
+    { bucket: 'under1h', resolved: 24 },
+    { bucket: 'from8To24h', resolved: 54 },
+    { bucket: 'from1To4h', resolved: 96 },
+    { bucket: 'from1To3d', resolved: 36 },
+    { bucket: 'from4To8h', resolved: 78 },
+  ] as const
+
+  it('mantiene el orden fijo de menos a más tiempo y sus rótulos aunque lleguen desordenados', () => {
+    const points = resolutionPoints([...sample])
+    expect(points.map((point) => point.label)).toEqual(['< 1 h', '1–4 h', '4–8 h', '8–24 h', '1–3 d', '> 3 d'])
+    expect(points.map((point) => point.values.resolved)).toEqual([24, 96, 78, 54, 36, 1])
+  })
+
+  it('el eje lleva la etiqueta compacta y el tooltip y la tabla, la completa', () => {
+    const points = resolutionPoints([...sample])
+    expect(points.map((point) => point.shortLabel)).toEqual(['<1h', '1–4h', '4–8h', '8–24h', '1–3d', '>3d'])
+    expect(points.map((point) => point.label)).toEqual(['< 1 h', '1–4 h', '4–8 h', '8–24 h', '1–3 d', '> 3 d'])
+  })
+
+  it('un tramo que falta cuenta como 0', () => {
+    const points = resolutionPoints([{ bucket: 'under1h', resolved: 4 }])
+    expect(points.map((point) => point.values.resolved)).toEqual([4, 0, 0, 0, 0, 0])
+  })
+
+  it('hasResolutions distingue un periodo sin resoluciones', () => {
+    expect(hasResolutions([...sample])).toBe(true)
+    expect(hasResolutions(resolutionPoints([]).map((p) => ({ bucket: 'under1h', resolved: p.values.resolved! })))).toBe(
+      false,
+    )
+  })
+})
+
+describe('weekdayHourGrid', () => {
+  it('pone los días de lunes a domingo con las abreviaturas compartidas y las franjas de 0 a 22', () => {
+    const { rows, columns } = weekdayHourGrid([])
+    expect(rows.map((row) => row.label)).toEqual(['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'])
+    expect(columns.map((column) => column.label)).toEqual([
+      '0',
+      '2',
+      '4',
+      '6',
+      '8',
+      '10',
+      '12',
+      '14',
+      '16',
+      '18',
+      '20',
+      '22',
+    ])
+    expect(columns[4]!.name).toBe('8–10 h')
+    expect(columns[11]!.name).toBe('22–24 h')
+  })
+
+  it('agrupa las horas de dos en dos', () => {
+    const { values, total } = weekdayHourGrid([
+      { weekday: 1, hour: 8, created: 3 },
+      { weekday: 1, hour: 9, created: 4 },
+      { weekday: 1, hour: 10, created: 5 },
+      { weekday: 7, hour: 23, created: 2 },
+      { weekday: 3, hour: 0, created: 1 },
+    ])
+    expect(values[0]![4]).toBe(7)
+    expect(values[0]![5]).toBe(5)
+    expect(values[6]![11]).toBe(2)
+    expect(values[2]![0]).toBe(1)
+    expect(total).toBe(15)
+  })
+
+  it('rellena con 0 las celdas que la API no envía', () => {
+    const { values } = weekdayHourGrid([{ weekday: 2, hour: 14, created: 9 }])
+    expect(values).toHaveLength(7)
+    expect(values.every((row) => row.length === 12)).toBe(true)
+    expect(values.flat().filter((value) => value === 0)).toHaveLength(83)
+    expect(values[1]![7]).toBe(9)
+  })
+
+  it('ignora lo que no cae en la cuadrícula sin romper el total', () => {
+    const { total, values } = weekdayHourGrid([
+      { weekday: 0, hour: 9, created: 5 },
+      { weekday: 8, hour: 9, created: 5 },
+      { weekday: 1, hour: 24, created: 5 },
+      { weekday: 1, hour: -1, created: 5 },
+      { weekday: 1, hour: 9, created: 2 },
+    ])
+    expect(total).toBe(2)
+    expect(values.flat().reduce((sum, value) => sum + value, 0)).toBe(2)
+  })
+})
+
+describe('requestsText', () => {
+  it('concuerda en singular y plural', () => {
+    expect(requestsText(1)).toBe('1 solicitud')
+    expect(requestsText(0)).toBe('0 solicitudes')
+    expect(requestsText(12345)).toBe('12.345 solicitudes')
   })
 })

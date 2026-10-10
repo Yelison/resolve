@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { cx } from '../../lib/cx'
-import type { ParameterReportPeriod as ReportPeriod, ReportSummary } from '../../api/schema'
+import type { ParameterReportPeriod as ReportPeriod, ReportAgent, ReportSummary } from '../../api/schema'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import {
@@ -11,6 +11,7 @@ import {
   DonutChart,
   DotPlot,
   EmptyState,
+  Heatmap,
   LineChart,
   Metric,
   Select,
@@ -32,12 +33,18 @@ import {
   formatMinutes,
   formatRange,
   hasActivity,
+  hasResolutions,
   integer,
   missingResponsesNote,
   pendingPoints,
   pendingText,
+  prioritySegments,
+  requestsText,
+  resolutionPoints,
   resolvedShare,
   signedInteger,
+  statusSegments,
+  weekdayHourGrid,
 } from './reportData'
 import { downloadCsv } from './csv'
 import { DEFAULT_PERIOD, hasInvalidPeriod, periodLabels, readPeriod, reportPeriods, writePeriod } from './periodParams'
@@ -168,10 +175,32 @@ function Reserved({ ghost, children }: { ghost: ReactNode; children: ReactNode }
   )
 }
 
-/** Tamaño del anillo de «Abiertos con y sin responsable» (el de canales usa el tamaño por defecto). */
+/** Tamaño de los anillos pequeños (abiertos con y sin responsable, estado y prioridad); el de canales usa el tamaño por defecto. */
 const ASSIGNED_SIZE = 128
 
 const BLANK = '\u00a0'
+
+/** Agentes de un equipo típico: fijan el alto del esqueleto de «Rendimiento por agente» para que lo de debajo se mueva poco. */
+const GHOST_AGENTS = 5
+const ghostAgents: ReportAgent[] = Array.from({ length: GHOST_AGENTS }, (_, index) => ({
+  member: { id: `ghost-${index}`, name: BLANK },
+  status: 'active',
+  resolved: 0,
+  firstResponseMinutes: 10 + index,
+  openAssigned: 0,
+}))
+
+/** Los cuatro tramos de un anillo y los 84 huecos del mapa de calor, en blanco. */
+const ghostRing = (ids: string[]) =>
+  ids.map((id, index) => ({
+    id,
+    label: BLANK,
+    value: ids.length - index,
+    color: ((index % 4) + 1) as 1 | 2 | 3 | 4,
+    valueText: BLANK,
+  }))
+const ghostSlots = Array.from({ length: 12 }, (_, index) => ({ key: String(index), label: BLANK }))
+const ghostWeekdays = Array.from({ length: 7 }, (_, index) => ({ key: String(index), label: BLANK }))
 
 /** Contenido más alto posible de cada panel; los textos van en blanco para que no se lean ni dupliquen los reales. */
 const ghostPanels = {
@@ -225,6 +254,59 @@ const ghostPanels = {
       centerValue={BLANK}
     />
   ),
+  agents: (
+    <div className={styles.agents}>
+      <div className={styles.agentsChart}>
+        <h3 className={styles.subtitle}>{BLANK}</h3>
+        <DotPlot
+          label=""
+          rows={ghostAgents.map((agent) => ({
+            key: agent.member.id,
+            label: BLANK,
+            value: agent.firstResponseMinutes ?? 0,
+          }))}
+          target={{ value: 30, label: BLANK }}
+        />
+      </div>
+      <AgentsTable agents={ghostAgents} caption={BLANK} />
+      <p className={styles.note}>{BLANK}</p>
+    </div>
+  ),
+  status: (
+    <DonutChart
+      label=""
+      size={ASSIGNED_SIZE}
+      segments={ghostRing(['a', 'b', 'c'])}
+      centerValue={BLANK}
+      centerLabel={BLANK}
+    />
+  ),
+  priority: (
+    <DonutChart
+      label=""
+      size={ASSIGNED_SIZE}
+      segments={ghostRing(['a', 'b', 'c', 'd'])}
+      centerValue={BLANK}
+      centerLabel={BLANK}
+    />
+  ),
+  resolution: (
+    <BarChart
+      label=""
+      series={[{ id: 'resolved', label: BLANK }]}
+      points={ghostSlots
+        .slice(0, 6)
+        .map((slot) => ({ key: slot.key, label: BLANK, shortLabel: BLANK, values: { resolved: 4 } }))}
+    />
+  ),
+  heatmap: (
+    <Heatmap
+      label=""
+      rows={ghostWeekdays}
+      columns={ghostSlots}
+      values={ghostWeekdays.map((_, row) => ghostSlots.map((_, column) => (row === 0 && column === 0 ? 1 : 0)))}
+    />
+  ),
 }
 
 function LoadingReport() {
@@ -251,7 +333,17 @@ function LoadingReport() {
       </div>
       <div className={styles.panel} data-testid="report-agents">
         <span className={styles.panelTitle}>{BLANK}</span>
-        <Skeleton lines={4} label="" />
+        <Reserved ghost={ghostPanels.agents}>
+          <Skeleton lines={4} label="" className={styles.panelSkeleton} />
+        </Reserved>
+      </div>
+      <div className={styles.trio} data-testid="report-panels-open">
+        <LoadingPanel ghost={ghostPanels.status} />
+        <LoadingPanel ghost={ghostPanels.priority} />
+        <LoadingPanel ghost={ghostPanels.resolution} />
+      </div>
+      <div data-testid="report-heatmap">
+        <LoadingPanel ghost={ghostPanels.heatmap} />
       </div>
     </>
   )
@@ -283,6 +375,14 @@ function Report({ data, updating }: { data: ReportSummary; updating: boolean }) 
         <AssignedPanel />
       </div>
       <AgentsPanel data={data} className={dim} />
+      <div className={styles.trio} data-testid="report-panels-open">
+        <StatusPanel data={data} className={dim} />
+        <PriorityPanel data={data} className={dim} />
+        <ResolutionPanel data={data} className={dim} />
+      </div>
+      <div data-testid="report-heatmap">
+        <HeatmapPanel data={data} className={dim} />
+      </div>
     </>
   )
 }
@@ -547,5 +647,117 @@ function AgentsPanel({ data, className }: { data: ReportSummary; className?: str
         </div>
       )}
     </section>
+  )
+}
+
+/** «Sin tickets abiertos»: el recuento de abiertos es el de ahora, no el del periodo. */
+function NoOpenTickets() {
+  return (
+    <EmptyState
+      icon="ticket"
+      headingLevel={3}
+      title="Sin tickets abiertos"
+      description="Cuando haya tickets sin resolver, aparecerán aquí."
+    />
+  )
+}
+
+const openCenterLabel = (total: number) => (total === 1 ? 'abierto' : 'abiertos')
+
+function StatusPanel({ data, className }: { data: ReportSummary; className?: string }) {
+  const { segments, total } = statusSegments(data.openByStatus)
+  return (
+    <Panel id="reports-status" title="Estado de los abiertos" className={className}>
+      <Reserved ghost={ghostPanels.status}>
+        {total === 0 ? (
+          <NoOpenTickets />
+        ) : (
+          <DonutChart
+            label="Estado de los abiertos"
+            size={ASSIGNED_SIZE}
+            segments={segments}
+            centerValue={integer.format(total)}
+            centerLabel={openCenterLabel(total)}
+            valueColumn="Tickets"
+          />
+        )}
+      </Reserved>
+    </Panel>
+  )
+}
+
+function PriorityPanel({ data, className }: { data: ReportSummary; className?: string }) {
+  const { segments, total } = prioritySegments(data.openByPriority)
+  return (
+    <Panel id="reports-priority" title="Prioridad de los abiertos" className={className}>
+      <Reserved ghost={ghostPanels.priority}>
+        {total === 0 ? (
+          <NoOpenTickets />
+        ) : (
+          <DonutChart
+            label="Prioridad de los abiertos"
+            size={ASSIGNED_SIZE}
+            segments={segments}
+            centerValue={integer.format(total)}
+            centerLabel={openCenterLabel(total)}
+            valueColumn="Tickets"
+          />
+        )}
+      </Reserved>
+    </Panel>
+  )
+}
+
+function ResolutionPanel({ data, className }: { data: ReportSummary; className?: string }) {
+  return (
+    <Panel id="reports-resolution" title="Cuánto tarda la resolución" className={className}>
+      <Reserved ghost={ghostPanels.resolution}>
+        {hasResolutions(data.resolutionTimes) ? (
+          <BarChart
+            label="Cuánto tarda la resolución"
+            series={[{ id: 'resolved', label: 'Resueltos', color: 'chart1' }]}
+            points={resolutionPoints(data.resolutionTimes)}
+            valueFormatter={integer.format}
+            categoryColumn="Tiempo hasta resolver"
+            showEveryLabel
+            focusable
+          />
+        ) : (
+          <EmptyState
+            icon="report"
+            headingLevel={3}
+            title="Sin resoluciones en este periodo"
+            description="Cuando se resuelva un ticket, aparecerá aquí."
+          />
+        )}
+      </Reserved>
+    </Panel>
+  )
+}
+
+function HeatmapPanel({ data, className }: { data: ReportSummary; className?: string }) {
+  const grid = weekdayHourGrid(data.createdByWeekdayHour)
+  return (
+    <Panel id="reports-heatmap" title="Cuándo llegan las solicitudes" className={className}>
+      <Reserved ghost={ghostPanels.heatmap}>
+        {grid.total === 0 ? (
+          <EmptyState
+            icon="report"
+            headingLevel={3}
+            title="Sin solicitudes en este periodo"
+            description="Cuando llegue una solicitud, aparecerá aquí."
+          />
+        ) : (
+          <Heatmap
+            label="Cuándo llegan las solicitudes"
+            rows={grid.rows}
+            columns={grid.columns}
+            values={grid.values}
+            rowColumn="Día"
+            cellText={requestsText}
+          />
+        )}
+      </Reserved>
+    </Panel>
   )
 }

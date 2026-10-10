@@ -1,4 +1,11 @@
-import type { ComboboxOption, DonutSegment, DotPlotRow, LineChartPoint } from '../../components/ui'
+import type {
+  ComboboxOption,
+  DonutSegment,
+  DotPlotRow,
+  HeatmapColumn,
+  HeatmapRow,
+  LineChartPoint,
+} from '../../components/ui'
 import type { TicketSummary } from '../../domain/ticket'
 
 /** Momento de referencia de los datos de demostración, fijado al cargar el módulo. */
@@ -171,3 +178,34 @@ export const demoDotLongNames: DotPlotRow[] = [
   },
   { key: 'b', label: 'Pablo Viejo', value: 64 },
 ]
+
+/** Un orden de mayor a menor urgencia en un solo tono: los pasos claros del anillo llevan contorno. */
+export const demoDonutPriority: DonutSegment[] = [
+  { id: 'urgent', label: 'Urgente', value: 4, color: 'seq1', valueText: '4' },
+  { id: 'high', label: 'Alta', value: 9, color: 'seq2', valueText: '9' },
+  { id: 'medium', label: 'Media', value: 16, color: 'seq3', valueText: '16' },
+  { id: 'low', label: 'Baja', value: 9, color: 'seq4', valueText: '9' },
+]
+
+export const demoHeatmapRows: HeatmapRow[] = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'].map((label) => ({
+  key: label,
+  label,
+}))
+export const demoHeatmapColumns: HeatmapColumn[] = Array.from({ length: 12 }, (_, index) => ({
+  key: String(index * 2),
+  label: String(index * 2),
+  name: `${index * 2}–${index * 2 + 2} h`,
+}))
+
+/** Horario de oficina entre semana y poco movimiento el fin de semana, con celdas vacías de madrugada. */
+export const demoHeatmapOffice: number[][] = demoHeatmapRows.map((_, row) =>
+  demoHeatmapColumns.map((_, column) => {
+    const base = [0, 0, 0, 0, 14, 40, 36, 38, 30, 16, 6, 0][column] ?? 0
+    return row >= 5 ? Math.round(base / 4) : base + ((row * 3 + column) % 5)
+  }),
+)
+
+/** Todas las celdas con datos y valores muy distintos: de 1 a 1.320, para ver los cuatro pasos a la vez. */
+export const demoHeatmapDense: number[][] = demoHeatmapRows.map((_, row) =>
+  demoHeatmapColumns.map((_, column) => 1 + ((row * 12 + column) % 7) ** 4 + (column === 7 ? 800 : 0)),
+)

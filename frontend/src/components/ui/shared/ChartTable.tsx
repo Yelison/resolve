@@ -24,6 +24,11 @@ export interface ChartTableProps {
   rows: ChartTableRow[]
   /** Clase del botón, para alinearlo en el contenedor del gráfico. */
   className?: string
+  /**
+   * Para tablas con muchas columnas (p. ej. las 12 franjas de un mapa de calor): cada columna conserva su ancho y la
+   * tabla hace scroll horizontal dentro de su contenedor en lugar de partir los textos.
+   */
+  wide?: boolean
 }
 
 /**
@@ -31,7 +36,7 @@ export interface ChartTableProps {
  * «Ver como tabla» la muestra a todos. El texto visible del botón es el mismo en todos los gráficos; su nombre accesible
  * añade el del gráfico para que varios en una página no se confundan.
  */
-export function ChartTable({ id, label, firstColumn, columns, rows, className }: ChartTableProps) {
+export function ChartTable({ id, label, firstColumn, columns, rows, className, wide = false }: ChartTableProps) {
   const [visible, setVisible] = useState(false)
   return (
     <>
@@ -45,7 +50,7 @@ export function ChartTable({ id, label, firstColumn, columns, rows, className }:
         {visible ? 'Ocultar tabla' : 'Ver como tabla'} <span className="visually-hidden">de {label}</span>
       </button>
       <div id={id} className={cx(styles.wrap, !visible && 'visually-hidden')}>
-        <table className={styles.table}>
+        <table className={cx(styles.table, wide && styles.wide)}>
           <caption className={styles.caption}>{label}</caption>
           <thead>
             <tr>

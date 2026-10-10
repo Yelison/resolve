@@ -194,4 +194,44 @@ describe('BarChart con muchos puntos', () => {
     expect(bars[0]!.getAttribute('class')).toMatch(/chart1/)
     expect(bars[1]!.getAttribute('class')).toMatch(/chart2/)
   })
+
+  it('por defecto las columnas no son paradas de teclado y la tabla se encabeza con «Periodo»', () => {
+    render(<BarChart label="Solicitudes por día" series={series} points={points} />)
+    expect(screen.queryByRole('button', { name: /^Lunes/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { hidden: true, name: 'Periodo' })).toBeInTheDocument()
+  })
+
+  it('con `categoryColumn` cambia la cabecera de la primera columna de la tabla', () => {
+    render(<BarChart label="Tiempo" series={series} points={points} categoryColumn="Tramo" />)
+    expect(screen.getByRole('columnheader', { hidden: true, name: 'Tramo' })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { hidden: true, name: 'Periodo' })).not.toBeInTheDocument()
+  })
+
+  it('con `focusable` cada columna es un botón que muestra el valor exacto con el teclado', async () => {
+    const user = userEvent.setup()
+    render(<BarChart label="Tiempo" series={series} points={points} focusable />)
+    // Un `img` no puede contener botones: el gráfico pasa a ser un grupo con nombre.
+    expect(screen.getByRole('group', { name: 'Tiempo' })).toBeInTheDocument()
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Lunes: 44' })).toHaveFocus()
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Lunes · Solicitudes: 44')
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Martes: 61' })).toHaveFocus()
+  })
+
+  it('con `showEveryLabel` el eje muestra todas las etiquetas aunque no quepan con holgura', () => {
+    const many = Array.from({ length: 6 }, (_, index) => ({
+      key: String(index),
+      label: `Tramo largo ${index}`,
+      // Unos 10 caracteres: a 300 px (sin medida en jsdom) no caben con holgura y el eje, sin el prop, se aclara.
+      shortLabel: `Tramo ${index}-xx`,
+      values: { requests: index + 1 },
+    }))
+    const axis = (container: HTMLElement) =>
+      [...container.querySelectorAll('[class*="axis"]:not([class*="axisRow"])')].map((el) => el.textContent)
+    const { container, rerender } = render(<BarChart label="Tramos" series={series} points={many} showEveryLabel />)
+    expect(axis(container)).toHaveLength(6)
+    rerender(<BarChart label="Tramos" series={series} points={many} />)
+    expect(axis(container).length).toBeLessThan(6)
+  })
 })

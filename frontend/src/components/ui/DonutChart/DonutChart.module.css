@@ -50,6 +50,31 @@
   background: var(--color-chart-4);
 }
 
+/* Rampa secuencial: de más a menos intensa. Los dos pasos claros llevan contorno de línea (no son la única vía de lectura). */
+.colorseq1 {
+  fill: var(--color-chart-seq-1);
+  background: var(--color-chart-seq-1);
+}
+
+.colorseq2 {
+  fill: var(--color-chart-seq-2);
+  background: var(--color-chart-seq-2);
+}
+
+.colorseq3 {
+  fill: var(--color-chart-seq-3);
+  background: var(--color-chart-seq-3);
+  stroke: var(--color-line);
+  stroke-width: 1px;
+}
+
+.colorseq4 {
+  fill: var(--color-chart-seq-4);
+  background: var(--color-chart-seq-4);
+  stroke: var(--color-line);
+  stroke-width: 1px;
+}
+
 /* Segmento señalado o enfocado: contorno de tinta, visible aunque el color de la serie sea parecido al del fondo. */
 .active {
   stroke: var(--color-ink);
@@ -103,10 +128,17 @@
 
 .swatch {
   flex: none;
+  border: 1px solid transparent;
   align-self: center;
   width: 12px;
   height: 12px;
   border-radius: var(--radius-small);
+}
+
+/* El cuadro de la leyenda lleva el mismo contorno que el segmento. */
+.swatch.colorseq3,
+.swatch.colorseq4 {
+  border-color: var(--color-line);
 }
 
 .legendText {

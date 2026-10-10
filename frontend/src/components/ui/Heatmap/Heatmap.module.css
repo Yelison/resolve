@@ -1,0 +1,111 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+  margin: 0;
+}
+
+/* El scroll horizontal vive aquí: por debajo del ancho mínimo de la cuadrícula se desplaza el mapa, no la página. */
+.scroller {
+  --row-header: 48px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  scroll-padding-inline-start: var(--row-header);
+}
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* 12 columnas de al menos 40 px más la cabecera: las celdas no se estrechan por debajo de un tamaño legible. */
+  min-width: calc(var(--row-header) + var(--columns) * 43px);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: var(--row-header) repeat(var(--columns), minmax(0, 1fr));
+  gap: 3px;
+  align-items: center;
+}
+
+.corner,
+.rowHeader {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--color-surface);
+}
+
+.rowHeader,
+.columnHeader {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.columnHeader {
+  text-align: center;
+}
+
+.cell {
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  cursor: default;
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
+.swatch {
+  width: 20px;
+  height: 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+}
+
+/* Sin valor: solo el contorno de línea, para distinguirla del paso más bajo. */
+.step0 {
+  border-color: var(--color-line);
+  background: transparent;
+}
+
+.step1 {
+  background: var(--color-chart-seq-4);
+  border-color: var(--color-line);
+}
+
+.step2 {
+  background: var(--color-chart-seq-3);
+  border-color: var(--color-line);
+}
+
+.step3 {
+  background: var(--color-chart-seq-2);
+}
+
+.step4 {
+  background: var(--color-chart-seq-1);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-24) var(--space-16);
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-panel);
+  color: var(--color-muted);
+  font: var(--font-body);
+  text-align: center;
+}
