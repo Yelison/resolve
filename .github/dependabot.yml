@@ -8,6 +8,11 @@ updates:
       # Los tipos de Node siguen la versión de runtime fijada en .nvmrc (22).
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      # TypeScript 7.0 no trae la API programática (llega distinta en la 7.1), y la usan openapi-typescript (peer ^5.x;
+      # `npm run api:types` lo exige la CI) y scripts/check-query-keys.mjs. Reabrir cuando openapi-typescript publique
+      # soporte: https://github.com/openapi-ts/openapi-typescript/issues/2841 (diagnóstico en #5).
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
     groups:
       frontend:
         patterns: ['*']
