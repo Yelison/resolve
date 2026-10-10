@@ -27,7 +27,7 @@ Rules that keep the checkouts independent:
   reserved: a task that needs to change one of them says so before doing it, and only one task touches it at a time.
   `tokens.css` is generated from `@yelison/forma-ui` (`npm run sync:forma-tokens`, see [dependencies.md](dependencies.md)):
   a task does not edit it by hand. Resolve's own tokens go in `global.css` (layout) or `chart-tokens.css` (chart colours).
-- Nothing is merged locally into `main`. Every branch reaches `main` through a pull request with the four required
+- Nothing is merged locally into `main`. Every branch reaches `main` through a pull request with the five required
   checks green, as for any other change.
 
 ## Prerequisites

@@ -14,7 +14,16 @@ name: Dependabot auto-merge
 #   - el tipo de actualización es `version-update:semver-patch`.
 # Permisos mínimos: `contents: write` y `pull-requests: write`, que `--auto` necesita. Reglas en
 # docs/development/dependencies.md.
-on: pull_request
+#
+# Segundo job: si alguien que NO es Dependabot empuja a la rama de un PR de Dependabot (por ejemplo el propietario, con
+# el resultado de `npm run sync:forma-tokens`), se desactiva la fusión automática. GitHub solo la desactiva cuando empuja
+# alguien sin permiso de escritura, y sin este job un PR con cambios de tokens se fundiría solo en cuanto pasaran los
+# checks, sin la revisión visual que exige el propietario. Nada de eso depende de que alguien se acuerde.
+# Nota: «Re-run all jobs» de una ejecución de Dependabot conserva `github.actor == 'dependabot[bot]'` y volvería a activar
+# la autofusión; es una acción deliberada de alguien con permisos de escritura.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions: {}
 
@@ -35,6 +44,22 @@ jobs:
       - name: Enable auto-merge
         if: steps.metadata.outputs.dependency-names == '@yelison/forma-ui' && steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: gh pr merge --auto --rebase "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  disable-auto-merge-after-manual-push:
+    name: Disable auto-merge after a manual push to a Dependabot pull request
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Disable auto-merge if it is on
+        run: |
+          if [ -n "$(gh pr view "$PR_URL" --json autoMergeRequest --jq '.autoMergeRequest // empty')" ]; then
+            gh pr merge --disable-auto "$PR_URL"
+          fi
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
