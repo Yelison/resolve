@@ -1,9 +1,17 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { iconPaths } from '../Icon/paths'
+import { Icon, type IconName } from '../Icon/Icon'
 import { ToastProvider } from './ToastProvider'
 import { useToast, type ToastOptions } from './toastContext'
+
+/** Trazados (`d`) de un icono del conjunto, leídos del SVG que dibuja `Icon`: el paquete no exporta sus datos. */
+function pathsOf(name: IconName) {
+  const { container, unmount } = render(<Icon name={name} />)
+  const paths = Array.from(container.querySelectorAll('path')).map((path) => path.getAttribute('d'))
+  unmount()
+  return paths
+}
 
 function Trigger(options: ToastOptions) {
   const toast = useToast()
@@ -114,8 +122,8 @@ describe('ToastProvider', () => {
     const toast = screen.getByText('Aviso informativo').closest('div[class*="toast"]')
     expect(toast?.className).toMatch(/\binfo\b/)
     const paths = Array.from(toast?.querySelectorAll('svg path') ?? []).map((path) => path.getAttribute('d'))
-    expect(paths).toEqual(iconPaths.bell)
-    expect(paths).not.toEqual(iconPaths.check)
+    expect(paths).toEqual(pathsOf('bell'))
+    expect(paths).not.toEqual(pathsOf('check'))
   })
 
   it('sin tono, el aviso es de éxito y muestra la marca', async () => {
@@ -124,7 +132,7 @@ describe('ToastProvider', () => {
     const toast = screen.getByText('Cambios guardados').closest('div[class*="toast"]')
     expect(toast?.className).toMatch(/\bsuccess\b/)
     const paths = Array.from(toast?.querySelectorAll('svg path') ?? []).map((path) => path.getAttribute('d'))
-    expect(paths).toEqual(iconPaths.check)
+    expect(paths).toEqual(pathsOf('check'))
   })
 
   it('exige el proveedor', () => {
