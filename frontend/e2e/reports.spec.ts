@@ -219,6 +219,12 @@ test.describe('reportes', () => {
           if (width >= 768) {
             expect(Math.abs(boxes[5]!.top - boxes[6]!.top), 'dos paneles en intermedio').toBeLessThan(4)
             expect(boxes[7]!.top, 'el tercero baja en intermedio').toBeGreaterThan(boxes[5]!.top)
+            const widths = await page.evaluate(() =>
+              ['reports-status', 'reports-resolution'].map(
+                (id) => document.getElementById(id)!.closest('section')!.getBoundingClientRect().width,
+              ),
+            )
+            expect(widths[1]!, 'el tercero ocupa todo el ancho en intermedio').toBeGreaterThan(widths[0]! * 1.8)
           } else {
             expect(boxes[6]!.top, 'apilados en móvil').toBeGreaterThan(boxes[5]!.top)
           }
