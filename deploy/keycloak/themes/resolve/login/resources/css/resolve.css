@@ -1,5 +1,6 @@
 /* Identidad de Resolve sobre el maquetado de PatternFly de keycloak.v2.
- * Los colores salen de tokens.css (copia de frontend/src/styles/tokens.css); aquí no hay ningún valor de color suelto. */
+ * Los colores salen de tokens.css (copia de frontend/src/styles/tokens.css, que genera `npm run sync:forma-tokens`); aquí no
+ * hay ningún valor de color suelto ni se redeclara ningún token de esa copia: solo `--card-width`, que es del tema. */
 
 /* Inter se sirve desde el propio tema (@fontsource-variable/inter, licencia OFL en ../fonts/LICENSE.txt). El nombre es
  * `Inter`, el de --font-family; no `Inter Variable`, que es el de fontsource. */
@@ -26,9 +27,6 @@
 }
 
 :root {
-  --radius-panel: 12px;
-  --radius-control: 8px;
-  --control-height: 44px;
   --card-width: 440px;
 }
 
