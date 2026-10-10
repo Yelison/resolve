@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Retires a finished task: stops its Docker Compose project, removes the worktree through Herdr and keeps the
-# branch. It refuses while the checkout has uncommitted changes or a live agent, and never forces anything.
+# branch (unless --delete-branch, or --squashed-head for a confirmed squash merge). It refuses while the checkout has uncommitted changes or a live agent, and never forces anything.
 set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 # shellcheck source=common.sh
@@ -8,21 +8,27 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/herdr/remove-task.sh --id ID [--delete-branch] [--volumes] [--force-leftovers]
+Usage: scripts/herdr/remove-task.sh --id ID [--delete-branch [--squashed-head SHA]] [--volumes] [--force-leftovers]
 
   --id ID            Task to retire
   --delete-branch    Also delete the branch, only if git considers it merged (`git branch -d`)
+  --squashed-head SHA
+                     With --delete-branch: GitHub squash-merged exactly the full 40-character commit SHA, which `git
+                     branch -d` cannot see as merged (a squash is one new patch). The branch is deleted only if it
+                     still points at SHA when this runs; a branch at any other commit is kept, with a note, and the
+                     task is retired all the same. ship.sh passes it once it has confirmed the merge
   --volumes          Also remove the task's Docker volumes (its database data)
   --force-leftovers  Go on although processes still listen on the slot's ports or containers of the task's Compose
                      project exist (the script lists them, and never kills anything itself)
 USAGE
 }
 
-ID= DELETE_BRANCH=0 VOLUMES=0 FORCE_LEFTOVERS=0
+ID= DELETE_BRANCH=0 SQUASHED_HEAD= VOLUMES=0 FORCE_LEFTOVERS=0
 while [ $# -gt 0 ]; do
   case $1 in
     --id) need_arg "$1" $#; ID=${2:-}; shift 2 ;;
     --delete-branch) DELETE_BRANCH=1; shift ;;
+    --squashed-head) need_arg "$1" $#; SQUASHED_HEAD=${2:-}; shift 2 ;;
     --volumes) VOLUMES=1; shift ;;
     --force-leftovers) FORCE_LEFTOVERS=1; shift ;;
     -h | --help) usage; exit 0 ;;
@@ -69,7 +75,14 @@ find_containers() {
 require_herdr
 need ss
 [ -n "$ID" ] || { usage >&2; die "--id is required"; }
+if [ -n "$SQUASHED_HEAD" ]; then
+  [ "$DELETE_BRANCH" = 1 ] || die "--squashed-head only makes sense with --delete-branch (nothing was removed)"
+  [[ $SQUASHED_HEAD =~ ^[0-9a-f]{40}$ ]] || die "--squashed-head must be a full 40-character commit SHA: $SQUASHED_HEAD (nothing was removed)"
+fi
 load_task "$ID"
+if [ -n "$SQUASHED_HEAD" ]; then
+  git -C "$TASK_REPO" cat-file -e "$SQUASHED_HEAD^{commit}" 2>/dev/null || die "--squashed-head $SQUASHED_HEAD is not a commit of this repository (nothing was removed)"
+fi
 [ -z "$TASK_REMOVED_AT" ] || die "task '$ID' was already removed on $TASK_REMOVED_AT"
 
 if [ -d "$TASK_WORKTREE" ]; then
@@ -135,7 +148,20 @@ if git -C "$TASK_REPO" worktree list --porcelain | grep -Fqx "worktree $TASK_WOR
   die "the worktree is still registered: $TASK_WORKTREE (if its folder is gone, run git worktree prune in $TASK_REPO)"
 fi
 
-if [ "$DELETE_BRANCH" = 1 ]; then
+if [ "$DELETE_BRANCH" = 1 ] && [ -n "$SQUASHED_HEAD" ]; then
+  # The tip is read here, right before the deletion, not taken from an earlier read: a commit made after the merge makes
+  # it differ from SHA, and then the branch holds something GitHub did not merge, so it stays.
+  tip=$(git -C "$TASK_REPO" rev-parse --verify --quiet "refs/heads/$TASK_BRANCH" || true)
+  if [ "$tip" = "$SQUASHED_HEAD" ]; then
+    if git -C "$TASK_REPO" branch -q -D "$TASK_BRANCH"; then
+      log "Branch $TASK_BRANCH deleted: it is exactly the head GitHub squash-merged ($SQUASHED_HEAD)."
+    else
+      log "warning: could not delete $TASK_BRANCH (is it checked out in another worktree?); the branch is kept"
+    fi
+  else
+    log "Branch $TASK_BRANCH kept: it is at ${tip:-nowhere}, not at the head GitHub squash-merged ($SQUASHED_HEAD)."
+  fi
+elif [ "$DELETE_BRANCH" = 1 ]; then
   git -C "$TASK_REPO" branch -d "$TASK_BRANCH" || die "git refused to delete $TASK_BRANCH (not merged); the branch is kept"
 else
   log "Branch $TASK_BRANCH kept ($ahead commit(s) beyond main)."
