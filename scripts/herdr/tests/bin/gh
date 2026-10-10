@@ -5,6 +5,10 @@
 #            | queued (an older passed run and a rerun that has not started, with Go's zero time) | queued-null (same, startedAt null)
 #            | requeue:N (N polls like queued, then pass)
 #   merge    (absent) | never (the PR stays OPEN after the auto-merge is scheduled) | closed (it ends CLOSED, unmerged)
+#   base     the base branch the PR reports (default main)
+#   merge-commit  the merge commit the PR reports instead of main's tip (a commit that is not on origin/main)
+#   late-commit   (a worktree path) `pr merge` makes a commit in that worktree after the merge was requested, so the local
+#            branch is ahead of the head that was merged
 #   stale    N: `pr view --json headRefOid` shows an old head for the first N polls
 set -euo pipefail
 G=${FAKE_STATE:?}/gh; mkdir -p "$G"
@@ -43,8 +47,22 @@ case $cmd in
     exit "$rc" ;;
   # Scheduling the auto-merge is what merges (like GitHub, once the required checks pass); `pr view` only reports.
   "pr merge") : >"$G/auto"
+    method=ff subject= body=; while [ $# -gt 0 ]; do
+      case $1 in --squash) method=squash ;; --subject) subject=$2 ;; --body) body=$2 ;; esac; shift
+    done
     if [ "$(cat "$G/merge" 2>/dev/null || echo merged)" = merged ]; then
-      git --git-dir "${FAKE_REMOTE:?}" update-ref refs/heads/main "$(git --git-dir "$FAKE_REMOTE" rev-parse "refs/heads/$(jq -r .head "$G/pr.json")")"
+      tip=$(git --git-dir "${FAKE_REMOTE:?}" rev-parse "refs/heads/$(jq -r .head "$G/pr.json")")
+      # Like GitHub: a squash is one new commit on main with the branch's tree and the message the caller gave (the series
+      # becomes one patch, so `git cherry` and `git branch -d` cannot see it as merged); a rebase merge keeps the commits.
+      if [ "$method" = squash ]; then
+        tip=$(GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com git --git-dir "$FAKE_REMOTE" commit-tree \
+          -p refs/heads/main -m "$subject"$'\n\n'"$body" "$tip^{tree}")
+      fi
+      git --git-dir "$FAKE_REMOTE" update-ref refs/heads/main "$tip"
+    fi
+    if [ -f "$G/late-commit" ]; then
+      echo late >"$(cat "$G/late-commit")/late.txt"; git -C "$(cat "$G/late-commit")" add late.txt
+      git -C "$(cat "$G/late-commit")" -c user.name=t -c user.email=t@x commit -q -m "feat: late"
     fi ;;
   "pr view")
     head=$(jq -r .head "$G/pr.json")
@@ -52,9 +70,12 @@ case $cmd in
       n=$(cat "$G/stale" 2>/dev/null || echo 0)
       if [ "$n" -gt 0 ]; then echo $((n - 1)) >"$G/stale"; echo 0000000000000000000000000000000000000000
       else git --git-dir "${FAKE_REMOTE:?}" rev-parse "refs/heads/$head"; fi
-    elif [ -f "$G/auto" ] && [ "$(cat "$G/merge" 2>/dev/null || echo merged)" = merged ]; then
-      jq -n --arg s "$(git --git-dir "${FAKE_REMOTE:?}" rev-parse refs/heads/main)" '{state:"MERGED",mergeCommit:{oid:$s}}' | emit "$@"
-    elif [ -f "$G/auto" ] && [ "$(cat "$G/merge")" = closed ]; then jq -n '{state:"CLOSED",mergeCommit:null}' | emit "$@"
-    else jq -n '{state:"OPEN",mergeCommit:null}' | emit "$@"; fi ;;
+    else
+      h=$(git --git-dir "${FAKE_REMOTE:?}" rev-parse "refs/heads/$head"); b=$(cat "$G/base" 2>/dev/null || echo main)
+      if [ -f "$G/auto" ] && [ "$(cat "$G/merge" 2>/dev/null || echo merged)" = merged ]; then
+        jq -n --arg s "$(cat "$G/merge-commit" 2>/dev/null || git --git-dir "$FAKE_REMOTE" rev-parse refs/heads/main)" --arg h "$h" --arg b "$b" '{state:"MERGED",mergeCommit:{oid:$s},headRefOid:$h,baseRefName:$b}' | emit "$@"
+      elif [ -f "$G/auto" ] && [ "$(cat "$G/merge")" = closed ]; then jq -n --arg h "$h" --arg b "$b" '{state:"CLOSED",mergeCommit:null,headRefOid:$h,baseRefName:$b}' | emit "$@"
+      else jq -n --arg h "$h" --arg b "$b" '{state:"OPEN",mergeCommit:null,headRefOid:$h,baseRefName:$b}' | emit "$@"; fi
+    fi ;;
   *) echo "fake gh: unsupported $cmd" >&2; exit 2 ;;
 esac

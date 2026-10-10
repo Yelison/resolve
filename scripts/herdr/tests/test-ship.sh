@@ -8,6 +8,21 @@ mk() {
   "$HERDR/new-review.sh" --task impl-a --slot "$SB" >/dev/null 2>"$T/err" || { echo "mk: new-review.sh failed: $(cat "$T/err")" >&2; exit 2; }
   echo pass >"$T/state/gh/checks"
 }
+# main_sha: where origin/main is now. A squash lands one new commit, so it is not the pushed head, but it has its tree.
+main_sha() { git --git-dir "$T/remote.git" rev-parse refs/heads/main; }
+says_not() { ! grep -Fq -- "$2" <<<"$out"; }
+has_branch() { git -C "$T/repo" rev-parse -q --verify "refs/heads/$1" >/dev/null; }
+# series: two more commits, so the squash is a patch of its own that `git branch -d` cannot match to any commit of it.
+series() {
+  echo a >"$W/a.txt"; git -C "$W" add a.txt; git -C "$W" commit -q -m "feat: add a"
+  echo b >"$W/b.txt"; git -C "$W" add b.txt; git -C "$W" commit -q -m "feat: add b"
+}
+# review_on_tip: the review's branch is at the task's tip (mk made it before the series), as after a review round.
+review_on_tip() {
+  "$HERDR/new-review.sh" --task impl-a --round 2 >/dev/null 2>"$T/err" || { echo "round 2 failed: $(cat "$T/err")" >&2; exit 2; }
+  review_branch=$(jq -r .branch "$T/root/tasks/review-impl-a/task.json")
+  [ "$(git -C "$T/repo" rev-parse "refs/heads/$review_branch")" = "$(git -C "$W" rev-parse HEAD)" ] || { echo "the review is not on the tip" >&2; exit 2; }
+}
 ship() { "$HERDR/ship.sh" --task impl-a --title "feat: demo" --body "$T/body.md" "$@" 2>&1; }
 gh_calls() { cat "$T/state/gh/calls.log" 2>/dev/null || true; }
 remote_has() { git --git-dir "$T/remote.git" rev-parse -q --verify "refs/heads/$1" >/dev/null; }
@@ -32,9 +47,47 @@ s_rebase() { mk
   head=$(git --git-dir "$T/remote.git" rev-parse refs/heads/feat/impl-a)
   check "rebase: rc 0" test $rc -eq 0
   check "rebase: merge scheduled with --auto --rebase and the pushed head" grep -q "pr merge 41 --auto --rebase --match-head-commit $head" <<<"$(gh_calls)"
-  check "rebase: no squash" bash -c "! grep -q -- '--squash' '$T/state/gh/calls.log'"; }
+  check "rebase: no squash" bash -c "! grep -q -- '--squash' '$T/state/gh/calls.log'"
+  check "rebase: the branches are kept" has_branch feat/impl-a
+  check "rebase: nothing was deleted as squash-merged" says_not x 'exactly the head GitHub squash-merged'
+  mk; series; review_on_tip; out=$(ship --merge rebase); rc=$?
+  check "rebase with a series: rc 0" test $rc -eq 0
+  check "rebase with a series: both retired" bash -c "[ \"\$(jq -r .removed_at '$T/root/tasks/impl-a/task.json')\" != null ] && [ \"\$(jq -r .removed_at '$T/root/tasks/review-impl-a/task.json')\" != null ]"
+  check "rebase with a series: the task's branch is kept" has_branch feat/impl-a
+  check "rebase with a series: the review's branch is kept" has_branch "$review_branch"
+  check "rebase with a series: nothing was deleted as squash-merged" says_not x 'exactly the head GitHub squash-merged'; }
 s_badmethod() { mk
   out=$(ship --merge merge); check "bad --merge: refused" test $? -ne 0; check "bad --merge: says why" says x 'must be squash or rebase'; check "bad --merge: no gh" test -z "$(gh_calls)"; }
+# After a confirmed squash GitHub merged exactly the pushed head into main, so the branches of the task and of its review
+# are deleted although `git branch -d` does not see a series that became one patch as merged.
+s_squashclean() { mk; series; review_on_tip; out=$(ship); rc=$?
+  check "squash cleanup: rc 0" test $rc -eq 0
+  check "squash cleanup: the squash is not the pushed head, so git branch -d would refuse" bash -c "! git -C '$T/repo' branch --merged main | grep -q impl-a"
+  check "squash cleanup: the task's branch is deleted" bash -c "! git -C '$T/repo' rev-parse -q --verify refs/heads/feat/impl-a"
+  check "squash cleanup: the review's branch is deleted" bash -c "! git -C '$T/repo' rev-parse -q --verify 'refs/heads/$review_branch'"
+  check "squash cleanup: says why" says x 'exactly the head GitHub squash-merged'
+  check "squash cleanup: both are retired" bash -c "[ \"\$(jq -r .removed_at '$T/root/tasks/impl-a/task.json')\" != null ] && [ \"\$(jq -r .removed_at '$T/root/tasks/review-impl-a/task.json')\" != null ]"
+  check "squash cleanup: no note that a branch is kept" says_not x 'the branches are kept'
+  check "squash cleanup: the remote branch is not touched here (GitHub deletes it on merge)" remote_has feat/impl-a
+  check "squash cleanup: main checkout is at the squash commit" test "$(git -C "$T/repo" rev-parse HEAD)" = "$(main_sha)"; }
+# Every condition on its own: when one fails the branches stay, with a note that says which, and the task is retired.
+kept_after() { # label note-text
+  check "$1: rc 0" test "$rc" -eq 0; check "$1: says why" says x "$2"; check "$1: says the branches are kept" says x 'the branches are kept'
+  check "$1: the task's branch is kept" has_branch feat/impl-a; check "$1: the review's branch is kept" has_branch "$review_branch"
+  check "$1: nothing was deleted as squash-merged" says_not x 'exactly the head GitHub squash-merged'
+  check "$1: the task is retired all the same" bash -c "[ \"\$(jq -r .removed_at '$T/root/tasks/impl-a/task.json')\" != null ]"; }
+s_squashbase() { mk; series; review_on_tip; echo release >"$T/state/gh/base"; out=$(ship); rc=$?; kept_after "other base" "merged into 'release', not main"; }
+s_squashhead() { mk; series; review_on_tip; echo "$W" >"$T/state/gh/late-commit"; out=$(ship); rc=$?; kept_after "head is not the local tip" "but feat/impl-a is at"
+  check "head is not the local tip: the kept branch has the late commit" test "$(git -C "$T/repo" log -1 --format=%s feat/impl-a)" = "feat: late"; }
+s_squashancestor() { mk; series; review_on_tip; git -C "$W" rev-parse HEAD >"$T/state/gh/merge-commit"; out=$(ship); rc=$?; kept_after "merge commit not on origin/main" "is not on origin/main"; }
+# The review's branch follows the same rule: a review that holds a commit of its own is not the head that was merged.
+s_squashreview() { mk; series; review_on_tip; R=$T/root/worktrees/review-impl-a
+  echo notes >"$R/notes.txt"; git -C "$R" add notes.txt; git -C "$R" commit -q -m "review: notes"
+  out=$(ship); rc=$?
+  check "review with its own commit: rc 0" test $rc -eq 0; check "review with its own commit: its branch is kept" has_branch "$review_branch"
+  check "review with its own commit: says so" says x "Branch $review_branch kept"
+  check "review with its own commit: the task's branch is deleted" bash -c "! git -C '$T/repo' rev-parse -q --verify refs/heads/feat/impl-a"
+  check "review with its own commit: both are retired" bash -c "[ \"\$(jq -r .removed_at '$T/root/tasks/impl-a/task.json')\" != null ] && [ \"\$(jq -r .removed_at '$T/root/tasks/review-impl-a/task.json')\" != null ]"; }
 s_happy() { mk; echo pending:2 >"$T/state/gh/checks"
   out=$(HERDR_PR_ASSIGNEE=Yelison ship); rc=$?
   check "happy: rc 0" test $rc -eq 0; check "happy: pushed" remote_has feat/impl-a
@@ -43,11 +96,11 @@ s_happy() { mk; echo pending:2 >"$T/state/gh/checks"
   check "happy: squash by default, titled with the PR number" grep -q -- "pr merge 41 --auto --squash --subject feat: demo (#41)" <<<"$(gh_calls)"
   check "happy: squash pinned to the pushed head" grep -q -- "--match-head-commit $head" <<<"$(gh_calls)"
   check "happy: the squash message lists the series" grep -q -- "Squashed from:" <<<"$(gh_calls)"
-  check "happy: origin/main contains the pushed head" git --git-dir "$T/remote.git" merge-base --is-ancestor "$head" refs/heads/main
+  check "happy: origin/main has the content of the pushed head" test "$(git --git-dir "$T/remote.git" rev-parse 'refs/heads/main^{tree}')" = "$(git --git-dir "$T/remote.git" rev-parse "$head^{tree}")"
   check "happy: the state of the PR is read before the first /exit" test "$(grep -n 'pr view 41 --json state' "$T/state/events.log" | head -1 | cut -d: -f1)" -lt "$(grep -n '^exit ' "$T/state/events.log" | head -1 | cut -d: -f1)"
   check "happy: merge after the smoke polls" test "$(grep -n 'pr merge' "$T/state/gh/calls.log" | cut -d: -f1)" -gt "$(grep -n 'pr checks' "$T/state/gh/calls.log" | tail -1 | cut -d: -f1)"
-  want=$head
-  check "happy: prints the pushed commit as merged" grep -qx "merged $want" <<<"$out"
+  want=$(main_sha)
+  check "happy: prints the squash commit as merged" grep -qx "merged $want" <<<"$out"
   check "happy: main checkout fast-forwarded" test "$(git -C "$T/repo" rev-parse HEAD)" = "$want"
   check "happy: task retired" retired impl-a; check "happy: review retired" retired review-impl-a
   check "happy: worktrees gone" bash -c "! test -e '$W' && ! test -e '$T/root/worktrees/review-impl-a'"
@@ -76,6 +129,7 @@ not_merged() { # mode timeout message
   out=$(HERDR_SHIP_TIMEOUT_SECONDS=$2 ship); check "$1: refused" test $? -ne 0; check "$1: says why" says x "$3"
   check "$1: no /exit sent" bash -c "! grep -q '^exit ' '$T/state/events.log' 2>/dev/null"
   check "$1: the tasks are not retired" bash -c "[ \"\$(jq -r .removed_at '$T/root/tasks/impl-a/task.json')\" = null ] && [ \"\$(jq -r .removed_at '$T/root/tasks/review-impl-a/task.json')\" = null ]"
+  check "$1: the branches are kept" has_branch feat/impl-a
   check "$1: worktrees kept" bash -c "test -d '$W' && test -d '$T/root/worktrees/review-impl-a'"
   check "$1: no volumes removed" bash -c "! grep -q 'down' '$T/state/docker.log' 2>/dev/null"
   check "$1: nothing printed as merged" bash -c "! grep -q '^merged ' <<<'$out'"
@@ -90,7 +144,7 @@ s_dirtyreview() { mk; touch "$T/root/worktrees/review-impl-a/stray"; out=$(ship)
   check "dirty review: the task is not retired either" bash -c "[ \"\$(jq -r .removed_at '$T/root/tasks/impl-a/task.json')\" = null ]"; }
 s_stale() { mk; echo 2 >"$T/state/gh/stale"; out=$(ship --no-cleanup); rc=$?
   check "stale head: rc 0" test $rc -eq 0; check "stale head: waited" says x 'Waiting for #41 to show'
-  check "stale head: no checks read before the head matched" test "$(grep -n 'headRefOid' "$T/state/gh/calls.log" | tail -1 | cut -d: -f1)" -lt "$(grep -n 'pr checks' "$T/state/gh/calls.log" | head -1 | cut -d: -f1)"
+  check "stale head: no checks read before the head matched" test "$(grep -n 'json headRefOid' "$T/state/gh/calls.log" | tail -1 | cut -d: -f1)" -lt "$(grep -n 'pr checks' "$T/state/gh/calls.log" | head -1 | cut -d: -f1)"
   echo 100 >"$T/state/gh/stale"; out=$(HERDR_SHIP_TIMEOUT_SECONDS=1 ship --no-cleanup); check "head never shown: refused" test $? -ne 0; }
 s_lease() { mk; ship --no-cleanup >/dev/null; old=$(git --git-dir "$T/remote.git" rev-parse refs/heads/feat/impl-a)
   advance_main; rebase_branch "feat: one rebased"
@@ -103,7 +157,8 @@ s_foreign() { mk; ship --no-cleanup >/dev/null
   git -C "$W" fetch -q origin feat/impl-a
   out=$(ship --no-cleanup); check "foreign tip after a fetch: still refused" test $? -ne 0; check "foreign tip: remote untouched" test "$(git --git-dir "$T/remote.git" rev-parse refs/heads/feat/impl-a)" = "$other"
   check "foreign tip: the message does not offer a way to force" test -z "$(grep -i 'force' <<<"$out")"; }
-s_ahead() { mk; ship --no-cleanup >/dev/null
+# The first ship merges with rebase so that main contains the branch, as the scenario needs.
+s_ahead() { mk; ship --merge rebase --no-cleanup >/dev/null
   git -C "$W" commit -q --allow-empty -m "feat: two"; git -C "$W" push -q origin feat/impl-a; git -C "$W" reset -q --hard HEAD~1
   out=$(ship --no-cleanup); check "remote ahead: refused" test $? -ne 0; check "remote ahead: message" says x 'is ahead of the local branch'; }
 s_race() { mk; ship --no-cleanup >/dev/null; advance_main; rebase_branch "feat: rebased"
@@ -117,6 +172,6 @@ s_working() { mk; jq '.agent_status="working"' "$T/state/agents/rev-impl-a" >"$T
   out=$(ship); check "working agent: stops" test $? -ne 0; check "working agent: says so" says x 'is working, so it was not sent /exit'; check "working agent: no /exit sent" bash -c "! grep -q '/exit' '$T/state/prompts.log' 2>/dev/null"
   check "working agent: the merge is reported" says x "merged "; check "working agent: reviewer still live" test -e "$T/state/agents/rev-impl-a"; }
 
-scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin happy rebase badmethod reuse red absent multi queued closed open dirtyreview stale lease foreign ahead race working)
+scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin squashclean squashbase squashhead squashancestor squashreview happy rebase badmethod reuse red absent multi queued closed open dirtyreview stale lease foreign ahead race working)
 for s in "${scen[@]}"; do echo "== $s"; "s_$s"; done
 finish

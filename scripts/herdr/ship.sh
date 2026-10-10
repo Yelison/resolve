@@ -2,8 +2,9 @@
 # Takes a reviewed task to main: checks the branch, pushes it (never a push without a lease), opens or reuses the pull
 # request, waits for `Full-stack smoke`, schedules the auto-merge (squash by default, or rebase), waits for it,
 # fast-forwards the main
-# checkout and retires the task and its review. It never merges locally and never schedules a merge before the smoke
-# check is green. See docs/development/herdr.md.
+# checkout and retires the task and its review. After a confirmed squash merge it also deletes the task's branch and
+# its review's. It never merges locally and never schedules a merge before the smoke check is green. See
+# docs/development/herdr.md.
 set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 # shellcheck source=common.sh
@@ -19,6 +20,10 @@ Usage: scripts/herdr/ship.sh --task ID --title TITLE --body FILE [--merge squash
   --merge METHOD  squash (default: one commit on main, titled TITLE (#PR), listing the series and its
                   Co-Authored-By trailers) or rebase (every commit lands on main, so each must pass on its own)
   --no-cleanup    Keep the task and its review (skip /exit and remove-task.sh)
+
+After a squash merge that is confirmed (the PR is MERGED into main, its head is the local branch's tip and its merge
+commit is on origin/main) the branches of the task and its review are deleted; otherwise they are kept, with a note.
+Branches are always kept with --merge rebase.
 
 Environment: HERDR_MERGE_METHOD (default merge method, squash), HERDR_PR_ASSIGNEE (assignee of a new PR), HERDR_POLL_SECONDS (default 20) and
 HERDR_SHIP_TIMEOUT_SECONDS (each wait, default 1800).
@@ -158,17 +163,18 @@ else
 fi
 log "Auto-merge ($METHOD) scheduled for #$PR; waiting for it…"
 SECONDS=0
-MERGED_SHA=
+MERGED_SHA= MERGED_HEAD= MERGED_BASE=
 while :; do
-  if ! view=$(gh pr view "$PR" --json state,mergeCommit --jq '[.state, (.mergeCommit.oid // "")] | @tsv'); then
+  # "-" stands for a missing value: tab is IFS whitespace, so an empty field would shift the ones after it.
+  if ! view=$(gh pr view "$PR" --json state,mergeCommit,headRefOid,baseRefName --jq '[.state, (.headRefOid // "-"), (.baseRefName // "-"), (.mergeCommit.oid // "-")] | @tsv'); then
     [ "$SECONDS" -lt "$TIMEOUT" ] || die "gh could not read pull request #$PR in ${TIMEOUT}s; the auto-merge stays scheduled"
     log "gh could not read #$PR; retrying…"
     sleep "$POLL"
     continue
   fi
-  state=${view%%$'\t'*}
+  IFS=$'\t' read -r state merged_head merged_base merge_oid <<<"$view"
   case $state in
-    MERGED) MERGED_SHA=${view#*$'\t'}; break ;;
+    MERGED) MERGED_SHA=${merge_oid#-}; MERGED_HEAD=${merged_head#-}; MERGED_BASE=${merged_base#-}; break ;;
     CLOSED) die "pull request #$PR was closed without merging" ;;
   esac
   if gh pr checks "$PR" --json bucket 2>/dev/null | jq -e '[.[]? | select(.bucket == "fail")] | length > 0' >/dev/null 2>&1; then
@@ -180,6 +186,26 @@ while :; do
 done
 
 git -C "$TASK_REPO" fetch -q origin main
+
+# A squash leaves one new patch on main, which `git branch -d` cannot match to the series, so the branches would pile up.
+# They are deleted only when GitHub merged exactly what the local branch holds, into main: the PR is MERGED (the wait
+# above), its base is main, its head is the local tip and its merge commit is on origin/main. Whichever fails keeps the
+# branches and says which. The rebase method is left as it was.
+SQUASHED_HEAD=
+if [ "$METHOD" = squash ]; then
+  local_tip=$(git -C "$TASK_REPO" rev-parse --verify --quiet "refs/heads/$BRANCH" || true)
+  squash_note=
+  if [ "$MERGED_BASE" != main ]; then
+    squash_note="the pull request was merged into '${MERGED_BASE:-an unknown base}', not main"
+  elif [ -z "$MERGED_HEAD" ] || [ "$MERGED_HEAD" != "$local_tip" ]; then
+    squash_note="GitHub squash-merged ${MERGED_HEAD:-an unknown head} but $BRANCH is at ${local_tip:-nowhere}"
+  elif [ -z "$MERGED_SHA" ] || ! git -C "$TASK_REPO" merge-base --is-ancestor "$MERGED_SHA" origin/main; then
+    squash_note="the merge commit ${MERGED_SHA:-(unknown)} is not on origin/main"
+  else
+    SQUASHED_HEAD=$MERGED_HEAD
+  fi
+  [ -z "$squash_note" ] || log "note: $squash_note; the branches are kept"
+fi
 git -C "$TASK_REPO" merge -q --ff-only origin/main \
   || die "#$PR is merged but the main checkout could not be fast-forwarded; fix it by hand. The task was not retired"
 [ -n "$MERGED_SHA" ] || MERGED_SHA=$(git -C "$TASK_REPO" rev-parse origin/main)
@@ -190,6 +216,9 @@ if [ "$CLEANUP" = 0 ]; then
   log "Cleanup skipped (--no-cleanup): $ID and review-$ID stay where they are."
   exit 0
 fi
+# What remove-task.sh gets, and what the messages below tell you to run by hand.
+retire_flags=(--volumes)
+[ -z "$SQUASHED_HEAD" ] || retire_flags+=(--delete-branch --squashed-head "$SQUASHED_HEAD")
 retire() {
   local id=$1 occupant name
   [ -f "$(task_json "$id")" ] || return 0
@@ -198,10 +227,10 @@ retire() {
   occupant=$(agent_in_pane "$TASK_PANE" || true)
   if [ -n "$occupant" ]; then
     name=$(jq -r '.name // empty' <<<"$occupant")
-    [ -n "$name" ] || die "the agent in $TASK_PANE has no name; exit it by hand, then: scripts/herdr/remove-task.sh --id $id --volumes"
+    [ -n "$name" ] || die "the agent in $TASK_PANE has no name; exit it by hand, then: scripts/herdr/remove-task.sh --id $id ${retire_flags[*]}"
     state=$(jq -r '.agent_status // "unknown"' <<<"$occupant")
     case $state in
-      working | blocked) die "'$name' is $state, so it was not sent /exit; #$PR is merged (main at $MERGED_SHA). Let it finish, then run: scripts/herdr/remove-task.sh --id $id --volumes" ;;
+      working | blocked) die "'$name' is $state, so it was not sent /exit; #$PR is merged (main at $MERGED_SHA). Let it finish, then run: scripts/herdr/remove-task.sh --id $id ${retire_flags[*]}" ;;
     esac
     log "Exiting '$name'…"
     herdr agent prompt "$name" "/exit" >/dev/null || true
@@ -209,10 +238,10 @@ retire() {
       [ -z "$(agent_in_pane "$TASK_PANE" || true)" ] && break
       sleep 1
     done
-    [ -z "$(agent_in_pane "$TASK_PANE" || true)" ] || die "'$name' did not exit; #$PR is merged. Then run: scripts/herdr/remove-task.sh --id $id --volumes"
+    [ -z "$(agent_in_pane "$TASK_PANE" || true)" ] || die "'$name' did not exit; #$PR is merged. Then run: scripts/herdr/remove-task.sh --id $id ${retire_flags[*]}"
   fi
-  "$SCRIPT_DIR/remove-task.sh" --id "$id" --volumes \
-    || die "#$PR is merged (main at $MERGED_SHA) but '$id' was not retired; deal with what it reported and run: scripts/herdr/remove-task.sh --id $id --volumes"
+  "$SCRIPT_DIR/remove-task.sh" --id "$id" "${retire_flags[@]}" \
+    || die "#$PR is merged (main at $MERGED_SHA) but '$id' was not retired; deal with what it reported and run: scripts/herdr/remove-task.sh --id $id ${retire_flags[*]}"
 }
 retire "review-$ID"
 retire "$ID"
