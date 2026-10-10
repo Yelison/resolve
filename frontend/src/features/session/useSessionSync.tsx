@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { identityOf, isApiError, setSessionWatch, setWriteGuard, UNAUTHORIZED_EVENT } from '../../api/client'
 import type { Me } from '../../api/schema'
@@ -94,6 +94,19 @@ export function useSessionSync() {
   useEffect(() => {
     releaseWrites()
   }, [location.key])
+
+  // `clear()` retira la consulta de `me` y deja atados a la retirada a los observadores montados: el `Me` que se escribe
+  // después (cambio de organización, nueva sesión) no les llega hasta que su componente renderiza. Antes lo provocaba el
+  // router al empezar a navegar; con React Router 8.4 (sin `navigation` en su contexto de estado) ya no. La consulta
+  // reconstruida es otra instancia: al cambiar, la shell renderiza y quien lee la sesión recoge la nueva, haya navegación
+  // o no. Solo la shell: la pantalla de entrada se apoya en lo contrario (su selector navega antes de que `me` llegue).
+  useSyncExternalStore(
+    (notify) =>
+      queryClient.getQueryCache().subscribe((event) => {
+        if (event.type === 'added' && event.query.queryHash === JSON.stringify(sessionKeys.me)) notify()
+      }),
+    () => queryClient.getQueryCache().find({ queryKey: sessionKeys.me }),
+  )
 
   useEffect(() => {
     if (!accepted.current) accepted.current = queryClient.getQueryData<Me>(sessionKeys.me) ?? null

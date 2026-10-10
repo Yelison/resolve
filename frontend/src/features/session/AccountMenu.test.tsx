@@ -1,9 +1,10 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, mockApi } from '../../test/api'
 import { api, SESSION_CHANGED_DETAIL } from '../../api/client'
-import { navigation, releaseWrites } from './sessionLifecycle'
+import { clearSessionData, navigation, releaseWrites } from './sessionLifecycle'
+import { sessionKeys } from './queries'
 import { renderShell, setCsrfCookie, stubProductionBuild } from './shellHarness'
 
 const orgA = { id: '0192f000-0000-7000-8000-000000000001', name: 'Acme Studio' }
@@ -194,6 +195,21 @@ describe('menú de la cuenta', () => {
         expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
       })
       expect(writes).toBe(1)
+    })
+
+    it('la shell recoge el `Me` que se escribe tras vaciar la caché aunque no haya navegación', async () => {
+      mockApi({ 'GET /api/me': { body: meWithOrganizations } })
+      const { router, queryClient } = renderShell('/tickets/1046')
+      await accountButton()
+
+      // Lo mismo que hace el cambio de organización, sin el `navigate('/')`: nada en el router vuelve a renderizar la shell.
+      await act(async () => {
+        await clearSessionData(queryClient)
+        queryClient.setQueryData(sessionKeys.me, meInNorthwind)
+      })
+
+      expect(await screen.findByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe('/tickets/1046')
     })
 
     it('un 403 muestra el error en el diálogo, que sigue abierto, y relee la sesión', async () => {
