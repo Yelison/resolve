@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { Modal } from './Modal'
 
+// El comportamiento del diálogo (foco, Escape, fondo, cierre nativo) lo prueba @yelison/forma-ui. Aquí solo lo que
+// Resolve necesita del paquete y conserva de #107: que una pulsación que empieza en el fondo y se suelta dentro no
+// cierra (el e2e `dialog-backdrop.spec.ts` lo comprueba también en el navegador) y que el scroll queda bloqueado.
 function Harness({ onClose = () => {} }: { onClose?: () => void }) {
   const [open, setOpen] = useState(false)
   return (
@@ -17,48 +20,21 @@ function Harness({ onClose = () => {} }: { onClose?: () => void }) {
         }}
         title="¿Eliminar este ticket?"
         description="Esta acción eliminará el ticket y su historial."
-        footer={<button onClick={() => setOpen(false)}>Cancelar</button>}
       />
     </>
   )
 }
 
-describe('Modal', () => {
-  it('se etiqueta con su título y descripción', async () => {
+describe('Modal del paquete en Resolve', () => {
+  it('se etiqueta con su título y descripción y bloquea el scroll de la página', async () => {
     render(<Harness />)
     await userEvent.click(screen.getByRole('button', { name: 'Eliminar' }))
     const dialog = screen.getByRole('dialog', { name: '¿Eliminar este ticket?' })
     expect(dialog).toHaveAccessibleDescription('Esta acción eliminará el ticket y su historial.')
-    expect(document.documentElement).toHaveClass('scroll-locked')
-  })
-
-  it('se cierra con Escape y devuelve el foco al disparador', async () => {
-    const onClose = vi.fn()
-    render(<Harness onClose={onClose} />)
-    const trigger = screen.getByRole('button', { name: 'Eliminar' })
-    await userEvent.click(trigger)
-    fireEvent(screen.getByRole('dialog'), new Event('cancel', { cancelable: true }))
-    expect(onClose).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(trigger).toHaveFocus()
-    expect(document.documentElement).not.toHaveClass('scroll-locked')
-  })
-
-  it('se cierra al pulsar el fondo pero no al pulsar el contenido', async () => {
-    const onClose = vi.fn()
-    render(<Harness onClose={onClose} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Eliminar' }))
-    await userEvent.click(screen.getByText('¿Eliminar este ticket?'))
-    expect(onClose).not.toHaveBeenCalled()
-    const dialog = screen.getByRole('dialog')
-    fireEvent.pointerDown(screen.getByText('¿Eliminar este ticket?'))
-    fireEvent.pointerUp(dialog)
-    fireEvent.click(dialog)
-    expect(onClose).not.toHaveBeenCalled()
-    fireEvent.pointerDown(dialog)
-    fireEvent.pointerUp(dialog)
-    fireEvent.click(dialog)
-    expect(onClose).toHaveBeenCalledOnce()
+    // La clase la define `base.css` del paquete, que `global.css` importa.
+    expect(document.documentElement).toHaveClass('forma-scroll-locked')
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    expect(document.documentElement).not.toHaveClass('forma-scroll-locked')
   })
 
   it('no se cierra si una pulsación en el fondo se suelta dentro del diálogo', async () => {
@@ -72,21 +48,14 @@ describe('Modal', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('sincroniza el estado cuando el diálogo se cierra de forma nativa', async () => {
+  it('se cierra con una pulsación completa en el fondo', async () => {
     const onClose = vi.fn()
     render(<Harness onClose={onClose} />)
     await userEvent.click(screen.getByRole('button', { name: 'Eliminar' }))
-    ;(screen.getByRole('dialog') as HTMLDialogElement).close()
+    const dialog = screen.getByRole('dialog')
+    fireEvent.pointerDown(dialog)
+    fireEvent.pointerUp(dialog)
+    fireEvent.click(dialog)
     expect(onClose).toHaveBeenCalledOnce()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('no avisa dos veces cuando el padre lo cierra', async () => {
-    const onClose = vi.fn()
-    render(<Harness onClose={onClose} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Eliminar' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(onClose).not.toHaveBeenCalled()
   })
 })

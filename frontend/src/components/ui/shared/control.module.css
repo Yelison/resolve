@@ -1,26 +1,4 @@
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-  min-width: 0;
-}
-
-.label {
-  font: var(--font-label);
-  color: var(--color-ink);
-}
-
-.hint {
-  font: var(--font-caption);
-  color: var(--color-muted);
-}
-
-.error {
-  font: var(--font-caption);
-  color: var(--color-red-ink);
-}
-
-/* Caja compartida por Input, Select y Textarea; :where() la deja sin especificidad para que cada control la ajuste. */
+/* Caja compartida por Select, Textarea y Combobox (Input es del paquete y lleva la suya); :where() la deja sin especificidad para que cada control la ajuste. */
 :where(.control) {
   width: 100%;
   min-height: var(--control-height);

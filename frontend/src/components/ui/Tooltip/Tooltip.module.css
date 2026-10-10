@@ -1,9 +1,0 @@
-.tooltip {
-  z-index: 90;
-  max-width: 240px;
-  padding: var(--space-8);
-  border-radius: var(--radius-control);
-  background: var(--color-nav);
-  color: var(--color-nav-ink);
-  font: var(--font-caption);
-}
