@@ -35,16 +35,16 @@ branch). The script is `measure-adr.mjs` in the task evidence; what each column 
 - **Test and catalog:** a test file of its own in the package at the `@yelison/forma-ui@0.1.0` tag, and a `<Component>` in
   Resolve's catalog (`/catalogo`, development build).
 
-| Component | 1 · areas (of 3 needed) | 1 · stable for a phase | 2 · API documented | 3 · no domain types | 4 · token-only values | 5 · own test and catalog entry |
+| Component | 1 · areas (of 3 needed) | 1 · stable for a phase | 2 · API documented (JSDoc) | 3 · no domain types | 4 · token-only values | 5 · own test and catalog entry |
 | --- | --- | --- | --- | --- | --- | --- |
-| Button | 8 | no: package 0.1.0, no earlier release | 6/6 | no | none | test: yes; catalog: yes |
-| IconButton | 2 | no: package 0.1.0, no earlier release | 3/3 | no | none (`--icon-size: 20px` is the icon size, local to the component) | test: yes; catalog: yes |
-| Badge | 5 | no: package 0.1.0, no earlier release | 1/1 | no | none | test: yes; catalog: yes |
-| Field | 0 | no: package 0.1.0, no earlier release | 11/11 | no | none | test: yes; catalog: **no entry of its own** (rendered inside the Input, Select and Textarea entries) |
-| Input | 5 | no: package 0.1.0, no earlier release | 5/5 | no | none | test: yes; catalog: yes |
-| Icon | 4 | no: package 0.1.0, no earlier release | 3/3 | no | none (no CSS of its own: size by prop, 20 px by default) | test: yes; catalog: yes |
-| Tooltip | 1 | no: package 0.1.0, no earlier release | 11/11 | no | none | test: yes; catalog: yes |
-| Modal (Dialog) | 5 | no: package 0.1.0, no earlier release | 8/8 | no | none | test: yes; catalog: yes |
+| Button | 8 | no (package 0.1.0, no earlier release) | 6/6 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
+| IconButton | 2 | no (package 0.1.0, no earlier release) | 3/3 | yes (imports only react and its own modules) | yes (the one `px` literal is `--icon-size: 20px`, local to the component) | test: yes; catalog: yes |
+| Badge | 5 | no (package 0.1.0, no earlier release) | 1/1 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
+| Field | 0 | no (package 0.1.0, no earlier release) | 11/11 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: **no entry of its own** (rendered inside the Input, Select and Textarea entries) |
+| Input | 5 | no (package 0.1.0, no earlier release) | 5/5 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
+| Icon | 4 | no (package 0.1.0, no earlier release) | 3/3 | yes (imports only react and its own modules) | yes (no CSS of its own: size by prop, 20 px by default) | test: yes; catalog: yes |
+| Tooltip | 1 | no (package 0.1.0, no earlier release) | 11/11 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
+| Modal (Dialog) | 5 | no (package 0.1.0, no earlier release) | 8/8 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
 
 For reference, the measurement at `c3f02f8` found the following failures:
 - **Stability:** every component failed criterion 1's stability clause.
@@ -57,7 +57,7 @@ For reference, the measurement at `c3f02f8` found the following failures:
 - **Criterion 1, stability.** No component could meet this clause, because the history was too short. It existed to stop extracting code that was still moving. Here the extraction is the change itself, and from now on Forma UI owns the code: its reviews, tests and semantic versioning replace the clause.
 - **Criterion 1, areas.**
   - Field is used by no area directly, only inside Input, Select, Textarea and Combobox (0 areas). Tooltip is used
-    directly by 1 area (the session menu) and otherwise inside NavItem, Sidebar and the charts.
+    directly by 1 area (`features/session`, the account menu of the sidebar profile) and otherwise inside NavItem, Sidebar and the charts.
   - IconButton is used in 2 areas (Customers and Team), but it lives in Button's file and shares its tokens and styles.
 
   The three travel as dependencies of components that qualify. None of them is adopted on its own merit.
@@ -70,8 +70,8 @@ For reference, the measurement at `c3f02f8` found the following failures:
 
 1. **Dependency.** Resolve depends on `@yelison/forma-ui` from npm, pinned to an exact version.
 2. **Compatible barrel.** The extracted folders in `frontend/src/components/ui` become one-line re-exports from the package (`Button/Button.ts`, `Badge/Badge.ts`…): the sibling components that import `../Tooltip/Tooltip` or `../Button/Button` do not change, and neither does `components/ui/index.ts`, which keeps the same names and props, so feature code does not change either. `Modal` stays available as the package's alias of `Dialog`, with the same props, one to one (`open`, `onClose`, `title`, `description`, `footer`, `size`, `className`, `children`): no adapter is needed.
-   - A diff of the resolved types of the barrel (134 exports before and after) finds only additions: `announce` on `Field` and `Input`, and `flip` and a list for `icon` on `IconButton`.
-   - The one DOM difference is the `<span>` that wraps the icons in `IconButton`, which changes neither the accessible name nor the layout. Comparing the computed style of every element of the views listed in the next paragraph finds no other.
+   - A diff of the resolved types of the barrel (134 exports before and after, each pull request against its own base) finds only additions: `flip` and a list for `icon` on `IconButton` (the first adoption pull request) and `announce` on `Field` and `Input` (this one), plus the parameter of `Modal` being named `DialogProps`, the same type as `ModalProps`.
+   - The one DOM difference is the `<span>` that wraps the icons in `IconButton`, which changes neither the accessible name nor the layout. Comparing the computed style and the attributes of every element of the views listed under «Deliberate visual changes» finds no other.
 3. **Tokens.** `@yelison/forma-ui/tokens.css` contains every token of Resolve's current `tokens.css` with its exact value, a semantic parity test in Forma UI guards this, and each case below differs from today only as described:
 
    | Token or group | In the package | Note |
