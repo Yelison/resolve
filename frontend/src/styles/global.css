@@ -1,8 +1,12 @@
 @import '@fontsource-variable/inter';
 /* Orden de las hojas (README de @yelison/forma-ui): tokens, `styles.css`, `base.css` y después la capa de Resolve.
- * `styles.css` entra con los componentes, en la 5.2b, entre `tokens.css` y `base.css`, no después de `chart-tokens.css`.
+ * `styles.css` va entre `tokens.css` y `base.css`, antes de `chart-tokens.css`.
+ * Ojo: en el build, Vite enlaza primero el CSS de los chunks compartidos (el de `components/ui`) y después el de esta hoja,
+ * que es del punto de entrada. Una clase de un componente de Resolve que sobrescriba una del paquete no puede contar con
+ * llegar después de `styles.css`: tiene que ganar por especificidad (`.header .toggle` en el Sidebar).
  * Todos los `@import` van antes de cualquier regla. */
 @import './tokens.css';
+@import '@yelison/forma-ui/styles.css';
 @import '@yelison/forma-ui/base.css';
 @import './chart-tokens.css';
 
