@@ -43,6 +43,44 @@ check "volumes: down --volumes ran for the project" grep -q 'compose -p resolve-
 new left-c; rm -f "$T/state/docker.log"; out=$("$HERDR/remove-task.sh" --id left-c 2>&1)
 check "no --volumes and no project: compose is left alone" bash -c "! grep -q 'down' '$T/state/docker.log'"
 
+echo "== --squashed-head: the head GitHub squash-merged is deleted, anything else is kept"
+has_branch() { git -C "$T/repo" rev-parse -q --verify "refs/heads/$1" >/dev/null; }
+tip_of() { git -C "$T/repo" rev-parse "refs/heads/$1"; }
+commit_in() { echo "$2" >"$T/root/worktrees/$1/$2"; git -C "$T/root/worktrees/$1" add "$2"; git -C "$T/root/worktrees/$1" commit -q -m "feat: $2"; }
+# What GitHub's squash merge leaves in main: the whole series as one new patch, which `git branch -d` does not see as merged.
+land_squashed() { git -C "$T/repo" cherry-pick -n "$1~1" "$1" >/dev/null && git -C "$T/repo" commit -q -m "feat: squashed"; }
+new sq-a; commit_in sq-a a1.txt; commit_in sq-a a2.txt; land_squashed feat/sq-a
+out=$("$HERDR/remove-task.sh" --id sq-a --delete-branch 2>&1); check "without the flag: git refuses the squashed series, as before" test $? -ne 0; check "without the flag: the branch is kept" has_branch feat/sq-a
+# The refused task keeps its slot until it is retired: retire it (the branch goes by hand) so the next ones can use it.
+git -C "$T/repo" branch -q -D feat/sq-a; out=$("$HERDR/remove-task.sh" --id sq-a 2>&1); check "without the flag: retired once the branch is gone" removed sq-a
+new sq-b; commit_in sq-b b1.txt; commit_in sq-b b2.txt; land_squashed feat/sq-b; head=$(tip_of feat/sq-b)
+out=$("$HERDR/remove-task.sh" --id sq-b --delete-branch --squashed-head "$head" 2>&1); rc=$?
+check "squashed head: rc 0" test $rc -eq 0; check "squashed head: retired" removed sq-b
+check "squashed head: the branch is deleted" bash -c "! git -C '$T/repo' rev-parse -q --verify refs/heads/feat/sq-b"; check "squashed head: says why" says x 'exactly the head GitHub squash-merged'
+new sq-c; commit_in sq-c c1.txt; commit_in sq-c c2.txt; land_squashed feat/sq-c; head=$(tip_of feat/sq-c); commit_in sq-c late.txt
+out=$("$HERDR/remove-task.sh" --id sq-c --delete-branch --squashed-head "$head" 2>&1); rc=$?
+check "a commit past the squashed head: rc 0" test $rc -eq 0; check "a commit past the squashed head: retired" removed sq-c
+check "a commit past the squashed head: the branch is kept" has_branch feat/sq-c; check "a commit past the squashed head: says so" says x 'Branch feat/sq-c kept'
+check "a commit past the squashed head: the late commit is still there" test "$(git -C "$T/repo" log -1 --format=%s feat/sq-c)" = "feat: late.txt"
+new sq-d; commit_in sq-d d1.txt; head=$(tip_of feat/sq-d); other=$(git -C "$T/repo" rev-parse main)
+out=$("$HERDR/remove-task.sh" --id sq-d --delete-branch --squashed-head "$other" 2>&1); rc=$?
+check "a SHA that is not the tip: rc 0" test $rc -eq 0; check "a SHA that is not the tip: the branch is kept" has_branch feat/sq-d; check "a SHA that is not the tip: its commit is intact" test "$(tip_of feat/sq-d)" = "$head"
+echo "== --squashed-head: options that are wrong remove nothing"
+new sq-e; commit_in sq-e e1.txt; head=$(tip_of feat/sq-e); w="$T/root/worktrees/sq-e"
+refused() { out=$("$HERDR/remove-task.sh" --id sq-e "$@" 2>&1); rc=$?; [ $rc -ne 0 ] && test -d "$w" && has_branch feat/sq-e && [ "$(jq -r .removed_at "$T/root/tasks/sq-e/task.json")" = null ]; }
+check "without --delete-branch: refused, nothing removed" refused --squashed-head "$head"; check "without --delete-branch: says it needs --delete-branch" says x 'only makes sense with --delete-branch'
+check "a short SHA: refused, nothing removed" refused --delete-branch --squashed-head "${head:0:7}"; check "a short SHA: says it must be a full SHA" says x 'full 40-character commit SHA'
+check "a ref that is not a SHA: refused, nothing removed" refused --delete-branch --squashed-head main
+check "an unknown commit: refused, nothing removed" refused --delete-branch --squashed-head 0000000000000000000000000000000000000000; check "an unknown commit: says so" says x 'is not a commit of this repository'
+check "no value: refused, nothing removed" refused --delete-branch --squashed-head
+check "an empty value: refused, nothing removed" refused --delete-branch --squashed-head ""; check "an empty value: says it needs a SHA" says x 'not an empty value'
+check "an empty value without --delete-branch: refused, nothing removed" refused --squashed-head ""
+echo "# local edit" >>"$w/.gitignore"
+check "a dirty worktree: refused, the branch is intact" refused --delete-branch --squashed-head "$head"; check "a dirty worktree: says uncommitted" says x 'uncommitted'
+git -C "$w" checkout -q -- .gitignore
+out=$("$HERDR/remove-task.sh" --id sq-e --delete-branch --squashed-head "$head" 2>&1); check "once the options are right: retired" removed sq-e
+check "once the options are right: the branch is deleted" bash -c "! git -C '$T/repo' rev-parse -q --verify refs/heads/feat/sq-e"
+
 echo "== forced"
 new left-d; echo "abc123 resolve-left-d-postgres-1 (Up 2 minutes)" >"$T/state/containers"; echo resolve-left-d >"$T/state/compose-projects"; rm -f "$T/state/docker.log"
 out=$("$HERDR/remove-task.sh" --id left-d --force-leftovers 2>&1); rc=$?
