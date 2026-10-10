@@ -27,6 +27,26 @@
   height: 160px;
 }
 
+/* Con columnas enfocables, un botón transparente cubre cada columna; el foco se ve como contorno de la columna. */
+.focusable {
+  position: relative;
+}
+
+.hit {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  cursor: default;
+}
+
+.hit:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 .stage {
   --label-space: 0px;
   display: flex;

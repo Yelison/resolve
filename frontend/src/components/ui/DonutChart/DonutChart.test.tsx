@@ -93,4 +93,19 @@ describe('DonutChart', () => {
     )
     expect(within(container.querySelector('ul')!).getByText(long)).toHaveClass('legendLabel')
   })
+
+  it('acepta la rampa secuencial: sector y cuadro de leyenda con la clase del paso', () => {
+    const ramp: DonutSegment[] = (['seq1', 'seq2', 'seq3', 'seq4'] as const).map((color, index) => ({
+      id: color,
+      label: `Paso ${index + 1}`,
+      value: 4 - index,
+      color,
+    }))
+    const { container } = render(<DonutChart label="Prioridad" segments={ramp} />)
+    const paths = [...container.querySelectorAll('svg path')].map((path) => path.getAttribute('class'))
+    expect(paths.map((c) => /colorseq(\d)/.exec(c ?? '')?.[1])).toEqual(['1', '2', '3', '4'])
+    const swatches = [...container.querySelectorAll('ul span[class*="swatch"]')].map((el) => el.getAttribute('class'))
+    expect(swatches[2]).toMatch(/colorseq3/)
+    expect(swatches[3]).toMatch(/colorseq4/)
+  })
 })

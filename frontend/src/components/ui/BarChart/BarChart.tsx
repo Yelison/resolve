@@ -1,6 +1,7 @@
 import { useId, type CSSProperties } from 'react'
 import { cx } from '../../../lib/cx'
 import { ChartTable } from '../shared/ChartTable'
+import { Tooltip } from '../Tooltip/Tooltip'
 import { useElementWidth } from '../shared/useElementWidth'
 import styles from './BarChart.module.css'
 
@@ -42,6 +43,14 @@ export interface BarChartProps {
   points: BarChartPoint[]
   /** Formatea los valores en cifras, títulos y tabla; por defecto `toLocaleString('es')` */
   valueFormatter?: (n: number) => string
+  /** Cabecera de la primera columna de la tabla alternativa. Por defecto, «Periodo». */
+  categoryColumn?: string
+  /**
+   * Hace cada columna una parada de teclado con tooltip del valor exacto (con puntero y con foco). Pensado para pocos
+   * puntos (p. ej. un histograma de seis tramos): con decenas de columnas cada una sería una parada de Tab. Por defecto,
+   * `false`: el valor sigue en el título de la barra y en la tabla.
+   */
+  focusable?: boolean
   /** Clase adicional para el contenedor */
   className?: string
 }
@@ -87,7 +96,15 @@ const gapFor = (count: number) => (count <= 14 ? 8 : count <= 40 ? 2 : 1)
  * conviene agregar por encima de unos 30–40 puntos: con barras de ~1 px el contorno de la segunda serie las
  * hace parecer sólidas.
  */
-export function BarChart({ label, series, points, valueFormatter = defaultFormatter, className }: BarChartProps) {
+export function BarChart({
+  label,
+  series,
+  points,
+  valueFormatter = defaultFormatter,
+  categoryColumn = 'Periodo',
+  focusable = false,
+  className,
+}: BarChartProps) {
   const tableId = useId()
   const summaryId = useId()
   const [setPlot, plotWidth] = useElementWidth<HTMLDivElement>()
@@ -140,7 +157,8 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
       <div
         ref={setPlot}
         className={styles.plot}
-        role="img"
+        // Un `img` no puede contener controles: con columnas enfocables el gráfico es un grupo de botones con nombre.
+        role={focusable ? 'group' : 'img'}
         aria-label={label}
         aria-describedby={summaryId}
         aria-details={tableId}
@@ -149,7 +167,7 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
           {points.map((point) => {
             const peak = Math.max(...series.map((item) => point.values[item.id] ?? 0))
             return (
-              <div key={point.key} className={styles.column}>
+              <div key={point.key} className={cx(styles.column, focusable && styles.focusable)}>
                 <div className={cx(styles.stage, showValues && styles.labelled)}>
                   {showValues && <span className={styles.value}>{valueFormatter(peak)}</span>}
                   <svg
@@ -178,6 +196,30 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
                     })}
                   </svg>
                 </div>
+                {focusable && (
+                  <Tooltip
+                    placement="bottom-start"
+                    describe={false}
+                    content={series
+                      .map((item) => `${point.label} · ${item.label}: ${valueFormatter(point.values[item.id] ?? 0)}`)
+                      .join(' · ')}
+                  >
+                    {(trigger) => (
+                      <button
+                        type="button"
+                        className={styles.hit}
+                        aria-label={series
+                          .map((item) =>
+                            single
+                              ? `${point.label}: ${valueFormatter(point.values[item.id] ?? 0)}`
+                              : `${point.label} · ${item.label}: ${valueFormatter(point.values[item.id] ?? 0)}`,
+                          )
+                          .join(', ')}
+                        {...trigger}
+                      />
+                    )}
+                  </Tooltip>
+                )}
               </div>
             )
           })}
@@ -211,7 +253,7 @@ export function BarChart({ label, series, points, valueFormatter = defaultFormat
       <ChartTable
         id={tableId}
         label={label}
-        firstColumn="Periodo"
+        firstColumn={categoryColumn}
         columns={series.map((item) => item.label)}
         rows={points.map((point) => ({
           key: point.key,

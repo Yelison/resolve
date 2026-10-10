@@ -26,6 +26,17 @@
   font: var(--font-body);
 }
 
+/* Tabla ancha: no parte los textos y se desplaza dentro de `.wrap`, nunca la página. */
+.wide {
+  min-width: max-content;
+}
+
+.table.wide th,
+.table.wide td {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
 .table th,
 .table td {
   padding: var(--space-8) var(--space-12);
