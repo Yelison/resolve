@@ -368,8 +368,16 @@ Computed per organization, independent of any list.
 | `byDay[]` | Per day: tickets created, and distinct tickets that entered `resolved` that day |
 | `byChannel[]` | Channels with at least one ticket created in the period, most tickets first (ties by channel name); empty without data |
 | `byAgent[]` | Per member, see below |
+| `openByStatus` | Tickets that are not `resolved` **right now**, by status: `{ open, inProgress, waiting }`. A snapshot of the organization: it does not depend on `period` and is the same for `7d`, `30d` and `90d` |
+| `openByPriority` | The same tickets by their **current** priority: `{ urgent, high, medium, low }`. A ticket whose priority changed counts once, under the last one; the four values add up to the same total as `openByStatus` |
+| `resolutionTimes[]` | Always six buckets, in this order: `under1h`, `from1To4h`, `from4To8h`, `from8To24h`, `from1To3d`, `over3d`, each `{ bucket, resolved }` (see below) |
+| `createdByWeekdayHour[]` | Tickets created in the period by ISO weekday (`1` Monday … `7` Sunday) and local hour (`0`–`23`) of the organization's zone, `{ weekday, hour, created }`. Sparse: only cells with `created > 0`, ordered by `weekday` and then `hour`. The cells add up to `created.value` |
 
 `byDay[].resolved` counts distinct tickets **per day**, while `resolved.value` counts them **per period**: a ticket resolved, reopened and resolved again on different days counts on each of those days and once in the period, so the days can add up to more than `resolved.value`. The same applies to `byAgent[].resolved`, which counts distinct tickets per person: a ticket resolved by one agent, reopened and resolved by another counts for both.
+
+**Resolution buckets.** `resolutionTimes` places each ticket by the elapsed time from its creation to the **first** time it entered `resolved` (the duration `resolutionHours` takes its median from; a later reopening does not move it). The population is the one of `resolved.value`: the distinct tickets that entered `resolved` in the period, **whenever they were created**, so the six values add up to exactly `resolved.value`. `resolutionHours` is not the median of these buckets: it only covers the tickets *created* in the period. Bounds are `[min, max)` over elapsed seconds, so a ticket resolved after exactly 1 hour is in `from1To4h` and one resolved after 59 minutes in `under1h`; `from1To3d` ends at 72 hours. A bucket without tickets is `0`, never missing.
+
+**Weekday and hour.** `createdByWeekdayHour` uses the same `AT TIME ZONE` as `byDay`, so it follows the local clock through a daylight-saving change: the hour that is repeated adds up in the same cell (`Europe/Madrid`, Sunday 2026-10-25, both 02:30 are `{ weekday: 7, hour: 2 }`) and the hour that does not exist has no cell.
 
 **Shares.** `byChannel[].share` is a percentage with one decimal and the shares add up to **exactly 100.0** (largest-remainder rounding: every channel gets its share rounded down to a tenth and the tenths left over go to the channels with the largest remainders; on a tie, to the one listed first). Rounding each share on its own could add up to 99.9 or 100.1.
 
