@@ -1,7 +1,7 @@
 # 0002 · Adopt Forma UI for the shared components
 
 - **Status:** accepted, 2026-10-10. It landed with the adoption, in #120 (Button, IconButton, Icon) and #121 (the rest); the tokens came in #114.
-- **Supersedes:** [0001](0001-forma-ui-extraction.md), in part: for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal. 0001 still applies to every other component in `frontend/src/components/ui`.
+- **Supersedes:** [0001](0001-forma-ui-extraction.md), in part: for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal. [Amendment 1](#amendment-1--020-tabs-and-radio) adds Tabs and Radio. 0001 still applies to every other component in `frontend/src/components/ui`.
 
 ## Context
 
@@ -123,7 +123,7 @@ Nothing else differs, measured twice: on the development server with all the pro
 
 - **The components are maintained in one place.** Resolve receives the accessibility and quality improvements made in Forma UI, for example the composable state selectors in Button. Some fixes, such as Tooltip's server-rendering one, do not affect Resolve, which renders only in the browser.
 - **The version Resolve runs is explicit.** A change Resolve needs waits for a Forma UI release, or takes the urgent path above. Exact pinning keeps the running version visible.
-- **Domain and shell components stay here, under 0001.** That covers TicketRow, Message, Editor, Timeline, Sidebar, Topbar and the rest of the catalog. The next families to extract (Checkbox, Switch, Tabs, NavItem) will be measured against 0001's criteria and recorded by amending this ADR.
+- **Domain and shell components stay here, under 0001.** That covers TicketRow, Message, Editor, Timeline, Sidebar, Topbar and the rest of the catalog. Tabs and Radio were measured and recorded in Amendment 1; the next families to extract (Checkbox, Switch, NavItem) will be measured against 0001's criteria and recorded by amending this ADR in the same way.
 - **0001 is marked «Superseded in part by 0002»** for the eight components above, in the same pull request.
 - **One scroll lock.** The drawer of the shell (`shared/useModalDialog.ts`) locks the page scroll with the package's public `useScrollLock`, the same counter and the same class (`forma-scroll-locked`, from `base.css`) as the package's `Dialog`. A dialog opened over the open drawer (the account menu lives in the drawer on mobile) and closed again leaves the lock and the scrollbar compensation as the drawer needs them; an e2e with classic scrollbars checks it. Resolve's own `lib/scrollLock` and `html.scroll-locked` are gone.
 - **Copies of helpers the package does not export.** Until the drawer and `Menu` have a counterpart in the package, Resolve keeps its own `useModalDialog` (the drawer's, which also uses the package's `useScrollLock`) and its own `useFloating` and `position` (for `Menu`), next to the copies inside the package's `Dialog` and `Tooltip`. They are part of the initial JavaScript and the reason it does not shrink with the extraction.
