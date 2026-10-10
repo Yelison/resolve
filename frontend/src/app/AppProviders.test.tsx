@@ -6,6 +6,7 @@ describe('punto de entrada (main.tsx)', () => {
   const source = mainSource.replace(/\/\/.*$/gm, '')
 
   it('instala los proveedores (FormaProvider incluido) por encima del router, para cubrir /entrar, el catálogo y la demostración', () => {
-    expect(source).toMatch(/<AppProviders[^>]*>\s*<RouterProvider[^>]*\/>\s*<\/AppProviders>/)
+    // Dentro de `<AppProviders …>`, sin fijar qué otros elementos (un modo estricto, un error boundary) lo rodean.
+    expect(source).toMatch(/<AppProviders\b[^>]*>[\s\S]*<RouterProvider\b[\s\S]*<\/AppProviders>/)
   })
 })
