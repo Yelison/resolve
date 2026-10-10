@@ -60,9 +60,9 @@ s_badmethod() { mk
   out=$(ship --merge merge); check "bad --merge: refused" test $? -ne 0; check "bad --merge: says why" says x 'must be squash or rebase'; check "bad --merge: no gh" test -z "$(gh_calls)"; }
 # After a confirmed squash GitHub merged exactly the pushed head into main, so the branches of the task and of its review
 # are deleted although `git branch -d` does not see a series that became one patch as merged.
-s_squashclean() { mk; series; review_on_tip; out=$(ship); rc=$?
+s_squashclean() { mk; series; review_on_tip; head=$(git -C "$W" rev-parse HEAD); out=$(ship); rc=$?
   check "squash cleanup: rc 0" test $rc -eq 0
-  check "squash cleanup: the squash is not the pushed head, so git branch -d would refuse" bash -c "! git -C '$T/repo' branch --merged main | grep -q impl-a"
+  check "squash cleanup: main has the squash, not the pushed head, so git branch -d could not have deleted the branch" bash -c "! git --git-dir '$T/remote.git' merge-base --is-ancestor '$head' refs/heads/main"
   check "squash cleanup: the task's branch is deleted" bash -c "! git -C '$T/repo' rev-parse -q --verify refs/heads/feat/impl-a"
   check "squash cleanup: the review's branch is deleted" bash -c "! git -C '$T/repo' rev-parse -q --verify 'refs/heads/$review_branch'"
   check "squash cleanup: says why" says x 'exactly the head GitHub squash-merged'

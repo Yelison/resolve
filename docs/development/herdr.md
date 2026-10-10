@@ -432,7 +432,8 @@ In order, stopping at the first problem and saying what it did and did not do:
    `git fetch origin main && git merge --ff-only origin/main` in the main checkout and prints `merged <sha>`.
 6. Unless `--no-cleanup`: sends `/exit` to the agents of the task and of `review-<id>` (an agent that is `working` or
    `blocked` is not sent anything: the script says so, after the merge, and stops) and runs
-   `remove-task.sh --id <id> --volumes` for each (the review first). It never passes `--force-leftovers`: if
+   `remove-task.sh --id <id> --volumes` for each (the review first; plus `--delete-branch --squashed-head <sha>` after a
+   confirmed squash, see below). It never passes `--force-leftovers`: if
    `remove-task.sh` finds processes or containers it stops there, after the merge, and tells you the command to rerun.
    **Branches.** After a **squash** merge, `ship.sh` deletes the task's branch and the review's, because a squash
    leaves one new patch on `main` and `git branch -d` can no longer see the series as merged. It does so only when all
