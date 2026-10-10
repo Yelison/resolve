@@ -127,3 +127,60 @@ Nothing else differs, measured twice: on the development server with all the pro
 - **0001 is marked «Superseded in part by 0002»** for the eight components above, in the same pull request.
 - **One scroll lock.** The drawer of the shell (`shared/useModalDialog.ts`) locks the page scroll with the package's public `useScrollLock`, the same counter and the same class (`forma-scroll-locked`, from `base.css`) as the package's `Dialog`. A dialog opened over the open drawer (the account menu lives in the drawer on mobile) and closed again leaves the lock and the scrollbar compensation as the drawer needs them; an e2e with classic scrollbars checks it. Resolve's own `lib/scrollLock` and `html.scroll-locked` are gone.
 - **Copies of helpers the package does not export.** Until the drawer and `Menu` have a counterpart in the package, Resolve keeps its own `useModalDialog` (the drawer's, which also uses the package's `useScrollLock`) and its own `useFloating` and `position` (for `Menu`), next to the copies inside the package's `Dialog` and `Tooltip`. They are part of the initial JavaScript and the reason it does not shrink with the extraction.
+
+## Amendment 1 · 0.2.0: Tabs and Radio
+
+- **Status:** accepted, 2026-10-10. It landed in (this PR), which adopts `@yelison/forma-ui` 0.2.0.
+- **Scope:** it adds Tabs and Radio to the components that 0001 no longer covers, and the catalog's icon list (`iconNames`). Every other component stays under 0001. Checkbox and Switch are not part of it: they keep `shared/choice.module.css`, which Radio no longer uses.
+
+This is the amendment this ADR announced: the next families are measured with 0001's criteria and recorded here. The method is the same as for the adoption; the measured code is the one of this pull request.
+
+### The readiness criteria of 0001, measured
+
+Same columns and rules as the table above (areas, JSDoc over the members declared in the props types, imports of the published modules, `px` literals in the published `styles.css`, tests of the package at the `@yelison/forma-ui@0.2.0` tag, entry in `/catalogo`). The only change to the script is that `outline-offset` is counted unless it is 1–2 px, as 0001 says; the first adoption excluded every `outline*` property, which would have hidden the 4 px below. For Radio the literals of `.forma-shared-choice`, the base it is built on, are counted too, and Tabs counts `TabsProps` and `TabItem`.
+
+| Component | 1 · areas (of 3 needed)                     | 1 · stable for a phase                | 2 · API documented (JSDoc) | 3 · no domain types                          | 4 · token-only values                                                                                                             | 5 · own test and catalog entry |
+| --------- | ------------------------------------------- | ------------------------------------- | -------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| Tabs      | 4 (customers, knowledge, settings, tickets) | no (new in 0.2.0, no earlier release) | 9/9                        | yes (imports only react and its own modules) | **no:** `outline-offset: 4px` on the focused panel (`.forma-tabs__panel:focus-visible`)                                           | test: yes; catalog: yes        |
+| Radio     | 3 (knowledge, session, settings)            | no (new in 0.2.0, no earlier release) | 1/1                        | yes (imports only react and its own modules) | **no:** `min-height: 36px` in the shared base `.forma-shared-choice`; the dot (`--space-8`) and the box (`--space-20`) are tokens | test: yes; catalog: yes        |
+
+- **Areas.** Both reach 3 or more areas by themselves, so the justification used for Field and Tooltip (they travel as dependencies of components that qualify) does not apply, and none is needed. Radio is the narrow one, with exactly 3: Settings (the theme), the article's publication panel and the organisation switcher of the session.
+- **Stability.** As for the first eight, the clause cannot be met: the package has no earlier release of these components. Resolve's own copies were ported unchanged (the sources of `Tabs` and `Radio` have the same logic as the package's compiled modules), and from now on Forma UI's reviews, tests and versioning replace the clause.
+- **Criterion 4, two failures.** Both literals already existed in Resolve (`Tabs.module.css` had the 4 px offset; `choice.module.css` has the 36 px, still used by Checkbox and Switch). They are not a visual change, and they do not block the adoption. They are a pending decision for the owner: either Forma UI turns them into tokens in a patch release, as it did for `--badge-min-height` and the other literal sizes (the 36 px as a choice-height token, with the 4 px offset kept as the panel's own), or they are accepted as an exception like the 8 px of the dialog's entrance (the 4 px is the distance of a focus ring, not the size of a box; the 36 px is a size, so it fits the exception less well). Until then they stay in the package as they were here.
+- **`iconNames`.** The list of the 23 icon names that `app/catalog/catalogData.ts` kept by hand, with a `satisfies Record<IconName, true>` to fail `tsc` when it drifted, is replaced by the package's `iconNames`, which is generated with the icon table and cannot drift. It has the same names in the same order, so `/catalogo` shows the same icons. The catalog imports it from `@yelison/forma-ui` and not from `components/ui`: the barrel only re-exports what the features use, and the catalog is a development tool. That file is one more direct importer of the package, besides the entry points listed for the adoption.
+
+### Decision
+
+Resolve adopts Tabs and Radio from `@yelison/forma-ui@0.2.0`, with the same decisions as the first eight:
+
+1. **Dependency and tokens.** Exact version `0.2.0`. The tokens of 0.2.0 are those of 0.1.0: after `npm run sync:forma-tokens` the only change in the two generated copies is the version in their header (an empty diff once the header is removed, and `tokens.sync.test.ts` passes), so there is no visual change to decide.
+2. **Compatible barrel.** `Tabs/Tabs.ts` and `Radio/Radio.ts` are one-line re-exports; their `.tsx`, CSS Modules and tests are gone. A diff of the resolved types of the barrel, before and after (134 exports each, against the base of this pull request) is empty: the same names, props and types. No import of `features/**` changes. `shared/choice.module.css` stays, and nothing but Checkbox and Switch imports it.
+3. **Copy.** Neither component has built-in strings, so `FormaProvider` needs no new key.
+
+### Visual and behavioural differences
+
+Measured as for the adoption, on computed styles, box, attributes and pseudo-elements of every node, with the base (`bb36b8e`, 0.1.0) and the tip served side by side, in both themes at 1440 and 390 px:
+
+- **`/catalogo`** (development server in `showcase` mode, because the route only exists there): the whole page, and the states of Tabs (at rest, hover on an unselected tab, keyboard focus on the selected one, an arrow key, `Tab` to the panel, a click) and of Radio (at rest, hover, keyboard focus, checked), with a Checkbox as a control. 64 scenes.
+- **The build** (`vite build --mode showcase` of both, served with `vite preview`): Settings (company, appearance and permissions, with the states of its tabs and its radios), a ticket and a customer (their tabs), the new article (tabs and the visibility radios) and the mobile drawer. 166 scenes.
+
+**No computed property, box, attribute or pseudo-element differs, in any of the 230 scenes** (the only noise discarded is the milliseconds of `datetime` in `<time>`, the clock). The focus ring of the radio that the package now draws itself (`outline: var(--focus-ring)` with a 2 px offset, border included) is the one Resolve's global `:focus-visible` rule already gave it, and the tabs' ring is the same global rule too, so nothing changes. Two things the dump cannot see, declared here:
+
+- **`prefers-reduced-motion` on Radio.** The package removes the colour transition of the radio's input for users who ask for it, as it does for Button and Dialog. Radio now respects it; Checkbox and Switch, which keep Resolve's `choice.module.css`, do not yet.
+- **State selectors with `:where()`.** The package writes the hover and selected state of a tab, and the checked and disabled state of a radio, with `:where()`, so they have a specificity of one class instead of two. A Resolve class passed to either component that sets the same property now wins over those states, where before it lost. The cascade rules above apply (see `docs/development/dependencies.md`), and today two Resolve rules reach them (the row height of the theme options and the panel's inward focus ring), and neither sets a state property.
+
+Not covered by the dump: the organisation switcher's radios (the `Cambiar de organización` dialog). The demo user of the static build belongs to a single organisation and the menu does not offer the change, so the dialog cannot be opened there. It uses the same `Radio` as the three contexts above; `e2e/session.spec.ts` and `e2e/scroll-lock.spec.ts` open it against a mock with two organisations and pass.
+
+### Inherited behaviour of Tabs
+
+When a controlled parent refuses a tab (`onChange` does not change `value`), the focus still moves to that tab, but the next arrow key starts from the **selected** tab, not from the focused one: from `Conversation`, with `Activity` refused, `ArrowRight` focuses `Activity` again instead of moving on to `Files`. It is the behaviour Resolve's Tabs had and the package keeps, it is not changed here, and it is pinned in `Tabs/Tabs.test.tsx` (the package's own test checks only the first arrow after a refusal). Settings, where the parent navigates on every change, is not affected.
+
+### Weight
+
+Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build`), before and after: JavaScript 578 456 → 578 626 bytes (+170; gzip 176 792 → 176 953, +161) and CSS 83 934 → 85 361 bytes (+1 427; gzip 15 498 → 15 610, +112). The CSS grows because the package's rules for Tabs and Radio are longer than the ones that left (explicit `box-sizing`, focus rings, the reduced-motion rule) and the shared choice base now exists twice: the package's, for Radio, and Resolve's, for Checkbox and Switch.
+
+### Pending
+
+- **Criterion 4** (above): the 36 px and the 4 px offset, for the owner.
+- **Checkbox and Switch** are the next family of the same base. Moving them removes `shared/choice.module.css` and the duplicate of the base, and gives them the reduced-motion rule.
+- **ADR 0001 and the README** still list the eight components in the first adoption; they are outside this pull request's scope and need the same two words.
