@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Takes a reviewed task to main: checks the branch, pushes it (never a push without a lease), opens or reuses the pull
-# request, waits for `Full-stack smoke`, schedules the auto-merge (rebase), waits for it, fast-forwards the main
+# request, waits for `Full-stack smoke`, schedules the auto-merge (squash by default, or rebase), waits for it,
+# fast-forwards the main
 # checkout and retires the task and its review. It never merges locally and never schedules a merge before the smoke
 # check is green. See docs/development/herdr.md.
 set -euo pipefail
@@ -10,24 +11,27 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/herdr/ship.sh --task ID --title TITLE --body FILE [--no-cleanup]
+Usage: scripts/herdr/ship.sh --task ID --title TITLE --body FILE [--merge squash|rebase] [--no-cleanup]
 
   --task ID       Task whose branch is shipped
   --title TITLE   Pull request title (a Conventional Commit line)
   --body FILE     Pull request description
+  --merge METHOD  squash (default: one commit on main, titled TITLE (#PR), listing the series and its
+                  Co-Authored-By trailers) or rebase (every commit lands on main, so each must pass on its own)
   --no-cleanup    Keep the task and its review (skip /exit and remove-task.sh)
 
-Environment: HERDR_PR_ASSIGNEE (assignee of a new PR), HERDR_POLL_SECONDS (default 20) and
+Environment: HERDR_MERGE_METHOD (default merge method, squash), HERDR_PR_ASSIGNEE (assignee of a new PR), HERDR_POLL_SECONDS (default 20) and
 HERDR_SHIP_TIMEOUT_SECONDS (each wait, default 1800).
 USAGE
 }
 
-ID= TITLE= BODY= CLEANUP=1
+ID= TITLE= BODY= CLEANUP=1 METHOD=${HERDR_MERGE_METHOD:-squash}
 while [ $# -gt 0 ]; do
   case $1 in
     --task) need_arg "$1" $#; ID=${2:-}; shift 2 ;;
     --title) need_arg "$1" $#; TITLE=${2:-}; shift 2 ;;
     --body) need_arg "$1" $#; BODY=${2:-}; shift 2 ;;
+    --merge) need_arg "$1" $#; METHOD=${2:-}; shift 2 ;;
     --no-cleanup) CLEANUP=0; shift ;;
     -h | --help) usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
@@ -39,6 +43,7 @@ need gh
 need jq
 [ -n "$ID" ] && [ -n "$TITLE" ] && [ -n "$BODY" ] || { usage >&2; die "--task, --title and --body are required"; }
 [ -f "$BODY" ] || die "body file not found: $BODY"
+case $METHOD in squash | rebase) ;; *) die "--merge must be squash or rebase: $METHOD" ;; esac
 POLL=${HERDR_POLL_SECONDS:-20}
 TIMEOUT=${HERDR_SHIP_TIMEOUT_SECONDS:-1800}
 [[ $POLL =~ ^[0-9]+$ ]] && [[ $TIMEOUT =~ ^[0-9]+$ ]] || die "HERDR_POLL_SECONDS and HERDR_SHIP_TIMEOUT_SECONDS must be whole numbers"
@@ -141,8 +146,17 @@ while :; do
   sleep "$POLL"
 done
 
-gh pr merge "$PR" --auto --rebase --match-head-commit "$HEAD_SHA" >/dev/null || die "gh pr merge --auto --rebase failed for #$PR"
-log "Auto-merge (rebase) scheduled for #$PR; waiting for it…"
+if [ "$METHOD" = squash ]; then
+  # One commit on main: the PR title, the series it replaces and every co-author of the series.
+  series=$(git -C "$TASK_WORKTREE" log --reverse --format='- %s' origin/main..HEAD)
+  coauthors=$(git -C "$TASK_WORKTREE" log --format='%(trailers:key=Co-Authored-By)' origin/main..HEAD | grep -v '^$' | sort -u || true)
+  message=$(printf 'Squashed from:\n\n%s\n%s' "$series" "${coauthors:+$'\n'$coauthors}")
+  gh pr merge "$PR" --auto --squash --subject "$TITLE (#$PR)" --body "$message" --match-head-commit "$HEAD_SHA" >/dev/null \
+    || die "gh pr merge --auto --squash failed for #$PR"
+else
+  gh pr merge "$PR" --auto --rebase --match-head-commit "$HEAD_SHA" >/dev/null || die "gh pr merge --auto --rebase failed for #$PR"
+fi
+log "Auto-merge ($METHOD) scheduled for #$PR; waiting for it…"
 SECONDS=0
 MERGED_SHA=
 while :; do

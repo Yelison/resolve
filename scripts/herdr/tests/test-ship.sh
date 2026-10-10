@@ -27,12 +27,22 @@ push_shim() { mkdir -p "$T/shim"; real=$(command -v git)
 s_dirty() { mk; touch "$W/x"; out=$(ship); check "dirty: refused" test $? -ne 0; check "dirty: message" says x 'uncommitted'; check "dirty: nothing pushed" bash -c "! git --git-dir '$T/remote.git' rev-parse -q --verify refs/heads/feat/impl-a"; }
 s_noorigin() { mk; git clone -q "$T/remote.git" "$T/other"; git -C "$T/other" -c user.name=o -c user.email=o@x commit -q --allow-empty -m "main moved"; git -C "$T/other" push -q origin main
   out=$(ship); check "stale base: refused" test $? -ne 0; check "stale base: says rebase" says x 'does not contain origin/main'; check "stale base: nothing pushed" bash -c "! git --git-dir '$T/remote.git' rev-parse -q --verify refs/heads/feat/impl-a"; check "stale base: no gh" test -z "$(gh_calls)"; }
+s_rebase() { mk
+  out=$(ship --merge rebase); rc=$?
+  head=$(git --git-dir "$T/remote.git" rev-parse refs/heads/feat/impl-a)
+  check "rebase: rc 0" test $rc -eq 0
+  check "rebase: merge scheduled with --auto --rebase and the pushed head" grep -q "pr merge 41 --auto --rebase --match-head-commit $head" <<<"$(gh_calls)"
+  check "rebase: no squash" bash -c "! grep -q -- '--squash' '$T/state/gh/calls.log'"; }
+s_badmethod() { mk
+  out=$(ship --merge merge); check "bad --merge: refused" test $? -ne 0; check "bad --merge: says why" says x 'must be squash or rebase'; check "bad --merge: no gh" test -z "$(gh_calls)"; }
 s_happy() { mk; echo pending:2 >"$T/state/gh/checks"
   out=$(HERDR_PR_ASSIGNEE=Yelison ship); rc=$?
   check "happy: rc 0" test $rc -eq 0; check "happy: pushed" remote_has feat/impl-a
   check "happy: assignee" grep -q -- '--assignee Yelison' <<<"$(gh_calls)"
   head=$(git --git-dir "$T/remote.git" rev-parse refs/heads/feat/impl-a)
-  check "happy: merge scheduled with --auto --rebase and the pushed head" grep -q "pr merge 41 --auto --rebase --match-head-commit $head" <<<"$(gh_calls)"
+  check "happy: squash by default, titled with the PR number" grep -q -- "pr merge 41 --auto --squash --subject feat: demo (#41)" <<<"$(gh_calls)"
+  check "happy: squash pinned to the pushed head" grep -q -- "--match-head-commit $head" <<<"$(gh_calls)"
+  check "happy: the squash message lists the series" grep -q -- "Squashed from:" <<<"$(gh_calls)"
   check "happy: origin/main contains the pushed head" git --git-dir "$T/remote.git" merge-base --is-ancestor "$head" refs/heads/main
   check "happy: the state of the PR is read before the first /exit" test "$(grep -n 'pr view 41 --json state' "$T/state/events.log" | head -1 | cut -d: -f1)" -lt "$(grep -n '^exit ' "$T/state/events.log" | head -1 | cut -d: -f1)"
   check "happy: merge after the smoke polls" test "$(grep -n 'pr merge' "$T/state/gh/calls.log" | cut -d: -f1)" -gt "$(grep -n 'pr checks' "$T/state/gh/calls.log" | tail -1 | cut -d: -f1)"
@@ -107,6 +117,6 @@ s_working() { mk; jq '.agent_status="working"' "$T/state/agents/rev-impl-a" >"$T
   out=$(ship); check "working agent: stops" test $? -ne 0; check "working agent: says so" says x 'is working, so it was not sent /exit'; check "working agent: no /exit sent" bash -c "! grep -q '/exit' '$T/state/prompts.log' 2>/dev/null"
   check "working agent: the merge is reported" says x "merged "; check "working agent: reviewer still live" test -e "$T/state/agents/rev-impl-a"; }
 
-scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin happy reuse red absent multi queued closed open dirtyreview stale lease foreign ahead race working)
+scen=("$@"); [ ${#scen[@]} -gt 0 ] || scen=(dirty noorigin happy rebase badmethod reuse red absent multi queued closed open dirtyreview stale lease foreign ahead race working)
 for s in "${scen[@]}"; do echo "== $s"; "s_$s"; done
 finish

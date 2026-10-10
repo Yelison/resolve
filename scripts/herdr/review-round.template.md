@@ -16,7 +16,7 @@ The implementer answered the previous round. The rules, the checks and the repor
 
 1. **Previous findings:** each one, resolved or not, with evidence (a test, a command or the code), and whether the
    decision in the file above was followed.
-2. **Regressions:** in everything the new commits touch, and that every commit still passes on its own.
+2. **Regressions:** in everything the new commits touch, at the tip. Verify this round's fixes and what they can affect; do not redo the whole first review. Check that every commit passes on its own only when the brief says «fusión con rebase».
 3. **Tests:** every new or changed test would fail without its change (prove it by reverting the key line locally and
    restoring it).
 

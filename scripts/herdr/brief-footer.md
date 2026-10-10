@@ -1,7 +1,7 @@
 
 ## Commits
 
-Los de la ficha, en inglés, Conventional Commits; cada uno compila y pasa por sí solo las comprobaciones de su capa (si la cobertura del contrato obliga a juntar contrato e implementación de una operación, hazlo y explícalo). Trailer: `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Identidad de git ya configurada. **Sin push ni PR.** Formatea solo tus archivos (`npm run format` o Prettier sobre las rutas autorizadas, nunca sobre `src` entero: reformatearía archivos generados).
+Los de la ficha, en inglés, Conventional Commits; **la tarea se fusiona con squash** (un solo commit en `main`), así que basta con que **la punta** pase todas las comprobaciones; haz commits pequeños y legibles, pero no hace falta que cada uno pase por sí solo. **Solo si la ficha dice «fusión con rebase»**, cada commit tiene que pasar por sí solo: compruébalo **una vez, al final**, antes de la última entrega, no en cada ronda. Trailer: `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`. Identidad de git ya configurada. **Sin push ni PR.** Formatea solo tus archivos (`npm run format` o Prettier sobre las rutas autorizadas, nunca sobre `src` entero: reformatearía archivos generados).
 
 ## Uso de la máquina (varios agentes en paralelo)
 
@@ -28,7 +28,8 @@ Los revisores encuentran casi siempre estos defectos. Compruébalos tú y cita l
 - **Matriz §2.1:** carga, vacío, sin resultados, error con reintento, sin permisos y página fuera de rango, cada uno con su test; los errores de una parte no ocultan las demás.
 - **Contrato:** los mocks de e2e y de tests unitarios cumplen el esquema (`additionalProperties: false`: ni campos de más ni de menos).
 - **Roles:** lo que un rol no puede hacer no se muestra; lo que se muestra mientras `/me` carga es lo del rol con menos permisos.
-- **Commits:** cada uno pasa por sí solo, y si un cambio rompe un e2e, el e2e cambia en el mismo commit.
+- **Commits:** la punta pasa todo; si un cambio rompe un e2e, el e2e cambia en el mismo commit. Con «fusión con rebase», además, cada commit pasa por sí solo (comprobado una vez, al final).
+- **Rondas de corrección:** verifica en la punta los unitarios, lint, typecheck, los builds y las specs que el arreglo puede afectar. No repitas baterías ni bucles por commit que no cambian con el arreglo.
 
 ## Entrega
 
