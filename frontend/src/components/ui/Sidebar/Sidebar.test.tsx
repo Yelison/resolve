@@ -99,6 +99,37 @@ describe('Sidebar · botón de colapsar', () => {
     expect(screen.getByRole('button', { name: 'Expandir menú' })).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('colapsar y expandir dibujan una flecha doble, y cerrar el drawer una sola', () => {
+    function iconsOf(kind: 'collapse' | 'expand' | 'close', label: string) {
+      const { unmount } = render(
+        <MemoryRouter>
+          <Sidebar
+            items={items}
+            sectionLabel="Gestión"
+            workspace="Acme Studio"
+            user={{ name: 'Yelisson Ortiz', role: 'Administrador' }}
+            action={{ label, kind, onClick: () => {} }}
+          />
+        </MemoryRouter>,
+      )
+      const toggle = screen.getByRole('button', { name: label })
+      const arrows = toggle.querySelectorAll('svg').length
+      unmount()
+      return arrows
+    }
+    // El giro de «expandir» (`flip`) lo comprueba el e2e de la shell en el navegador: jsdom no carga el CSS del paquete.
+    expect(iconsOf('collapse', 'Colapsar menú')).toBe(2)
+    expect(iconsOf('expand', 'Expandir menú')).toBe(2)
+    expect(iconsOf('close', 'Cerrar menú')).toBe(1)
+  })
+
+  it('conserva el nombre accesible y llama a onClick al pulsar', async () => {
+    const onClick = vi.fn()
+    renderSidebar(false, onClick)
+    await userEvent.click(screen.getByRole('button', { name: 'Colapsar menú' }))
+    expect(onClick).toHaveBeenCalledOnce()
+  })
+
   it('el botón de cerrar del drawer no anuncia estado de expansión', () => {
     render(
       <MemoryRouter>

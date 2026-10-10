@@ -50,7 +50,6 @@ import {
   type EditorMode,
   type IconName,
 } from '../../components/ui'
-import { iconPaths } from '../../components/ui/Icon/paths'
 import { cx } from '../../lib/cx'
 import { useTheme } from '../theme/useTheme'
 import {
@@ -74,6 +73,7 @@ import {
   demoNow,
   demoTickets,
   demoTwoSeries,
+  iconNames,
 } from './catalogData'
 import styles from './CatalogPage.module.css'
 
@@ -233,7 +233,7 @@ export default function CatalogPage() {
 
       <Section title="Iconos">
         <div className={styles.row}>
-          {(Object.keys(iconPaths) as IconName[]).map((name) => (
+          {iconNames.map((name) => (
             <span key={name} className={styles.icon}>
               <Icon name={name} size={24} />
               {name}

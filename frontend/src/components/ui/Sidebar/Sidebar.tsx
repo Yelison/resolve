@@ -3,7 +3,8 @@ import { Link } from 'react-router'
 import { cx } from '../../../lib/cx'
 import { Avatar } from '../Avatar/Avatar'
 import { initialsOf } from '../Avatar/initials'
-import { Icon, type IconName } from '../Icon/Icon'
+import { IconButton } from '../Button/Button'
+import type { IconName } from '../Icon/Icon'
 import { NavItem } from '../NavItem/NavItem'
 import { Tooltip } from '../Tooltip/Tooltip'
 import { Brand } from './Brand'
@@ -70,19 +71,16 @@ function HeaderAction({ action }: { action: SidebarAction }) {
   return (
     <Tooltip content={action.label} describe={false}>
       {(trigger) => (
-        <button
-          type="button"
+        // Doble flecha («) para colapsar, la misma girada («expandir») con `flip`, y una sola para cerrar el drawer.
+        <IconButton
           className={styles.toggle}
-          aria-label={action.label}
+          icon={action.kind === 'close' ? 'arrow' : ['arrow', 'arrow']}
+          flip={action.kind === 'expand'}
+          label={action.label}
           aria-expanded={action.kind === 'close' ? undefined : action.kind === 'collapse'}
           onClick={action.onClick}
           {...trigger}
-        >
-          <span className={cx(styles.chevrons, action.kind === 'expand' && styles.expand)} aria-hidden="true">
-            <Icon name="arrow" />
-            {action.kind !== 'close' && <Icon name="arrow" />}
-          </span>
-        </button>
+        />
       )}
     </Tooltip>
   )

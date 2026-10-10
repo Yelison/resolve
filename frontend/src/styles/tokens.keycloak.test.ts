@@ -6,9 +6,10 @@ import { describe, expect, it } from 'vitest'
 /* El tema de inicio de sesión de Keycloak (deploy/keycloak/themes/resolve) pinta con los mismos colores que la app.
  *
  * Una sola fuente de verdad: el tema lleva una copia LITERAL de `tokens.css` (css/tokens.css) y este test falla si
- * diverge. Para actualizarla: `cp frontend/src/styles/tokens.css deploy/keycloak/themes/resolve/login/resources/css/`.
- * Se eligió un test y no un script generador porque la copia no necesita un paso de build (Keycloak sirve el CSS tal
- * cual) y porque así `tokens.css` sigue siendo un archivo generado desde Figma que nadie toca a mano.
+ * diverge. Para actualizarla: `npm run sync:forma-tokens` (desde `frontend/`), que regenera `tokens.css` desde
+ * `@yelison/forma-ui` y escribe esta copia con la misma orden; este test falla si alguien edita una a mano.
+ * La copia no necesita un paso de build (Keycloak sirve el CSS tal cual) y `tokens.css` es un archivo generado del
+ * paquete que nadie toca a mano.
  *
  * Además comprueba que `resolve.css` no pinta con colores sueltos y que los pares texto/fondo que pinta la página de
  * Keycloak cumplen AA (≥ 4,5:1), con los tokens de la app (incluidos `brand-hover` y `link`, de #65) y no con colores
@@ -142,6 +143,15 @@ describe('tema de Keycloak · una sola fuente de verdad', () => {
     const used = [...withoutComments.matchAll(/var\((--[a-z0-9_-]+)/g)].map(([, name = '']) => name)
     const unknown = used.filter((name) => !known.has(name) && !own.has(name) && !name.startsWith('--pf-'))
     expect(unknown).toEqual([])
+  })
+
+  it('resolve.css no redeclara ningún token del paquete: los radios y la altura de control salen de tokens.css', () => {
+    const css = themeStyles.replace(/\/\*[\s\S]*?\*\//g, '')
+    const packageTokens = new Set([...themeTokens.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(([, name = '']) => name))
+    const redeclared = [...css.matchAll(/(?:^|[;{\s])(--[a-z0-9_-]+)\s*:/g)]
+      .map(([, name = '']) => name)
+      .filter((name) => packageTokens.has(name))
+    expect([...new Set(redeclared)]).toEqual([])
   })
 
   it('el tema usa los tokens pensados para el texto de marca y el hover: link, no brand, y brand-hover', () => {

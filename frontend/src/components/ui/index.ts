@@ -1,3 +1,8 @@
+// Primera línea, a propósito: las reglas del paquete (`.forma-*`) tienen que quedar antes que el CSS de cualquier
+// componente de Resolve. Vite agrupa el CSS por chunk y enlaza el de este barrel (`ui-*.css`) antes que el del punto de
+// entrada, así que importarlo desde `global.css` lo dejaría detrás. `e2e/production-bundle.spec.ts` lo comprueba en el build.
+import '@yelison/forma-ui/styles.css'
+
 export { Alert, type AlertProps, type AlertTone } from './Alert/Alert'
 export { Attachment, type AttachmentProps, type AttachmentStatus } from './Attachment/Attachment'
 export { Avatar, type AvatarProps, type AvatarSize } from './Avatar/Avatar'

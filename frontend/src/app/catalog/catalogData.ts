@@ -4,9 +4,43 @@ import type {
   DotPlotRow,
   HeatmapColumn,
   HeatmapRow,
+  IconName,
   LineChartPoint,
 } from '../../components/ui'
 import type { TicketSummary } from '../../domain/ticket'
+
+/**
+ * Los iconos del conjunto, en el orden en que se muestran. El paquete no exporta sus trazados ni la lista de nombres, así
+ * que el catálogo la lleva aquí; `satisfies Record<IconName, true>` hace fallar `tsc` si el paquete añade o quita un
+ * icono y esta lista no se actualiza.
+ */
+const iconSet = {
+  arrow: true,
+  attach: true,
+  bell: true,
+  book: true,
+  check: true,
+  chevron: true,
+  clients: true,
+  collapse: true,
+  expand: true,
+  file: true,
+  home: true,
+  lock: true,
+  menu: true,
+  moon: true,
+  more: true,
+  plus: true,
+  report: true,
+  search: true,
+  send: true,
+  settings: true,
+  sun: true,
+  team: true,
+  ticket: true,
+} satisfies Record<IconName, true>
+
+export const iconNames = Object.keys(iconSet) as IconName[]
 
 /** Momento de referencia de los datos de demostración, fijado al cargar el módulo. */
 export const demoNow = new Date()

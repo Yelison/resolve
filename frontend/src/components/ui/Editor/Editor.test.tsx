@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { renderWithProviders } from '../../../test/render'
 import { Editor, type EditorMode, type TicketEditorProps } from './Editor'
 
 function Harness(props: Partial<TicketEditorProps>) {
@@ -65,7 +66,8 @@ describe('Editor', () => {
   })
 
   it('bloquea el reenvío mientras envía', () => {
-    render(<Harness status="sending" />)
+    // «Enviando…» lo pone el FormaProvider de la aplicación: el paquete trae «Loading…».
+    renderWithProviders(<Harness status="sending" />)
     expect(screen.getByRole('button', { name: 'Enviando…' })).toHaveAttribute('aria-busy', 'true')
   })
 

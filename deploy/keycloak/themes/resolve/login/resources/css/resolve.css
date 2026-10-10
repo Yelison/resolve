@@ -1,5 +1,6 @@
 /* Identidad de Resolve sobre el maquetado de PatternFly de keycloak.v2.
- * Los colores salen de tokens.css (copia de frontend/src/styles/tokens.css); aquí no hay ningún valor de color suelto. */
+ * Los colores salen de tokens.css (copia de frontend/src/styles/tokens.css, que genera `npm run sync:forma-tokens`); aquí no
+ * hay ningún valor de color suelto ni se redeclara ningún token de esa copia: solo `--card-width`, que es del tema. */
 
 /* Inter se sirve desde el propio tema (@fontsource-variable/inter, licencia OFL en ../fonts/LICENSE.txt). El nombre es
  * `Inter`, el de --font-family; no `Inter Variable`, que es el de fontsource. */
@@ -26,9 +27,6 @@
 }
 
 :root {
-  --radius-panel: 12px;
-  --radius-control: 8px;
-  --control-height: 44px;
   --card-width: 440px;
 }
 
@@ -229,7 +227,7 @@ body#keycloak-bg {
   justify-content: center;
   box-sizing: border-box;
   min-width: var(--control-height);
-  min-height: var(--control-height);
+  min-height: var(--button-height);
   border-radius: var(--radius-control);
   font: var(--font-strong);
 }
@@ -344,7 +342,7 @@ a {
   font: var(--font-body);
 }
 
-/* Enlaces: los de una frase conservan su línea y amplían el área pulsable con relleno; los que van solos son de 44 px. */
+/* Enlaces: los de una frase conservan su línea y amplían el área pulsable con relleno; los que van solos miden 44 px por debajo de 768 px y la altura de control (40 px) desde 768 px. */
 .instruction a,
 .pf-v5-c-helper-text__item-text a {
   padding-block: var(--space-12);

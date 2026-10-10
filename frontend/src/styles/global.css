@@ -1,6 +1,11 @@
 @import '@fontsource-variable/inter';
-/* Orden de las hojas (README de @yelison/forma-ui): tokens, `styles.css`, `base.css` y después la capa de Resolve.
- * `styles.css` entra con los componentes, en la 5.2b, entre `tokens.css` y `base.css`, no después de `chart-tokens.css`.
+/* Orden de las hojas. El README de @yelison/forma-ui pide: tokens, `styles.css`, `base.css` y después la capa de Resolve.
+ * Aquí entran `tokens.css`, `base.css` y los tokens de los gráficos. `styles.css` (las reglas de los componentes) NO se
+ * importa aquí sino en la primera línea de `components/ui/index.ts`: Vite enlaza el CSS de un chunk compartido, como el
+ * de ese barrel (`ui-*.css`), antes que el del punto de entrada (`index-*.css`, que lleva esta hoja), y el README supone
+ * lo contrario. Importado desde el barrel, `styles.css` abre `ui-*.css` y queda antes que todo el CSS de Resolve, de modo
+ * que una clase propia con la misma especificidad que una del paquete gana. `tokens.css` y `base.css` no dependen del
+ * orden (propiedades personalizadas y clases `.forma-*` sin equivalente en Resolve).
  * Todos los `@import` van antes de cualquier regla. */
 @import './tokens.css';
 @import '@yelison/forma-ui/base.css';

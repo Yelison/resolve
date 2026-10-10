@@ -92,6 +92,64 @@ test.describe('shell', () => {
     expect(collapsedToggle!.x + collapsedToggle!.width).toBeLessThanOrEqual(sidebarWidth)
   })
 
+  test('escritorio: el botón de colapsar es el IconButton del paquete con los colores y el foco del sidebar', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    const toggle = page.getByRole('button', { name: 'Colapsar menú' })
+    const arrows = toggle.locator('svg')
+    await expect(arrows).toHaveCount(2)
+    const read = () =>
+      toggle.evaluate((button) => {
+        const probe = document.createElement('span')
+        probe.style.color = 'var(--color-nav-text)'
+        document.body.append(probe)
+        const expected = getComputedStyle(probe).color
+        probe.remove()
+        const icons = button.firstElementChild!
+        return {
+          color: getComputedStyle(button).color,
+          expected,
+          transform: getComputedStyle(icons).transform,
+          overlap: getComputedStyle(icons.children[1]!).marginInlineStart,
+          size: [button.clientWidth, button.clientHeight],
+        }
+      })
+    // Los colores y el solape son de Resolve y del paquete a la vez. Gana la clase de Resolve: `styles.css` del paquete abre
+    // `ui-*.css` (ver `components/ui/index.ts`) y, además, `.header .toggle` gana por especificidad aunque ese orden cambiara.
+    expect(await read()).toEqual({
+      color: expect.any(String),
+      expected: expect.any(String),
+      transform: 'none',
+      overlap: '-14px',
+      size: [44, 44],
+    })
+    const { color, expected } = await read()
+    expect(color).toBe(expected)
+    await page.keyboard.press('Shift')
+    await toggle.focus()
+    await expect(toggle).toHaveCSS('outline-offset', '-2px')
+    // El IconButton del paquete pasa el `ref` y los eventos del disparador: el foco abre la etiqueta junto al botón.
+    await expect(page.getByRole('tooltip')).toHaveText('Colapsar menú')
+    // Hover: el fondo y el color son los del sidebar oscuro, no los del hover claro del paquete.
+    const navHover = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.background = 'var(--color-nav-active)'
+      probe.style.color = 'var(--color-nav-ink)'
+      document.body.append(probe)
+      const { backgroundColor, color } = getComputedStyle(probe)
+      probe.remove()
+      return { backgroundColor, color }
+    })
+    await toggle.hover()
+    await expect(toggle).toHaveCSS('background-color', navHover.backgroundColor)
+    await expect(toggle).toHaveCSS('color', navHover.color)
+    await toggle.click()
+    const expand = page.getByRole('button', { name: 'Expandir menú' })
+    await expect(expand.locator(':scope > span')).toHaveCSS('transform', 'matrix(-1, 0, 0, 1, 0, 0)')
+  })
+
   test('escritorio colapsado: al pasar el puntero por varios iconos solo hay una etiqueta visible', async ({
     page,
   }) => {
