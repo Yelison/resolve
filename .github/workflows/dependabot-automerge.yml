@@ -1,0 +1,40 @@
+name: Dependabot auto-merge
+
+# Activa la fusión automática SOLO de los parches de `@yelison/forma-ui` que abre Dependabot (decisión del propietario,
+# ADR 0002). Lo demás (minor y major de esa dependencia, y cualquier otra dependencia) lo revisa el propietario.
+#
+# `gh pr merge --auto` no fusiona nada por sí mismo: GitHub fusiona cuando pasan los checks obligatorios del ruleset de
+# `main`. Este flujo nunca se los salta, y si fallan el PR queda abierto. Un parche que cambie los tokens falla el test
+# `tokens.sync.test.ts` hasta que alguien ejecute `npm run sync:forma-tokens` y revise el cambio visual.
+#
+# Condiciones, todas a la vez:
+#   - el autor es Dependabot (`github.actor`);
+#   - el PR actualiza exactamente una dependencia, `@yelison/forma-ui` (igualdad, no `contains`: un PR que mezcle otras
+#     dependencias no se autofunde);
+#   - el tipo de actualización es `version-update:semver-patch`.
+# Permisos mínimos: `contents: write` y `pull-requests: write`, que `--auto` necesita. Reglas en
+# docs/development/dependencies.md.
+on: pull_request
+
+permissions: {}
+
+jobs:
+  forma-ui-patch:
+    name: Auto-merge a @yelison/forma-ui patch
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Read the update metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enable auto-merge
+        if: steps.metadata.outputs.dependency-names == '@yelison/forma-ui' && steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --rebase "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

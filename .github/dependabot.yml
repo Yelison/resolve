@@ -12,6 +12,14 @@ updates:
       frontend:
         patterns: ['*']
         update-types: [minor, patch]
+        # @yelison/forma-ui lleva los tokens y, desde la 5.2b, los componentes: nunca viaja en el grupo general.
+        exclude-patterns: ['@yelison/forma-ui']
+      # Solo sus parches, en su propio PR: `dependabot-automerge.yml` los autofunde cuando pasan los checks obligatorios.
+      # Sus minor y major quedan fuera de todo grupo (un PR por versión) y los revisa siempre el propietario, porque un
+      # cambio visual necesita ojos aunque pasen los checks. Reglas en docs/development/dependencies.md.
+      forma-ui:
+        patterns: ['@yelison/forma-ui']
+        update-types: [patch]
   - package-ecosystem: maven
     directory: /backend
     schedule:
