@@ -1,7 +1,7 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { ToastProvider } from '../components/ui'
+import { AppProviders } from '../app/AppProviders'
 
 /** Cliente de consultas aislado por test, sin reintentos para que los errores se vean al momento. */
 export function createTestQueryClient() {
@@ -13,10 +13,6 @@ export function createTestQueryClient() {
 export function renderWithProviders(ui: ReactNode, queryClient = createTestQueryClient()) {
   return {
     queryClient,
-    ...render(
-      <QueryClientProvider client={queryClient}>
-        <ToastProvider>{ui}</ToastProvider>
-      </QueryClientProvider>,
-    ),
+    ...render(<AppProviders queryClient={queryClient}>{ui}</AppProviders>),
   }
 }
