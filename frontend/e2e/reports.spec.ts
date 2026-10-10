@@ -441,7 +441,8 @@ test.describe('reportes', () => {
     const first = histogram.getByRole('button', { name: /^< 1 h: / })
     await tabTo(page, first)
     await expect(page.getByRole('tooltip')).toContainText('< 1 h')
-    for (const label of ['< 1 h', '1–4 h', '4–8 h', '8–24 h', '1–3 d', '> 3 d']) {
+    // El eje lleva las etiquetas compactas; el tooltip, el nombre completo.
+    for (const label of ['<1h', '1–4h', '4–8h', '8–24h', '1–3d', '>3d']) {
       await expect(histogram.locator('[class*="axis"]', { hasText: label }).first()).toBeVisible()
     }
     const status = page.getByRole('region', { name: 'Estado de los abiertos' })
