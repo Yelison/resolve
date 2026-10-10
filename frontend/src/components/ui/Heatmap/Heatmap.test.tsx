@@ -166,4 +166,9 @@ describe('Heatmap', () => {
     expect(cells.filter((cell) => cell.tabIndex === 0)).toHaveLength(1)
     expect(new Set(cells.map((cell) => cell.getAttribute('data-step')))).toEqual(new Set(['1', '2', '3', '4']))
   })
+
+  it('su tabla alternativa es ancha: conserva el ancho de cada columna y se desplaza en su contenedor', () => {
+    renderMap()
+    expect(screen.getByRole('table', { hidden: true })).toHaveClass('wide')
+  })
 })
