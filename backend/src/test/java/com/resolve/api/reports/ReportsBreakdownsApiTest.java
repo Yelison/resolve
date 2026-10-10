@@ -93,17 +93,20 @@ class ReportsBreakdownsApiTest extends ReportsFixture {
 	@Test
 	void aReopenedTicketIsPlacedByItsFirstResolution() throws Exception {
 		UUID ticket = ticket("email", "2026-10-01T00:00:00Z");
-		this.data.changeStatus(this.acme, ticket, this.laura, "Laura Méndez", "resolved", at("2026-10-01T00:30:00Z"));
-		this.data.changeStatus(this.acme, ticket, this.laura, "Laura Méndez", "open", at("2026-10-01T01:30:00Z"));
+		// Antes de resolverlo pasa por in_progress: la duración llega hasta la primera resolución, no hasta el primer
+		// cambio de estado.
+		this.data.changeStatus(this.acme, ticket, this.laura, "Laura Méndez", "in_progress", at("2026-10-01T00:05:00Z"));
+		this.data.changeStatus(this.acme, ticket, this.laura, "Laura Méndez", "resolved", at("2026-10-01T02:00:00Z"));
+		this.data.changeStatus(this.acme, ticket, this.laura, "Laura Méndez", "open", at("2026-10-01T03:00:00Z"));
 		this.data.changeStatus(this.acme, ticket, this.laura, "Laura Méndez", "resolved", at("2026-10-03T02:00:00Z"));
 
 		JsonNode summary = summary(LAURA, "7d");
 
-		assertThat(buckets(summary)).containsExactly("under1h=1", "from1To4h=0", "from4To8h=0", "from8To24h=0",
+		assertThat(buckets(summary)).containsExactly("under1h=0", "from1To4h=1", "from4To8h=0", "from8To24h=0",
 				"from1To3d=0", "over3d=0");
 		assertThat(bucketSum(summary)).isEqualTo(summary.at("/resolved/value").asInt()).isEqualTo(1);
-		// La misma duración que la mediana de resolutionHours (0,5 h).
-		assertThat(summary.at("/resolutionHours/value").asDouble()).isEqualTo(0.5);
+		// La misma duración que la mediana de resolutionHours (2 h).
+		assertThat(summary.at("/resolutionHours/value").asDouble()).isEqualTo(2.0);
 	}
 
 	/**
@@ -169,6 +172,8 @@ class ReportsBreakdownsApiTest extends ReportsFixture {
 		ticket("web", "2026-10-04T08:00:00-05:00");
 		// Un segundo antes del periodo (domingo 27 a las 23:59:59 locales): el periodo anterior, fuera del mapa.
 		ticket("web", "2026-09-27T23:59:59-05:00");
+		// Un segundo después del reloj (15:00:00Z): aún no existe para este informe y no entra en ninguna celda.
+		ticket("web", "2026-10-04T15:00:01Z");
 
 		JsonNode summary = summary(LAURA, "7d");
 
