@@ -5,7 +5,7 @@ import type { FormaStrings } from '@yelison/forma-ui'
  * (ADR 0002): sin esto, `Button loading` se anunciaría «Loading…».
  *
  * `satisfies Record<keyof FormaStrings, string>` hace fallar `tsc` si una versión del paquete añade una clave sin su
- * valor aquí; `formaStrings.test.ts` lo comprueba también en ejecución, y fija cada texto.
+ * valor aquí; `formaStrings.test.tsx` lo comprueba también en ejecución, y fija cada texto.
  */
 export const formaStrings = {
   buttonLoading: 'Enviando…',

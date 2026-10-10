@@ -227,7 +227,7 @@ body#keycloak-bg {
   justify-content: center;
   box-sizing: border-box;
   min-width: var(--control-height);
-  min-height: var(--control-height);
+  min-height: var(--button-height);
   border-radius: var(--radius-control);
   font: var(--font-strong);
 }
@@ -342,7 +342,7 @@ a {
   font: var(--font-body);
 }
 
-/* Enlaces: los de una frase conservan su línea y amplían el área pulsable con relleno; los que van solos son de 44 px. */
+/* Enlaces: los de una frase conservan su línea y amplían el área pulsable con relleno; los que van solos miden 44 px por debajo de 768 px y la altura de control (40 px) desde 768 px. */
 .instruction a,
 .pf-v5-c-helper-text__item-text a {
   padding-block: var(--space-12);

@@ -98,8 +98,9 @@
 
 /* El botón es `IconButton` del paquete (tamaño, radio, transición, doble flecha y giro); aquí solo cambian los colores
  * del fondo oscuro del sidebar y el desplazamiento del foco, que va por dentro para no salirse del borde del sidebar.
- * Las reglas cuelgan de `.header` para ganar por especificidad: el CSS de este componente se enlaza antes que `styles.css`
- * del paquete (que entra con global.css), y a igual especificidad ganaría el paquete. */
+ * `styles.css` del paquete va al principio de `ui-*.css` (primera línea de `components/ui/index.ts`), antes que este
+ * módulo, así que bastaría una clase sola. Las reglas cuelgan de `.header` igualmente, como defensa: ganan por
+ * especificidad aunque el orden de las hojas cambiara (p. ej. si el CSS del paquete acabara en otro chunk). */
 .header .toggle {
   color: var(--color-nav-text);
 }

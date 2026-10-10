@@ -116,7 +116,8 @@ test.describe('shell', () => {
           size: [button.clientWidth, button.clientHeight],
         }
       })
-    // Los colores y el solape son de Resolve y del paquete a la vez: gana la clase de Resolve porque `styles.css` va antes.
+    // Los colores y el solape son de Resolve y del paquete a la vez. Gana la clase de Resolve: `styles.css` del paquete abre
+    // `ui-*.css` (ver `components/ui/index.ts`) y, además, `.header .toggle` gana por especificidad aunque ese orden cambiara.
     expect(await read()).toEqual({
       color: expect.any(String),
       expected: expect.any(String),
@@ -131,6 +132,19 @@ test.describe('shell', () => {
     await expect(toggle).toHaveCSS('outline-offset', '-2px')
     // El IconButton del paquete pasa el `ref` y los eventos del disparador: el foco abre la etiqueta junto al botón.
     await expect(page.getByRole('tooltip')).toHaveText('Colapsar menú')
+    // Hover: el fondo y el color son los del sidebar oscuro, no los del hover claro del paquete.
+    const navHover = await page.evaluate(() => {
+      const probe = document.createElement('span')
+      probe.style.background = 'var(--color-nav-active)'
+      probe.style.color = 'var(--color-nav-ink)'
+      document.body.append(probe)
+      const { backgroundColor, color } = getComputedStyle(probe)
+      probe.remove()
+      return { backgroundColor, color }
+    })
+    await toggle.hover()
+    await expect(toggle).toHaveCSS('background-color', navHover.backgroundColor)
+    await expect(toggle).toHaveCSS('color', navHover.color)
     await toggle.click()
     const expand = page.getByRole('button', { name: 'Expandir menú' })
     await expect(expand.locator(':scope > span')).toHaveCSS('transform', 'matrix(-1, 0, 0, 1, 0, 0)')

@@ -56,3 +56,28 @@ test('el build de producción no incluye el catálogo de componentes ni su ruta'
   await page.goto('/catalogo')
   await expect(page.getByRole('heading', { level: 1, name: 'Página no encontrada' })).toBeVisible()
 })
+
+/**
+ * Las reglas del paquete (`.forma-*`) tienen que ir antes que el CSS de Resolve: una clase propia que las sobrescribe
+ * tiene su misma especificidad y solo gana si llega después. Vite enlaza el CSS de los chunks compartidos antes que el del
+ * punto de entrada, así que `styles.css` se importa en la primera línea de `components/ui/index.ts` y abre `ui-*.css`.
+ */
+test('el build de producción enlaza styles.css del paquete antes que el CSS de Resolve', () => {
+  const html = readFileSync(resolve(dist, 'index.html'), 'utf8')
+  const sheets = [...html.matchAll(/<link rel="stylesheet"[^>]*href="\/assets\/([^"]+\.css)"/g)].map(
+    ([, name = '']) => name,
+  )
+  expect(sheets.length).toBeGreaterThan(1)
+  const css = (name: string) => readFileSync(resolve(assets, name), 'utf8')
+
+  const [first = '', ...rest] = sheets
+  expect(first, 'primera hoja enlazada').toMatch(/^ui-/)
+  expect(css(first).trimStart().startsWith('.forma-'), 'la primera regla de ui-*.css es del paquete').toBe(true)
+  // Y las reglas de los componentes no están en ninguna otra hoja, ni en las del arranque ni en las de las rutas diferidas
+  // (`base.css`, con `.forma-visually-hidden` y `.forma-scroll-locked`, sí va en `index-*.css`: no depende del orden).
+  const others = [...rest, ...readdirSync(assets).filter((name) => name.endsWith('.css') && name !== first)]
+  expect(
+    [...new Set(others)].filter((name) => /\.forma-(?!visually-hidden|scroll-locked)/.test(css(name))),
+    'hojas con reglas del paquete aparte de la primera',
+  ).toEqual([])
+})
