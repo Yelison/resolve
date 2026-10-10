@@ -120,16 +120,22 @@ class ReportsBreakdownsApiTest extends ReportsFixture {
 		// Creado mucho antes del periodo y resuelto por primera vez dentro de él: más de 3 días.
 		UUID old = ticket("email", "2026-08-01T00:00:00Z");
 		this.data.changeStatus(this.acme, old, this.laura, "Laura Méndez", "resolved", at("2026-10-02T00:00:00Z"));
+		// Su primera resolución es anterior incluso al periodo anterior (empieza el 21 de septiembre): la búsqueda de la
+		// primera resolución no tiene cota inferior, así que sigue siendo 2 h y no la resolución de este periodo.
+		UUID ancient = ticket("email", "2026-09-01T00:00:00Z");
+		this.data.changeStatus(this.acme, ancient, this.laura, "Laura Méndez", "resolved", at("2026-09-01T02:00:00Z"));
+		this.data.changeStatus(this.acme, ancient, this.laura, "Laura Méndez", "open", at("2026-09-02T00:00:00Z"));
+		this.data.changeStatus(this.acme, ancient, this.laura, "Laura Méndez", "resolved", at("2026-10-03T00:00:00Z"));
 		// Resuelto solo antes del periodo: no cuenta.
 		UUID before = ticket("email", "2026-09-24T00:00:00Z");
 		this.data.changeStatus(this.acme, before, this.laura, "Laura Méndez", "resolved", at("2026-09-24T02:00:00Z"));
 
 		JsonNode summary = summary(LAURA, "7d");
 
-		assertThat(buckets(summary)).containsExactly("under1h=0", "from1To4h=1", "from4To8h=0", "from8To24h=0",
+		assertThat(buckets(summary)).containsExactly("under1h=0", "from1To4h=2", "from4To8h=0", "from8To24h=0",
 				"from1To3d=0", "over3d=1");
-		assertThat(summary.at("/resolved/value").asInt()).isEqualTo(2);
-		assertThat(bucketSum(summary)).isEqualTo(2);
+		assertThat(summary.at("/resolved/value").asInt()).isEqualTo(3);
+		assertThat(bucketSum(summary)).isEqualTo(3);
 		assertThat(summary.at("/resolutionHours/value").isNull()).isTrue();
 	}
 
