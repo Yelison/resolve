@@ -1,40 +1,20 @@
 @import '@fontsource-variable/inter';
+/* Orden de las hojas (README de @yelison/forma-ui): tokens, `base.css` y después la capa de Resolve. `styles.css` entra
+ * con los componentes, en la 5.2b. Todos los `@import` van antes de cualquier regla. */
 @import './tokens.css';
+@import '@yelison/forma-ui/base.css';
+@import './chart-tokens.css';
 
-/* Valores de forma que en Figma no son variables: paneles 12, controles 8, casillas 4. */
+/* Capa propia de Resolve: el diseño de la aplicación. Los tokens de la biblioteca (radios, alturas de control, objetivo
+ * táctil, foco, movimiento, sombras, escala z…) vienen de `tokens.css`, generado desde el paquete: aquí no se redefine
+ * ninguno, ni siquiera con el mismo valor. */
 :root {
-  --font-family: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-title-mobile: 700 24px/32px var(--font-family);
-
-  --radius-panel: 12px;
-  --radius-control: 8px;
-  --radius-small: 4px;
-  --radius-round: 999px;
-
-  --control-height: 40px;
-  --button-height: 42px;
-  --touch-target: 44px;
-
-  --overlay-opacity: 0.55;
-  --focus-ring: 2px solid var(--color-focus);
-  --shadow-popover: 0 8px 24px rgb(11 18 32 / 0.16);
-
   --header-height: 56px;
   --page-gutter: var(--space-16);
   --sidebar-expanded: 240px;
   --sidebar-collapsed: 76px;
   --drawer-width: min(280px, calc(100vw - 48px));
   --reading-width: 720px;
-
-  --duration-fast: 120ms;
-  --duration-base: 200ms;
-}
-
-@media (max-width: 767.98px) {
-  :root {
-    --control-height: var(--touch-target);
-    --button-height: var(--touch-target);
-  }
 }
 
 @media (min-width: 768px) {

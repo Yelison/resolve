@@ -39,7 +39,9 @@ import { describe, expect, it } from 'vitest'
  * fundirse con la superficie.
  *
  * Los valores de `brand`, `brand-hover` y `link` se ajustaron en el código (#65), no en Figma: este test los protege.
- */
+ *
+ * Los colores de la interfaz salen de `tokens.css` (generado desde `@yelison/forma-ui`); los de los gráficos, de
+ * `chart-tokens.css`, capa propia de Resolve. */
 
 type Theme = Readonly<Record<string, string>>
 
@@ -126,10 +128,18 @@ function blockAfter(css: string, selector: string): string {
 // Con `css` desactivado en la configuración de Vitest, `tokens.css?raw` llega vacío: se lee el archivo directamente
 // (Vitest corre desde `frontend/`; en jsdom `import.meta.url` no es una URL `file:`).
 const rawTokens = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8')
+// Los colores de los gráficos son de Resolve, no del paquete: viven en su propia hoja, con los mismos tres bloques que
+// `tokens.css`. Cada tema es la unión de los dos bloques homólogos.
+const rawChartTokens = readFileSync(join(process.cwd(), 'src/styles/chart-tokens.css'), 'utf8')
 
-const light = parseBlock(blockAfter(rawTokens, ':root {'))
-const dark = parseBlock(blockAfter(rawTokens, ":root[data-theme='dark']"))
-const darkBySystemPreference = parseBlock(blockAfter(rawTokens, '@media (prefers-color-scheme: dark)'))
+const themeBlock = (selector: string): Theme => ({
+  ...parseBlock(blockAfter(rawTokens, selector)),
+  ...parseBlock(blockAfter(rawChartTokens, selector)),
+})
+
+const light = themeBlock(':root {')
+const dark = themeBlock(":root[data-theme='dark']")
+const darkBySystemPreference = themeBlock('@media (prefers-color-scheme: dark)')
 
 function luminance(hex: string): number {
   const [r = 0, g = 0, b = 0] = [1, 3, 5].map((i) => {
