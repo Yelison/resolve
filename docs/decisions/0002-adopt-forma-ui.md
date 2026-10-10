@@ -183,4 +183,3 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 
 - **Criterion 4** (above): the 36 px and the 4 px offset, for the owner.
 - **Checkbox and Switch** are the next family of the same base. Moving them removes `shared/choice.module.css` and the duplicate of the base, and gives them the reduced-motion rule.
-- **ADR 0001 and the README** still list the eight components in the first adoption; they are outside this pull request's scope and need the same two words.
