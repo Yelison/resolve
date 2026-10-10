@@ -129,6 +129,8 @@ test.describe('shell', () => {
     await page.keyboard.press('Shift')
     await toggle.focus()
     await expect(toggle).toHaveCSS('outline-offset', '-2px')
+    // El IconButton del paquete pasa el `ref` y los eventos del disparador: el foco abre la etiqueta junto al botón.
+    await expect(page.getByRole('tooltip')).toHaveText('Colapsar menú')
     await toggle.click()
     const expand = page.getByRole('button', { name: 'Expandir menú' })
     await expect(expand.locator(':scope > span')).toHaveCSS('transform', 'matrix(-1, 0, 0, 1, 0, 0)')
