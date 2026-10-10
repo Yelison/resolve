@@ -293,6 +293,14 @@ coordinator. The templates also carry the machine limits: `--maxWorkers=2` and `
 `scripts/herdr/heavy.sh` (one machine-wide lock at nice 10, shared with every project on the machine), and no full
 Playwright run locally, because CI runs it on the pull request before `ship.sh` merges.
 
+**Merge method and review rounds (owner decision, 2026-10-09).** Tasks are squash-merged by default, so only the tip
+of a branch has to pass every check; agents do not loop over every commit in each round. A brief that needs the
+series on `main` says «fusión con rebase»; then every commit must pass on its own, checked once, before the last
+delivery, and `ship.sh` runs with `--merge rebase`. Later review rounds verify that round's fixes at the tip, not the
+whole first review again. When a round leaves only low findings, the coordinator may verify the fix itself instead of
+opening another round: a `git range-diff` against the reviewed series, the diff of the new commit and the mutation
+evidence in the delivery; if the fix is exactly the reviewer's proposal and confined to it, it ships.
+
 An implementation done at `medium` may need a `high` review when it touches permissions, data or shared
 contracts. Acceptance criteria and tests are the same at every level. Retire the review worktree once the verdict is
 final.
@@ -395,7 +403,7 @@ browsers and two databases fit on a 16 GB machine, three usually do not.
 ### Ship a task with `ship.sh`
 
 ```sh
-scripts/herdr/ship.sh --task <id> --title "feat(scope): summary" --body ~/resolver-herdr/tasks/<id>/pr-body.md [--no-cleanup]
+scripts/herdr/ship.sh --task <id> --title "feat(scope): summary" --body ~/resolver-herdr/tasks/<id>/pr-body.md [--merge squash|rebase] [--no-cleanup]
 ```
 
 In order, stopping at the first problem and saying what it did and did not do:
@@ -418,13 +426,15 @@ In order, stopping at the first problem and saying what it did and did not do:
    time, counts as the newest, so it waits for it). If it fails, is cancelled or skipped, it prints the checks
    and stops **without scheduling the merge**; if the head or the check never shows up it gives up after
    `HERDR_SHIP_TIMEOUT_SECONDS` (default 1800). `HERDR_POLL_SECONDS` (default 20) sets the interval.
-5. `gh pr merge --auto --rebase --match-head-commit <pushed sha>` (a head that moved meanwhile is not merged), then waits for the merge (it stops if the PR is closed or another check fails), runs
+5. `gh pr merge --auto --squash` by default (one commit on `main`, titled `<title> (#PR)`, whose body lists the
+   squashed series and its `Co-Authored-By` trailers), or `--auto --rebase` with `--merge rebase`; always with
+   `--match-head-commit <pushed sha>` (a head that moved meanwhile is not merged), then waits for the merge (it stops if the PR is closed or another check fails), runs
    `git fetch origin main && git merge --ff-only origin/main` in the main checkout and prints `merged <sha>`.
 6. Unless `--no-cleanup`: sends `/exit` to the agents of the task and of `review-<id>` (an agent that is `working` or
    `blocked` is not sent anything: the script says so, after the merge, and stops) and runs
    `remove-task.sh --id <id> --volumes` for each (the review first). It never passes `--force-leftovers`: if
    `remove-task.sh` finds processes or containers it stops there, after the merge, and tells you the command to rerun.
-   The branches are kept (a rebase merge leaves `git branch -d` unable to see them as merged).
+   The branches are kept (a squash or rebase merge leaves `git branch -d` unable to see them as merged).
 
 ## Retire a worktree
 
