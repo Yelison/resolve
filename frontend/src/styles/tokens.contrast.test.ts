@@ -32,6 +32,12 @@ import { describe, expect, it } from 'vitest'
  * ProgressBar y de la subida de Attachment (token del código, #75: en el tema oscuro `line` y `disabled` dejaban
  * el relleno en 2,52 y 2,14).
  *
+ * Rampa secuencial `chart-seq-1…4` (anillo de prioridad y mapa de calor, de más a menos intensa): solo los pasos 1 y 2
+ * se exigen a 3:1 frente a `surface`. Los pasos 3 y 4 (2,5 y 1,6 en claro; 3,6 y 1,8 en oscuro) quedan exentos a
+ * propósito: no son texto ni la única vía de lectura, porque cada segmento del anillo lleva su valor en la leyenda y el
+ * mapa de calor lleva su tabla alternativa, y los segmentos claros llevan un contorno de 1 px en `--color-line` para no
+ * fundirse con la superficie.
+ *
  * Los valores de `brand`, `brand-hover` y `link` se ajustaron en el código (#65), no en Figma: este test los protege.
  */
 
@@ -76,6 +82,12 @@ const PAIRS: readonly Pair[] = [
   })),
   // Series de los gráficos (1.4.11): cada color frente a la superficie del panel que los pinta.
   ...(['chart-1', 'chart-2', 'chart-3', 'chart-4'] as const).map((text) => ({
+    text,
+    background: 'surface',
+    min: 3 as const,
+  })),
+  // Rampa secuencial (1.4.11): solo los pasos 1 y 2; los pasos 3 y 4 están exentos (ver la cabecera).
+  ...(['chart-seq-1', 'chart-seq-2'] as const).map((text) => ({
     text,
     background: 'surface',
     min: 3 as const,
