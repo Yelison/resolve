@@ -1,6 +1,6 @@
 # 0002 · Adopt Forma UI for the shared components
 
-- **Status:** accepted, 2026-10-10. It lands in the same pull request as the adoption.
+- **Status:** accepted, 2026-10-10. It landed with the adoption, in #120 (Button, IconButton, Icon) and #121 (the rest); the tokens came in #114.
 - **Supersedes:** [0001](0001-forma-ui-extraction.md), in part: for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal. 0001 still applies to every other component in `frontend/src/components/ui`.
 
 ## Context
@@ -18,7 +18,7 @@ Forma UI extracted the components listed above. It kept their public API and beh
 
 ## The readiness criteria of 0001, measured at the adoption commit
 
-The table below is measured on the code of the adoption pull request (this PR), with 0001's method; the commit that
+The table below is measured on the code of the adoption pull request (#121), with 0001's method; the commit that
 squash-merges it carries its number. The pull request changes nothing the columns look at after the measurement
 (documentation, tests and the CSS of the field controls only). The script is `measure-adr.mjs` in the task evidence;
 what each column means:
