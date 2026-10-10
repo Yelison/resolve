@@ -434,13 +434,23 @@ In order, stopping at the first problem and saying what it did and did not do:
    `blocked` is not sent anything: the script says so, after the merge, and stops) and runs
    `remove-task.sh --id <id> --volumes` for each (the review first). It never passes `--force-leftovers`: if
    `remove-task.sh` finds processes or containers it stops there, after the merge, and tells you the command to rerun.
-   The branches are kept (a squash or rebase merge leaves `git branch -d` unable to see them as merged).
+   **Branches.** After a **squash** merge, `ship.sh` deletes the task's branch and the review's, because a squash
+   leaves one new patch on `main` and `git branch -d` can no longer see the series as merged. It does so only when all
+   four hold: the PR is `MERGED`; its `baseRefName` is `main`; its `headRefOid` is exactly the tip of the local branch
+   (a commit made after the push makes it differ); and, after `git fetch`, the merge commit is an ancestor of
+   `origin/main`. It then calls `remove-task.sh --delete-branch --squashed-head <merged head>`. If any fails, it
+   writes a `note:` saying which and keeps the branches; the task is retired all the same. A review branch that holds
+   a commit of its own is not the merged head, so it stays. With `--merge rebase` nothing changes: the branches are
+   kept (`git branch -d` cannot see a rebased series as merged either), and so is the `--no-cleanup` case. The remote
+   branch is not touched here: the repository deletes it on merge (`delete_branch_on_merge`, on in Resolve); where
+   that is off, delete it by hand.
 
 ## Retire a worktree
 
 ```sh
 scripts/herdr/remove-task.sh --id t0-1-tickets-follow-ups            # keeps the branch
 scripts/herdr/remove-task.sh --id t0-1-tickets-follow-ups --delete-branch --volumes
+scripts/herdr/remove-task.sh --id t0-1-tickets-follow-ups --delete-branch --squashed-head <40-char sha> --volumes
 scripts/herdr/remove-task.sh --id t0-1-tickets-follow-ups --force-leftovers   # only after reading what it listed
 ```
 
@@ -455,6 +465,13 @@ project (with `--volumes`, `docker compose -p <project> down --volumes` always r
 and Compose lists no project, so the database volume is not orphaned), runs `herdr worktree remove` (which also closes the workspace) and marks the task as removed. It refuses while the checkout has uncommitted changes or a live agent, warns about
 commits that are not pushed, and only deletes the branch when `git branch -d` agrees that it is merged. Logs stay in
 `logs/<id>/`.
+
+`--squashed-head SHA` (what `ship.sh` passes after a confirmed squash merge) is for a branch GitHub squash-merged, which
+`git branch -d` refuses. It needs `--delete-branch` and a full 40-character SHA of a commit of the repository, and is
+checked before anything is removed. Right before deleting, the script reads the branch tip again: only a branch that is
+still exactly at `SHA` is deleted (`git branch -D`). A branch at any other commit, one with a commit made after the
+merge, is kept with a note and the task is retired all the same. A dirty worktree is refused before anything else, so
+its branch is never deleted either.
 
 ## Recover after a failure
 
