@@ -91,7 +91,7 @@ function placeholders(now: Date): TeamMember[] {
   return Array.from({ length: INVITATIONS_PREVIEW_SIZE + 1 }, (_, index) => ({
     id: `placeholder-${index}`,
     name: '',
-    email: 'persona@empresa.com',
+    email: 'nombre.apellido@empresa.com',
     role: 'agent',
     status: 'invited',
     openTickets: 0,
