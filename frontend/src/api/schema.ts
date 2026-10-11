@@ -882,6 +882,8 @@ export interface components {
             status: components["schemas"]["MemberStatus"];
             /** @description Unresolved tickets assigned to the member. */
             openTickets: number;
+            /** @description The part of `openTickets` whose priority is `urgent`; never more than `openTickets`. */
+            urgentOpenTickets: number;
             /**
              * Format: date-time
              * @description When the membership became active; null while it is `invited`.

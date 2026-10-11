@@ -57,6 +57,7 @@ export const teamMember = (member: Partial<TeamMember> & Pick<TeamMember, 'id' |
   role: 'agent',
   status: 'active',
   openTickets: 0,
+  urgentOpenTickets: 0,
   joinedAt: minutesAgo(60 * 24 * 30),
   invitedAt: null,
   ...member,

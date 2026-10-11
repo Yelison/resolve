@@ -10,6 +10,7 @@ import com.resolve.api.common.persistence.Ids;
 import com.resolve.api.common.persistence.LockTimeouts;
 import com.resolve.api.common.security.CurrentMember;
 import com.resolve.api.memberships.MemberDtos.TeamMemberDto;
+import com.resolve.api.memberships.TeamMetricsQuery.OpenLoad;
 import com.resolve.api.organizations.OrganizationRepository;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -75,7 +76,7 @@ public class PortalInvitations {
 			membership.reinvite(Role.CUSTOMER, now);
 		}
 		this.memberships.flush();
-		return TeamMemberDto.from(membership, 0);
+		return TeamMemberDto.from(membership, OpenLoad.NONE);
 	}
 
 }

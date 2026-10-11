@@ -1,0 +1,74 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+  padding: var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.title {
+  font: var(--font-section);
+  color: var(--color-ink);
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.count {
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8) var(--space-12);
+  padding-bottom: var(--space-12);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.identity {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: 7rem;
+}
+
+.email {
+  font: var(--font-strong);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.cancel {
+  flex: none;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.reserved {
+  visibility: hidden;
+}
+
+.seeAll {
+  align-self: flex-start;
+}

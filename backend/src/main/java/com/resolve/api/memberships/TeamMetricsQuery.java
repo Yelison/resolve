@@ -35,6 +35,13 @@ class TeamMetricsQuery {
 			WHERE organization_id = :organizationId
 			""";
 
+	/** Tickets sin resolver de un miembro; {@code urgent} es la parte de {@code open} con prioridad urgente. */
+	record OpenLoad(int open, int urgent) {
+
+		static final OpenLoad NONE = new OpenLoad(0, 0);
+
+	}
+
 	private final JdbcClient jdbc;
 
 	private final OrganizationRepository organizations;
@@ -47,16 +54,21 @@ class TeamMetricsQuery {
 		this.clock = clock;
 	}
 
-	/** Tickets sin resolver asignados a cada usuario; quien no aparece tiene cero. */
-	Map<UUID, Integer> openTicketsByAssignee(UUID organizationId) {
-		Map<UUID, Integer> load = new HashMap<>();
+	/**
+	 * Tickets sin resolver asignados a cada usuario, y cuántos de ellos son urgentes, en una sola consulta; quien no
+	 * aparece no tiene ninguno.
+	 */
+	Map<UUID, OpenLoad> openLoadByAssignee(UUID organizationId) {
+		Map<UUID, OpenLoad> load = new HashMap<>();
 		this.jdbc.sql("""
-				SELECT assignee_id, count(*) AS open_tickets FROM tickets
+				SELECT assignee_id, count(*) AS open_tickets, count(*) FILTER (WHERE priority = 'urgent') AS urgent_tickets
+				FROM tickets
 				WHERE organization_id = ? AND assignee_id IS NOT NULL AND status <> 'resolved'
 				GROUP BY assignee_id
 				""")
 			.param(organizationId)
-			.query((row, index) -> load.put(row.getObject("assignee_id", UUID.class), row.getInt("open_tickets")))
+			.query((row, index) -> load.put(row.getObject("assignee_id", UUID.class),
+					new OpenLoad(row.getInt("open_tickets"), row.getInt("urgent_tickets"))))
 			.list();
 		return load;
 	}

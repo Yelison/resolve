@@ -10,7 +10,8 @@ import {
   type BadgeTone,
   type MenuItem,
 } from '../../components/ui'
-import { memberStatusLabels, type MemberStatus, type TeamMember } from '../../domain/member'
+import { memberStatusLabel, openCount, urgentCount } from './teamCopy'
+import type { MemberStatus, TeamMember } from '../../domain/member'
 import { roleLabels } from '../../app/navigation'
 import styles from './TeamTable.module.css'
 
@@ -18,6 +19,8 @@ export interface TeamTableProps {
   members: TeamMember[]
   /** Texto visible bajo la tabla, p. ej. «Mostrando 5 miembros». */
   caption: string
+  /** Deja la leyenda para lectores de pantalla cuando una paginación debajo ya muestra el recuento. */
+  captionHidden?: boolean
   /** Acciones de cada fila; el menú solo se dibuja si el arreglo no está vacío. */
   actions?: (member: TeamMember) => MenuItem[]
 }
@@ -28,11 +31,12 @@ const statusTones: Record<MemberStatus, BadgeTone> = { invited: 'amber', active:
  * Tabla del equipo sobre `Table`: tarjetas en contenedores estrechos (< 560 px), agente, estado y carga hasta la tabla
  * completa (el rol bajo el nombre hasta entonces).
  */
-export function TeamTable({ members, caption, actions }: TeamTableProps) {
+export function TeamTable({ members, caption, captionHidden, actions }: TeamTableProps) {
   return (
     <Table
       label="Equipo"
       caption={caption}
+      captionHidden={captionHidden}
       actionsLabel="Acción"
       className={styles.table}
       header={
@@ -72,10 +76,13 @@ function MemberRow({ member, actions }: { member: TeamMember; actions: MenuItem[
       </span>
       <span role="none" className={styles.chips}>
         <span role="cell" className={styles.status}>
-          <Badge tone={statusTones[member.status]}>{memberStatusLabels[member.status]}</Badge>
+          <Badge tone={statusTones[member.status]}>{memberStatusLabel(member)}</Badge>
         </span>
         <span role="cell" className={styles.load}>
-          {member.openTickets === 1 ? '1 abierto' : `${member.openTickets} abiertos`}
+          {openCount(member.openTickets)}
+          {member.urgentOpenTickets > 0 && (
+            <span className={styles.urgent}>{urgentCount(member.urgentOpenTickets)}</span>
+          )}
         </span>
       </span>
       <TableCell kind="actions">

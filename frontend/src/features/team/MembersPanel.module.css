@@ -1,0 +1,88 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-16);
+}
+
+.title {
+  font: var(--font-section);
+  color: var(--color-ink);
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.count {
+  font-weight: 400;
+  color: var(--color-muted);
+}
+
+.search {
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8) var(--space-12);
+}
+
+.filter {
+  display: flex;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: 36px;
+  padding: 0 var(--space-12);
+  border: 1px solid var(--color-blue-ink);
+  border-radius: var(--radius-control);
+  background: var(--color-blue-bg);
+  color: var(--color-blue-ink);
+  font: var(--font-label);
+  text-align: left;
+  cursor: pointer;
+}
+
+.results {
+  container: team-results / inline-size;
+  min-width: 0;
+  padding: 0 var(--space-16) var(--space-16);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-height: 240px;
+}
+
+/* Mismo umbral que la tabla: en tarjetas hay margen interior; como tabla, las filas llegan al borde del panel. */
+@container team-results (min-width: 560px) {
+  .resultsInner {
+    margin: 0 calc(var(--space-16) * -1) calc(var(--space-16) * -1);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .chip {
+    min-height: var(--touch-target);
+  }
+}

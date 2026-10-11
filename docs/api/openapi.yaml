@@ -1506,7 +1506,7 @@ components:
         invited portal member (`role` `customer`) returned by `inviteCustomer`.
       type: object
       additionalProperties: false
-      required: [id, name, email, role, status, openTickets, joinedAt, invitedAt]
+      required: [id, name, email, role, status, openTickets, urgentOpenTickets, joinedAt, invitedAt]
       properties:
         id:
           description: Id of the member's user.
@@ -1518,6 +1518,10 @@ components:
         status: { $ref: '#/components/schemas/MemberStatus' }
         openTickets:
           description: Unresolved tickets assigned to the member.
+          type: integer
+          minimum: 0
+        urgentOpenTickets:
+          description: The part of `openTickets` whose priority is `urgent`; never more than `openTickets`.
           type: integer
           minimum: 0
         joinedAt:

@@ -38,6 +38,26 @@ describe('TeamTable', () => {
     expect(screen.getByText('Retirado')).toBeInTheDocument()
   })
 
+  it('una invitación cancelada (retirada sin fecha de alta) se nombra así y quien trabajó sigue «Retirado»', () => {
+    render(
+      <TeamTable
+        caption=""
+        members={[
+          teamMember({
+            id: 'a',
+            name: 'Nunca entró',
+            status: 'removed',
+            joinedAt: null,
+            invitedAt: '2026-10-01T10:00:00Z',
+          }),
+          teamMember({ id: 'b', name: 'Trabajó aquí', status: 'removed' }),
+        ]}
+      />,
+    )
+    expect(screen.getByText('Invitación cancelada')).toBeInTheDocument()
+    expect(screen.getAllByText('Retirado')).toHaveLength(1)
+  })
+
   it('sin acciones no dibuja el menú', () => {
     render(<TeamTable caption="" members={[teamMember()]} />)
     expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument()

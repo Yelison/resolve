@@ -18,6 +18,7 @@ import com.resolve.api.customers.CustomerRepository;
 import com.resolve.api.memberships.MemberDtos.TeamMemberDto;
 import com.resolve.api.memberships.MemberDtos.TeamMetricsDto;
 import com.resolve.api.memberships.MemberRequestParser.NewInvite;
+import com.resolve.api.memberships.TeamMetricsQuery.OpenLoad;
 import com.resolve.api.organizations.OrganizationRepository;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.ObjectProvider;
@@ -131,10 +132,10 @@ class MemberService {
 
 	@Transactional(readOnly = true)
 	List<TeamMemberDto> list(CurrentMember member) {
-		Map<UUID, Integer> load = this.metrics.openTicketsByAssignee(member.organizationId());
+		Map<UUID, OpenLoad> load = this.metrics.openLoadByAssignee(member.organizationId());
 		return this.memberships.findTeam(member.organizationId())
 			.stream()
-			.map((membership) -> TeamMemberDto.from(membership, load.getOrDefault(membership.getUser().getId(), 0)))
+			.map((membership) -> TeamMemberDto.from(membership, load.getOrDefault(membership.getUser().getId(), OpenLoad.NONE)))
 			.toList();
 	}
 
@@ -243,8 +244,9 @@ class MemberService {
 	}
 
 	private TeamMemberDto withLoad(UUID organizationId, Membership membership) {
-		int open = this.metrics.openTicketsByAssignee(organizationId).getOrDefault(membership.getUser().getId(), 0);
-		return TeamMemberDto.from(membership, open);
+		OpenLoad load = this.metrics.openLoadByAssignee(organizationId)
+			.getOrDefault(membership.getUser().getId(), OpenLoad.NONE);
+		return TeamMemberDto.from(membership, load);
 	}
 
 }
