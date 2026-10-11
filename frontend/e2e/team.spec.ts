@@ -343,7 +343,7 @@ test.describe('equipo · carga, invitaciones y muchos datos', () => {
       test(`sin scroll horizontal ni textos recortados con nombres de 120 caracteres · ${width}px · ${theme}`, async ({
         page,
       }) => {
-        await page.emulateMedia({ colorScheme: theme })
+        await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
         await serveTeam(page, bigTeam(22, 6, true))
         await page.setViewportSize({ width, height: 900 })
         await page.goto('/equipo')
