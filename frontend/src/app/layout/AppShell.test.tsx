@@ -34,7 +34,7 @@ function renderShellWith(client?: QueryClient, path = '/tickets') {
         path: '/',
         element: <AppShell />,
         children: [
-          { index: true, element: <h1>Resumen</h1>, handle: { crumb: 'Resumen' } },
+          { index: true, element: <h1>Inicio</h1>, handle: { crumb: 'Inicio' } },
           { path: 'tickets', element: <h1>Tickets</h1>, handle: { crumb: 'Tickets' } },
           { path: 'clientes', element: <h1>Clientes</h1>, handle: { crumb: 'Clientes' } },
           { path: 'sondeo', element: <Probe />, handle: { crumb: 'Sondeo' } },
@@ -202,7 +202,10 @@ describe('AppShell para clientes', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
     const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
     await within(drawer).findByText('María Pérez')
-    expect(within(drawer).getByRole('link', { name: 'Tickets' })).toBeInTheDocument()
+    // Los clientes ven sus secciones con su nombre: «Mis solicitudes» y «Ayuda», en las mismas rutas.
+    expect(within(drawer).getByRole('link', { name: 'Mis solicitudes' })).toHaveAttribute('href', '/tickets')
+    expect(within(drawer).getByRole('link', { name: 'Ayuda' })).toHaveAttribute('href', '/conocimiento')
+    expect(within(drawer).queryByRole('link', { name: 'Tickets' })).not.toBeInTheDocument()
     expect(within(drawer).queryByRole('link', { name: 'Clientes' })).not.toBeInTheDocument()
   })
 })

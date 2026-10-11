@@ -20,7 +20,9 @@ function watchNetwork(page: Page) {
   return leaked
 }
 
-const heading = (page: Page, name: string) => page.getByRole('heading', { level: 1, name })
+const heading = (page: Page, name: string | RegExp) => page.getByRole('heading', { level: 1, name })
+/** El título de Inicio es el saludo con el nombre de quien entró. */
+const HOME = /^Buen(os días|as tardes|as noches), /
 const picker = (page: Page) => page.getByRole('combobox', { name: 'Usuario de demostración' })
 const ADMIN = 'Administración'
 const CUSTOMER = 'Cliente'
@@ -84,12 +86,12 @@ test('una URL profunda sin sesión lleva a /entrar y vuelve a ella tras elegir u
   await expect(page).toHaveURL(/\/resolve\/tickets\/1048$/)
 })
 
-test('recorre Resumen, Tickets, un ticket, Clientes, Conocimiento y Ajustes', async ({ page }) => {
+test('recorre Inicio, Tickets, un ticket, Clientes, Conocimiento y Ajustes', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
   await page.goto('')
   await enterAs(page, ADMIN)
-  await expect(heading(page, 'Resumen')).toBeVisible()
+  await expect(heading(page, HOME)).toBeVisible()
   await expect(page).toHaveURL(/\/resolve\/?$/)
 
   const nav = page.getByRole('navigation')
@@ -119,15 +121,15 @@ test('recorre Resumen, Tickets, un ticket, Clientes, Conocimiento y Ajustes', as
 test('se entra como cliente y se ve lo propio del cliente; cerrar sesión vuelve a /entrar', async ({ page }) => {
   await page.goto('')
   await enterAs(page, CUSTOMER)
-  await expect(heading(page, 'Resumen').or(heading(page, 'Mis solicitudes'))).toBeVisible()
+  await expect(heading(page, HOME).or(heading(page, 'Mis solicitudes'))).toBeVisible()
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'Reportes' })).toHaveCount(0)
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
 
   await signOut(page)
   // Volver a elegir al mismo usuario tras cerrar sesión también entra.
   await enterAs(page, CUSTOMER)
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
 
   // Y como administración se ve lo que el cliente no.
   await signOut(page)
@@ -138,8 +140,8 @@ test('se entra como cliente y se ve lo propio del cliente; cerrar sesión vuelve
 test('recargar conserva el usuario y la ruta', async ({ page }) => {
   await page.goto('')
   await enterAs(page, CUSTOMER)
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
-  await page.getByRole('link', { name: 'Tickets' }).click()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
+  await page.getByRole('link', { name: 'Mis solicitudes' }).click()
   await expect(page).toHaveURL(/\/resolve\/tickets$/)
 
   await page.reload()
@@ -152,7 +154,7 @@ test('recargar conserva el usuario y la ruta', async ({ page }) => {
 test('un enlace profundo recargado a mano conserva la sesión en esa ruta', async ({ page }) => {
   await page.goto('')
   await enterAs(page, ADMIN)
-  await expect(heading(page, 'Resumen')).toBeVisible()
+  await expect(heading(page, HOME)).toBeVisible()
   await page.goto('tickets/1048')
   await expect(heading(page, 'No puedo acceder a mi cuenta')).toBeVisible()
   await expect(page).toHaveURL(/\/resolve\/tickets\/1048$/)
@@ -161,10 +163,10 @@ test('un enlace profundo recargado a mano conserva la sesión en esa ruta', asyn
 test('abrir de nuevo la dirección de la demostración tras entrar sigue dentro', async ({ page }) => {
   await page.goto('')
   await enterAs(page, ADMIN)
-  await expect(heading(page, 'Resumen')).toBeVisible()
+  await expect(heading(page, HOME)).toBeVisible()
   // Una carga completa de la dirección pública: GitHub Pages redirige `/resolve` a `/resolve/`, que es lo que abre `goto('')`.
   await page.goto('')
-  await expect(heading(page, 'Resumen')).toBeVisible()
+  await expect(heading(page, HOME)).toBeVisible()
   await expect(page.getByRole('link', { name: 'Equipo' })).toBeVisible()
   await expect(page).not.toHaveURL(/\/entrar$/)
 })
@@ -191,7 +193,7 @@ test('los cambios no se guardan: un artículo creado desaparece al recargar aunq
 test('una pestaña nueva empieza en /entrar aunque otra tenga sesión', async ({ page, context }) => {
   await page.goto('')
   await enterAs(page, ADMIN)
-  await expect(heading(page, 'Resumen')).toBeVisible()
+  await expect(heading(page, HOME)).toBeVisible()
   const other = await context.newPage()
   await other.goto('')
   await expect(other.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
@@ -201,7 +203,7 @@ test('una pestaña nueva empieza en /entrar aunque otra tenga sesión', async ({
 test('cerrar sesión y recargar deja en /entrar', async ({ page }) => {
   await page.goto('')
   await enterAs(page, ADMIN)
-  await expect(heading(page, 'Resumen')).toBeVisible()
+  await expect(heading(page, HOME)).toBeVisible()
   await signOut(page)
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
@@ -214,10 +216,10 @@ test('elegir otro usuario tras cerrar sesión sustituye la elección que sobrevi
   await expect(page.getByRole('link', { name: 'Equipo' })).toBeVisible()
   await signOut(page)
   await enterAs(page, CUSTOMER)
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
   await page.reload()
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
 })
 
@@ -226,7 +228,7 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.goto('')
     await enterAs(page, ADMIN)
-    await expect(heading(page, 'Resumen')).toBeVisible()
+    await expect(heading(page, HOME)).toBeVisible()
     await page.goto('reportes')
     await expect(page).toHaveURL(/\/resolve\/reportes$/)
     await page.reload()
@@ -250,7 +252,7 @@ for (const theme of themes) {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('')
       await enterAs(page, ADMIN)
-      await expect(heading(page, 'Resumen')).toBeVisible()
+      await expect(heading(page, HOME)).toBeVisible()
       const banner = page.getByRole('region', { name: NOTICE })
       await expect(banner).toBeVisible()
       const link = banner.getByRole('link', { name: 'ver el código' })
@@ -286,7 +288,7 @@ test('la búsqueda global funciona con la API simulada: Ctrl+K, resultados agrup
   const leaked = watchNetwork(page)
   await page.goto('')
   await enterAs(page, ADMIN)
-  await expect(heading(page, 'Resumen')).toBeVisible()
+  await expect(heading(page, HOME)).toBeVisible()
   await page.keyboard.press('Control+k')
   const search = page.getByRole('combobox', { name: 'Buscar en Resolve' })
   await expect(search).toBeFocused()

@@ -15,12 +15,17 @@ import org.springframework.stereotype.Component;
 
 /**
  * Métricas de toda la organización, independientes de los filtros de la bandeja. «Hoy» y «ayer» se calculan en la
- * zona horaria de la organización.
+ * zona horaria de la organización. «Lleva más de 4 h sin responsable» es una duración, así que no depende de la zona.
+ * Un ticket sin responsable lo está desde su última asignación (la que lo dejó sin nadie) o, si nunca tuvo, desde que
+ * se creó.
  */
 @Component
 class TicketMetricsQuery {
 
 	static final Duration FIRST_RESPONSE_WINDOW = Duration.ofHours(168);
+
+	/** Desde cuándo un ticket sin responsable cuenta como desatendido. Fijo: no hay ajuste de la organización. */
+	static final Duration UNASSIGNED_THRESHOLD = Duration.ofHours(4);
 
 	private static final String COUNTS = """
 			SELECT
@@ -31,6 +36,10 @@ class TicketMetricsQuery {
 			  count(*) AS view_all,
 			  count(*) FILTER (WHERE assignee_id = :viewer AND status <> 'resolved') AS view_mine,
 			  count(*) FILTER (WHERE assignee_id IS NULL AND status <> 'resolved') AS view_unassigned,
+			  count(*) FILTER (WHERE assignee_id IS NULL AND status <> 'resolved' AND coalesce(
+			      (SELECT max(a.created_at) FROM ticket_activities a
+			       WHERE a.organization_id = tickets.organization_id AND a.ticket_id = tickets.id
+			         AND a.type = 'assignee_changed'), tickets.created_at) < :staleBefore) AS unassigned_stale,
 			  count(*) FILTER (WHERE status = 'resolved') AS view_resolved,
 			  round((percentile_cont(0.5) WITHIN GROUP (
 			      ORDER BY extract(epoch FROM first_response_at - created_at) / 60)
@@ -80,10 +89,11 @@ class TicketMetricsQuery {
 			.param("viewer", member.userId())
 			.param("today", startOfToday)
 			.param("window", Timestamp.from(now.minus(FIRST_RESPONSE_WINDOW)))
+			.param("staleBefore", Timestamp.from(now.minus(UNASSIGNED_THRESHOLD)))
 			.query((row, index) -> {
 				Number firstResponse = (Number) row.getObject("first_response");
 				return new TicketMetrics(row.getInt("open"), row.getInt("opened_today"), row.getInt("in_progress"),
-						row.getInt("in_progress_mine"), resolved[0], resolved[1],
+						row.getInt("in_progress_mine"), resolved[0], resolved[1], row.getInt("unassigned_stale"),
 						(firstResponse != null) ? firstResponse.intValue() : null,
 						organization.getFirstResponseTargetMinutes(),
 						new TicketMetrics.ViewCounts(row.getInt("view_all"), row.getInt("view_mine"),

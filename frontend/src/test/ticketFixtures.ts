@@ -40,6 +40,7 @@ export const metrics = {
   inProgressAssignedToMe: 4,
   resolvedToday: 38,
   resolvedYesterday: 34,
+  unassignedOver4Hours: 2,
   firstResponseMinutes: 18,
   firstResponseTargetMinutes: 30,
   views: { all: 34, mine: 4, unassigned: 6, resolved: 10 },

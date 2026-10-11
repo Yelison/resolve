@@ -278,9 +278,21 @@ export function useCreateTicket() {
   })
 }
 
+/** La precondición de un cambio rápido no se cumple con el ticket tal como está ahora: no se envió nada. */
+export class TicketPreconditionError extends Error {
+  readonly current: Ticket
+
+  constructor(current: Ticket) {
+    super('El ticket ya no está como se vio')
+    this.current = current
+  }
+}
+
 /**
  * Cambio rápido desde la bandeja: el resumen no trae la versión, así que se lee el ticket actual y se aplica el
- * cambio con su If-Match. Si alguien lo cambió en medio, la API responde 412 y no se pisa nada.
+ * cambio con su If-Match. Si alguien lo cambió en medio, la API responde 412 y no se pisa nada. Con `precondition`, el
+ * cambio solo sale si el ticket recién leído la cumple («solo si sigue sin responsable»); si no, no se envía nada y la
+ * mutación falla con `TicketPreconditionError`, que lleva el ticket actual.
  */
 export function useQuickTicketUpdate() {
   const queryClient = useQueryClient()
@@ -289,7 +301,11 @@ export function useQuickTicketUpdate() {
   // servidor responde el 412 de siempre.
   const versions = useRef(new WeakMap<object, number>())
   return useMutation({
-    mutationFn: async (variables: { number: number; changes: TicketChanges }) => {
+    mutationFn: async (variables: {
+      number: number
+      changes: TicketChanges
+      precondition?: (current: Ticket) => boolean
+    }) => {
       const { number, changes } = variables
       let version = versions.current.get(variables)
       if (version === undefined) {
@@ -299,6 +315,7 @@ export function useQuickTicketUpdate() {
           staleTime: 0,
         })
         await queryClient.cancelQueries({ queryKey: ticketKeys.detail(number), exact: true })
+        if (variables.precondition && !variables.precondition(current)) throw new TicketPreconditionError(current)
         version = current.version
         versions.current.set(variables, version)
       }

@@ -23,7 +23,10 @@ test('Laura entra con el usuario y la contraseña del realm y ve su nombre', asy
   await submitKeycloakLogin(page, accounts.laura.email)
 
   await expect(account(page)).toHaveAccessibleName(`Cuenta: ${accounts.laura.name}, Acme Studio`)
-  await expect(page.getByRole('heading', { level: 1, name: 'Resumen' })).toBeVisible()
+  // El título de Inicio es el saludo con el nombre de pila de quien entró.
+  await expect(
+    page.getByRole('heading', { level: 1, name: /^Buen(os días|as tardes|as noches), Laura$/ }),
+  ).toBeVisible()
 
   const me = await (await page.request.get('/api/me')).json()
   expect(me.user.email).toBe(accounts.laura.email)

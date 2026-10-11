@@ -13,12 +13,12 @@ describe('NavItem', () => {
     renderAt(
       '/tickets/1048',
       <>
-        <NavItem to="/" end label="Resumen" icon="home" />
+        <NavItem to="/" end label="Inicio" icon="home" />
         <NavItem to="/tickets" label="Tickets" icon="ticket" />
       </>,
     )
     expect(screen.getByRole('link', { name: 'Tickets' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'Resumen' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'Inicio' })).not.toHaveAttribute('aria-current')
   })
 
   it('colapsado conserva el nombre y muestra un tooltip con el foco', async () => {

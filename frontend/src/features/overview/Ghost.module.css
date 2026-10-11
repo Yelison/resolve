@@ -1,0 +1,18 @@
+.ghost {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  visibility: hidden;
+}
+
+.skeleton {
+  position: absolute;
+  inset: 0;
+}

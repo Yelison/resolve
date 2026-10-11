@@ -190,7 +190,7 @@ describe('menú de la cuenta', () => {
       // La ubicación del router cambia antes de que React confirme la pantalla y corra el efecto que libera las escrituras:
       // se espera a la condición, no a un instante. Las escrituras que salen antes siguen recibiendo el 409 sin llegar a la API.
       await waitFor(() => expect(router.state.location.pathname).toBe('/'))
-      expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+      expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument()
       await waitFor(async () => {
         expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
       })
@@ -457,7 +457,7 @@ describe('menú de la cuenta · en el perfil del sidebar', () => {
     await userEvent.click(within(dialog).getByRole('radio', { name: 'Northwind' }))
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de organización' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument()
     expect(document.body).not.toHaveFocus()
   })
 })

@@ -380,7 +380,7 @@ describe('organización de la pantalla en las escrituras (issue #60)', () => {
     expect(sessionStorage.getItem('resolve-draft-1046')).toBeNull()
     expect(router.state.location.pathname).toBe('/')
     // Ya con Northwind en pantalla, la siguiente escritura lleva la organización nueva y sale.
-    expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument()
     await screen.findByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })
     expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
     expect(server.sentOrganizations).toEqual(['org-1', 'org-2'])
@@ -443,7 +443,7 @@ describe('escrituras mientras la pantalla anterior sigue montada (H-1)', () => {
     // Al confirmarse la navegación (la pantalla anterior se va) la guardia se abre.
     loadHome()
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
-    expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument()
     expect((await patch()).response.status).toBe(200)
     expect(server.writes).toBe(1)
   })

@@ -160,6 +160,7 @@ Creating a ticket and changing its status, priority or assignee writes an activi
 | `open` / `openedToday` | Tickets with status `open`; those of them created today |
 | `inProgress` / `inProgressAssignedToMe` | Tickets `in_progress`; those assigned to the caller |
 | `resolvedToday` / `resolvedYesterday` | Distinct tickets that entered `resolved` today and yesterday, from the activity log |
+| `unassignedOver4Hours` | Tickets of the `unassigned` view that have had no assignee for more than 4 hours (since the change that left them without one, or since creation); a subset of `views.unassigned` |
 | `firstResponseMinutes` | Median minutes, rounded to the nearest integer, from creation to the first public agent message, over tickets created in the last 168 hours that have one; `null` when there are none |
 | `firstResponseTargetMinutes` | Organization target (30 by default) |
 | `views` | Counts for the inbox views: `all`, `mine`, `unassigned`, `resolved` |

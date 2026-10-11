@@ -155,7 +155,7 @@ test.describe('shell', () => {
   }) => {
     await page.setViewportSize({ width: 1024, height: 800 })
     await page.goto('/tickets')
-    for (const name of ['Resumen', 'Tickets', 'Clientes']) {
+    for (const name of ['Inicio', 'Tickets', 'Clientes']) {
       await page.getByRole('link', { name, exact: true }).hover()
       // Lectura inmediata, sin reintentos: el cierre retardado de la etiqueta anterior no puede enmascarar la acumulación.
       expect(await page.getByRole('tooltip').count()).toBe(1)

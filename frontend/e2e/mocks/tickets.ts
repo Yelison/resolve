@@ -73,6 +73,10 @@ function metricsOf(items: readonly BareTicket[]): TicketMetrics {
     ).length,
     resolvedToday: 2,
     resolvedYesterday: 1,
+    // Como el servidor para tickets que nunca tuvieron responsable: sin nadie desde que se crearon, hace más de 4 h.
+    unassignedOver4Hours: unresolved.filter(
+      (ticket) => ticket.assignee === null && Date.parse(ticket.createdAt) < now.getTime() - 4 * 3_600_000,
+    ).length,
     firstResponseMinutes: 18,
     firstResponseTargetMinutes: 30,
     views: {

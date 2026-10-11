@@ -1,0 +1,98 @@
+/*
+ * Una sola franja con una línea de 1 px entre celdas: el contenedor pinta el color del borde y el hueco deja ver una
+ * línea. Una columna si dos no caben a 150 px; nunca más de dos por debajo de 1200 px.
+ */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(150px, calc(50% - var(--space-4)))), 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-line);
+}
+
+.cell {
+  display: flex;
+  min-width: 0;
+  background: var(--color-surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+.cell > * {
+  flex: 1;
+}
+
+.ghost {
+  background: var(--color-surface);
+}
+
+.ghost > .cell {
+  width: 100%;
+}
+
+.link:hover {
+  background: var(--color-blue-bg);
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+/* La celda ya es la tarjeta: sin su propio borde, fondo ni radio. */
+.metric {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.error {
+  grid-column: 1 / -1;
+  padding: var(--space-16);
+  background: var(--color-surface);
+}
+
+.detail {
+  display: grid;
+}
+
+/* La reserva y el detalle ocupan la misma celda de la rejilla: manda el más alto. */
+.detail::before,
+.detail > * {
+  grid-area: 1 / 1;
+}
+
+.detail::before {
+  content: attr(data-reserve);
+  visibility: hidden;
+}
+
+.neutral {
+  color: var(--color-muted);
+}
+
+.good {
+  color: var(--color-green-ink);
+}
+
+.warning {
+  color: var(--color-amber-ink);
+}
+
+.danger {
+  color: var(--color-red-ink);
+}
+
+@media (min-width: 768px) {
+  .strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

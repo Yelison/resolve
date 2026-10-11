@@ -1,0 +1,415 @@
+import { useQueryClient } from '@tanstack/react-query'
+import { useState, type RefObject } from 'react'
+import { Link } from 'react-router'
+import { isApiError } from '../../api/client'
+import { Badge, Button, buttonClassName, EmptyState, useToast, type BadgeTone } from '../../components/ui'
+import type { TicketSummary } from '../../domain/ticket'
+import { cx } from '../../lib/cx'
+import { formatRelative } from '../../lib/format'
+import { demoErrorMessage, isLockTimeout, LOCK_TIMEOUT_MESSAGE } from '../../lib/mutationError'
+import { useMe } from '../session/queries'
+import { ticketKeys, TicketPreconditionError, useQuickTicketUpdate, useTicketMetrics } from '../tickets/queries'
+import { selectAttention, type AttentionItem, type AttentionReason } from './attention'
+import { inboxLink, useAttentionTickets, type AttentionScope } from './attentionQueries'
+import { BlockError } from './BlockError'
+import { Ghost } from './Ghost'
+import { useNow } from './useNow'
+import { useRetryFocus } from './useRetryFocus'
+import styles from './AttentionPanel.module.css'
+
+const reasonTones: Record<AttentionReason, BadgeTone> = {
+  urgent: 'red',
+  unanswered: 'amber',
+  unassigned: 'amber',
+  customerReplied: 'blue',
+  high: 'blue',
+  waiting: 'neutral',
+}
+
+/**
+ * Filas de muestra para el esqueleto, representativas: un asunto de unos 50 caracteres y, en la mitad de las filas, una
+ * línea de detalle («Sin respuesta desde hace 3 h»), como las filas reales más habituales. La altura de una fila real
+ * depende de su texto, así que con otros asuntos el bloque de debajo se mueve algo al llegar la lista.
+ */
+const ghostItems: AttentionItem[] = [1, 2, 3, 4, 5, 6].map((number) => ({
+  ticket: {
+    id: `ghost-${number}`,
+    number: 1000 + number,
+    subject: 'Error al procesar el pago con la tarjeta corporativa',
+    status: 'open',
+    priority: 'medium',
+    channel: 'email',
+    customer: { id: 'ghost', name: 'Nombre Cliente', email: 'cliente@correo.test', company: null },
+    assignee: null,
+    lastMessage: null,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+  // La mitad de los motivos llevan una línea de detalle: se alternan.
+  ...(number % 2 === 0
+    ? { reason: 'unanswered' as const, label: 'Sin respuesta', detail: 'Sin respuesta desde hace 3 h' }
+    : { reason: 'urgent' as const, label: 'Urgente' }),
+  action: 'assign',
+}))
+
+/** Para las filas de muestra: no se leen, solo ocupan su altura. */
+const ghostNow = new Date(0)
+
+function ticketPath(ticket: TicketSummary) {
+  return `/tickets/${ticket.number}`
+}
+
+/**
+ * «Necesitan atención»: los 6 tickets más urgentes del alcance elegido, cada uno con su motivo y la acción que toca.
+ * Por defecto «Para mí»; si no tienes nada asignado, «Todo el equipo», y la línea del pie lo explica. La elección de
+ * quien usa la página no se pisa: el valor por defecto solo se decide mientras no haya elegido.
+ */
+export function AttentionPanel() {
+  const me = useMe()
+  const metrics = useTicketMetrics()
+  const [chosen, setChosen] = useState<AttentionScope>()
+  // El alcance por defecto se decide una sola vez, cuando llegan las métricas por primera vez: una asignación hecha desde
+  // este mismo panel cambia `views.mine` y no debe cambiar la lista (ni quitar el foco) a quien acaba de pulsar.
+  const [fixedDefault, setFixedDefault] = useState<AttentionScope>()
+  const mineCount = metrics.data?.views.mine
+  const teamCount = metrics.data?.open
+  if (fixedDefault === undefined && metrics.isSuccess) setFixedDefault(mineCount! > 0 ? 'mine' : 'team')
+  // Sin métricas no se sabe si hay algo asignado: mientras cargan no se elige alcance, y si fallan se muestra el equipo
+  // (sin fijarlo: si luego llegan, deciden).
+  const scope: AttentionScope | undefined = chosen ?? fixedDefault ?? (metrics.isError ? 'team' : undefined)
+  // La nota «no tienes tickets asignados» solo vale mientras es verdad.
+  const defaultedToTeam = chosen === undefined && fixedDefault === 'team' && mineCount === 0
+
+  // Mientras llega la lista ya se sabe cuántos hay (las métricas decidieron el alcance): el esqueleto tiene tantas filas.
+  const expected = scope === 'mine' ? mineCount : scope === 'team' ? teamCount : undefined
+  const ghostRows = Math.min(ghostItems.length, Math.max(1, expected ?? 3))
+
+  const tickets = useAttentionTickets(scope)
+  const focus = useRetryFocus<HTMLElement>(tickets.isSuccess)
+  const now = useNow()
+
+  // Tickets que la persona acaba de asignarse: se leen como suyos hasta que la lista se vuelve a pedir.
+  const [assigned, setAssigned] = useState<ReadonlySet<string>>(new Set())
+  const user = me.data?.user
+  const candidates = tickets.data?.items.map((ticket) =>
+    assigned.has(ticket.id) && user && ticket.assignee === null
+      ? { ...ticket, assignee: { id: user.id, name: user.name } }
+      : ticket,
+  )
+  const attention = candidates ? selectAttention(candidates, now, user?.id) : undefined
+  // El total es el de la bandeja con el mismo filtro: la cifra del pie y la de la bandeja coinciden.
+  const total = tickets.data?.totalItems ?? 0
+
+  // El pie y el vacío hablan del alcance de la lista que se ve, no del que se acaba de pulsar: mientras llega la nueva
+  // lista (la anterior sigue a la vista) no cambian, y lo de debajo no se mueve. Se actualiza al asentarse los datos.
+  const [shown, setShown] = useState<{ scope: AttentionScope; explainDefault: boolean }>()
+  if (scope && !tickets.isPlaceholderData && tickets.isSuccess) {
+    if (shown?.scope !== scope || shown.explainDefault !== defaultedToTeam) {
+      setShown({ scope, explainDefault: defaultedToTeam })
+    }
+  }
+  const shownScope = shown?.scope ?? scope
+
+  return (
+    <section ref={focus.ref} className={styles.panel} aria-labelledby="overview-attention" tabIndex={-1}>
+      <div className={styles.header}>
+        <h2 id="overview-attention" className={styles.title}>
+          Necesitan atención
+        </h2>
+        <ScopeToggle scope={scope} onChange={setChosen} mine={mineCount} team={teamCount} />
+      </div>
+      {tickets.isError && !tickets.data ? (
+        <div className={styles.state}>
+          <BlockError
+            error={tickets.error}
+            failureCount={tickets.failureCount}
+            title="No pudimos cargar los tickets"
+            restrictedTitle="No tienes permiso para ver los tickets"
+            retryLabel="Reintentar cargar los tickets que necesitan atención"
+            onRetry={() => focus.retry(tickets.refetch)}
+          />
+        </div>
+      ) : !attention || scope === undefined ? (
+        <Ghost label="Cargando los tickets que necesitan atención…" className={styles.ghost}>
+          <ul className={styles.list}>
+            {ghostItems.slice(0, ghostRows).map((item) => (
+              <Row key={item.ticket.id} item={item} userId={undefined} now={ghostNow} onAssigned={() => {}} />
+            ))}
+          </ul>
+          {/* El pie de muestra reserva también su altura, con la nota del alcance por defecto si va a haberla. */}
+          <Footer scope="team" shown={ghostRows} total={ghostRows + 1} explainDefault={defaultedToTeam} />
+        </Ghost>
+      ) : (
+        // Al cambiar de alcance se ve la lista anterior (atenuada y sin poder activarse) hasta que llega la nueva.
+        <div inert={tickets.isPlaceholderData} className={cx(tickets.isPlaceholderData && styles.stale)}>
+          {attention.items.length === 0 ? (
+            <div className={styles.state}>
+              <NothingUrgent scope={shownScope ?? scope} total={total} />
+            </div>
+          ) : (
+            <ul
+              className={styles.list}
+              aria-label="Tickets que necesitan atención"
+              aria-busy={tickets.isPlaceholderData}
+            >
+              {attention.items.map((item) => (
+                <Row
+                  key={item.ticket.id}
+                  item={item}
+                  userId={user?.id}
+                  now={now}
+                  onAssigned={() => setAssigned((ids) => new Set(ids).add(item.ticket.id))}
+                  panelRef={focus.ref}
+                />
+              ))}
+            </ul>
+          )}
+          <Footer
+            scope={shownScope ?? scope}
+            shown={attention.items.length}
+            total={total}
+            explainDefault={shown?.explainDefault ?? defaultedToTeam}
+          />
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ScopeToggle({
+  scope,
+  onChange,
+  mine,
+  team,
+}: {
+  scope: AttentionScope | undefined
+  onChange: (scope: AttentionScope) => void
+  mine: number | undefined
+  team: number | undefined
+}) {
+  const options: { value: AttentionScope; label: string; count: number | undefined }[] = [
+    { value: 'mine', label: 'Para mí', count: mine },
+    { value: 'team', label: 'Todo el equipo', count: team },
+  ]
+  return (
+    <div role="group" aria-label="Mostrar los tickets de" className={styles.toggle}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          aria-pressed={scope === option.value}
+          className={styles.toggleButton}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+          {option.count !== undefined && (
+            <>
+              {' '}
+              <span className={styles.count}>{option.count}</span>
+            </>
+          )}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Sin tickets con motivo: lo que se dice depende de si no hay nada, nada tuyo o solo nada urgente. */
+function NothingUrgent({ scope, total }: { scope: AttentionScope; total: number }) {
+  if (total === 0) {
+    return scope === 'mine' ? (
+      <EmptyState
+        icon="check"
+        headingLevel={3}
+        title="No tienes tickets asignados"
+        description="Cuando te asignen uno, aparecerá aquí."
+      />
+    ) : (
+      <EmptyState
+        icon="check"
+        headingLevel={3}
+        title="Nada pendiente"
+        description="No hay tickets abiertos ni en progreso."
+      />
+    )
+  }
+  return (
+    <EmptyState
+      icon="check"
+      headingLevel={3}
+      title="Nada urgente por ahora"
+      description={scope === 'mine' ? 'Tus tickets abiertos van al día.' : 'Los tickets abiertos van al día.'}
+    />
+  )
+}
+
+function Footer({
+  scope,
+  shown,
+  total,
+  explainDefault,
+}: {
+  scope: AttentionScope
+  shown: number
+  total: number
+  explainDefault: boolean
+}) {
+  if (total === 0) return null
+  // «Los 6 más urgentes de 34»: solo cuando hay más de los que se muestran; si caben todos, se dice cuántos hay.
+  const summary =
+    shown < total
+      ? `${shown === 1 ? 'El más urgente' : `Los ${shown} más urgentes`} de ${total}`
+      : total === 1
+        ? '1 ticket abierto'
+        : `${total} tickets abiertos`
+  const linkText =
+    total > shown ? (total === 1 ? 'Ver el ticket en la bandeja' : `Ver los ${total} en la bandeja`) : 'Ir a la bandeja'
+  return (
+    <>
+      {explainDefault && (
+        <p className={styles.note}>No tienes tickets asignados. Te mostramos lo que el equipo tiene pendiente.</p>
+      )}
+      <div className={styles.footer}>
+        <p className={styles.summary} role="status">
+          {summary}
+        </p>
+        <Link to={inboxLink(scope)} className={styles.footerLink}>
+          {linkText}
+        </Link>
+      </div>
+    </>
+  )
+}
+
+function Row({
+  item,
+  userId,
+  now,
+  onAssigned,
+  panelRef,
+}: {
+  item: AttentionItem
+  userId: string | undefined
+  now: Date
+  onAssigned: () => void
+  panelRef?: RefObject<HTMLElement | null>
+}) {
+  const { ticket } = item
+  const who = ticket.assignee
+    ? ticket.assignee.id === userId
+      ? 'asignado a ti'
+      : ticket.assignee.name
+    : 'sin responsable'
+  return (
+    <li className={styles.row}>
+      <Badge tone={reasonTones[item.reason]} className={styles.reason}>
+        {item.label}
+      </Badge>
+      <div className={styles.main}>
+        <Link to={ticketPath(ticket)} className={styles.subject} data-attention-link={ticket.id}>
+          #{ticket.number} {ticket.subject}
+        </Link>
+        {item.detail && <span className={styles.detail}>{item.detail}</span>}
+        {item.reason === 'customerReplied' && ticket.lastMessage && (
+          <span className={styles.excerpt}>«{ticket.lastMessage.excerpt}»</span>
+        )}
+        <span className={styles.meta}>
+          {ticket.customer.name} · {who} · {formatRelative(new Date(ticket.updatedAt), now)}
+        </span>
+      </div>
+      <div className={styles.action}>
+        {item.action === 'assign' ? (
+          <AssignButton ticket={ticket} onAssigned={onAssigned} panelRef={panelRef} />
+        ) : (
+          <Link to={ticketPath(ticket)} className={buttonClassName({ variant: 'secondary' })}>
+            {item.action === 'reply' ? 'Responder' : 'Abrir'}
+            <span className="visually-hidden"> el ticket #{ticket.number}</span>
+          </Link>
+        )}
+      </div>
+    </li>
+  )
+}
+
+/**
+ * «Asignármelo»: la misma escritura que la bandeja (lee la versión del ticket y aplica el cambio con su If-Match, así
+ * que si alguien lo cambió en medio la API responde 412 y no se pisa nada). El resultado se anuncia en un aviso, y el
+ * foco pasa al enlace del propio ticket, que sustituye al botón.
+ */
+function AssignButton({
+  ticket,
+  onAssigned,
+  panelRef,
+}: {
+  ticket: TicketSummary
+  onAssigned: () => void
+  panelRef?: RefObject<HTMLElement | null>
+}) {
+  const me = useMe()
+  const toast = useToast()
+  const queryClient = useQueryClient()
+  const update = useQuickTicketUpdate()
+
+  /** El botón se sustituye por otro control o desaparece: el foco va al enlace del ticket, o al panel si la fila ya no está. */
+  function moveFocus() {
+    requestAnimationFrame(() => {
+      const link = document.querySelector<HTMLElement>(`[data-attention-link="${ticket.id}"]`)
+      ;(link ?? panelRef?.current)?.focus()
+    })
+  }
+
+  return (
+    <Button
+      variant="secondary"
+      loading={update.isPending}
+      loadingLabel="Asignando…"
+      disabled={!me.data}
+      onClick={() =>
+        update.mutate(
+          {
+            number: ticket.number,
+            changes: { assigneeId: me.data?.user.id },
+            // «Asignármelo» solo se ofrece porque nadie lo tenía: si entre tanto otra persona lo tomó, no se lo quita.
+            precondition: (current) => current.assignee === null,
+          },
+          {
+            onSuccess: () => {
+              toast.show({ title: `Te asignaste el ticket #${ticket.number}` })
+              onAssigned()
+              moveFocus()
+            },
+            onError: (error) => {
+              if (error instanceof TicketPreconditionError) {
+                const owner = error.current.assignee
+                toast.show({
+                  tone: 'info',
+                  title:
+                    owner && owner.id === me.data?.user.id
+                      ? `El ticket #${ticket.number} ya es tuyo`
+                      : `Ya lo tiene ${owner?.name ?? 'otra persona'}`,
+                  description: `Actualizamos la lista con el ticket #${ticket.number}.`,
+                })
+                void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
+                void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
+                moveFocus()
+                return
+              }
+              toast.show({
+                tone: 'error',
+                title: `No se pudo asignar el ticket #${ticket.number}`,
+                description: isLockTimeout(error)
+                  ? LOCK_TIMEOUT_MESSAGE
+                  : isApiError(error, 412)
+                    ? 'Otra persona lo cambió a la vez. Revisa los cambios e inténtalo de nuevo.'
+                    : (demoErrorMessage(error) ?? 'Inténtalo de nuevo en unos segundos.'),
+              })
+            },
+          },
+        )
+      }
+    >
+      Asignármelo
+      <span className="visually-hidden"> el ticket #{ticket.number}</span>
+    </Button>
+  )
+}

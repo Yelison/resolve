@@ -54,11 +54,11 @@ export function renderShell(
                 index: true,
                 lazy: async () => {
                   await lazyHome
-                  return { Component: () => <h1>Resumen</h1> }
+                  return { Component: () => <h1>Inicio</h1> }
                 },
-                handle: { crumb: 'Resumen' },
+                handle: { crumb: 'Inicio' },
               }
-            : { index: true, element: <h1>Resumen</h1>, handle: { crumb: 'Resumen' } },
+            : { index: true, element: <h1>Inicio</h1>, handle: { crumb: 'Inicio' } },
           { path: 'tickets', element: <h1>Tickets</h1>, handle: { crumb: 'Tickets' } },
           { path: 'tickets/:number', element: <h1>Ticket</h1>, handle: { crumb: 'Ticket' } },
         ],
