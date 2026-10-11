@@ -124,12 +124,12 @@ test('se entra como cliente y se ve lo propio del cliente; cerrar sesión vuelve
   await expect(heading(page, HOME).or(heading(page, 'Mis solicitudes'))).toBeVisible()
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'Reportes' })).toHaveCount(0)
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
 
   await signOut(page)
   // Volver a elegir al mismo usuario tras cerrar sesión también entra.
   await enterAs(page, CUSTOMER)
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
 
   // Y como administración se ve lo que el cliente no.
   await signOut(page)
@@ -140,8 +140,8 @@ test('se entra como cliente y se ve lo propio del cliente; cerrar sesión vuelve
 test('recargar conserva el usuario y la ruta', async ({ page }) => {
   await page.goto('')
   await enterAs(page, CUSTOMER)
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
-  await page.getByRole('link', { name: 'Tickets' }).click()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
+  await page.getByRole('link', { name: 'Mis solicitudes' }).click()
   await expect(page).toHaveURL(/\/resolve\/tickets$/)
 
   await page.reload()
@@ -216,10 +216,10 @@ test('elegir otro usuario tras cerrar sesión sustituye la elección que sobrevi
   await expect(page.getByRole('link', { name: 'Equipo' })).toBeVisible()
   await signOut(page)
   await enterAs(page, CUSTOMER)
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
   await page.reload()
-  await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
 })
 
