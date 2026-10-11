@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import type { Locator, Page } from '@playwright/test'
 import type { ReportSummary } from '../src/api/schema'
 import { expect, me, test } from './fixtures'
+import { reportSummaryFor } from './mocks/reports'
 
 /** Retiene las respuestas del informe que cumplan `held` hasta llamar a la función devuelta. */
 async function holdSummary(page: Page, held: (url: string) => boolean) {
@@ -47,7 +48,7 @@ test.describe('reportes', () => {
     await expect(page.getByRole('table', { name: 'Solicitudes y resueltos por día' })).toBeVisible()
 
     const agents = page.getByRole('table', { name: 'Rendimiento por agente' })
-    await expect(agents.getByRole('row')).toHaveCount(7) // cabecera + 6
+    await expect(agents.getByRole('row')).toHaveCount(6) // cabecera + 5
     await expect(agents.getByRole('row', { name: /Pablo Viejo/ })).toContainText('Retirado')
     await expect(agents.getByRole('row', { name: /Sofía Ríos/ })).toContainText('Invitación pendiente')
     await expect(agents.getByRole('row', { name: /Laura Méndez/ })).not.toContainText('Retirado')
@@ -91,6 +92,25 @@ test.describe('reportes', () => {
 
   test('exporta el CSV de agentes con BOM, estado y las fórmulas neutralizadas', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
+    // Un agente cuyo nombre empieza como una fórmula, solo en este test: los datos de la demo no lo incluyen.
+    const summary = reportSummaryFor('30d')
+    await page.route('**/api/reports/summary*', (route) =>
+      route.fulfill({
+        json: {
+          ...summary,
+          byAgent: [
+            ...summary.byAgent,
+            {
+              member: { id: 'u-formula', name: '=Carlos, "Fórmula"' },
+              status: 'active',
+              resolved: 1,
+              firstResponseMinutes: null,
+              openAssigned: 0,
+            },
+          ],
+        },
+      }),
+    )
     await page.goto('/reportes?period=30d')
     await expect(page.getByRole('table', { name: 'Rendimiento por agente' })).toBeVisible()
     const download = page.waitForEvent('download')
