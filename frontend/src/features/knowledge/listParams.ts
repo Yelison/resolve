@@ -9,6 +9,8 @@ export interface ArticleListState {
   status?: ArticleStatus
   /** Página de la interfaz, desde 1. */
   page: number
+  /** «Ver las N categorías»: despliega todas en el mismo grid; sin él se ven solo las de más artículos. */
+  allCategories?: boolean
 }
 
 export const articleStatusValues: readonly ArticleStatus[] = ['published', 'draft']
@@ -20,6 +22,7 @@ export function readArticleListState(params: URLSearchParams): ArticleListState 
     category: params.get('category') || undefined,
     status: articleStatusValues.find((status) => status === params.get('status')),
     page: Number.isInteger(page) && page > 0 ? page : 1,
+    allCategories: params.get('categories') === 'all' || undefined,
   }
 }
 
@@ -30,6 +33,7 @@ export function writeArticleListState(state: ArticleListState): URLSearchParams 
   if (state.category) params.set('category', state.category)
   if (state.status) params.set('status', state.status)
   if (state.page > 1) params.set('page', String(state.page))
+  if (state.allCategories) params.set('categories', 'all')
   return params
 }
 
