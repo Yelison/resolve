@@ -7,7 +7,7 @@ are merged. The owner decided it; the decision and how each of the extraction cr
 
 ## Pinned to an exact version
 
-`frontend/package.json` lists `"@yelison/forma-ui": "0.2.0"`, with no `^` or `~`. The package is below 1.0, so a minor
+`frontend/package.json` lists `"@yelison/forma-ui": "0.2.1"`, with no `^` or `~`. The package is below 1.0, so a minor
 release may carry breaking changes (its changelog marks each one **Breaking**): the version Resolve runs stays explicit
 and moves only through a pull request.
 

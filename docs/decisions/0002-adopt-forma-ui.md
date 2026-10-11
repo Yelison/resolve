@@ -182,5 +182,13 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 
 ### Pending
 
-- **Criterion 4** (above): tokens in 0.2.1 (decided); Resolve bumps the pin when it is published.
+- **Criterion 4** (above): resolved in 0.2.1, see Amendment 2.
 - **Checkbox and Switch** are the next family of the same base. Moving them removes `shared/choice.module.css` and the duplicate of the base, and gives them the reduced-motion rule.
+
+## Amendment 2 · 0.2.1: the last literal sizes become tokens
+
+- **Status:** accepted, 2026-10-10. Resolve pins `@yelison/forma-ui` 0.2.1 (Forma UI #62 and #64) and runs `npm run sync:forma-tokens`.
+- **What changes.** The package turns its four remaining `px` literals into tokens with the same values. Two are the criterion 4 failures of Amendment 1: `--choice-min-height: 36px` (the shared base of the choice controls) and `--tabs-panel-focus-offset: 4px` (the focused tab panel). The other two were accepted in the first adoption: `--icon-button-glyph-size: 20px` (the icons inside `IconButton`, formerly the local `--icon-size`) and `--dialog-enter-offset: 8px` (the distance of the dialog's entrance animation, formerly the motion exception). With them, Tabs and Radio meet criterion 4, and the published CSS has no literal sizes left.
+- **No visual change.** Every value is the one it replaces; Forma UI's browser tests check the computed values. In Resolve, `tokens.css` and its Keycloak copy gain the four declarations and nothing else, and none of the names clashes with Resolve's own layer (`tokens.sync.test.ts`).
+- **Why it does not merge by itself.** A patch that adds or changes tokens fails `tokens.sync.test.ts` on purpose, so it goes through `sync:forma-tokens` and a review. Patches that only touch component code or CSS still auto-merge (see `docs/development/dependencies.md`).
+
