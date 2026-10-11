@@ -1,9 +1,10 @@
-import { useMe } from '../session/queries'
 import { Button, EmptyState } from '../../components/ui'
 import type { Me } from '../../api/schema'
+import { useMe } from '../session/queries'
 import { FormGhost } from './FormGhost'
 import { ProfileForm } from './ProfileForm'
-import { SettingsSection } from './SettingsSection'
+import { ThemeBlock } from './ThemeBlock'
+import styles from './forms.module.css'
 
 const placeholder: Me = {
   user: { id: '', name: '', email: '' },
@@ -12,18 +13,22 @@ const placeholder: Me = {
   customerId: null,
 }
 
-/** Pestaña «Perfil». `/me` ya está cargada en el shell; el esqueleto cubre solo la carga en frío. */
-export function ProfileTab() {
+/**
+ * Sección «General» (Tu cuenta), para todos los roles: cómo te ve tu equipo, los datos de acceso y, después de la
+ * barra de guardar, el tema, que se aplica al momento y no la usa. `/me` ya está cargada en el shell; el esqueleto
+ * cubre solo la carga en frío. Si `/me` falla, el tema sigue disponible: es una preferencia de este navegador.
+ */
+export function GeneralSection() {
   const me = useMe()
   return (
-    <SettingsSection title="Perfil" description="Cómo apareces para tu equipo en este espacio.">
+    <div className={styles.form}>
       {me.data ? (
         <ProfileForm me={me.data} />
       ) : me.isError ? (
         <EmptyState
           kind="error"
           title="No pudimos cargar tu perfil"
-          headingLevel={3}
+          headingLevel={2}
           action={
             <Button variant="secondary" aria-label="Reintentar cargar tu perfil" onClick={() => void me.refetch()}>
               Reintentar
@@ -35,6 +40,7 @@ export function ProfileTab() {
           <ProfileForm me={placeholder} />
         </FormGhost>
       )}
-    </SettingsSection>
+      <ThemeBlock />
+    </div>
   )
 }

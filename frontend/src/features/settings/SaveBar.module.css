@@ -1,0 +1,50 @@
+.bar {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  box-sizing: border-box;
+  padding: var(--space-12) var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.message {
+  min-width: 0;
+  font: var(--font-body);
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-8);
+}
+
+/* En móvil los botones comparten el ancho: Guardar, el doble que Descartar. */
+.actions > * {
+  flex: 1 1 0;
+}
+
+.actions > :last-child {
+  flex-grow: 2;
+}
+
+@media (min-width: 768px) {
+  .bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-12);
+  }
+
+  .actions > *,
+  .actions > :last-child {
+    flex: none;
+  }
+}

@@ -1,13 +1,15 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
-import { Alert, Button, Input, Select, useToast } from '../../components/ui'
+import { Alert, Input, Select, useToast } from '../../components/ui'
 import { isApiError } from '../../api/client'
 import type { OrganizationPatch, OrganizationSettings } from '../../api/schema'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
 import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
-import { focusSectionHeading } from './focus'
-import { timeZoneGroups } from './timeZones'
+import { focusField, focusSectionHeading } from './focus'
+import { SaveBar } from './SaveBar'
+import { SettingsBlock } from './SettingsBlock'
+import { timeZoneGroups, timeZoneLabel } from './timeZones'
 import { useUpdateOrganization } from './queries'
 import styles from './forms.module.css'
 
@@ -35,6 +37,10 @@ const toValues = (settings: OrganizationSettings): Values => ({
   timeZone: settings.timeZone,
   firstResponseTargetMinutes: String(settings.firstResponseTargetMinutes),
 })
+
+/** Cómo ve la persona el valor de un campo (la zona con su ciudad y su desfase). */
+const display = (field: FieldName, value: string) =>
+  field === 'timeZone' ? timeZoneLabel(value) : field === 'firstResponseTargetMinutes' ? `${value} min` : value || 'vacío'
 
 /** Un número escrito como «030» es el mismo que 30: no cuenta como cambio. */
 const sameValue = (field: FieldName, a: string, b: string) =>
@@ -64,7 +70,14 @@ type Failure = { kind: 'conflict' } | { kind: 'error'; detail: string } | null
  * como `null`); si llega una versión nueva (p. ej. tras un 412) los campos no tocados toman el valor del servidor y los
  * tocados conservan lo escrito.
  */
-export function OrganizationForm({ settings }: { settings: OrganizationSettings }) {
+export function OrganizationForm({
+  settings,
+  responseMinutes,
+}: {
+  settings: OrganizationSettings
+  /** Mediana real de primera respuesta; `null` si aún no hay respuestas y `undefined` mientras se desconoce. */
+  responseMinutes?: number | null
+}) {
   const update = useUpdateOrganization()
   const toast = useToast()
   const source = toValues(settings)
@@ -78,6 +91,8 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
   /** El 503 de bloqueo del último envío (nada se cambió); su aviso ofrece repetir ese mismo envío. */
   const [lockError, setLockError] = useState<unknown>(null)
   const submission = useRepeatableSubmission()
+  const alerts = useRef<HTMLDivElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
   const groups = useMemo(() => timeZoneGroups(settings.timeZone), [settings.timeZone])
 
   if (settings.version > seenVersion) {
@@ -98,13 +113,31 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
 
   const changed = fieldNames.filter((field) => !sameValue(field, values[field].trim(), source[field]))
   const serverNote = (field: FieldName) =>
-    changed.includes(field) && source[field] !== base[field] ? `Ahora: ${source[field] || 'vacío'}` : undefined
+    changed.includes(field) && source[field] !== base[field] ? `Ahora: ${display(field, source[field])}` : undefined
 
   function change(field: FieldName, value: string) {
     setValues((current) => ({ ...current, [field]: value }))
     setErrors((current) => ({ ...current, [field]: undefined }))
     // El reintento repetiría lo enviado, no lo que se ve ahora: editar retira el aviso de bloqueo.
     setLockError(null)
+  }
+
+  // La barra de guardar está abajo y los avisos arriba: al aparecer uno se lleva a la vista.
+  const alertKey = lockError ? 'lock' : (failure?.kind ?? '')
+  useEffect(() => {
+    if (alertKey) alerts.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [alertKey])
+
+  function discard() {
+    const first = changed[0]
+    setValues(source)
+    setBase(source)
+    setServerChanged([])
+    setErrors({})
+    setFailure(null)
+    setLockError(null)
+    // «Descartar» queda deshabilitado al no haber cambios: el foco va al primer campo que se descartó.
+    if (first) focusField(formRef.current, first)
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -180,98 +213,156 @@ export function OrganizationForm({ settings }: { settings: OrganizationSettings 
   }
 
   return (
-    <form className={styles.form} onSubmit={(event) => void submit(event)} noValidate aria-busy={update.isPending}>
-      <LockTimeoutAlert
-        error={lockError}
-        pending={update.isPending}
-        onRetry={submission.retry}
-        what="guardar los ajustes de la empresa"
-      />
-      {failure?.kind === 'conflict' && (
-        <Alert tone="amber" title="Los ajustes cambiaron mientras los editabas" live>
-          Otra persona los actualizó y ya cargamos la versión actual.
-          {serverChanged.length > 0 && ` Cambió: ${serverChanged.map((field) => fieldLabels[field]).join(', ')}.`} Tus
-          cambios siguen aquí: revisa y vuelve a guardar.
-        </Alert>
-      )}
-      {failure?.kind === 'error' && (
-        <Alert tone="red" title="No se pudieron guardar los ajustes de la empresa" live>
-          {failure.detail}
-        </Alert>
-      )}
-      <Input
-        label={fieldLabels.name}
-        value={values.name}
-        maxLength={MAX_NAME}
-        autoComplete="organization"
-        onChange={(event) => change('name', event.target.value)}
-        hint={serverNote('name')}
-        error={errors.name}
-      />
-      <Input
-        label={fieldLabels.supportEmail}
-        type="email"
-        value={values.supportEmail}
-        maxLength={MAX_EMAIL}
-        autoComplete="off"
-        onChange={(event) => change('supportEmail', event.target.value)}
-        hint={serverNote('supportEmail') ?? 'Opcional. Lo verán los clientes en los artículos de ayuda.'}
-        error={errors.supportEmail}
-      />
-      <Select
-        label={fieldLabels.timeZone}
-        value={values.timeZone}
-        onChange={(event) => change('timeZone', event.target.value)}
-        hint={serverNote('timeZone') ?? 'Las fechas, el «hoy» de las métricas y los reportes se calculan en esta zona.'}
-        error={errors.timeZone}
-      >
-        {groups.map((group) => (
-          <optgroup key={group.label} label={group.label}>
-            {group.zones.map((zone) => (
-              <option key={zone.id} value={zone.id}>
-                {zone.label}
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </Select>
-      <Input
-        label={fieldLabels.firstResponseTargetMinutes}
-        inputMode="numeric"
-        value={values.firstResponseTargetMinutes}
-        autoComplete="off"
-        onChange={(event) => change('firstResponseTargetMinutes', event.target.value)}
-        hint={
-          serverNote('firstResponseTargetMinutes') ??
-          `En minutos, de ${MIN_TARGET} a ${MAX_TARGET}. Es la referencia del resumen y de los reportes.`
-        }
-        error={errors.firstResponseTargetMinutes}
-      />
-      <div className={styles.actions}>
-        <Button type="submit" disabled={changed.length === 0} loading={update.isPending} loadingLabel="Guardando…">
-          Guardar cambios
-        </Button>
+    <form
+      ref={formRef}
+      className={styles.form}
+      onSubmit={(event) => void submit(event)}
+      noValidate
+      aria-busy={update.isPending}
+    >
+      <div ref={alerts} className={styles.alerts}>
+        <LockTimeoutAlert
+          error={lockError}
+          pending={update.isPending}
+          onRetry={submission.retry}
+          what="guardar los ajustes de la empresa"
+        />
+        {failure?.kind === 'conflict' && (
+          <Alert tone="amber" title="Los ajustes cambiaron mientras los editabas" live>
+            Otra persona los actualizó y ya cargamos la versión actual.
+            {serverChanged.length > 0 && ` Cambió: ${serverChanged.map((field) => fieldLabels[field]).join(', ')}.`} Tus
+            cambios siguen aquí: revisa y vuelve a guardar.
+          </Alert>
+        )}
+        {failure?.kind === 'error' && (
+          <Alert tone="red" title="No se pudieron guardar los ajustes de la empresa" live>
+            {failure.detail}
+          </Alert>
+        )}
       </div>
+      <SettingsBlock title="Identidad" description="Cómo ven tu espacio tu equipo y tus clientes.">
+        <Input
+          label={fieldLabels.name}
+          name="name"
+          value={values.name}
+          maxLength={MAX_NAME}
+          autoComplete="organization"
+          onChange={(event) => change('name', event.target.value)}
+          hint={serverNote('name')}
+          error={errors.name}
+        />
+        <Input
+          label={fieldLabels.supportEmail}
+          name="supportEmail"
+          type="email"
+          value={values.supportEmail}
+          maxLength={MAX_EMAIL}
+          autoComplete="off"
+          onChange={(event) => change('supportEmail', event.target.value)}
+          hint={serverNote('supportEmail') ?? 'Opcional. Lo verán tus clientes en los artículos de ayuda.'}
+          error={errors.supportEmail}
+        />
+      </SettingsBlock>
+      <SettingsBlock
+        title="Horario y objetivos"
+        description="Las fechas, el «hoy» de las métricas y los reportes usan esta zona horaria."
+      >
+        <div className={styles.pair}>
+          <Select
+            label={fieldLabels.timeZone}
+            name="timeZone"
+            value={values.timeZone}
+            onChange={(event) => change('timeZone', event.target.value)}
+            hint={serverNote('timeZone')}
+            error={errors.timeZone}
+          >
+            {groups.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {group.zones.map((zone) => (
+                  <option key={zone.id} value={zone.id}>
+                    {zone.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </Select>
+          <Input
+            label={fieldLabels.firstResponseTargetMinutes}
+            name="firstResponseTargetMinutes"
+            inputMode="numeric"
+            value={values.firstResponseTargetMinutes}
+            autoComplete="off"
+            onChange={(event) => change('firstResponseTargetMinutes', event.target.value)}
+            hint={
+              <>
+                {serverNote('firstResponseTargetMinutes') ?? `De ${MIN_TARGET} a ${MAX_TARGET} minutos.`}
+                <ResponseNow minutes={responseMinutes} />
+              </>
+            }
+            error={errors.firstResponseTargetMinutes}
+          />
+        </div>
+      </SettingsBlock>
+      <SaveBar changed={changed.map((field) => fieldLabels[field])} pending={update.isPending} onDiscard={discard} />
     </form>
   )
 }
 
-/** Vista de solo lectura de los ajustes, para el agente: no ve controles que no puede usar. */
-export function OrganizationFacts({ settings }: { settings: OrganizationSettings }) {
-  const facts: [string, string][] = [
-    [fieldLabels.name, settings.name],
-    [fieldLabels.supportEmail, settings.supportEmail ?? 'Sin configurar'],
-    [fieldLabels.timeZone, settings.timeZone],
-    [fieldLabels.firstResponseTargetMinutes, `${settings.firstResponseTargetMinutes} min`],
-  ]
+/**
+ * «Ahora respondes en 18 min»: la mediana real de primera respuesta, junto al objetivo. La línea se reserva desde el
+ * principio (también si el dato no llega) para que el formulario no se mueva al llegar.
+ */
+export function ResponseNow({ minutes }: { minutes?: number | null }) {
   return (
-    <dl className={styles.facts}>
-      {facts.map(([label, value]) => (
-        <div key={label} className={styles.fact}>
-          <dt>{label}</dt>
-          <dd>{value}</dd>
-        </div>
-      ))}
-    </dl>
+    <span className={styles.nowLine}>
+      {minutes === undefined
+        ? ''
+        : minutes === null
+          ? 'Todavía no hay respuestas de la última semana.'
+          : `Ahora respondes en ${minutes} min.`}
+    </span>
+  )
+}
+
+/** Vista de solo lectura de los ajustes, para el agente: no ve controles que no puede usar. */
+export function OrganizationFacts({
+  settings,
+  responseMinutes,
+}: {
+  settings: OrganizationSettings
+  responseMinutes?: number | null
+}) {
+  const fact = (label: string, value: string, extra?: ReactNode) => (
+    <div className={styles.readFact}>
+      <dt>{label}</dt>
+      <dd>
+        {value}
+        {extra}
+      </dd>
+    </div>
+  )
+  return (
+    <div className={styles.facts}>
+      <Alert tone="blue" title="Solo un administrador puede cambiar los datos de la empresa." />
+      <SettingsBlock title="Identidad" description="Cómo ven tu espacio tu equipo y tus clientes.">
+        <dl className={styles.factList}>
+          {fact(fieldLabels.name, settings.name)}
+          {fact(fieldLabels.supportEmail, settings.supportEmail ?? 'Sin configurar')}
+        </dl>
+      </SettingsBlock>
+      <SettingsBlock
+        title="Horario y objetivos"
+        description="Las fechas, el «hoy» de las métricas y los reportes usan esta zona horaria."
+      >
+        <dl className={styles.factList}>
+          {fact(fieldLabels.timeZone, timeZoneLabel(settings.timeZone))}
+          {fact(
+            fieldLabels.firstResponseTargetMinutes,
+            `${settings.firstResponseTargetMinutes} minutos`,
+            <ResponseNow minutes={responseMinutes} />,
+          )}
+        </dl>
+      </SettingsBlock>
+    </div>
   )
 }

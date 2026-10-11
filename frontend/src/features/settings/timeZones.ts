@@ -19,6 +19,78 @@ const regionLabels: Record<string, string> = {
 
 const OTHER = 'Otras'
 
+/**
+ * Nombre en español de las ciudades que lo tienen distinto (con tilde o traducido). `Intl` da el desfase de una zona
+ * pero no el nombre de su ciudad, así que se mantiene esta tabla pequeña; el resto usa el nombre del identificador.
+ */
+const cityNames: Record<string, string> = {
+  'Africa/Cairo': 'El Cairo',
+  'Africa/Johannesburg': 'Johannesburgo',
+  'America/Argentina/Buenos_Aires': 'Buenos Aires',
+  'America/Asuncion': 'Asunción',
+  'America/Bogota': 'Bogotá',
+  'America/Cancun': 'Cancún',
+  'America/Havana': 'La Habana',
+  'America/Mexico_City': 'Ciudad de México',
+  'America/Merida': 'Mérida',
+  'America/Panama': 'Panamá',
+  'America/Santo_Domingo': 'Santo Domingo',
+  'America/Sao_Paulo': 'São Paulo',
+  'Asia/Dubai': 'Dubái',
+  'Asia/Kolkata': 'Calcuta',
+  'Asia/Seoul': 'Seúl',
+  'Asia/Singapore': 'Singapur',
+  'Asia/Tokyo': 'Tokio',
+  'Europe/Athens': 'Atenas',
+  'Europe/Berlin': 'Berlín',
+  'Europe/Brussels': 'Bruselas',
+  'Europe/Copenhagen': 'Copenhague',
+  'Europe/Dublin': 'Dublín',
+  'Europe/Istanbul': 'Estambul',
+  'Europe/Kiev': 'Kiev',
+  'Europe/Lisbon': 'Lisboa',
+  'Europe/London': 'Londres',
+  'Europe/Moscow': 'Moscú',
+  'Europe/Paris': 'París',
+  'Europe/Prague': 'Praga',
+  'Europe/Rome': 'Roma',
+  'Europe/Vienna': 'Viena',
+  'Europe/Warsaw': 'Varsovia',
+  'Europe/Zurich': 'Zúrich',
+  'Pacific/Auckland': 'Auckland',
+}
+
+const offsets = new Map<string, string>()
+
+/** Desfase de la zona respecto a GMT, con el signo menos tipográfico: «GMT−5», «GMT+5:30», «GMT» en el meridiano. */
+function offsetOf(id: string): string {
+  const cached = offsets.get(id)
+  if (cached !== undefined) return cached
+  let offset = ''
+  try {
+    const parts = new Intl.DateTimeFormat('en', { timeZone: id, timeZoneName: 'shortOffset' }).formatToParts(new Date())
+    offset = (parts.find((part) => part.type === 'timeZoneName')?.value ?? '').replace('-', '\u2212')
+  } catch {
+    // Una zona que el navegador no conoce (solo la sabe el servidor) se muestra sin desfase.
+  }
+  offsets.set(id, offset)
+  return offset
+}
+
+/** Nombre legible de la zona, con tildes: «Bogotá», «Ciudad de México», «Argentina/Buenos Aires» si no tiene el suyo. */
+function cityOf(id: string): string {
+  const known = cityNames[id]
+  if (known) return known
+  const slash = id.indexOf('/')
+  return (slash === -1 ? id : id.slice(slash + 1)).replaceAll('_', ' ')
+}
+
+/** Zona legible con su desfase: «Bogotá (GMT−5)». `UTC` ya lo dice todo y va sin desfase. */
+export function timeZoneLabel(id: string): string {
+  const offset = id === 'UTC' ? '' : offsetOf(id)
+  return offset ? `${cityOf(id)} (${offset})` : cityOf(id)
+}
+
 /** Zonas que conoce el navegador; sin `Intl.supportedValuesOf` (navegadores antiguos) solo queda la actual. */
 function supportedZones(): string[] {
   try {
@@ -39,11 +111,12 @@ export function timeZoneGroups(current: string, zones: string[] = supportedZones
   for (const id of [...ids].sort((a, b) => a.localeCompare(b, 'en'))) {
     const slash = id.indexOf('/')
     const region = slash === -1 ? OTHER : (regionLabels[id.slice(0, slash)] ?? OTHER)
-    const label = (slash === -1 ? id : id.slice(slash + 1)).replaceAll('_', ' ')
     const group = groups.get(region) ?? { label: region, zones: [] }
-    group.zones.push({ id, label })
+    group.zones.push({ id, label: timeZoneLabel(id) })
     groups.set(region, group)
   }
+  // Dentro de cada región, por el nombre que ve la persona.
+  for (const group of groups.values()) group.zones.sort((a, b) => a.label.localeCompare(b.label, 'es'))
   // «Otras» al final; las regiones, por orden alfabético en español.
   return [...groups.values()].sort((a, b) =>
     a.label === OTHER ? 1 : b.label === OTHER ? -1 : a.label.localeCompare(b.label, 'es'),

@@ -1,80 +1,65 @@
-import { useEffect, useRef } from 'react'
-import { Navigate, Outlet, useLocation, useNavigate } from 'react-router'
-import { Tabs, type TabItem } from '../../components/ui'
+import { Link, Navigate, Outlet, useLocation } from 'react-router'
+import { Icon } from '../../components/ui'
 import { PageHeader } from '../../app/pages/PageHeader'
-import pageStyles from '../../app/pages/Page.module.css'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 import { useMe } from '../session/queries'
-import { visibleTabs } from './settingsTabs'
+import { SettingsNav, SettingsSectionList } from './SettingsNav'
+import { defaultSection, findSection } from './settingsSections'
 import styles from './SettingsPage.module.css'
 
+/** Desde este ancho las secciones van en una columna al lado; por debajo, la lista y cada sección son pantallas propias. */
+const WIDE = '(min-width: 768px)'
+
 /**
- * Configuración: título y pestañas cuya selección vive en la URL (`/configuracion/<pestaña>`), así que se pueden
- * enlazar y el botón Atrás funciona. Cada pestaña es un formulario independiente con su propio «Guardar cambios».
+ * Configuración: la sección vive en la URL (`/configuracion/<sección>`), así que se puede enlazar y Atrás funciona.
+ * Desde 768 px las secciones van en una columna lateral con el contenido a la derecha; por debajo, `/configuracion` es
+ * la lista y cada sección una pantalla con «‹ Configuración». Cada sección con campos lleva su propia barra de guardar.
  */
 export function SettingsPage() {
   const me = useMe()
-  const navigate = useNavigate()
+  const isWide = useMediaQuery(WIDE)
   const { pathname } = useLocation()
-  const active = pathname.split('/')[2]
-  const tabsRef = useRef<HTMLDivElement>(null)
-  /** Se activó una pestaña con teclado o puntero: tras la navegación el foco debe seguir en ella. */
-  const keepTabFocus = useRef(false)
+  const section = findSection(pathname.split('/')[2])
 
-  // El shell lleva el foco al contenido en cada cambio de ruta, y su efecto corre después que el nuestro dentro del
-  // mismo commit. Con las flechas el foco debe quedarse en la pestaña, así que se devuelve cuando el shell ya terminó.
-  useEffect(() => {
-    if (!keepTabFocus.current) return
-    keepTabFocus.current = false
-    const timer = window.setTimeout(() =>
-      tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus(),
+  if (isWide) {
+    return (
+      <div className={styles.layout}>
+        <div className={styles.side}>
+          <h1 className={styles.title}>Configuración</h1>
+          <SettingsNav role={me.data?.role} />
+        </div>
+        <div className={styles.content}>
+          <Outlet />
+        </div>
+      </div>
     )
-    return () => window.clearTimeout(timer)
-  }, [pathname])
-  const visible = visibleTabs(me.data?.role)
-  // Si la pestaña de la URL no es una de las visibles (un cliente en `empresa`, o `/me` aún cargando en una pestaña del
-  // personal), `Tabs` marcaría otra: el aviso o el esqueleto se dibujan fuera de las pestañas, sin ninguna marcada.
-  const activeIsVisible = visible.some((tab) => tab.id === active)
-  const items: TabItem[] = visible.map((tab) => ({
-    id: tab.id,
-    label: tab.label,
-    content: (
-      <div className={styles.panel}>
-        <Outlet />
-      </div>
-    ),
-  }))
-
+  }
   return (
-    <div className={pageStyles.page}>
-      <PageHeader title="Configuración" description="Personaliza tu espacio y tus preferencias." />
-      <div ref={tabsRef}>
-        {activeIsVisible ? (
-          <Tabs
-            label="Secciones de configuración"
-            items={items}
-            value={active}
-            onChange={(id) => {
-              keepTabFocus.current = true
-              void navigate(`/configuracion/${id}`, { replace: true })
-            }}
-          />
-        ) : (
-          <>
-            {/* Mientras `/me` carga se reserva el sitio de la lista para que el contenido no baje al llegar. */}
-            {me.isPending && <div className={styles.tabsSpace} aria-hidden="true" />}
-            <div className={styles.panel}>
-              <Outlet />
-            </div>
-          </>
-        )}
-      </div>
+    <div className={styles.page}>
+      {section ? (
+        <>
+          <Link to="/configuracion" className={styles.back}>
+            <Icon name="chevron" size={20} className={styles.backIcon} />
+            Configuración
+          </Link>
+          <h1 className={styles.sectionTitle}>{section.label}</h1>
+        </>
+      ) : (
+        <PageHeader title="Configuración" />
+      )}
+      <Outlet />
     </div>
   )
 }
 
-/** `/configuracion` abre la primera pestaña del rol: Empresa para el personal, Perfil para un cliente. */
+/**
+ * `/configuracion` sin sección: en pantallas anchas abre la primera del rol (Empresa para el personal, General para un
+ * cliente); en móvil es la lista de secciones.
+ */
 export function SettingsIndex() {
   const me = useMe()
+  const isWide = useMediaQuery(WIDE)
+  if (!isWide) return <SettingsSectionList role={me.data?.role} />
   if (me.isPending) return null
-  return <Navigate to={me.data?.role === 'customer' ? 'perfil' : 'empresa'} replace />
+  return <Navigate to={defaultSection(me.data?.role)} replace />
 }

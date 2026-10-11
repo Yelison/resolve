@@ -1,0 +1,136 @@
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.groupLabel,
+.listGroupLabel {
+  font: var(--font-caption);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.groupLabel {
+  padding-inline: var(--space-12);
+}
+
+.items,
+.listItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-height: var(--touch-target);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.item:hover {
+  background: var(--color-surface-hover);
+}
+
+.item:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.item[aria-current='page'] {
+  border-color: var(--color-line);
+  background: var(--color-surface);
+}
+
+.itemLabel {
+  font: var(--font-label);
+  overflow-wrap: anywhere;
+}
+
+.item[aria-current='page'] .itemLabel {
+  font: var(--font-strong);
+}
+
+.itemDescription,
+.listDescription {
+  font: var(--font-caption);
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Lista móvil: un panel por grupo, con filas de al menos 64 px. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+.listGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.listItems {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.listItems li + li {
+  border-top: 1px solid var(--color-line);
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  box-sizing: border-box;
+  min-height: 64px;
+  padding: var(--space-8) var(--space-16);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.listItem:hover {
+  background: var(--color-surface-hover);
+}
+
+.listItem:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.listText {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.forward {
+  flex: none;
+  color: var(--color-muted);
+  transform: rotate(-90deg);
+}
