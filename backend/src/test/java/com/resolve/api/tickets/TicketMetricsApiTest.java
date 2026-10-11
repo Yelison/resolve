@@ -93,14 +93,13 @@ class TicketMetricsApiTest extends TicketsFixture {
 	void countsTheUnassignedTicketsOlderThanFourHoursAsASubsetOfTheUnassignedView() throws Exception {
 		this.clock.set(Instant.parse("2026-10-04T08:00:00Z"));
 		createTicket(LAURA, this.mariaCustomer, "Lleva 5 h", "low", null); // 1
-		this.clock.advance(Duration.ofHours(2));
-		createTicket(LAURA, this.carlosCustomer, "Lleva 3 h", "low", null); // 2
-		createTicket(LAURA, this.anaCustomer, "Asignado", "low", this.laura); // 3
-		this.clock.advance(Duration.ofMinutes(1));
-		// Resuelto y sin responsable: no cuenta en la vista, así que tampoco en la métrica.
-		createTicket(LAURA, this.anaCustomer, "Resuelto", "low", null); // 4
-		patchTicket(LAURA, 4, 0, "{\"status\": \"resolved\"}");
+		// Con más de 4 h de antigüedad pero fuera de la vista: asignado y resuelto no cuentan.
+		createTicket(LAURA, this.anaCustomer, "Asignado", "low", this.laura); // 2
+		createTicket(LAURA, this.anaCustomer, "Resuelto", "low", null); // 3
+		patchTicket(LAURA, 3, 0, "{\"status\": \"resolved\"}");
 		createNorthwindTicket();
+		this.clock.advance(Duration.ofHours(2));
+		createTicket(LAURA, this.carlosCustomer, "Lleva 3 h", "low", null); // 4
 		this.clock.set(Instant.parse("2026-10-04T13:00:00Z"));
 
 		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
