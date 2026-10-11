@@ -192,6 +192,29 @@ test.describe('inicio · sin saltos de layout', () => {
     })
   }
 
+  for (const width of [1024, 1199]) {
+    test(`«Solicitudes esta semana» no se mueve al llegar la lista de «Necesitan atención» · ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      let release!: () => void
+      const held = new Promise<void>((resolve) => (release = resolve))
+      await page.route('**/api/tickets?*', async (route) => {
+        await held
+        await route.fallback()
+      })
+      await page.goto('/')
+      const below = page.getByRole('region', { name: 'Solicitudes esta semana' })
+      await expect(page.getByText('Cargando los tickets que necesitan atención…')).toBeAttached()
+      const loading = (await below.boundingBox())!.y
+      release()
+      await expect(page.getByRole('list', { name: 'Tickets que necesitan atención' })).toBeVisible()
+      const loaded = (await below.boundingBox())!.y
+      // Las filas de muestra son representativas, no exactas: la altura real depende del texto de cada una.
+      expect(Math.abs(loaded - loading), `cargando ${loading}, con datos ${loaded}`).toBeLessThanOrEqual(24)
+    })
+  }
+
   for (const width of [390, 1024, 1440]) {
     test(`«Actividad reciente» no se mueve al llegar las solicitudes de la semana · ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })

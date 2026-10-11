@@ -26,14 +26,18 @@ const reasonTones: Record<AttentionReason, BadgeTone> = {
   waiting: 'neutral',
 }
 
-/** Textos de muestra para el esqueleto: filas con un asunto largo, que es lo que más altura da. */
+/**
+ * Filas de muestra para el esqueleto, representativas: un asunto de unos 50 caracteres y, en la mitad de las filas, una
+ * línea de detalle («Sin respuesta desde hace 3 h»), como las filas reales más habituales. La altura de una fila real
+ * depende de su texto, así que con otros asuntos el bloque de debajo se mueve algo al llegar la lista.
+ */
 const ghostItems: AttentionItem[] = [1, 2, 3, 4, 5, 6].map((number) => ({
   ticket: {
     id: `ghost-${number}`,
     number: 1000 + number,
-    subject: 'Error al procesar el pago con la tarjeta corporativa en la renovación anual del plan Pro',
+    subject: 'Error al procesar el pago con la tarjeta corporativa',
     status: 'open',
-    priority: 'urgent',
+    priority: 'medium',
     channel: 'email',
     customer: { id: 'ghost', name: 'María Pérez', email: 'maria@cliente.example', company: null },
     assignee: null,
@@ -41,8 +45,10 @@ const ghostItems: AttentionItem[] = [1, 2, 3, 4, 5, 6].map((number) => ({
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
-  reason: 'urgent',
-  label: 'Urgente',
+  // La mitad de los motivos llevan una línea de detalle: se alternan.
+  ...(number % 2 === 0
+    ? { reason: 'unanswered' as const, label: 'Sin respuesta', detail: 'Sin respuesta desde hace 3 h' }
+    : { reason: 'urgent' as const, label: 'Urgente' }),
   action: 'assign',
 }))
 
