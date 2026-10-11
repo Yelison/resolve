@@ -184,6 +184,11 @@ public class TestData {
 		this.jdbc.sql("UPDATE tickets SET assignee_id = ? WHERE id = ?").params(userId, ticketId).update();
 	}
 
+	/** Cambia la prioridad de un ticket directamente en la base ({@code urgent}, {@code high}, {@code medium} o {@code low}). */
+	public void setTicketPriority(UUID ticketId, String priority) {
+		this.jdbc.sql("UPDATE tickets SET priority = ? WHERE id = ?").params(priority, ticketId).update();
+	}
+
 	/** Marca la primera respuesta de un ticket {@code minutes} minutos después de su creación. */
 	public void respondAfter(UUID ticketId, int minutes) {
 		this.jdbc.sql("UPDATE tickets SET first_response_at = created_at + make_interval(mins => ?) WHERE id = ?")

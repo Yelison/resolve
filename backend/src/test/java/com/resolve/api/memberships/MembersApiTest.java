@@ -48,6 +48,54 @@ class MembersApiTest extends TeamFixture {
 		assertThat(member(team, REMOVED).path("status").asString()).isEqualTo("removed");
 	}
 
+	@Test
+	void countsTheUrgentOpenTicketsOfEachMemberSeparately() throws Exception {
+		urgentTicket(1, "open", this.laura);
+		urgentTicket(2, "waiting", this.laura);
+		// Un urgente resuelto no cuenta; uno que no es urgente cuenta como abierto pero no como urgente.
+		urgentTicket(3, "resolved", this.laura);
+		this.data.assignTicket(this.data.ticket(this.acme, this.mariaCustomer, 4, "in_progress"), this.laura);
+		this.data.assignTicket(this.data.ticket(this.acme, this.mariaCustomer, 5, "open"), this.daniel);
+		// Un urgente sin responsable no es de nadie.
+		this.data.setTicketPriority(this.data.ticket(this.acme, this.mariaCustomer, 6, "open"), "urgent");
+
+		JsonNode team = body(this.mvc.perform(get(API + "/members").with(as(LAURA)))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listMembers"))
+			.andReturn());
+
+		assertThat(member(team, LAURA).path("openTickets").asInt()).isEqualTo(3);
+		assertThat(member(team, LAURA).path("urgentOpenTickets").asInt()).isEqualTo(2);
+		assertThat(member(team, DANIEL).path("openTickets").asInt()).isEqualTo(1);
+		assertThat(member(team, DANIEL).path("urgentOpenTickets").asInt()).isZero();
+		assertThat(member(team, ADMIN).path("urgentOpenTickets").asInt()).isZero();
+		assertThat(member(team, INVITED).path("urgentOpenTickets").asInt()).isZero();
+	}
+
+	@Test
+	void urgentTicketsOfAnotherOrganizationDoNotCountForAUserWhoBelongsToBoth() throws Exception {
+		// Laura también es agente de Northwind y allí tiene un urgente asignado: en Acme no aparece.
+		this.data.membership(this.northwind, this.laura, "agent", "active");
+		UUID northwindCustomer = this.data.customer(this.northwind, "Marta", "marta@soler.example", null);
+		UUID foreign = this.data.ticket(this.northwind, northwindCustomer, 1, "open");
+		this.data.setTicketPriority(foreign, "urgent");
+		this.data.assignTicket(foreign, this.laura);
+		urgentTicket(1, "open", this.laura);
+
+		JsonNode acmeTeam = listMembers(ADMIN);
+		assertThat(member(acmeTeam, LAURA).path("openTickets").asInt()).isEqualTo(1);
+		assertThat(member(acmeTeam, LAURA).path("urgentOpenTickets").asInt()).isEqualTo(1);
+		JsonNode northwindTeam = listMembers(NORTHWIND_ADMIN);
+		assertThat(member(northwindTeam, LAURA).path("openTickets").asInt()).isEqualTo(1);
+		assertThat(member(northwindTeam, LAURA).path("urgentOpenTickets").asInt()).isEqualTo(1);
+	}
+
+	private void urgentTicket(long number, String status, UUID assignee) {
+		UUID ticket = this.data.ticket(this.acme, this.mariaCustomer, number, status);
+		this.data.setTicketPriority(ticket, "urgent");
+		this.data.assignTicket(ticket, assignee);
+	}
+
 	private static JsonNode member(JsonNode team, String email) {
 		for (JsonNode member : team) {
 			if (email.equals(member.path("email").asString())) {
@@ -116,6 +164,7 @@ class MembersApiTest extends TeamFixture {
 			.andExpect(jsonPath("$.role").value("admin"))
 			.andExpect(jsonPath("$.status").value("invited"))
 			.andExpect(jsonPath("$.openTickets").value(0))
+			.andExpect(jsonPath("$.urgentOpenTickets").value(0))
 			.andExpect(jsonPath("$.joinedAt").isEmpty())
 			.andExpect(jsonPath("$.invitedAt").value(TestClockConfiguration.START.toString()));
 

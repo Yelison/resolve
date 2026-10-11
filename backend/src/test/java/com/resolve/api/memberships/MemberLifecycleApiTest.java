@@ -295,12 +295,15 @@ class MemberLifecycleApiTest extends TeamFixture {
 		// Estado heredado: un ticket abierto asignado a alguien retirado. La respuesta debe decir lo mismo que la lista.
 		UUID ticket = this.data.ticket(this.acme, this.mariaCustomer, 1, "open");
 		this.data.assignTicket(ticket, this.removed);
+		this.data.setTicketPriority(ticket, "urgent");
 		MvcResult result = invite(ADMIN, "{\"email\": \"retirado@acme.example\", \"role\": \"agent\"}");
 		assertThat(result.getResponse().getStatus()).isEqualTo(201);
 		assertThat(body(result).path("openTickets").asInt()).isEqualTo(1);
+		assertThat(body(result).path("urgentOpenTickets").asInt()).isEqualTo(1);
 		assertThat(member(listMembers(ADMIN), REMOVED).path("openTickets").asInt()).isEqualTo(1);
 		MvcResult removal = remove(ADMIN, this.removed);
 		assertThat(body(removal).path("openTickets").asInt()).isZero();
+		assertThat(body(removal).path("urgentOpenTickets").asInt()).isZero();
 	}
 
 	private List<JsonNode> assigneeChanges(int number) throws Exception {
