@@ -42,7 +42,8 @@ export interface paths {
          * Organizations the caller can work in
          * @description Organizations where the caller has a usable membership (`invited` or `active`; not `removed`, and not
          *     a customer record that was archived), by name and then id. The one in use is `Me.organization`.
-         *     Every role can call it.
+         *     Every role can call it. Each entry carries the caller's `role` there and the size of the team
+         *     (`memberCount`), computed for all the organizations in one grouped query.
          */
         get: operations["listSessionOrganizations"];
         put?: never;
@@ -73,6 +74,44 @@ export interface paths {
          */
         post: operations["selectSessionOrganization"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/organizations/{organizationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Organization to leave. It is checked against the caller's own memberships, never trusted. */
+                organizationId: components["parameters"]["OrganizationRouteId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Leave one of the caller's organizations
+         * @description Marks the caller's own membership `removed` (it is never deleted) by the same path as removing a member:
+         *     under that organization's team lock, so the last active admin can never leave, not even at the same time as
+         *     another admin. The caller's unresolved tickets there are unassigned in the same transaction, each with an
+         *     `assignee_changed` activity whose actor is the caller; resolved tickets keep their assignee, and the messages and
+         *     notes stay in the history with the caller's name. Any role but `customer` can call it, and the organization
+         *     is the one in the path, which may or may not be the one of the session: leaving the session's own organization
+         *     is allowed, and the next request resolves into the first usable membership (the rule of
+         *     `POST /session/organization`), or answers `401` if none is left. A person who left their last organization gets the
+         *     `access-deactivated` problem, the same as any removed member: the API does not tell leaving from being removed.
+         *     An `invited` membership can be left too.
+         *
+         *     Errors are checked in this order: `401`, `409` (`X-Organization-Id` mismatch), `400` (malformed id), `404`, `403`,
+         *     `409`. Unknown, foreign and already-left organizations answer the **same** `404`, so the existence of other
+         *     organizations is not revealed. A `customer` membership answers `403`: a customer's access belongs to the company
+         *     that supports them. Being the only active admin is a `409` with the Problem `type`
+         *     `https://resolve.example/problems/last-admin`.
+         */
+        delete: operations["leaveOrganization"];
         options?: never;
         head?: never;
         patch?: never;
@@ -847,11 +886,18 @@ export interface components {
         ProfilePatch: {
             name: string;
         };
-        /** @description An organization as listed for the choice of the active one. */
+        /** @description An organization as listed for the choice of the active one. `role` is the role the caller has in it. */
         OrganizationRef: {
             /** Format: uuid */
             id: string;
             name: string;
+            role: components["schemas"]["Role"];
+            /**
+             * @description Active people of the team there (admins and agents with an `active` membership; invited, removed and
+             *     customer members do not count). `null` when the caller's membership is a `customer` one, who does not see
+             *     the team.
+             */
+            memberCount: number | null;
         };
         LogoutResponse: {
             /**
@@ -1834,6 +1880,7 @@ export interface components {
          *     | `https://resolve.example/problems/access-deactivated` | 401 | Membership removed or customer archived. |
          *     | `https://resolve.example/problems/no-membership` | 401 | Authenticated identity without any membership. |
          *     | `https://resolve.example/problems/organization-mismatch` | 409 | The write's `X-Organization-Id` is not the session's organization. |
+         *     | `https://resolve.example/problems/last-admin` | 409 | The organization would be left without an active admin (changing their role, removing them or leaving). |
          *
          *     The values are identifiers, not addresses: nothing is served at them.
          */
@@ -1945,7 +1992,9 @@ export interface components {
          * @description Either the action is not allowed in the current state of the resource (for example archiving twice;
          *     `type` `about:blank`), or the `X-Organization-Id` the write carries is not the organization of the session
          *     (`type` `https://resolve.example/problems/organization-mismatch`; nothing was changed and the client must
-         *     re-read `/me` before showing anything as current). Clients tell them apart by `type`. On the public demo
+         *     re-read `/me` before showing anything as current), or the organization would be left without an active admin
+         *     (`type` `https://resolve.example/problems/last-admin`: changing the role of the last admin, removing them or
+         *     leaving as them). Clients tell them apart by `type`. On the public demo
          *     (`resolve.demo.limits=true`) the creation of a ticket, customer, member or article also answers it, with the
          *     title "Límite de la demostración", when the organization already has the maximum of that resource (500
          *     tickets, 200 customers, 50 team members, 100 articles).
@@ -1990,6 +2039,8 @@ export interface components {
          *     what chooses the organization) nor on `POST /logout`, which ignore it.
          */
         OrganizationId: string;
+        /** @description Organization to leave. It is checked against the caller's own memberships, never trusted. */
+        OrganizationRouteId: string;
         /** @description Length of the report period, in calendar days of the organization time zone. */
         ReportPeriod: "7d" | "30d" | "90d";
     };
@@ -2096,6 +2147,7 @@ export type ParameterAttentionScope = components['parameters']['AttentionScope']
 export type ParameterAttentionSize = components['parameters']['AttentionSize'];
 export type ParameterArticleSlug = components['parameters']['ArticleSlug'];
 export type ParameterOrganizationId = components['parameters']['OrganizationId'];
+export type ParameterOrganizationRouteId = components['parameters']['OrganizationRouteId'];
 export type ParameterReportPeriod = components['parameters']['ReportPeriod'];
 export type HeaderETag = components['headers']['ETag'];
 export type $defs = Record<string, never>;
@@ -2209,6 +2261,45 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyWrites"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    leaveOrganization: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Id of the organization the screen that composed the write shows (`Me.organization.id`). Optional: without it
+                 *     nothing is checked. With it, if it is not the organization of the caller's session (another tab switched
+                 *     organization, or the member lost their access there), the answer is `409` with the Problem `type`
+                 *     `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
+                 *     authentication (a `401` still wins) and before the role check and before anything is read or written. A value
+                 *     that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
+                 *     what chooses the organization) nor on `POST /logout`, which ignore it.
+                 */
+                "X-Organization-Id"?: components["parameters"]["OrganizationId"];
+            };
+            path: {
+                /** @description Organization to leave. It is checked against the caller's own memberships, never trusted. */
+                organizationId: components["parameters"]["OrganizationRouteId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller left the organization. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             429: components["responses"]["TooManyWrites"];
             503: components["responses"]["ServiceUnavailable"];
         };
