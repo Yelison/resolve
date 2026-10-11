@@ -138,8 +138,17 @@ class TicketAttentionQuery {
 	private record Row(int total, int open, @Nullable Entry entry) {
 	}
 
+	/**
+	 * {@code set local jit = off} (el tercer argumento de {@code set_config}): vale hasta el final de la transacción de
+	 * solo lectura de {@link #find} y no se escapa a la siguiente que use la conexión. El plan es de bucles por índice
+	 * (uno por ticket) y su coste estimado crece con los tickets del alcance: hacia los 30 000 sin resolver cruza
+	 * {@code jit_optimize_above_cost} y PostgreSQL pasa unos 0,5 s compilando para ahorrar casi nada.
+	 */
+	private static final String JIT_OFF = "select set_config('jit', 'off', true)";
+
 	@Transactional(readOnly = true)
 	Result find(UUID organizationId, UUID viewerId, AttentionScope scope, int size, Instant now) {
+		this.jdbc.sql(JIT_OFF).query(String.class).single();
 		JdbcClient.StatementSpec statement = this.jdbc
 			.sql(QUERY.formatted((scope == AttentionScope.MINE) ? MINE_ONLY : "", MessageExcerpt.SOURCE_LENGTH))
 			.param("organizationId", organizationId)

@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.JsonNode;
 
@@ -42,6 +44,12 @@ class TicketAttentionApiTest extends TicketsFixture {
 
 	@Autowired
 	private EntityManagerFactory entityManagerFactory;
+
+	@Autowired
+	private PlatformTransactionManager transactions;
+
+	@Autowired
+	private TicketAttentionQuery query;
 
 	private static Duration minutes(int minutes) {
 		return Duration.ofMinutes(minutes);
@@ -440,6 +448,19 @@ class TicketAttentionApiTest extends TicketsFixture {
 		statistics.clear();
 		attention(LAURA, "team", null);
 		return statistics.getPrepareStatementCount();
+	}
+
+	/** El plan es de bucles por índice: la compilación JIT de PostgreSQL solo suma coste con muchos tickets, así que se apaga en la transacción de la consulta. */
+	@Test
+	void theQueryRunsWithoutJitInsideItsTransaction() {
+		String jit = new TransactionTemplate(this.transactions).execute((status) -> {
+			this.query.find(this.acme, this.laura, AttentionScope.TEAM, 6, NOW);
+			return this.jdbc.sql("select current_setting('jit')").query(String.class).single();
+		});
+
+		assertThat(jit).isEqualTo("off");
+		// Fuera de esa transacción el valor de la conexión no se ha tocado.
+		assertThat(this.jdbc.sql("select current_setting('jit')").query(String.class).single()).isEqualTo("on");
 	}
 
 	@Test
