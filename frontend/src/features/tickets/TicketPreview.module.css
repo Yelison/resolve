@@ -19,6 +19,7 @@
 
 .titles {
   display: flex;
+  flex: 1 1 320px;
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
@@ -37,9 +38,14 @@
 
 .controls {
   display: flex;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-8) var(--space-12);
+}
+
+.hidden {
+  visibility: hidden;
 }
 
 .field {

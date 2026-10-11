@@ -5,16 +5,10 @@ import { expect, test } from './fixtures'
  * §2.1: columnas prioritarias de 768 a 1199 px y tabla completa desde 1200 px, con el sidebar expandido o colapsado.
  * El contenedor mide ~894 px a 1200 px (sidebar de 240 px) y ~898 px a 1024 px (sidebar de 76 px), así que ningún
  * umbral de contenedor distingue los dos: la tabla completa se decide con el breakpoint de 1200 px del viewport y un
- * suelo de contenedor de 860 px. `TicketTable` usa los mismos umbrales con sus propias reglas de contenedor.
+ * suelo de contenedor de 860 px. `TicketTable` usa los mismos umbrales con sus propias reglas de contenedor (la bandeja de /tickets ya no es una tabla).
  */
 const tables = [
   { route: '/equipo', name: 'Equipo', full: ['Agente', 'Rol', 'Estado', 'Carga'], priority: ['Rol'] },
-  {
-    route: '/tickets',
-    name: 'Tickets',
-    full: ['Estado', 'Prioridad', 'Responsable', 'Actualizado'],
-    priority: ['Responsable', 'Actualizado'],
-  },
 ]
 
 /** Cabecera medida: ancho y posición; `null` si no se pinta o queda reducida a 1 px solo para lectores de pantalla. */

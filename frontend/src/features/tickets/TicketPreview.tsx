@@ -37,7 +37,7 @@ export interface TicketPreviewProps {
  */
 export function TicketPreview({ number, isStaff, onClear }: TicketPreviewProps) {
   const ticket = useTicket(number)
-  if (ticket.isPending) return <TicketPreviewSkeleton />
+  if (ticket.isPending) return <TicketPreviewSkeleton isStaff={isStaff} />
   if (ticket.isError) {
     if (isApiError(ticket.error, 404) || isApiError(ticket.error, 400)) {
       return (
@@ -196,8 +196,11 @@ function TicketControls({
   )
 }
 
-/** Cabecera y conversación en esqueleto, con las cajas de la vista real: al llegar el ticket no se mueve nada. */
-export function TicketPreviewSkeleton() {
+/**
+ * Cabecera y conversación en esqueleto. Los controles son los reales (ocultos y desactivados): la cabecera mide lo mismo
+ * que con el ticket cargado y la conversación no se mueve al llegar los datos.
+ */
+export function TicketPreviewSkeleton({ isStaff }: { isStaff: boolean }) {
   return (
     <div role="status" className={styles.fill}>
       <span className="visually-hidden">Cargando ticket…</span>
@@ -205,6 +208,21 @@ export function TicketPreviewSkeleton() {
         <div className={styles.titles}>
           <p className={cx(styles.context, styles.ghost)}>{'\u00a0'.repeat(40)}</p>
           <h2 className={cx(styles.title, styles.ghost)}>{'\u00a0'.repeat(30)}</h2>
+        </div>
+        <div className={cx(styles.controls, styles.hidden)}>
+          {isStaff ? (
+            <>
+              <Select label="Estado" disabled tabIndex={-1} fieldClassName={styles.field}>
+                <option />
+              </Select>
+              <Select label="Responsable" disabled tabIndex={-1} fieldClassName={styles.field}>
+                <option />
+              </Select>
+            </>
+          ) : (
+            <Badge tone="neutral">{'\u00a0'.repeat(12)}</Badge>
+          )}
+          <span className={buttonClassName({ variant: 'ghost' })}>Abrir completo</span>
         </div>
       </header>
       <div className={styles.body} aria-hidden="true">

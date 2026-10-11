@@ -155,6 +155,10 @@ export function InboxListSkeleton({ rows = 6, children }: { rows?: number; child
   return (
     <div className={styles.scroller} role="status">
       <span className="visually-hidden">Cargando tickets…</span>
+      {/* La cabecera de grupo que traerán los datos: la primera fila queda donde estará la real. */}
+      <div className={styles.groupHeader} aria-hidden="true">
+        {'\u00a0'}
+      </div>
       <ul className={styles.list}>
         {Array.from({ length: rows }, (_, index) => (
           <InboxItemGhost key={index} />

@@ -223,13 +223,11 @@ function ViewPills({ state, isStaff }: { state: InboxState; isStaff: boolean }) 
               className={styles.view}
               aria-current={state.view === item.view ? 'true' : undefined}
             >
-              {item.label}
-              {counts[item.view] !== undefined && (
-                <>
-                  {' '}
-                  <span className={styles.count}>{counts[item.view]}</span>
-                </>
-              )}
+              {item.label}{' '}
+              {/* El hueco del número se reserva mientras llega: la fila de vistas no cambia de alto al cargar. */}
+              <span className={styles.count} aria-hidden={counts[item.view] === undefined ? 'true' : undefined}>
+                {counts[item.view] ?? '\u2007'}
+              </span>
             </Link>
           </li>
         ))}
