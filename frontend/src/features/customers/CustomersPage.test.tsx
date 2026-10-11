@@ -313,6 +313,14 @@ describe('CustomersPage', () => {
     expect(await screen.findByRole('heading', { level: 2, name: 'Lumen Diseño' })).toBeInTheDocument()
   })
 
+  it('cada vista pide solo su lista: la plana no pide empresas y la agrupada no pide la plana', async () => {
+    const flat = mockApi({ ...baseRoutes, ...oneCustomer() })
+    renderCustomers('/clientes?group=none')
+    await screen.findByRole('link', { name: 'María Pérez' })
+    expect(requestsTo(flat, byCompany)).toHaveLength(0)
+    expect(requestsTo(flat, '/api/customers')).toHaveLength(1)
+  })
+
   it('la agrupación no cuenta como filtro: sin clientes no ofrece limpiar solo por ella', async () => {
     mockApi({ ...baseRoutes, 'GET /api/customers': { body: page([]) } })
     renderCustomers('/clientes?group=none')
