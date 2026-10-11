@@ -14,6 +14,11 @@ export interface PulseCell {
   detail: string
   arrow?: '↑' | '↓'
   tone: PulseTone
+  /**
+   * El detalle más largo que puede llevar esta celda. Reserva su altura en cualquier ancho: así la franja mide lo mismo
+   * cargando y con datos, diga lo que diga el detalle, y lo de debajo no salta.
+   */
+  reserve: string
   /** Vista filtrada de la bandeja (o del informe) donde se trabaja ese dato. */
   to: string
 }
@@ -45,6 +50,7 @@ export function pulseCells(metrics: PulseMetrics): PulseCell[] {
       label: 'Tickets abiertos',
       value: String(metrics.open),
       detail: newToday(metrics.openedToday),
+      reserve: newToday(999),
       tone: 'neutral',
       to: '/tickets',
     },
@@ -58,6 +64,7 @@ export function pulseCells(metrics: PulseMetrics): PulseCell[] {
           : unassigned > 0
             ? 'Asígnalos desde la bandeja'
             : 'Todos tienen responsable',
+      reserve: 'Asígnalos desde la bandeja',
       tone: metrics.unassignedOver4Hours > 0 ? 'danger' : unassigned > 0 ? 'warning' : 'good',
       to: '/tickets?view=unassigned',
     },
@@ -72,6 +79,7 @@ export function pulseCells(metrics: PulseMetrics): PulseCell[] {
           : response > target
             ? `Por encima del objetivo de ${target} min`
             : `Dentro del objetivo de ${target} min`,
+      reserve: `Por encima del objetivo de\u00a0${target}\u00a0min`,
       tone: response === null ? 'neutral' : response > target ? 'danger' : 'good',
       // La bandeja no filtra por primera respuesta: los nuevos, los más antiguos primero, son los que aún no la tienen.
       to: '/tickets?status=open&sort=createdAt,asc',
@@ -82,6 +90,7 @@ export function pulseCells(metrics: PulseMetrics): PulseCell[] {
       value: String(metrics.resolvedToday),
       detail: resolved.text,
       arrow: resolved.arrow ?? undefined,
+      reserve: '↓ 100 menos que ayer (100 %)',
       tone: resolved.trend === 'positive' ? 'good' : resolved.trend === 'negative' ? 'warning' : 'neutral',
       to: '/tickets?view=resolved',
     },

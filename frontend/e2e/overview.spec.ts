@@ -34,12 +34,17 @@ test.describe('inicio', () => {
     await expect(page).toHaveURL(/\/tickets\/1048$/)
   })
 
-  test('el saludo y el día son los de la zona de la organización', async ({ page }) => {
-    // 17:00 UTC: mediodía en Bogotá, de modo que «Buenas tardes» no depende de la zona del navegador.
-    await page.clock.setFixedTime(new Date('2026-10-10T17:00:00Z'))
-    await page.goto('/')
-    await expect(page.getByRole('heading', { level: 1, name: 'Buenas tardes, Yelisson' })).toBeVisible()
-    await expect(page.getByText('Sábado, 10 de octubre')).toBeVisible()
+  test.describe('con el navegador en otra zona', () => {
+    // Tokio va 14 h por delante de Bogotá: si el saludo usara la zona del navegador sería «Buenas noches» del domingo.
+    test.use({ timezoneId: 'Asia/Tokyo' })
+
+    test('el saludo y el día son los de la zona de la organización', async ({ page }) => {
+      // 17:00 UTC: mediodía del sábado en Bogotá, la zona de la organización simulada.
+      await page.clock.setFixedTime(new Date('2026-10-10T17:00:00Z'))
+      await page.goto('/')
+      await expect(page.getByRole('heading', { level: 1, name: 'Buenas tardes, Yelisson' })).toBeVisible()
+      await expect(page.getByText('Sábado, 10 de octubre')).toBeVisible()
+    })
   })
 
   test('cada dato del pulso lleva a su vista de la bandeja', async ({ page }) => {
@@ -115,7 +120,7 @@ test.describe('inicio', () => {
     await expect(page.getByText('Te asignaste el ticket #1046')).toBeVisible()
     expect(body).toEqual({ assigneeId: expect.any(String) })
     await expect(row.getByRole('button', { name: /Asignármelo/ })).toHaveCount(0)
-    await expect(row.getByRole('link', { name: /#1046/ })).toBeFocused()
+    await expect(row.getByRole('link', { name: /^#1046 / })).toBeFocused()
   })
 
   for (const [width, columns] of [
@@ -254,7 +259,8 @@ test.describe('inicio · gráfico de solicitudes por día', () => {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('/')
       const { widths, gaps } = await measureBars(page)
-      expect(Math.min(...widths), 'barras demasiado finas').toBeGreaterThanOrEqual(40)
+      // La columna derecha mide como mucho 360 px: 7 columnas de ~45 px, con la barra casi a todo su ancho.
+      expect(Math.min(...widths), 'barras demasiado finas').toBeGreaterThanOrEqual(32)
       expect(Math.max(...gaps), 'barras demasiado separadas').toBeLessThanOrEqual(56)
     })
   }

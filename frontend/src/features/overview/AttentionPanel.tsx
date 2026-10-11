@@ -84,6 +84,16 @@ export function AttentionPanel() {
   // El total es el de la bandeja con el mismo filtro: la cifra del pie y la de la bandeja coinciden.
   const total = tickets.data?.totalItems ?? 0
 
+  // El pie y el vacío hablan del alcance de la lista que se ve, no del que se acaba de pulsar: mientras llega la nueva
+  // lista (la anterior sigue a la vista) no cambian, y lo de debajo no se mueve. Se actualiza al asentarse los datos.
+  const [shown, setShown] = useState<{ scope: AttentionScope; explainDefault: boolean }>()
+  if (scope && !tickets.isPlaceholderData && tickets.isSuccess) {
+    if (shown?.scope !== scope || shown.explainDefault !== defaultedToTeam) {
+      setShown({ scope, explainDefault: defaultedToTeam })
+    }
+  }
+  const shownScope = shown?.scope ?? scope
+
   return (
     <section ref={focus.ref} className={styles.panel} aria-labelledby="overview-attention" tabIndex={-1}>
       <div className={styles.header}>
@@ -116,7 +126,7 @@ export function AttentionPanel() {
         <div inert={tickets.isPlaceholderData} className={cx(tickets.isPlaceholderData && styles.stale)}>
           {attention.items.length === 0 ? (
             <div className={styles.state}>
-              <NothingUrgent scope={scope} total={total} />
+              <NothingUrgent scope={shownScope ?? scope} total={total} />
             </div>
           ) : (
             <ul
@@ -136,7 +146,12 @@ export function AttentionPanel() {
               ))}
             </ul>
           )}
-          <Footer scope={scope} shown={attention.items.length} total={total} explainDefault={defaultedToTeam} />
+          <Footer
+            scope={shownScope ?? scope}
+            shown={attention.items.length}
+            total={total}
+            explainDefault={shown?.explainDefault ?? defaultedToTeam}
+          />
         </div>
       )}
     </section>

@@ -68,4 +68,25 @@ describe('pulseCells', () => {
       tone: 'neutral',
     })
   })
+
+  it('reserva en cada celda un detalle tan largo como el más largo que puede mostrar', () => {
+    const scenarios: PulseMetrics[] = [
+      base,
+      { ...base, unassignedOver4Hours: 0 },
+      { ...base, unassignedOver4Hours: 0, views: { unassigned: 0 } },
+      { ...base, unassignedOver4Hours: 100 },
+      { ...base, firstResponseMinutes: null },
+      { ...base, firstResponseMinutes: 10 },
+      { ...base, resolvedToday: 300, resolvedYesterday: 100 },
+      { ...base, resolvedToday: 1, resolvedYesterday: 2 },
+      { ...base, openedToday: 1 },
+      { ...base, openedToday: 999 },
+    ]
+    for (const scenario of scenarios) {
+      for (const item of pulseCells(scenario)) {
+        const shown = `${item.arrow ? `${item.arrow} ` : ''}${item.detail}`
+        expect(item.reserve.length, `${item.id}: «${shown}»`).toBeGreaterThanOrEqual(shown.length)
+      }
+    }
+  })
 })

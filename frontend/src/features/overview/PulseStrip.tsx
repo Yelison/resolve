@@ -8,15 +8,12 @@ import { pulseCells, type PulseCell, type PulseMetrics } from './pulse'
 import { useRetryFocus } from './useRetryFocus'
 import styles from './PulseStrip.module.css'
 
-/**
- * Valores del esqueleto: los textos más largos que puede llevar cada celda (la comparación de los resueltos con
- * porcentaje de tres cifras, el aviso de la primera respuesta). Solo fijan la altura; nunca se muestran ni se leen.
- */
+/** Valores del esqueleto: solo fijan el número de celdas; la altura la reserva cada celda con su `reserve`. */
 const ghostMetrics: PulseMetrics = {
   open: 132,
   openedToday: 18,
-  resolvedToday: 200,
-  resolvedYesterday: 100,
+  resolvedToday: 64,
+  resolvedYesterday: 71,
   unassignedOver4Hours: 0,
   firstResponseMinutes: 42,
   firstResponseTargetMinutes: 30,
@@ -30,9 +27,12 @@ function Cell({ cell, ghost = false }: { cell: PulseCell; ghost?: boolean }) {
       label={ghost ? ' ' : cell.label}
       value={cell.value}
       detail={
-        <span className={styles[cell.tone]}>
-          {cell.arrow && <span aria-hidden="true">{cell.arrow} </span>}
-          {cell.detail}
+        // El detalle y su reserva (oculta, sin texto en el DOM) comparten celda: la altura es la del más largo.
+        <span className={styles.detail} data-reserve={cell.reserve}>
+          <span className={styles[cell.tone]}>
+            {cell.arrow && <span aria-hidden="true">{cell.arrow} </span>}
+            {cell.detail}
+          </span>
         </span>
       }
     />

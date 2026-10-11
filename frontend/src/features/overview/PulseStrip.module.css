@@ -54,6 +54,21 @@
   background: var(--color-surface);
 }
 
+.detail {
+  display: grid;
+}
+
+/* La reserva y el detalle ocupan la misma celda de la rejilla: manda el más alto. */
+.detail::before,
+.detail > * {
+  grid-area: 1 / 1;
+}
+
+.detail::before {
+  content: attr(data-reserve);
+  visibility: hidden;
+}
+
 .neutral {
   color: var(--color-muted);
 }
