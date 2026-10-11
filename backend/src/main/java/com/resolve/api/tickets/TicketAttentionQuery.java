@@ -54,7 +54,8 @@ class TicketAttentionQuery {
 	 * urgentes no lo necesitan y no lo consultan); {@code reasoned} aplica las reglas por orden; {@code classified}
 	 * calcula desde cuándo. La CTE {@code classified} se usa dos veces (la página y los recuentos), así que PostgreSQL
 	 * la materializa una sola vez. El {@code LEFT JOIN ... ON true} devuelve los recuentos también sin ninguna fila
-	 * con motivo.
+	 * con motivo. El cuerpo del mensaje solo se lee para las filas de la página y solo en «el cliente respondió»: unirlo
+	 * antes del {@code LIMIT} recorrería toda la tabla de mensajes.
 	 */
 	private static final String QUERY = """
 			WITH last_public AS (
@@ -93,19 +94,19 @@ class TicketAttentionQuery {
 			           END AS since
 			    FROM reasoned r
 			), page AS (
-			    SELECT c.id, c.number, c.reason, c.since,
-			           CASE WHEN c.reason = 'customer_replied' THEN left(b.body, %d) END AS body
+			    SELECT c.id, c.number, c.reason, c.since, c.message_id
 			    FROM classified c
-			    LEFT JOIN ticket_messages b ON b.id = c.message_id
 			    WHERE c.reason IS NOT NULL
 			    ORDER BY array_position(CAST(:order AS text[]), c.reason), c.since, c.number DESC
 			    LIMIT :size
 			), counts AS (
 			    SELECT count(*) AS open_total, count(reason) AS attention_total FROM classified
 			)
-			SELECT counts.open_total, counts.attention_total, page.id, page.reason, page.since, page.body
+			SELECT counts.open_total, counts.attention_total, page.id, page.reason, page.since,
+			       CASE WHEN page.reason = 'customer_replied' THEN left(b.body, %d) END AS body
 			FROM counts
 			LEFT JOIN page ON true
+			LEFT JOIN ticket_messages b ON b.id = page.message_id AND page.reason = 'customer_replied'
 			ORDER BY array_position(CAST(:order AS text[]), page.reason), page.since, page.number DESC
 			""";
 
