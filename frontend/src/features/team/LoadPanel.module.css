@@ -30,7 +30,16 @@
   color: var(--color-muted);
 }
 
+.totalsReserve {
+  display: grid;
+}
+
+.totalsReserve > * {
+  grid-area: 1 / 1;
+}
+
 .totalsSkeleton {
+  align-self: center;
   min-width: 200px;
   padding: 0;
 }
@@ -214,6 +223,11 @@
   height: 12px;
   border-radius: var(--radius-small);
   background: var(--color-disabled);
+}
+
+.placeholderCount {
+  display: inline-block;
+  vertical-align: middle;
 }
 
 /* El avatar real, para que la fila mida lo mismo con datos y sin ellos; sin iniciales. */

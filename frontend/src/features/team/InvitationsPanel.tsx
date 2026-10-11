@@ -69,29 +69,36 @@ export function InvitationsPanel({ invitations, onCancel, onSeeAll, headingRef }
   )
 }
 
-/** Invitaciones de relleno para reservar el sitio: tres filas y «Ver las N», lo máximo que el panel muestra. */
-const placeholders: TeamMember[] = Array.from({ length: INVITATIONS_PREVIEW_SIZE + 1 }, (_, index) => ({
-  id: `placeholder-${index}`,
-  name: '',
-  email: 'persona@empresa.com',
-  role: 'agent',
-  status: 'invited',
-  openTickets: 0,
-  urgentOpenTickets: 0,
-  joinedAt: null,
-  invitedAt: null,
-}))
+/**
+ * Invitaciones de relleno para reservar el sitio: tres filas y «Ver las N», lo máximo que el panel muestra, con una
+ * fecha de envío de dos cifras de días para que la línea de detalle mida lo que mide una real.
+ */
+function placeholders(now: Date): TeamMember[] {
+  const invitedAt = new Date(now.getTime() - 12 * 86_400_000).toISOString()
+  return Array.from({ length: INVITATIONS_PREVIEW_SIZE + 1 }, (_, index) => ({
+    id: `placeholder-${index}`,
+    name: '',
+    email: 'persona@empresa.com',
+    role: 'agent',
+    status: 'invited',
+    openTickets: 0,
+    urgentOpenTickets: 0,
+    joinedAt: null,
+    invitedAt,
+  }))
+}
 
 /**
  * El panel real, oculto con `visibility`, mientras llega la lista: así un administrador no ve aparecer un panel de
  * 450 px entre otros dos. Si luego hay menos invitaciones (o ninguna), la página solo se contrae.
  */
 export function InvitationsSkeleton() {
+  const [invitations] = useState(() => placeholders(new Date()))
   return (
     <div className={styles.reserved} role="status">
       <span className="visually-hidden">Cargando las invitaciones…</span>
       <div aria-hidden="true">
-        <InvitationsPanel invitations={placeholders} onCancel={() => {}} onSeeAll={() => {}} />
+        <InvitationsPanel invitations={invitations} onCancel={() => {}} onSeeAll={() => {}} />
       </div>
     </div>
   )

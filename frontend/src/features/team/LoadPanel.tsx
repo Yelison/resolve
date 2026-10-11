@@ -39,7 +39,7 @@ export function LoadPanel({ team, metrics, expanded, onExpandedChange, asTable, 
         <h2 id={headingId} className={styles.title}>
           Carga ahora
         </h2>
-        <Totals metrics={metrics} scope={scope} />
+        <Totals metrics={metrics} scope={scope} reserveScope={team.isPending} />
       </div>
       <Body
         team={team}
@@ -55,10 +55,24 @@ export function LoadPanel({ team, metrics, expanded, onExpandedChange, asTable, 
   )
 }
 
-function Totals({ metrics, scope }: { metrics: UseQueryResult<TeamMetrics>; scope: string }) {
+function Totals({
+  metrics,
+  scope,
+  reserveScope,
+}: {
+  metrics: UseQueryResult<TeamMetrics>
+  scope: string
+  /** Mientras llega la lista, el alcance («los 8 más cargados») aún no se sabe: se reserva su sitio, oculto. */
+  reserveScope: boolean
+}) {
   if (metrics.isPending) {
+    // El texto real más largo, oculto, da la altura (también cuando envuelve a dos líneas en móvil); encima, el esqueleto.
     return (
-      <div className={styles.totals}>
+      <div className={`${styles.totals} ${styles.totalsReserve}`}>
+        <span className={styles.reserved} aria-hidden="true">
+          {openTicketsTotal(100)} · {unassignedCount(100)}
+          {` · los ${LOAD_PREVIEW_SIZE} más cargados`}
+        </span>
         <Skeleton lines={1} label="Cargando los totales…" className={styles.totalsSkeleton} />
       </div>
     )
@@ -83,6 +97,11 @@ function Totals({ metrics, scope }: { metrics: UseQueryResult<TeamMetrics>; scop
     <p className={styles.totals}>
       {openTicketsTotal(assignedOpen + unassignedOpen)} · {unassignedCount(unassignedOpen)}
       {scope}
+      {reserveScope && (
+        <span className={styles.reserved} aria-hidden="true">
+          {` · las ${peopleCount(100)}, de más a menos`}
+        </span>
+      )}
     </p>
   )
 }
@@ -239,7 +258,7 @@ function LoadSkeleton() {
             </span>
             <span className={styles.bar} />
             <span className={styles.count}>
-              <span className={styles.placeholderName} />
+              <span className={`${styles.placeholderName} ${styles.placeholderCount}`} />
             </span>
           </div>
         ))}
@@ -248,7 +267,7 @@ function LoadSkeleton() {
         <Legend />
         <div className={styles.actions}>
           <Button variant="secondary" tabIndex={-1}>
-            Ver las {LOAD_PREVIEW_SIZE + 1} personas
+            Ver las 99 personas
           </Button>
           <Button variant="secondary" tabIndex={-1}>
             Ver como tabla

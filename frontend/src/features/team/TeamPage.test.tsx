@@ -99,7 +99,10 @@ describe('TeamPage', () => {
     const { router } = renderTeam()
     const load = await screen.findByRole('region', { name: 'Carga ahora' })
     const list = () => within(load).getByRole('list', { name: 'Tickets abiertos por persona' })
-    expect(await within(load).findByText(/los 8 más cargados/)).toBeInTheDocument()
+    // La reserva oculta del título (que se parece a esto) se sustituye por el texto real al llegar los totales.
+    expect(
+      await within(load).findByText('11 tickets abiertos · 1 sin asignar · los 8 más cargados'),
+    ).toBeInTheDocument()
     expect(within(list()).getAllByRole('listitem')).toHaveLength(8)
     // De más a menos: la persona 22 es la más cargada.
     expect(within(list()).getAllByRole('listitem')[0]).toHaveTextContent('Persona 22')

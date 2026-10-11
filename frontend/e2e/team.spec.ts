@@ -125,7 +125,7 @@ test.describe('equipo', () => {
     await expect(page.getByRole('region', { name: 'Roles' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Invitar agente' })).toHaveCount(0)
     await expect(page.getByRole('region', { name: /Invitaciones pendientes/ })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: /Acciones de|Cancelar la invitación/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Acciones de|Cancelar invitación de/ })).toHaveCount(0)
   })
 
   test('en móvil el equipo son tarjetas y el diálogo de invitación cabe en 320 px', async ({ page }) => {
@@ -268,7 +268,7 @@ test.describe('equipo · carga, invitaciones y muchos datos', () => {
     await expect(panel).toContainText('sofia@acme.example')
     await expect(panel).toContainText('Enviada hace 1 hora')
     await expect(page.getByText(/Reenviar|Caducada/)).toHaveCount(0)
-    await panel.getByRole('button', { name: 'Cancelar la invitación de sofia@acme.example' }).click()
+    await panel.getByRole('button', { name: 'Cancelar invitación de sofia@acme.example' }).click()
     const dialog = page.getByRole('dialog', { name: '¿Cancelar esta invitación?' })
     await dialog.getByRole('button', { name: 'Cancelar invitación' }).click()
     await expect(page.getByText('Invitación cancelada')).toBeVisible()
@@ -383,24 +383,99 @@ test.describe('equipo · carga, invitaciones y muchos datos', () => {
     }
   }
 
-  test('la carga reserva su sitio: con las peticiones retenidas el resto de la página no salta al llegar los datos', async ({
-    page,
-  }) => {
-    await serveTeam(page, bigTeam(12, 0))
-    let release!: () => void
-    const gate = new Promise<void>((resolve) => (release = resolve))
-    await page.route('**/api/members', async (route) => {
-      await gate
-      await route.fallback()
-    })
+  /*
+   * Con la lista retenida se mide dónde queda cada título al llegar los datos. El esqueleto reserva ocho filas de carga,
+   * «Roles» y el panel de invitaciones a su altura máxima (3 filas y «Ver las N»), así que la página nunca crece:
+   * solo se contrae, y como mucho en lo que sobraba (filas de carga y de invitaciones que no hacían falta).
+   */
+  const layouts: { name: string; members?: TeamMember[]; active: number; invitations: number }[] = [
+    { name: '22 personas y 6 invitaciones', members: bigTeam(22, 6), active: 22, invitations: 6 },
+    { name: 'demo', active: 4, invitations: 1 },
+  ]
+  for (const width of [390, 1440]) {
+    for (const layout of layouts) {
+      test(`la carga reserva su sitio y la página solo se contrae · ${layout.name} · ${width}px`, async ({ page }) => {
+        if (layout.members) await serveTeam(page, layout.members)
+        let release!: () => void
+        const gate = new Promise<void>((resolve) => (release = resolve))
+        await page.route('**/api/members', async (route) => {
+          if (route.request().method() === 'GET') await gate
+          await route.fallback()
+        })
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto('/equipo')
+        const titles = {
+          roles: page.getByRole('heading', { level: 2, name: 'Roles' }),
+          load: page.getByRole('region', { name: 'Carga ahora' }),
+          members: page.getByRole('heading', { level: 2, name: /^Miembros/ }),
+        }
+        await expect(titles.members).toBeVisible()
+        // El rol llega con `/me`, que no está retenido: el panel de invitaciones ya está reservado.
+        await expect(page.getByText('Cargando las invitaciones…')).toBeAttached()
+        const measure = async () => ({
+          loadHeight: (await titles.load.boundingBox())!.height,
+          roles: (await titles.roles.boundingBox())!.y,
+          members: (await titles.members.boundingBox())!.y,
+        })
+        const before = await measure()
+        const reservedInvitations = (await page
+          .getByText('Cargando las invitaciones…')
+          .locator('xpath=..')
+          .boundingBox())!.height
+        release()
+        await expect(page.getByRole('table', { name: 'Equipo' })).toBeVisible()
+        const after = await measure()
+
+        // «Carga ahora» no crece nunca: el esqueleto ya mide lo máximo (ocho filas, su pie y el alcance del título).
+        expect(after.loadHeight - before.loadHeight, JSON.stringify({ before, after })).toBeLessThanOrEqual(1)
+        // «Miembros» no baja nunca: lo reservado cubre el máximo que la página puede mostrar.
+        const shift = after.members - before.members
+        expect(shift, `«Miembros» se movió ${shift}px: ${JSON.stringify({ before, after })}`).toBeLessThanOrEqual(1)
+        // Y cuando sube, es por lo reservado que no hizo falta (filas de carga y de invitaciones): una contracción acotada.
+        const bound = before.loadHeight - after.loadHeight + reservedInvitations + 1
+        expect(-shift, `«Miembros» subió ${-shift}px (cota ${bound}px)`).toBeLessThanOrEqual(bound)
+        // Con los datos que llenan lo reservado (22 personas y 6 invitaciones) no hay contracción alguna.
+        if (layout.members) expect(Math.abs(shift)).toBeLessThanOrEqual(1)
+      })
+    }
+  }
+
+  test('volver a invitar a una invitación cancelada la reactiva en vez de duplicarla', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/equipo')
+    const panel = page.getByRole('region', { name: /Invitaciones pendientes/ })
+    await panel.getByRole('button', { name: 'Cancelar invitación de sofia@acme.example' }).click()
+    await page
+      .getByRole('dialog', { name: '¿Cancelar esta invitación?' })
+      .getByRole('button', { name: 'Cancelar invitación' })
+      .click()
+    await expect(page.getByText('Invitación cancelada', { exact: true }).first()).toBeVisible()
+
+    await page.getByRole('button', { name: 'Invitar agente' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Invitar agente' })
+    await dialog.getByRole('textbox', { name: 'Correo' }).fill('sofia@acme.example')
+    await dialog.getByRole('button', { name: 'Invitar' }).click()
+    await expect(dialog).toBeHidden()
+
+    const table = page.getByRole('table', { name: 'Equipo' })
+    await expect(table.getByRole('row', { name: /sofia@acme.example/ })).toHaveCount(1)
+    await expect(panel).toContainText('sofia@acme.example')
+    await page.getByRole('button', { name: 'Estado' }).click()
+    await page.getByRole('menuitem', { name: 'Retirados' }).click()
+    await expect(table.getByRole('row', { name: /sofia@acme.example/ })).toHaveCount(0)
+  })
+
+  test('con teclado, «Ver las N» y «Quitar filtros» dejan el foco en el título de la lista', async ({ page }) => {
+    await serveTeam(page, bigTeam(22, 6))
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/equipo')
     const members = page.getByRole('heading', { level: 2, name: /^Miembros/ })
-    await expect(members).toBeVisible()
-    const before = (await members.boundingBox())!.y
-    release()
-    await expect(page.getByRole('table', { name: 'Equipo' })).toBeVisible()
-    const after = (await members.boundingBox())!.y
-    expect(Math.abs(after - before)).toBeLessThanOrEqual(1)
+    await page.getByRole('button', { name: 'Ver las 6 invitaciones pendientes' }).focus()
+    await page.keyboard.press('Enter')
+    await expect(members).toBeFocused()
+    await page.getByRole('searchbox', { name: 'Buscar miembros' }).fill('zzzz')
+    await page.getByRole('button', { name: 'Quitar filtros' }).focus()
+    await page.keyboard.press('Enter')
+    await expect(members).toBeFocused()
   })
 })
