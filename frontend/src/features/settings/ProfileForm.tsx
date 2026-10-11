@@ -17,7 +17,8 @@ import styles from './forms.module.css'
 
 const MAX_NAME = 120
 
-const NAME_HINT = 'Se actualiza en todo el espacio. El historial de actividad conserva el nombre que tenías en cada momento.'
+const NAME_HINT =
+  'Se actualiza en todo el espacio. El historial de actividad conserva el nombre que tenías en cada momento.'
 
 /**
  * Lo que se guarda de General: solo el nombre. Desde 768 px lo guarda la barra de guardar (con «Descartar»); en móvil,
@@ -190,9 +191,7 @@ export function ProfileForm({ me }: { me: Me }) {
           </div>
         </dl>
       </SettingsBlock>
-      {isWide && (
-        <SaveBar changed={dirty ? ['Nombre'] : []} pending={update.isPending} onDiscard={discard} />
-      )}
+      {isWide && <SaveBar changed={dirty ? ['Nombre'] : []} pending={update.isPending} onDiscard={discard} />}
     </form>
   )
 }

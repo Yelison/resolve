@@ -5,7 +5,7 @@ import styles from './SaveBar.module.css'
 const listFormat = new Intl.ListFormat('es', { style: 'long', type: 'conjunction' })
 
 /** «Tienes cambios sin guardar en «A», «B» y «C».»: dice qué cambió, no solo que algo cambió. */
-export function unsavedMessage(changed: readonly string[]) {
+function unsavedMessage(changed: readonly string[]) {
   if (changed.length === 0) return 'Sin cambios.'
   return `Tienes cambios sin guardar en ${listFormat.format(changed.map((label) => `«${label}»`))}.`
 }
@@ -41,11 +41,9 @@ export function SaveBar({
     syncInset()
     const mutations = new MutationObserver(syncInset)
     mutations.observe(root, { attributes: true, attributeFilter: ['style'] })
-    const sizes = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => reserve())
-    function reserve() {
-      form?.style.setProperty('--save-bar-height', `${element?.offsetHeight ?? 0}px`)
-    }
+    const reserve = () => form?.style.setProperty('--save-bar-height', `${element.offsetHeight}px`)
     reserve()
+    const sizes = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reserve)
     sizes?.observe(element)
     return () => {
       mutations.disconnect()

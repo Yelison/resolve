@@ -2,7 +2,7 @@ import type { Role } from '../../api/schema'
 
 /**
  * Lo que un rol puede hacer con una capacidad. `own` y `limited` son accesos parciales: el servidor entrega solo lo
- * propio (tickets de la persona) o solo lo publicado (artículos); el texto de cada valor lo dice, el icono no basta.
+ * propio (tickets de la persona) o solo lo publicado y público (artículos); el texto de cada valor lo dice, el icono no basta.
  */
 export type Access = 'allowed' | 'own' | 'limited' | 'no'
 
@@ -21,8 +21,25 @@ export interface Capability {
 export const accessLabels: Record<Access, string> = {
   allowed: 'Permitido',
   own: 'Solo los suyos',
-  limited: 'Limitado',
+  limited: 'Solo los públicos',
   no: 'Sin acceso',
+}
+
+/** Los tres estados de la leyenda: «Solo los suyos» y «Solo los públicos» son los dos «Con límites». */
+export type AccessStatus = 'allowed' | 'limited' | 'none'
+
+export const accessStatus: Record<Access, AccessStatus> = {
+  allowed: 'allowed',
+  own: 'limited',
+  limited: 'limited',
+  no: 'none',
+}
+
+/** Texto de cada estado en la leyenda. */
+export const statusLabels: Record<AccessStatus, string> = {
+  allowed: 'Permitido',
+  limited: 'Con límites',
+  none: 'Sin acceso',
 }
 
 /** Roles en el orden de las columnas de la matriz. */

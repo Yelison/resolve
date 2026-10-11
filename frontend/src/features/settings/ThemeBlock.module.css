@@ -43,12 +43,20 @@
   outline-offset: 2px;
 }
 
-/* Toda la tarjeta es el área del radio: la etiqueta se extiende sobre ella. */
+/* Toda la tarjeta es el área del radio: la etiqueta se extiende sobre ella. La altura táctil es de la clase de Resolve
+   (gana por orden a la base del paquete, y `production-bundle.spec.ts` lo mide en el build). */
 .choice {
   grid-area: choice;
+  min-height: var(--touch-target);
   flex-direction: row-reverse;
   justify-content: space-between;
   font: var(--font-strong);
+}
+
+/* El radio queda por encima de la etiqueta extendida: un clic en él (o de un test) le llega a él, no a la etiqueta. */
+.card input {
+  position: relative;
+  z-index: 1;
 }
 
 .choice::after {
@@ -124,8 +132,16 @@
       'choice'
       'note';
     align-items: start;
-    row-gap: var(--space-8);
+    row-gap: 0;
     padding: var(--space-12);
+  }
+
+  .thumb {
+    margin-bottom: var(--space-8);
+  }
+
+  .note {
+    margin-top: var(--space-4);
   }
 
   .thumb {

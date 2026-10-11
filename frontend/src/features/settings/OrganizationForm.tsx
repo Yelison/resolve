@@ -40,7 +40,11 @@ const toValues = (settings: OrganizationSettings): Values => ({
 
 /** Cómo ve la persona el valor de un campo (la zona con su ciudad y su desfase). */
 const display = (field: FieldName, value: string) =>
-  field === 'timeZone' ? timeZoneLabel(value) : field === 'firstResponseTargetMinutes' ? `${value} min` : value || 'vacío'
+  field === 'timeZone'
+    ? timeZoneLabel(value)
+    : field === 'firstResponseTargetMinutes'
+      ? `${value} min`
+      : value || 'vacío'
 
 /** Un número escrito como «030» es el mismo que 30: no cuenta como cambio. */
 const sameValue = (field: FieldName, a: string, b: string) =>

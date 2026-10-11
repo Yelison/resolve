@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { inOrder, lockTimeoutRoute, retryAfterLockTimeout, type SentRequest } from '../../lib/lockTimeoutTesting'
 import { adminMe, mockApi, type MockRoute } from '../../test/api'
+import { metrics } from '../../test/ticketFixtures'
 import { renderWithProviders } from '../../test/render'
 import { customerKeys } from '../customers/queries'
 import { memberKeys } from '../team/queries'
@@ -27,6 +28,7 @@ function render(routes: Record<string, MockRoute | ((request: Request) => MockRo
   const fetchSpy = mockApi({
     'GET /api/me': { body: adminMe },
     'GET /api/organization': { body: organizationSettings(), headers: etag(3) },
+    'GET /api/tickets/metrics': { body: metrics },
     ...routes,
   })
   const { queryClient } = renderWithProviders(<OrganizationTab />)
@@ -156,6 +158,72 @@ describe('OrganizationTab', () => {
     expect(zone).toHaveAccessibleDescription(/Zona horaria no reconocida/)
   })
 
+  it('la barra de guardar dice qué campos cambiaron y nombra todos', async () => {
+    render()
+    expect(screen.queryByText(/Tienes cambios sin guardar/)).not.toBeInTheDocument()
+    await screen.findByRole('textbox', { name: 'Nombre del espacio' })
+    expect(screen.getByText('Sin cambios.')).toBeInTheDocument()
+    await userEvent.type(await field('Nombre del espacio'), ' SL')
+    expect(screen.getByText('Tienes cambios sin guardar en «Nombre del espacio».')).toBeInTheDocument()
+    await userEvent.type(await field('Correo de soporte'), 'x')
+    await userEvent.selectOptions(await field('Zona horaria'), 'Europe/Madrid')
+    expect(
+      screen.getByText('Tienes cambios sin guardar en «Nombre del espacio», «Correo de soporte» y «Zona horaria».'),
+    ).toBeInTheDocument()
+  })
+
+  it('«Descartar» devuelve los valores del servidor, limpia los errores y deja el foco en el primer campo cambiado', async () => {
+    const { fetchSpy } = render()
+    const name = await field('Nombre del espacio')
+    await userEvent.clear(name)
+    await userEvent.click(save())
+    expect(screen.getByText('Escribe el nombre del espacio.')).toBeInTheDocument()
+    await userEvent.type(await field('Objetivo de primera respuesta'), '0')
+    await userEvent.click(screen.getByRole('button', { name: 'Descartar' }))
+    expect(name).toHaveValue('Acme Studio')
+    expect(await field('Objetivo de primera respuesta')).toHaveValue('30')
+    expect(screen.queryByText('Escribe el nombre del espacio.')).not.toBeInTheDocument()
+    expect(name).toHaveFocus()
+    expect(screen.getByText('Sin cambios.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Descartar' })).toBeDisabled()
+    expect(requests(fetchSpy, 'PATCH')).toHaveLength(0)
+  })
+
+  it('«Descartar» también retira el aviso de un 412', async () => {
+    render({ 'PATCH /api/organization': problem(412) })
+    const name = await field('Nombre del espacio')
+    await userEvent.type(name, ' SL')
+    await userEvent.click(save())
+    expect(await screen.findByText('Los ajustes cambiaron mientras los editabas')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Descartar' }))
+    expect(screen.queryByText('Los ajustes cambiaron mientras los editabas')).not.toBeInTheDocument()
+  })
+
+  it('muestra la zona con su ciudad y su desfase', async () => {
+    render()
+    const zone = await field('Zona horaria')
+    expect(within(zone).getByRole('option', { name: 'Bogotá (GMT−5)' })).toBeInTheDocument()
+    expect(within(zone).getByRole('option', { name: 'Ciudad de México (GMT−6)' })).toBeInTheDocument()
+  })
+
+  it('junto al objetivo dice cuánto se tarda ahora, con la mediana real', async () => {
+    render({ 'GET /api/tickets/metrics': { body: { ...metrics, firstResponseMinutes: 42 } } })
+    const target = await field('Objetivo de primera respuesta')
+    expect(await screen.findByText('Ahora respondes en 42 min.')).toBeInTheDocument()
+    expect(target).toHaveAccessibleDescription(/Ahora respondes en 42 min\./)
+  })
+
+  it('sin respuestas todavía lo dice con palabras', async () => {
+    render({ 'GET /api/tickets/metrics': { body: { ...metrics, firstResponseMinutes: null } } })
+    expect(await screen.findByText('Todavía no hay respuestas de la última semana.')).toBeInTheDocument()
+  })
+
+  it('si las métricas fallan, el formulario sigue sin esa línea', async () => {
+    render({ 'GET /api/tickets/metrics': { status: 500, body: { status: 500, title: 'Error' } } })
+    expect(await field('Nombre del espacio')).toHaveValue('Acme Studio')
+    expect(screen.queryByText(/Ahora respondes/)).not.toBeInTheDocument()
+  })
+
   it('tras un 412 conserva lo escrito, carga la versión nueva y nombra lo que cambió', async () => {
     let version = 3
     const { fetchSpy } = render({
@@ -189,7 +257,7 @@ describe('OrganizationTab', () => {
     expect(await retry.clone().json()).toEqual({ name: 'Acme Studio SL' })
   })
 
-  it('al guardar actualiza ajustes y sesión, invalida lo que depende de la zona y del objetivo y enfoca el título', async () => {
+  it('al guardar actualiza ajustes y sesión, invalida lo que depende de la zona y del objetivo y enfoca el primer bloque', async () => {
     const { queryClient } = render({
       'PATCH /api/organization': {
         body: organizationSettings({ name: 'Acme Studio SL', timeZone: 'Europe/Madrid', version: 4 }),
@@ -214,7 +282,8 @@ describe('OrganizationTab', () => {
       expect(queryClient.getQueryState([...key, 'seed'])?.isInvalidated, key.join('/')).toBe(true)
     }
     expect(save()).toBeDisabled()
-    expect(screen.getByRole('heading', { name: 'Empresa' })).toHaveFocus()
+    // La barra de guardar queda deshabilitada: el foco va al primer bloque del formulario, no a `body`.
+    expect(screen.getByRole('heading', { name: 'Identidad' })).toHaveFocus()
   })
 
   it('ignora un segundo envío mientras hay uno en curso y marca el formulario como ocupado', async () => {
@@ -280,8 +349,10 @@ describe('OrganizationTab', () => {
       const { fetchSpy } = render({ 'GET /api/me': { body: agentMe } })
       const facts = (await screen.findByText('Acme Studio')).closest('dl')!
       expect(within(facts).getByText('Acme Studio')).toBeInTheDocument()
-      expect(within(facts).getByText('30 min')).toBeInTheDocument()
-      expect(within(facts).getByText('America/Bogota')).toBeInTheDocument()
+      expect(screen.getByText('Bogotá (GMT−5)')).toBeInTheDocument()
+      expect(screen.getByText('30 minutos')).toBeInTheDocument()
+      expect(screen.getByText('Ahora respondes en 18 min.')).toBeInTheDocument()
+      expect(screen.getByText('Solo un administrador puede cambiar los datos de la empresa.')).toBeInTheDocument()
       expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
       expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Guardar cambios' })).not.toBeInTheDocument()
