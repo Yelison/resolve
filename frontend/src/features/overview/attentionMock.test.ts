@@ -22,6 +22,13 @@ describe('mock de «Necesitan atención»', () => {
     expect(result.open).toBe(3)
   })
 
+  it('una nota interna al final del #1047 no oculta que el cliente escribió el último mensaje público', () => {
+    // La conversación del #1047 termina en una nota de Daniel: sigue siendo «el cliente respondió», no «alta».
+    const item = list('team').items.find((candidate) => candidate.ticket.number === 1047)!
+    expect(item.reason.kind).toBe('customer_replied')
+    expect(item.reason.excerpt).toBe('El cargo aparece rechazado aunque el banco dice que está aprobado.')
+  })
+
   it('solo «el cliente respondió» lleva extracto, con el último mensaje público del cliente', () => {
     const excerpts = list('team').items.map((item) => item.reason.excerpt)
     expect(excerpts).toEqual([null, null, 'El cargo aparece rechazado aunque el banco dice que está aprobado.'])

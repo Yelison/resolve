@@ -125,7 +125,10 @@ const detail = (summary: TicketSummary): Ticket => ({
   version: 2,
 })
 
-/** Conversación de cada ticket. El #1048 termina en una nota interna: un cliente no debe verla como último mensaje. */
+/**
+ * Conversación de cada ticket. El #1048 y el #1047 terminan en una nota interna: un cliente no debe verla como último
+ * mensaje, y para el personal no oculta lo que el cliente escribió.
+ */
 const conversations: Record<number, Message[]> = {
   1048: [
     {
@@ -150,6 +153,14 @@ const conversations: Record<number, Message[]> = {
       visibility: 'public',
       author: { id: customers[1]!.id, name: customers[1]!.name, kind: 'customer' },
       createdAt: minutesAgo(12),
+    },
+    // Una nota interna al final: no es una respuesta, y el ticket sigue necesitando atención («El cliente respondió»).
+    {
+      id: 'm-4',
+      body: 'Lo estoy revisando con el banco.',
+      visibility: 'internal',
+      author: { id: daniel.id, name: daniel.name, kind: 'agent' },
+      createdAt: minutesAgo(5),
     },
   ],
 }

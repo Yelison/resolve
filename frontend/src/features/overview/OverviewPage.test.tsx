@@ -476,10 +476,17 @@ describe('OverviewPage · necesitan atención', () => {
     // «Sin asignar» era su único motivo: con responsable, el servidor ya no lo devuelve.
     const unassigned = attentionItem(1046, 'unassigned', { assignee: null, subject: 'Cambiar correo de facturación' })
     let assigned = false
+    // La lista nueva se retiene: el foco llega primero al enlace del ticket y solo después desaparece la fila.
+    let release: () => void = () => {}
+    const gate = new Promise<void>((resolve) => (release = resolve))
     mockApi({
       ...baseRoutes,
       'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
-      'GET /api/tickets/attention': () => ({ body: assigned ? attentionList([], 1) : attentionList([unassigned], 1) }),
+      'GET /api/tickets/attention': async () => {
+        if (!assigned) return { body: attentionList([unassigned], 1) }
+        await gate
+        return { body: attentionList([], 1) }
+      },
       'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7, assignee: null }) },
       'PATCH /api/tickets/1046': () => {
         assigned = true
@@ -489,6 +496,8 @@ describe('OverviewPage · necesitan atención', () => {
     renderOverview()
     await userEvent.click(await screen.findByRole('button', { name: /Asignármelo/ }))
     expect(await screen.findByText('Te asignaste el ticket #1046')).toBeInTheDocument()
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: /#1046 Cambiar correo/ })).toHaveFocus())
+    release()
     expect(await screen.findByText('Nada urgente por ahora')).toBeInTheDocument()
     await vi.waitFor(() => expect(screen.getByRole('region', { name: 'Necesitan atención' })).toHaveFocus())
   })
