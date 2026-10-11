@@ -53,8 +53,8 @@ test.describe('clientes', () => {
 
   test('el filtro de empresa de la URL no distingue mayúsculas, como el servidor', async ({ page }) => {
     await page.goto('/clientes?company=northSTAR')
-    await expect(page.getByRole('heading', { level: 2 })).toHaveText(['Northstar'])
-    await expect(page.getByRole('link', { name: /Carlos Ruiz/ })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Carlos Ruiz' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'María Pérez' })).toHaveCount(0)
   })
 
   test('«Nuevo cliente» abre el diálogo sobre la lista y Escape devuelve el foco con los filtros', async ({ page }) => {
