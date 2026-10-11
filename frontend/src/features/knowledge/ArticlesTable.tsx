@@ -7,7 +7,7 @@ import styles from './ArticlesTable.module.css'
 
 export interface ArticlesTableProps {
   articles: ArticleSummary[]
-  /** Texto visible bajo la tabla, p. ej. «Mostrando 4 resultados». */
+  /** Texto bajo la tabla que la describe, p. ej. «Mostrando 4 resultados»; con `captionHidden` solo lo oyen los lectores de pantalla. */
   caption: string
   /** Con paginación debajo, la leyenda solo queda para los lectores de pantalla (ver `Table`). */
   captionHidden?: boolean

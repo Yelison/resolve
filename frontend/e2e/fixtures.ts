@@ -1,4 +1,4 @@
-import { test as base, type Page } from '@playwright/test'
+import { expect, test as base, type Page } from '@playwright/test'
 import type { Me } from '../src/api/schema'
 import { createMockFeatures, dispatchMock } from './mocks/api'
 import type { ArticleStore } from './mocks/knowledge'
@@ -48,8 +48,6 @@ export const test = base.extend({
   },
 })
 
-import { expect } from '@playwright/test'
-
 export { expect }
 
 /**
@@ -61,5 +59,5 @@ export async function expectSingleVisibleCount(page: Page) {
   await expect(caption).toHaveCount(1)
   const box = await caption.boundingBox()
   expect(box === null || box.width <= 1).toBe(true)
-  await expect(page.getByText(/^\d+–\d+ de \d+ resultados$/)).toBeVisible()
+  await expect(page.getByText(/^\d+–\d+ de \d+ resultados?$/)).toBeVisible()
 }

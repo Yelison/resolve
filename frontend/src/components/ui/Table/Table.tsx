@@ -10,7 +10,8 @@ export interface TableProps {
   /**
    * Oculta la leyenda a la vista y la deja para los lectores de pantalla. Regla única: la tabla siempre se describe con
    * `caption`, y el recuento solo se ve una vez. Con `Pagination` debajo, que ya muestra «1–3 de 3 resultados», se
-   * pasa `captionHidden`; sin paginación (equipo, reportes, matriz de permisos) la leyenda es el recuento visible.
+   * pasa `captionHidden`; sin paginación (equipo, reportes) la leyenda es el recuento visible. La matriz de permisos no usa `Table`,
+   * pero aplica la misma regla con su propio marcado.
    */
   captionHidden?: boolean
   /** Texto solo para lectores de pantalla de la última columna, la de acciones (p. ej. «Acciones»). */

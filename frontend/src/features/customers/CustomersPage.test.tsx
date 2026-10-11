@@ -84,7 +84,7 @@ describe('CustomersPage', () => {
     // El recuento visible es el de `Pagination`; la leyenda de la tabla solo la describe para lectores de pantalla.
     expect(table).toHaveAccessibleDescription('Mostrando 1 resultado')
     expect(screen.getByText('Mostrando 1 resultado')).toHaveClass('visually-hidden')
-    expect(screen.getByText('1–1 de 1 resultados')).not.toHaveClass('visually-hidden')
+    expect(screen.getByText('1–1 de 1 resultado')).not.toHaveClass('visually-hidden')
     expect(screen.getByRole('link', { name: /Nuevo cliente/ })).toHaveAttribute('href', '/clientes/nuevo')
     expect(screen.queryByText(/Archivar/)).not.toBeInTheDocument()
   })

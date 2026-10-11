@@ -27,7 +27,7 @@ export function Pagination({ page: requestedPage, pageSize, total, onPageChange,
   return (
     <nav aria-label="Paginación" className={cx(styles.pagination, className)}>
       <p className={styles.summary}>
-        {first}–{last} de {formatNumber(total)} resultados
+        {first}–{last} de {formatNumber(total)} {total === 1 ? 'resultado' : 'resultados'}
       </p>
       {pageCount > 1 && (
         <ul className={styles.pages}>

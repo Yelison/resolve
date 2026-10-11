@@ -15,7 +15,7 @@ import styles from './CustomersTable.module.css'
 
 export interface CustomersTableProps {
   customers: CustomerSummary[]
-  /** Texto visible bajo la tabla, p. ej. «Mostrando 5 resultados». */
+  /** Texto bajo la tabla que la describe, p. ej. «Mostrando 5 resultados»; con `captionHidden` solo lo oyen los lectores de pantalla. */
   caption: string
   /** Con paginación debajo, la leyenda solo queda para los lectores de pantalla (ver `Table`). */
   captionHidden?: boolean

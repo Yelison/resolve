@@ -48,6 +48,11 @@ describe('Pagination', () => {
     expect(screen.getByRole('button', { name: 'Página 5' })).toHaveAttribute('aria-current', 'page')
   })
 
+  it('concuerda «resultado» en singular con un solo resultado', () => {
+    render(<Pagination page={1} pageSize={10} total={1} onPageChange={() => {}} />)
+    expect(screen.getByText('1–1 de 1 resultado')).toBeInTheDocument()
+  })
+
   it('omite los botones cuando todo cabe en una página', () => {
     render(<Pagination page={1} pageSize={10} total={3} onPageChange={() => {}} />)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
