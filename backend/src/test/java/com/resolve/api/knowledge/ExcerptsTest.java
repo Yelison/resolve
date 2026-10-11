@@ -76,6 +76,49 @@ class ExcerptsTest {
 	}
 
 	@Test
+	void htmlSpreadOverSeveralLinesIsStrippedToo() {
+		for (String body : new String[] { "Hola <img src=x\nonerror=alert(1)> fin", "<a\nhref=\"javascript:alert(1)\">clic</a> texto",
+				"Antes <!-- nota\nmultilínea --> después" }) {
+			assertThat(Excerpts.of(body)).as(body).doesNotContain("<").doesNotContain(">");
+		}
+		assertThat(Excerpts.of("Hola <img src=x\nonerror=alert(1)> fin")).isEqualTo("Hola fin");
+		assertThat(Excerpts.of("<a\nhref=\"javascript:alert(1)\">clic</a> texto")).isEqualTo("clic texto");
+		assertThat(Excerpts.of("Antes <!-- nota\nmultilínea --> después")).isEqualTo("Antes después");
+	}
+
+	@Test
+	void anUnclosedTagOrCommentLeavesNoMarkupBehind() {
+		assertThat(Excerpts.of("Texto <img src=x onerror=alert(1)")).doesNotContain("<");
+		assertThat(Excerpts.of("Texto </div y <b")).doesNotContain("<");
+		assertThat(Excerpts.of("Texto <!-- sin cerrar")).doesNotContain("<b").startsWith("Texto");
+	}
+
+	@Test
+	void entitiesAreDecodedWithoutReintroducingMarkup() {
+		assertThat(Excerpts.of("Tom &amp; Jerry &quot;juntos&quot; &#39;hoy&#39;")).isEqualTo("Tom & Jerry \"juntos\" 'hoy'");
+		assertThat(Excerpts.of("&lt;script&gt;alert(1)&lt;/script&gt; fin")).doesNotContain("<").doesNotContain(">");
+		assertThat(Excerpts.of("&amp;lt;b&amp;gt;")).isEqualTo("&lt;b&gt;");
+	}
+
+	@Test
+	void autolinksKeepTheirTextInsteadOfBeingTreatedAsTags() {
+		assertThat(Excerpts.of("Visita <https://resolve.app> o escribe a <ayuda@resolve.app> para más."))
+			.isEqualTo("Visita https://resolve.app o escribe a ayuda@resolve.app para más.");
+		assertThat(Excerpts.of("Mira <mailto:ayuda@resolve.app>.")).isEqualTo("Mira mailto:ayuda@resolve.app.");
+	}
+
+	@Test
+	void setextUnderlinesAreDropped() {
+		assertThat(Excerpts.of("Título\n======\nCuerpo")).isEqualTo("Título Cuerpo");
+	}
+
+	@Test
+	void aLoneAsteriskIsKeptButEmphasisIsStripped() {
+		assertThat(Excerpts.of("2 * 3 = 6")).isEqualTo("2 * 3 = 6");
+		assertThat(Excerpts.of("**negrita** y *cursiva*")).isEqualTo("negrita y cursiva");
+	}
+
+	@Test
 	void aShortBodyIsNotCutAndOneOfExactlyTheLimitIsNotEllipsized() {
 		String exact = "a".repeat(Excerpts.MAX_LENGTH);
 
@@ -85,12 +128,12 @@ class ExcerptsTest {
 
 	@Test
 	void aLongBodyIsCutAtAWordBoundaryWithinTheLimitCountingTheEllipsis() {
-		String body = "palabra ".repeat(500);
+		// El período de «palabras » (9) hace que el índice 159 caiga a mitad de palabra: hay que retroceder al espacio.
+		String excerpt = Excerpts.of("palabras ".repeat(500));
 
-		String excerpt = Excerpts.of(body);
-
-		assertThat(excerpt).endsWith("palabra…").hasSizeLessThanOrEqualTo(Excerpts.MAX_LENGTH);
-		assertThat(excerpt.substring(0, excerpt.length() - 1).split(" ")).allMatch("palabra"::equals);
+		assertThat(excerpt).endsWith("palabras…").hasSizeLessThanOrEqualTo(Excerpts.MAX_LENGTH);
+		assertThat(excerpt.substring(0, excerpt.length() - 1).split(" ")).allMatch("palabras"::equals);
+		assertThat(excerpt.length()).isLessThan(Excerpts.MAX_LENGTH - 1);
 	}
 
 	@Test

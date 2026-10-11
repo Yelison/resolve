@@ -1604,9 +1604,9 @@ export interface components {
         };
         /**
          * @description An article with its Markdown body: every field of ArticleSummary except `excerpt` (the body itself is here)
-         *     plus `body`, `allowFeedback`, `version`, `createdBy` and `updatedBy`. It is written out in full instead of composing ArticleSummary with `allOf`
-         *     (see the contract modelling notes in README.md). The body is plain Markdown text: the API neither renders
-         *     nor sanitizes it, so clients must never insert it as HTML.
+         *     plus `body`, `allowFeedback`, `version`, `createdBy` and `updatedBy`. It is written out in full instead of
+         *     composing ArticleSummary with `allOf` (see the contract modelling notes in README.md). The body is plain
+         *     Markdown text: the API neither renders nor sanitizes it, so clients must never insert it as HTML.
          */
         Article: {
             /** Format: uuid */

@@ -24,7 +24,21 @@ final class Excerpts {
 
 	private static final Pattern REFERENCE_LINK = Pattern.compile("!?\\[([^\\[\\]]*)]\\[[^\\[\\]]*]");
 
-	private static final Pattern HTML = Pattern.compile("</?[A-Za-z][^<>]*>|<!--[^<>]*-->");
+	/** Una etiqueta HTML; con `[^<>]*` no retrocede y puede ocupar varias líneas porque se aplica al texto ya unido. */
+	private static final Pattern TAG = Pattern.compile("</?[A-Za-z][^<>]*>");
+
+	/** Salvaguarda: un {@code <} seguido de letra o barra que sobreviva (etiqueta sin cerrar, texto cortado). */
+	private static final Pattern STRAY_TAG_START = Pattern.compile("<(?=[A-Za-z/])");
+
+	/** Autoenlaces {@code <https://…>}, {@code <mailto:…>} y {@code <correo@dominio>}: se conserva su contenido. */
+	private static final Pattern AUTOLINK = Pattern
+		.compile("<((?:https?://|mailto:)[^<>\\s]+|[^<>\\s@]+@[^<>\\s]+)>");
+
+	/** Énfasis con asteriscos: pegados a texto por un lado, no un {@code *} suelto como en «2 * 3». */
+	private static final Pattern STAR_EMPHASIS = Pattern.compile("\\*+(?=\\S)|(?<=\\S)\\*+");
+
+	/** Subrayado de un encabezado setext. */
+	private static final Pattern SETEXT_UNDERLINE = Pattern.compile("^=+\\s*$");
 
 	private static final Pattern LIST_MARKER = Pattern.compile("^(?:[-*+]|\\d{1,9}[.)])\\s+(?:\\[[ xX]]\\s+)?");
 
@@ -81,7 +95,33 @@ final class Excerpts {
 				break;
 			}
 		}
-		return truncate(WHITESPACE.matcher(text).replaceAll(" ").strip());
+		return truncate(WHITESPACE.matcher(plain(text.toString())).replaceAll(" ").strip());
+	}
+
+	/**
+	 * Quita el HTML del texto ya unido, para que una etiqueta o un comentario repartidos en varias líneas no sobrevivan.
+	 * Las entidades se decodifican antes, de modo que {@code &lt;b&gt;} también acaba como texto sin marcado.
+	 */
+	private static String plain(String joined) {
+		String text = joined.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'");
+		text = text.replace("&amp;", "&");
+		text = TAG.matcher(stripComments(text)).replaceAll(" ");
+		return STRAY_TAG_START.matcher(text).replaceAll("");
+	}
+
+	/** Quita {@code <!-- … -->}, también en varias líneas, con un recorrido lineal; una apertura sin cierre se deja. */
+	private static String stripComments(String text) {
+		StringBuilder kept = new StringBuilder(text.length());
+		int from = 0;
+		while (true) {
+			int open = text.indexOf("<!--", from);
+			int close = (open < 0) ? -1 : text.indexOf("-->", open + 4);
+			if (close < 0) {
+				return kept.append(text, from, text.length()).toString();
+			}
+			kept.append(text, from, open).append(' ');
+			from = close + 3;
+		}
 	}
 
 	private static boolean opensFence(String line) {
@@ -104,7 +144,8 @@ final class Excerpts {
 
 	/** Limpia una línea ya sin sangría: bloques de una línea primero y sintaxis en línea después. */
 	private static String clean(String line) {
-		if (line.isEmpty() || isRule(line) || isTableSeparator(line) || REFERENCE_DEFINITION.matcher(line).matches()) {
+		if (line.isEmpty() || isRule(line) || isTableSeparator(line) || SETEXT_UNDERLINE.matcher(line).matches()
+				|| REFERENCE_DEFINITION.matcher(line).matches()) {
 			return "";
 		}
 		String text = line;
@@ -127,8 +168,12 @@ final class Excerpts {
 		text = text.replace('|', ' ');
 		text = INLINE_LINK.matcher(text).replaceAll("$1");
 		text = REFERENCE_LINK.matcher(text).replaceAll("$1");
-		text = HTML.matcher(text).replaceAll("");
-		text = text.replace("`", "").replace("*", "").replace("~~", "");
+		text = AUTOLINK.matcher(text).replaceAll("$1");
+		// Las etiquetas de una sola línea se quitan ya aquí, para que no cuenten en el límite de lectura; las que ocupan
+		// varias líneas se quitan después, sobre el texto unido.
+		text = TAG.matcher(text).replaceAll(" ");
+		text = text.replace("`", "");
+		text = STAR_EMPHASIS.matcher(text).replaceAll("").replace("~~", "");
 		text = UNDERSCORE_EMPHASIS.matcher(text).replaceAll("");
 		return restoreEscaped(text).strip();
 	}
