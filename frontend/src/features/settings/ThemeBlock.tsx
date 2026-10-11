@@ -1,10 +1,10 @@
 import { useId, type CSSProperties } from 'react'
-import tokens from '@yelison/forma-ui/tokens.json'
 import { Radio } from '../../components/ui'
 import { cx } from '../../lib/cx'
 import { useTheme } from '../../app/theme/useTheme'
 import type { ThemePreference } from '../../app/theme/theme'
 import { SettingsBlock } from './SettingsBlock'
+import { themePalettes } from './themePalettes.generated'
 import styles from './ThemeBlock.module.css'
 
 const options: { value: ThemePreference; label: string }[] = [
@@ -15,7 +15,7 @@ const options: { value: ThemePreference; label: string }[] = [
 
 type Palette = Record<string, string>
 
-/** Los colores de un tema, leídos de los tokens del kit: la miniatura enseña ese tema sea cual sea el activo. */
+/** Los colores de un tema, leídos de `themePalettes` (los del kit que dibujan las miniaturas, sin cargar su `tokens.json` entero): la miniatura enseña ese tema sea cual sea el activo. */
 const paletteStyle = (palette: Palette): CSSProperties =>
   ({
     '--thumb-nav': palette['--color-nav'],
@@ -30,13 +30,13 @@ function Thumbnail({ value }: { value: ThemePreference }) {
   if (value === 'system') {
     return (
       <span className={styles.thumb} aria-hidden="true">
-        <span className={styles.half} style={paletteStyle(tokens.light)} />
-        <span className={styles.half} style={paletteStyle(tokens.dark)} />
+        <span className={styles.half} style={paletteStyle(themePalettes.light)} />
+        <span className={styles.half} style={paletteStyle(themePalettes.dark)} />
       </span>
     )
   }
   return (
-    <span className={cx(styles.thumb, styles.themed)} style={paletteStyle(tokens[value])} aria-hidden="true">
+    <span className={cx(styles.thumb, styles.themed)} style={paletteStyle(themePalettes[value])} aria-hidden="true">
       <span className={styles.nav} />
       <span className={styles.page}>
         <span className={styles.title} />
