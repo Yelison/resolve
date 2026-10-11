@@ -141,6 +141,21 @@ class TicketMetricsApiTest extends TicketsFixture {
 	}
 
 	@Test
+	void onlyAnAssigneeChangeRestartsTheCountNotOtherActivity() throws Exception {
+		this.clock.set(Instant.parse("2026-10-04T01:00:00Z"));
+		createTicket(LAURA, this.mariaCustomer, "Sin responsable desde hace 12 h", "low", null); // 1
+		// Un cambio de prioridad y otro de estado recientes no son una asignación: el ticket sigue sin responsable.
+		this.clock.set(Instant.parse("2026-10-04T11:00:00Z"));
+		patchTicket(LAURA, 1, 0, "{\"priority\": \"high\"}");
+		patchTicket(LAURA, 1, 1, "{\"status\": \"waiting\"}");
+		this.clock.set(Instant.parse("2026-10-04T13:00:00Z"));
+
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
+			.andExpect(jsonPath("$.views.unassigned").value(1))
+			.andExpect(jsonPath("$.unassignedOver4Hours").value(1));
+	}
+
+	@Test
 	void unassignedTicketsOfAnotherOrganizationAreNotCounted() throws Exception {
 		this.clock.set(Instant.parse("2026-10-04T01:00:00Z"));
 		createNorthwindTicket();
