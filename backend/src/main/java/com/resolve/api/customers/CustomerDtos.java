@@ -11,15 +11,15 @@ public final class CustomerDtos {
 	private CustomerDtos() {
 	}
 
-	/** Fila de las listas, con los recuentos de tickets del cliente. */
+	/** Fila de las listas, con los recuentos de tickets del cliente y su ticket más reciente ({@code null} sin tickets). */
 	public record CustomerSummaryDto(UUID id, String name, String email, @Nullable String company, long openTickets,
-			long totalTickets, Instant createdAt, boolean archived) {
+			long totalTickets, Instant createdAt, boolean archived, @Nullable LastTicket lastTicket) {
 
 		static CustomerSummaryDto from(CustomerRow row) {
 			Customer customer = row.customer();
 			return new CustomerSummaryDto(customer.getId(), customer.getName(), customer.getEmail(),
 					customer.getCompany(), row.openTickets(), row.totalTickets(), customer.getCreatedAt(),
-					customer.getArchivedAt() != null);
+					customer.getArchivedAt() != null, row.lastTicket());
 		}
 
 	}

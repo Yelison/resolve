@@ -1543,7 +1543,7 @@ components:
       description: A customer in lists, with its ticket counts. `Customer` is the reference embedded in tickets.
       type: object
       additionalProperties: false
-      required: [id, name, email, company, openTickets, totalTickets, createdAt, archived]
+      required: [id, name, email, company, openTickets, totalTickets, createdAt, archived, lastTicket]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1556,11 +1556,29 @@ components:
         totalTickets: { type: integer, minimum: 0 }
         createdAt: { type: string, format: date-time }
         archived: { type: boolean }
+        lastTicket:
+          description: |
+            The customer's most recent ticket by `updatedAt` (the highest `number` breaks a tie), whatever its status;
+            `null` when the customer has no tickets.
+          oneOf:
+            - $ref: '#/components/schemas/CustomerLastTicket'
+            - type: 'null'
+
+    CustomerLastTicket:
+      description: The ticket a customer was last in touch about, as the customers list shows it.
+      type: object
+      additionalProperties: false
+      required: [number, subject, status, updatedAt]
+      properties:
+        number: { type: integer, format: int64, minimum: 1 }
+        subject: { type: string }
+        status: { $ref: '#/components/schemas/TicketStatus' }
+        updatedAt: { type: string, format: date-time }
 
     CustomerDetail:
       description: |
-        A customer with its profile: every field of CustomerSummary plus `notes`, `archivedAt`, `version` and
-        `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
+        A customer with its profile: every field of CustomerSummary except `lastTicket` (only the list needs it) plus
+        `notes`, `archivedAt`, `version` and `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
         `additionalProperties: false` on each `allOf` branch makes a JSON Schema validator reject the fields of
         the other branch.
       type: object

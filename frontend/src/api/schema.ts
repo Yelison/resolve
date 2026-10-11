@@ -915,10 +915,24 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             archived: boolean;
+            /**
+             * @description The customer's most recent ticket by `updatedAt` (the highest `number` breaks a tie), whatever its status;
+             *     `null` when the customer has no tickets.
+             */
+            lastTicket: components["schemas"]["CustomerLastTicket"] | null;
+        };
+        /** @description The ticket a customer was last in touch about, as the customers list shows it. */
+        CustomerLastTicket: {
+            /** Format: int64 */
+            number: number;
+            subject: string;
+            status: components["schemas"]["TicketStatus"];
+            /** Format: date-time */
+            updatedAt: string;
         };
         /**
-         * @description A customer with its profile: every field of CustomerSummary plus `notes`, `archivedAt`, `version` and
-         *     `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
+         * @description A customer with its profile: every field of CustomerSummary except `lastTicket` (only the list needs it) plus
+         *     `notes`, `archivedAt`, `version` and `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
          *     `additionalProperties: false` on each `allOf` branch makes a JSON Schema validator reject the fields of
          *     the other branch.
          */
@@ -1838,6 +1852,7 @@ export type MemberRoleChange = components['schemas']['MemberRoleChange'];
 export type TeamMetrics = components['schemas']['TeamMetrics'];
 export type Customer = components['schemas']['Customer'];
 export type CustomerSummary = components['schemas']['CustomerSummary'];
+export type CustomerLastTicket = components['schemas']['CustomerLastTicket'];
 export type CustomerDetail = components['schemas']['CustomerDetail'];
 export type CustomerCreate = components['schemas']['CustomerCreate'];
 export type CustomerPatch = components['schemas']['CustomerPatch'];
