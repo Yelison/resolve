@@ -1,6 +1,7 @@
 package com.resolve.api.tickets;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import com.resolve.api.common.persistence.WireEnum;
@@ -29,6 +30,30 @@ final class TicketDtos {
 					ticket.getCreatedAt(), ticket.getUpdatedAt());
 		}
 
+	}
+
+	/** El ticket de una entrada de «Necesitan atención»: lo que necesita su fila, sin la conversación. */
+	record AttentionTicketDto(UUID id, long number, String subject, TicketStatus status, TicketPriority priority,
+			CustomerDto customer, @Nullable MemberRefDto assignee, Instant updatedAt) {
+
+		static AttentionTicketDto from(Ticket ticket) {
+			return new AttentionTicketDto(ticket.getId(), ticket.getNumber(), ticket.getSubject(), ticket.getStatus(),
+					ticket.getPriority(), CustomerDto.from(ticket.getCustomer()),
+					(ticket.getAssignee() != null) ? MemberRefDto.from(ticket.getAssignee()) : null,
+					ticket.getUpdatedAt());
+		}
+
+	}
+
+	/** Motivo de una entrada: {@code since} es desde cuándo y {@code excerpt}, solo en «customer_replied». */
+	record AttentionReasonDto(AttentionReason kind, Instant since, @Nullable String excerpt) {
+	}
+
+	record AttentionItemDto(AttentionTicketDto ticket, AttentionReasonDto reason) {
+	}
+
+	/** {@code total}: con motivo en el alcance; {@code open}: sin resolver en el alcance, con o sin motivo. */
+	record AttentionListDto(List<AttentionItemDto> items, int total, int open) {
 	}
 
 	record TicketDto(UUID id, long number, String subject, TicketStatus status, TicketPriority priority,

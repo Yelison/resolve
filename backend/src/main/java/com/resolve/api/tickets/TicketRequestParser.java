@@ -81,6 +81,35 @@ final class TicketRequestParser {
 		return new TicketFilters(parsedView, parsedStatuses, parsedPriorities, assignee, customer, number, text);
 	}
 
+	static final int ATTENTION_DEFAULT_SIZE = 6;
+
+	static final int ATTENTION_MAX_SIZE = 50;
+
+	/** Qué se pide a «Necesitan atención»: el alcance (obligatorio) y cuántos tickets devolver. */
+	record AttentionRequest(AttentionScope scope, int size) {
+	}
+
+	/** Un {@code size} ausente o en blanco es el tamaño por defecto; cualquier otro, un entero entre 1 y 50. */
+	static AttentionRequest attention(@Nullable String scope, @Nullable String size) {
+		TicketRequestParser parser = new TicketRequestParser();
+		AttentionScope parsedScope = (scope == null || scope.isBlank()) ? parser.invalid("scope", REQUIRED)
+				: parser.enumValue("scope", scope.trim(), AttentionScope.class).orElse(null);
+		int parsedSize = ATTENTION_DEFAULT_SIZE;
+		if (size != null && !size.isBlank()) {
+			try {
+				parsedSize = Integer.parseInt(size.trim());
+			}
+			catch (NumberFormatException exception) {
+				parsedSize = 0;
+			}
+			if (parsedSize < 1 || parsedSize > ATTENTION_MAX_SIZE) {
+				parser.error("size", "Debe ser un número entero entre 1 y " + ATTENTION_MAX_SIZE + ".");
+			}
+		}
+		parser.throwIfInvalid();
+		return new AttentionRequest(parsedScope, parsedSize);
+	}
+
 	/** Número de ticket de la ruta: entero positivo. */
 	static long ticketNumber(String value) {
 		try {

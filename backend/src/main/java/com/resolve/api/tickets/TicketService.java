@@ -2,6 +2,7 @@ package com.resolve.api.tickets;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -25,6 +26,10 @@ import com.resolve.api.memberships.MembershipRepository;
 import com.resolve.api.memberships.UserAccount;
 import com.resolve.api.memberships.UserAccountRepository;
 import com.resolve.api.tickets.TicketDtos.ActivityDto;
+import com.resolve.api.tickets.TicketDtos.AttentionItemDto;
+import com.resolve.api.tickets.TicketDtos.AttentionListDto;
+import com.resolve.api.tickets.TicketDtos.AttentionReasonDto;
+import com.resolve.api.tickets.TicketDtos.AttentionTicketDto;
 import com.resolve.api.tickets.TicketDtos.LastMessageDto;
 import com.resolve.api.tickets.TicketDtos.MessageAuthorDto;
 import com.resolve.api.tickets.TicketDtos.MessageDto;
@@ -66,6 +71,8 @@ class TicketService implements AssignedTicketReleaser {
 
 	private final TicketLastMessages lastMessages;
 
+	private final TicketAttentionQuery attention;
+
 	private final Clock clock;
 
 	private final ObjectProvider<TicketUpdateHook> updateHook;
@@ -74,7 +81,7 @@ class TicketService implements AssignedTicketReleaser {
 
 	TicketService(TicketRepository tickets, TicketMessageRepository messages, TicketActivityRepository activities,
 			CustomerRepository customers, MembershipRepository memberships, UserAccountRepository users,
-			TicketMetricsQuery metrics, TicketLastMessages lastMessages, Clock clock,
+			TicketMetricsQuery metrics, TicketLastMessages lastMessages, TicketAttentionQuery attention, Clock clock,
 			ObjectProvider<TicketUpdateHook> updateHook, DemoLimits demoLimits) {
 		this.tickets = tickets;
 		this.messages = messages;
@@ -84,6 +91,7 @@ class TicketService implements AssignedTicketReleaser {
 		this.users = users;
 		this.metrics = metrics;
 		this.lastMessages = lastMessages;
+		this.attention = attention;
 		this.clock = clock;
 		this.updateHook = updateHook;
 		this.demoLimits = demoLimits;
@@ -101,6 +109,30 @@ class TicketService implements AssignedTicketReleaser {
 	@Transactional(readOnly = true)
 	TicketMetrics metrics(CurrentMember member) {
 		return this.metrics.compute(member);
+	}
+
+	/**
+	 * Los tickets que necesitan atención en el alcance pedido, con su motivo y los recuentos. Solo personal: el
+	 * controlador ya lo comprobó. Son tres consultas acotadas (los motivos y la página, los tickets de la página y no
+	 * más) y ninguna por ticket.
+	 */
+	@Transactional(readOnly = true)
+	AttentionListDto attention(CurrentMember member, AttentionScope scope, int size) {
+		TicketAttentionQuery.Result found = this.attention.find(member.organizationId(), member.userId(), scope, size,
+				this.clock.instant());
+		Map<UUID, Ticket> tickets = new HashMap<>();
+		if (!found.entries().isEmpty()) {
+			this.tickets.findAllInOrganization(member.organizationId(),
+					found.entries().stream().map(TicketAttentionQuery.Entry::ticketId).toList())
+				.forEach((ticket) -> tickets.put(ticket.getId(), ticket));
+		}
+		List<AttentionItemDto> items = found.entries()
+			.stream()
+			.filter((entry) -> tickets.containsKey(entry.ticketId()))
+			.map((entry) -> new AttentionItemDto(AttentionTicketDto.from(tickets.get(entry.ticketId())),
+					new AttentionReasonDto(entry.reason(), entry.since(), entry.excerpt())))
+			.toList();
+		return new AttentionListDto(items, found.total(), found.open());
 	}
 
 	@Transactional(readOnly = true)
