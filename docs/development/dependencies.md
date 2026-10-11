@@ -7,7 +7,7 @@ are merged. The owner decided it; the decision and how each of the extraction cr
 
 ## Pinned to an exact version
 
-`frontend/package.json` lists `"@yelison/forma-ui": "0.1.0"`, with no `^` or `~`. The package is below 1.0, so a minor
+`frontend/package.json` lists `"@yelison/forma-ui": "0.2.0"`, with no `^` or `~`. The package is below 1.0, so a minor
 release may carry breaking changes (its changelog marks each one **Breaking**): the version Resolve runs stays explicit
 and moves only through a pull request.
 
@@ -60,12 +60,19 @@ has to change something a component sets (for example `.header .toggle` on the s
    application (`e2e/shell.spec.ts` for the sidebar, `e2e/production-bundle.spec.ts` for the search dialog, which fails when a
    Resolve class sets a property that the package sets later).
 
-Today two Resolve classes override a package property, and both follow rule 2:
+Today four Resolve classes override a package property:
 
-- the sidebar's (`.header .toggle…`, on the `IconButton`);
+- the sidebar's (`.header .toggle…`, on the `IconButton`), rule 2;
 - `.periodField` of Reports (`features/reports/ReportsPage.module.css`), which reaches the package's `.forma-field` through the
   `fieldClassName` of `Select` and overrides its `min-width`. It is written as `.toolbar .periodField`, so it wins by
-  specificity and not only by order.
+  specificity and not only by order (rule 2);
+- `.tabs [role='tabpanel']:focus-visible` of the customer detail (`features/customers/CustomerDetailPage.module.css`), which
+  draws the panel's focus ring inwards (`outline-offset: -2px`) because `.tabs` clips it. Three selectors against the
+  package's two, so it wins by specificity (rule 2);
+- `.choice` of the theme options in Settings (`features/settings/forms.module.css`), passed to `Radio`, which raises the row to
+  `--touch-target` (44 px) on desktop, where the package leaves `.forma-shared-choice` at 36 px. Both are one class, so it
+  wins **by order only** (rule 1): `e2e/production-bundle.spec.ts` measures the row in the build (rule 3), and writing it
+  as `.choices .choice` would add rule 2.
 
 `GlobalSearch`'s `.dialog` only defines a custom property of its own, and the other classes that reach a `Select`
 (`.sort`, `.select`) only set `flex`, which the package does not set.

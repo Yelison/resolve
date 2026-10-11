@@ -43,7 +43,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 | Frontend | React 19, TypeScript (strict), Vite 8 |
 | Server state | TanStack Query |
 | Routing | React Router 7 |
-| UI | Forma UI: [`@yelison/forma-ui`](https://www.npmjs.com/package/@yelison/forma-ui) (Button, IconButton, Icon, Badge, Field, Input, Tooltip, Dialog) plus Resolve's own components in `frontend/src/components/ui`, CSS Modules and design tokens |
+| UI | Forma UI: [`@yelison/forma-ui`](https://www.npmjs.com/package/@yelison/forma-ui) (Button, IconButton, Icon, Badge, Field, Input, Tooltip, Dialog, Tabs, Radio) plus Resolve's own components in `frontend/src/components/ui`, CSS Modules and design tokens |
 | Backend | Java 25, Spring Boot 4, Spring Data JPA, Flyway |
 | Database | PostgreSQL 17 |
 | Quality | Vitest + Testing Library, Playwright, oxlint, Prettier, GitHub Actions, Dependabot |
@@ -61,7 +61,7 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 
 ## Forma UI
 
-Forma UI is the component library of this project. Eight of its components (Button, IconButton, Icon, Badge, Field, Input, Tooltip and Modal, which is the package's Dialog) are published as [`@yelison/forma-ui`](https://www.npmjs.com/package/@yelison/forma-ui) and re-exported from `frontend/src/components/ui`; the rest live there, one folder per component, with CSS Modules, design tokens, tests and JSDoc on every prop. The living catalog at `/catalogo` (development server only, not in production or the static demo) shows each one with demo data, and a test fails if an exported component is missing from it. The criteria for extracting it into its own package are in [ADR 0001](docs/decisions/0001-forma-ui-extraction.md), and the adoption of the published package in [ADR 0002](docs/decisions/0002-adopt-forma-ui.md).
+Forma UI is the component library of this project. Ten of its components (Button, IconButton, Icon, Badge, Field, Input, Tooltip, Modal (the package's Dialog), Tabs and Radio) are published as [`@yelison/forma-ui`](https://www.npmjs.com/package/@yelison/forma-ui) and re-exported from `frontend/src/components/ui`; the rest live there, one folder per component, with CSS Modules, design tokens, tests and JSDoc on every prop. The living catalog at `/catalogo` (development server only, not in production or the static demo) shows each one with demo data, and a test fails if an exported component is missing from it. The criteria for extracting it into its own package are in [ADR 0001](docs/decisions/0001-forma-ui-extraction.md), and the adoption of the published package in [ADR 0002](docs/decisions/0002-adopt-forma-ui.md).
 
 - **Actions and feedback:** Alert, Button (and IconButton), Toast, Tooltip, Modal, Menu
 - **Forms:** Input, Textarea, Select, Combobox, SearchField, Checkbox, Radio, Switch, Upload, Editor (ticket and article), Field (shared label, hint and error)
