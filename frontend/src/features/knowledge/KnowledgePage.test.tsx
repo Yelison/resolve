@@ -78,7 +78,7 @@ describe('KnowledgePage', () => {
         const status = new URL(request.url).searchParams.get('status')
         if (status === 'published') return { body: articlePage([articleSummary()], 4) }
         if (status === 'draft') return { body: articlePage([draft], 1) }
-        return { body: articlePage([articleSummary(), draft]) }
+        return { body: articlePage([articleSummary(), draft], 5) }
       },
     })
     renderKnowledge()
@@ -125,6 +125,48 @@ describe('KnowledgePage', () => {
     expect(await screen.findByRole('button', { name: 'Ver los 8 temas' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Nuevo artículo/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Filtrar por estado' })).not.toBeInTheDocument()
+  })
+
+  it('el personal ve cuántas categorías hay junto al título', async () => {
+    mockApi({
+      ...staffRoutes,
+      'GET /api/knowledge/categories': { body: manyCategories },
+      'GET /api/knowledge/articles': { body: articlePage([articleSummary()]) },
+    })
+    renderKnowledge()
+    expect(await screen.findByText('8', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Categorías' })).toBeInTheDocument()
+  })
+
+  it('los recuentos de las píldoras salen de una sola consulta de recuento', async () => {
+    const fetchSpy = mockApi({
+      ...staffRoutes,
+      'GET /api/knowledge/articles': (request) => {
+        const status = new URL(request.url).searchParams.get('status')
+        return { body: articlePage([articleSummary()], status === 'draft' ? 7 : 30) }
+      },
+    })
+    renderKnowledge()
+    expect(await screen.findByRole('button', { name: /Publicados\s*23/ })).toBeInTheDocument()
+    const counts = requestsTo(fetchSpy, '/api/knowledge/articles').filter((url) => url.searchParams.get('size') === '1')
+    expect(counts).toHaveLength(1)
+    expect(counts[0]!.searchParams.get('status')).toBe('draft')
+  })
+
+  it('con el filtro de borradores activo, el recuento extra es el de publicados y el de borradores sale de la lista', async () => {
+    const fetchSpy = mockApi({
+      ...staffRoutes,
+      'GET /api/knowledge/articles': (request) => {
+        const status = new URL(request.url).searchParams.get('status')
+        return { body: articlePage([draft], status === 'published' ? 23 : 7) }
+      },
+    })
+    renderKnowledge('/conocimiento?status=draft')
+    expect(await screen.findByRole('button', { name: /Borradores\s*7/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Publicados\s*23/ })).toBeInTheDocument()
+    const counts = requestsTo(fetchSpy, '/api/knowledge/articles').filter((url) => url.searchParams.get('size') === '1')
+    expect(counts).toHaveLength(1)
+    expect(counts[0]!.searchParams.get('status')).toBe('published')
   })
 
   it('pide los artículos de diez en diez', async () => {
@@ -278,6 +320,29 @@ describe('KnowledgePage', () => {
     renderKnowledge('/conocimiento?categories=all')
     expect(await screen.findByRole('link', { name: /Categoría 1/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ver menos' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('con exactamente seis categorías, un filtro de categoría desconocido no oculta ninguna', async () => {
+    mockApi({
+      ...staffRoutes,
+      'GET /api/knowledge/categories': { body: manyCategories.slice(0, 6) },
+      'GET /api/knowledge/articles': { body: articlePage([articleSummary()]) },
+    })
+    renderKnowledge('/conocimiento?category=no-existe')
+    for (let n = 1; n <= 6; n++)
+      expect(await screen.findByRole('link', { name: new RegExp(`Categoría ${n}`) })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { current: true })).not.toBeInTheDocument()
+  })
+
+  it('con más de seis categorías, un filtro desconocido no gasta una plaza del recorte', async () => {
+    mockApi({
+      ...staffRoutes,
+      'GET /api/knowledge/categories': { body: manyCategories },
+      'GET /api/knowledge/articles': { body: articlePage([articleSummary()]) },
+    })
+    renderKnowledge('/conocimiento?category=no-existe')
+    await screen.findByRole('link', { name: /Categoría 8/ })
+    expect(screen.getAllByRole('link', { name: /^Categoría \d/ })).toHaveLength(6)
   })
 
   it('con seis categorías o menos no se ofrece desplegar', async () => {

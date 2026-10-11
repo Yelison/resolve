@@ -75,10 +75,32 @@ export function KnowledgePage() {
     pageSize: PAGE_SIZE,
   })
   const categories = useCategories()
-  // Los recuentos de las píldoras siguen la búsqueda y la categoría, no el estado: cada uno es lo que daría pulsarla.
-  const counted = { q: state.q, category: state.category }
-  const published = useArticleCount({ ...counted, status: 'published' }, isStaff)
-  const drafts = useArticleCount({ ...counted, status: 'draft' }, isStaff)
+  // Una sola consulta de recuento: el estado que la lista no está filtrando. El otro sale de `totalItems` de la lista
+  // (sin filtro de estado es publicados + borradores; con uno, es el de ese estado). Los recuentos siguen la búsqueda
+  // y la categoría, no el estado. `ArticleStatus` solo tiene estos dos valores; si un día tuviera más, habría que pedir
+  // un recuento por estado.
+  const otherStatus: ArticleStatus = state.status === 'draft' ? 'published' : 'draft'
+  const other = useArticleCount({ q: state.q, category: state.category, status: otherStatus }, isStaff)
+  // Con `keepPreviousData`, la lista y el recuento pueden traer cada uno el resultado anterior: solo se mezclan si los
+  // dos están al día o los dos están retrasados, nunca uno de cada.
+  const consistent = list.isSuccess && other.isSuccess && list.isPlaceholderData === other.isPlaceholderData
+  const statusCounts = {
+    published: undefined as number | undefined,
+    draft: undefined as number | undefined,
+  }
+  if (consistent) {
+    const total = list.data.totalItems
+    if (state.status === 'published') {
+      statusCounts.published = total
+      statusCounts.draft = other.data
+    } else if (state.status === 'draft') {
+      statusCounts.draft = total
+      statusCounts.published = other.data
+    } else {
+      statusCounts.draft = other.data
+      statusCounts.published = total - other.data
+    }
+  }
 
   const clearFilters = () => {
     setSearchText('')
@@ -115,9 +137,17 @@ export function KnowledgePage() {
       {!hideCategories && (
         <section className={styles.section} aria-labelledby="kb-categories">
           <div className={styles.sectionHeader}>
-            <h2 id="kb-categories" className={styles.sectionTitle}>
-              {isStaff ? 'Categorías' : 'Temas'}
-            </h2>
+            <div className={styles.titleGroup}>
+              <h2 id="kb-categories" className={styles.sectionTitle}>
+                {isStaff ? 'Categorías' : 'Temas'}
+              </h2>
+              {isStaff && categories.isSuccess && categories.data.length > 0 && (
+                <span className={styles.sectionCount}>
+                  {categories.data.length}
+                  <span className="visually-hidden"> categorías</span>
+                </span>
+              )}
+            </div>
             {isStaff && (
               <Link to="/conocimiento/nuevo" className={buttonClassName()}>
                 <Icon name="plus" />
@@ -146,7 +176,7 @@ export function KnowledgePage() {
           {isStaff && (
             <StatusPills
               status={state.status}
-              counts={{ published: published.data, draft: drafts.data }}
+              counts={statusCounts}
               onChange={(status: ArticleStatus | undefined) => update({ status })}
             />
           )}
@@ -214,10 +244,11 @@ function Categories({
   const collapsible = ranked.length > VISIBLE_CATEGORIES
   const visible = collapsible && !expanded ? ranked.slice(0, VISIBLE_CATEGORIES) : ranked
   // Una categoría filtrada que quedaría fuera del recorte se mantiene a la vista: es el filtro activo.
-  const selectedHidden = selected !== undefined && !visible.some(({ category }) => category.slug === selected)
-  const shown = selectedHidden
-    ? [...visible.slice(0, VISIBLE_CATEGORIES - 1), ...ranked.filter(({ category }) => category.slug === selected)]
-    : visible
+  // Si el slug filtrado no corresponde a ninguna categoría (borrada, inexistente o sin artículos visibles para este rol)
+  // no hay nada que mantener a la vista y el recorte se queda como está.
+  const selectedEntry = ranked.find(({ category }) => category.slug === selected)
+  const selectedHidden = selectedEntry !== undefined && !visible.includes(selectedEntry)
+  const shown = selectedHidden ? [...visible.slice(0, VISIBLE_CATEGORIES - 1), selectedEntry] : visible
   return (
     <>
       <ul id="kb-category-list" className={styles.categories}>

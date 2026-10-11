@@ -15,6 +15,22 @@
   min-height: var(--touch-target);
 }
 
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.sectionCount {
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-round);
+  background: var(--color-line);
+  color: var(--color-ink);
+  font: var(--font-label);
+  font-variant-numeric: tabular-nums;
+}
+
 .sectionTitle {
   margin: 0;
   font: var(--font-section);

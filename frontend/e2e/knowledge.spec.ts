@@ -291,9 +291,7 @@ test.describe('base de conocimiento', () => {
     await expect(page.getByRole('heading', { name: 'No tienes acceso a estos artículos' })).toBeVisible()
   })
 
-  test('al llegar los datos el contenido de debajo no se mueve (primera carga y cambio de filtro)', async ({
-    page,
-  }) => {
+  test('al llegar los datos el contenido de debajo no se mueve (primera carga)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     let release!: () => void
     const released = new Promise<void>((resolve) => (release = resolve))

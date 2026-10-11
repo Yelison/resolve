@@ -6,6 +6,8 @@
   gap: var(--space-16);
   margin: calc(var(--page-gutter) * -1) calc(var(--page-gutter) * -1) 0;
   padding: var(--space-32) var(--page-gutter);
+  /* El límite del campo sobre la banda: el gris azulado del texto de la banda da más de 3:1 en claro y en oscuro. */
+  --hero-field-border: var(--color-nav-text);
   background: var(--color-nav);
   color: var(--color-nav-ink);
   text-align: center;
@@ -56,9 +58,13 @@
 .search .field {
   flex: 100 1 16rem;
   min-height: calc(var(--touch-target) + var(--space-8));
-  border-color: transparent;
+  border-color: var(--hero-field-border);
   background: var(--color-surface);
   text-align: left;
+}
+
+.search .field:focus-within {
+  border-color: var(--color-focus);
 }
 
 .submit {
