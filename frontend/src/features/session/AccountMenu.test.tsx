@@ -212,6 +212,22 @@ describe('menú de la cuenta', () => {
       expect(router.state.location.pathname).toBe('/tickets/1046')
     })
 
+    it('vaciar la caché y navegar no hace que React avise de una actualización durante el render de otro componente', async () => {
+      mockApi({ 'GET /api/me': { body: meWithOrganizations } })
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { router, queryClient } = renderShell('/tickets/1046')
+      await accountButton()
+
+      // Como el cambio de usuario de demostración: la caché se vacía y al navegar `SessionGate` reconstruye la consulta de `me`.
+      await act(async () => {
+        await clearSessionData(queryClient)
+        await router.navigate('/tickets')
+      })
+
+      await waitFor(() => expect(router.state.location.pathname).toBe('/tickets'))
+      expect(error.mock.calls.filter(([message]) => String(message).includes('Cannot update a component'))).toEqual([])
+    })
+
     it('un 403 muestra el error en el diálogo, que sigue abierto, y relee la sesión', async () => {
       let meReads = 0
       mockApi({

@@ -1,5 +1,5 @@
-import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { hashKey, notifyManager, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { identityOf, isApiError, setSessionWatch, setWriteGuard, UNAUTHORIZED_EVENT } from '../../api/client'
 import type { Me } from '../../api/schema'
@@ -100,13 +100,18 @@ export function useSessionSync() {
   // router al empezar a navegar; con React Router 8.4 (sin `navigation` en su contexto de estado) ya no. La consulta
   // reconstruida es otra instancia: al cambiar, la shell renderiza y quien lee la sesión recoge la nueva, haya navegación
   // o no. Solo la shell: la pantalla de entrada se apoya en lo contrario (su selector navega antes de que `me` llegue).
-  useSyncExternalStore(
-    (notify) =>
-      queryClient.getQueryCache().subscribe((event) => {
-        if (event.type === 'added' && event.query.queryHash === JSON.stringify(sessionKeys.me)) notify()
-      }),
-    () => queryClient.getQueryCache().find({ queryKey: sessionKeys.me }),
+  // La notificación se aplaza (`batchCalls`, como los observadores de TanStack): la consulta se reconstruye durante el render
+  // de otro componente (`SessionGate`) y avisar a React en ese momento lo marca como error («Cannot update a component»).
+  const subscribeToMeQuery = useCallback(
+    (notify: () => void) => {
+      const later = notifyManager.batchCalls(notify)
+      return queryClient.getQueryCache().subscribe((event) => {
+        if (event.type === 'added' && event.query.queryHash === hashKey(sessionKeys.me)) later()
+      })
+    },
+    [queryClient],
   )
+  useSyncExternalStore(subscribeToMeQuery, () => queryClient.getQueryCache().find({ queryKey: sessionKeys.me }))
 
   useEffect(() => {
     if (!accepted.current) accepted.current = queryClient.getQueryData<Me>(sessionKeys.me) ?? null
