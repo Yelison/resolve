@@ -98,8 +98,8 @@ describe('useAddMessage', () => {
     return Object.fromEntries(Object.entries(reads).map(([path, count]) => [path, count - (before[path] ?? 0)]))
   }
 
-  it('una nota interna solo vuelve a pedir los mensajes del ticket', async () => {
-    expect(await readsAfterAdding('internal')).toEqual({ detail: 0, messages: 1, list: 0, metrics: 0 })
+  it('una nota interna vuelve a pedir los mensajes y la bandeja (su extracto), no el detalle ni las métricas', async () => {
+    expect(await readsAfterAdding('internal')).toEqual({ detail: 0, messages: 1, list: 1, metrics: 0 })
   })
 
   it('una respuesta pública vuelve a pedir detalle, mensajes, lista y métricas, una vez cada uno', async () => {
@@ -190,7 +190,7 @@ describe('useRecentActivity', () => {
 })
 
 describe('useInboxTickets', () => {
-  const params = { view: 'all' as const, status: [], priority: [], q: '' }
+  const params = { view: 'all' as const, status: [], priority: [], q: '', sort: 'updatedAt,desc' }
   const pageOf = (numbers: number[], total: number, index: number) => ({
     items: numbers.map((number) => summary({ id: `t-${number}`, number })),
     page: index,

@@ -98,8 +98,8 @@ describe('TicketsPage para agentes', () => {
     expect(second).toHaveTextContent('Sin asignar')
     expect(second).not.toHaveTextContent('Urgente')
 
-    // «Abiertos» no cuenta los resueltos: 24 de la vista «all» menos 10.
-    expect(await screen.findByRole('link', { name: 'Abiertos 14' })).toHaveAttribute('aria-current', 'true')
+    // «Abiertos» no cuenta los resueltos: 34 de la vista «all» menos 10.
+    expect(await screen.findByRole('link', { name: 'Abiertos 24' })).toHaveAttribute('aria-current', 'true')
     expect(screen.getByRole('link', { name: 'Míos 4' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sin asignar 6' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Resueltos 10' })).toBeInTheDocument()
@@ -132,24 +132,84 @@ describe('TicketsPage para agentes', () => {
     const fetchSpy = mockApi(staffRoutes({ body: page([summary()]) }))
     const router = renderInbox('/tickets?ticket=1048&page=3&sort=number,asc')
     await screen.findByRole('link', { name: row1048 })
+    expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveValue('number,asc')
 
     await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar tickets' }), 'pago')
-    await waitFor(() => expect(router.state.location.search).toBe('?q=pago&ticket=1048'))
+    await waitFor(() => expect(router.state.location.search).toBe('?q=pago&ticket=1048&sort=number%2Casc'))
 
     await userEvent.click(screen.getByRole('button', { name: 'Estado' }))
     await userEvent.click(screen.getByRole('menuitem', { name: 'En progreso' }))
-    expect(router.state.location.search).toBe('?status=in_progress&q=pago&ticket=1048')
+    expect(router.state.location.search).toBe('?status=in_progress&q=pago&ticket=1048&sort=number%2Casc')
     expect(screen.getByRole('button', { name: 'Estado: En progreso' })).toBeInTheDocument()
 
     await waitFor(() => {
       const last = requestsTo(fetchSpy, '/api/tickets').at(-1)!.searchParams
       expect(last.getAll('status')).toEqual(['in_progress'])
       expect(last.get('q')).toBe('pago')
-      // El page y el sort de un enlace antiguo no cuentan: la lista carga de 25 en 25 por actualización.
+      // El page de un enlace antiguo no cuenta (la lista carga de 25 en 25); su orden sí.
       expect(last.get('page')).toBe('0')
-      expect(last.get('sort')).toBe('updatedAt,desc')
+      expect(last.get('sort')).toBe('number,asc')
     })
-    expect(screen.queryByRole('combobox', { name: 'Ordenar por' })).not.toBeInTheDocument()
+  })
+
+  it('una búsqueda en «Abiertos» no excluye los resueltos y la fila dice su estado', async () => {
+    const fetchSpy = mockApi(
+      staffRoutes((request) => {
+        const statuses = new URL(request.url).searchParams.getAll('status')
+        const resolved = summary({ id: 't-1040', number: 1040, subject: 'Factura resuelta', status: 'resolved' })
+        // Como el servidor: sin filtro de estado, todos; con él, solo los pedidos.
+        return { body: page([resolved].filter((ticket) => statuses.length === 0 || statuses.includes(ticket.status))) }
+      }),
+    )
+    renderInbox('/tickets?q=factura')
+    const link = await screen.findByRole('link', { name: /#1040 · Factura resuelta/ })
+    expect(link).toHaveTextContent('Resuelto')
+    expect(requestsTo(fetchSpy, '/api/tickets').at(-1)!.searchParams.getAll('status')).toEqual([])
+    // «Abiertos» sin búsqueda sigue siendo solo lo abierto.
+    expect(screen.getByRole('link', { name: /^Abiertos/ })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('«Ordenar por» lleva el orden a la URL y a la API y vuelve a ofrecer los diez órdenes', async () => {
+    const fetchSpy = mockApi(staffRoutes({ body: page([summary()]) }))
+    const router = renderInbox()
+    await screen.findByRole('link', { name: row1048 })
+    const select = screen.getByRole('combobox', { name: 'Ordenar por' })
+    expect(select).toHaveValue('updatedAt,desc')
+    expect(within(select).getAllByRole('option')).toHaveLength(10)
+
+    await userEvent.selectOptions(select, 'Número: mayor primero')
+    expect(new URLSearchParams(router.state.location.search).get('sort')).toBe('number,desc')
+    await waitFor(() =>
+      expect(requestsTo(fetchSpy, '/api/tickets').at(-1)!.searchParams.get('sort')).toBe('number,desc'),
+    )
+  })
+
+  it('un enlace con un orden no válido vuelve al de por defecto', async () => {
+    const fetchSpy = mockApi(staffRoutes({ body: page([summary()]) }))
+    renderInbox('/tickets?sort=title,asc')
+    await screen.findByRole('link', { name: row1048 })
+    expect(screen.getByRole('combobox', { name: 'Ordenar por' })).toHaveValue('updatedAt,desc')
+    expect(new Set(requestsTo(fetchSpy, '/api/tickets').map((url) => url.searchParams.get('sort')))).toEqual(
+      new Set(['updatedAt,desc']),
+    )
+  })
+
+  it('con otro orden que la actualización la lista es plana, sin cabeceras, y el pie dice su orden', async () => {
+    mockApi(staffRoutes({ body: page([summary(), summary({ id: 't-1047', number: 1047, subject: 'Error de pago' })]) }))
+    renderInbox('/tickets?sort=priority,desc')
+    await screen.findByRole('link', { name: row1048 })
+    expect(screen.queryAllByRole('heading', { level: 2 })).toHaveLength(0)
+    expect(screen.getByText('Mostrando 2 de 2 · ordenados por prioridad, los urgentes primero')).toBeInTheDocument()
+  })
+
+  it('con la actualización más antigua primero sigue agrupando por día y lo dice en el pie', async () => {
+    mockApi(staffRoutes({ body: page([summary()]) }))
+    renderInbox('/tickets?sort=updatedAt,asc')
+    await screen.findByRole('link', { name: row1048 })
+    expect(screen.getAllByRole('heading', { level: 2 }).length).toBeGreaterThan(0)
+    expect(
+      screen.getByText('Mostrando 1 de 1 · ordenados por actualización, los más antiguos primero'),
+    ).toBeInTheDocument()
   })
 
   it('cambiar el responsable conserva la vista', async () => {
@@ -502,6 +562,90 @@ describe('TicketsPage con vista previa (desde 1200 px)', () => {
     await userEvent.click(screen.getByRole('link', { name: /#1047 · Error de pago/ }))
     expect(await within(panel).findByRole('heading', { name: 'Error de pago' })).toBeInTheDocument()
     expect(within(panel).getAllByRole('heading', { level: 2 })).toHaveLength(1)
+  })
+
+  it('guardar el estado no saca el foco del selector ni admite otro cambio mientras tanto', async () => {
+    setWide(true)
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const fetchSpy = mockApi(
+      previewRoutes(async () => {
+        await held
+        return { body: ticket({ version: 6, status: 'in_progress' }) }
+      }),
+    )
+    renderInbox('/tickets?ticket=1048')
+    const panel = await screen.findByRole('region', { name: 'Vista previa del ticket' })
+    const status = await within(panel).findByRole('combobox', { name: 'Estado' })
+    status.focus()
+    await userEvent.selectOptions(status, 'En progreso')
+    // Durante el PATCH el campo sigue ahí, con el foco, marcado como no disponible; un segundo cambio se ignora.
+    await waitFor(() => expect(status).toHaveAttribute('aria-disabled', 'true'))
+    expect(status).not.toBeDisabled()
+    expect(status).toHaveFocus()
+    await userEvent.selectOptions(status, 'Resuelto')
+    release()
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('Estado: En progreso')).toBeInTheDocument()
+    await waitFor(() => expect(status).not.toHaveAttribute('aria-disabled'))
+    expect(status).toHaveFocus()
+    const patches = fetchSpy.mock.calls
+      .map(([input]) => input as Request)
+      .filter((request) => request.method === 'PATCH')
+    expect(patches).toHaveLength(1)
+  })
+
+  it('un 412 al guardar tampoco deja el foco en body', async () => {
+    setWide(true)
+    mockApi(previewRoutes({ status: 412, body: { status: 412, title: 'El recurso cambió' } }))
+    renderInbox('/tickets?ticket=1048')
+    const panel = await screen.findByRole('region', { name: 'Vista previa del ticket' })
+    const responsible = await within(panel).findByRole('combobox', { name: 'Responsable' })
+    await waitFor(() => expect(responsible).toBeEnabled())
+    responsible.focus()
+    await userEvent.selectOptions(responsible, 'Sin asignar')
+    expect(await within(panel).findByText('El ticket cambió mientras lo editabas')).toBeInTheDocument()
+    expect(document.activeElement).not.toBe(document.body)
+    expect(responsible).toHaveFocus()
+  })
+
+  it('«Quitar la selección» deja el foco en el panel, no en body', async () => {
+    setWide(true)
+    mockApi({
+      ...previewRoutes(),
+      'GET /api/tickets/999': { status: 404, body: { status: 404, title: 'No encontrado' } },
+    })
+    renderInbox('/tickets?ticket=999')
+    const panel = await screen.findByRole('region', { name: 'Vista previa del ticket' })
+    await userEvent.click(await within(panel).findByRole('button', { name: 'Quitar la selección' }))
+    expect(await within(panel).findByRole('heading', { name: 'Ningún ticket seleccionado' })).toBeInTheDocument()
+    expect(panel).toHaveFocus()
+  })
+
+  it('al volver a otro ticket con «Atrás» y el foco en la vista previa, el foco no se pierde', async () => {
+    setWide(true)
+    mockApi(previewRoutes())
+    const router = renderInbox('/tickets?ticket=1048')
+    const panel = await screen.findByRole('region', { name: 'Vista previa del ticket' })
+    const status = await within(panel).findByRole('combobox', { name: 'Estado' })
+    status.focus()
+    await router.navigate('/tickets?ticket=1047')
+    expect(await within(panel).findByRole('heading', { name: 'Error de pago' })).toBeInTheDocument()
+    expect(document.activeElement).not.toBe(document.body)
+    expect(panel).toHaveFocus()
+  })
+
+  it('un clic fuera de los controles suelta el foco a propósito: no se lo devuelve al panel', async () => {
+    setWide(true)
+    mockApi(previewRoutes())
+    const router = renderInbox('/tickets?ticket=1048')
+    const panel = await screen.findByRole('region', { name: 'Vista previa del ticket' })
+    const status = await within(panel).findByRole('combobox', { name: 'Estado' })
+    status.focus()
+    await userEvent.click(document.body)
+    await router.navigate('/tickets?ticket=1047')
+    await within(panel).findByRole('heading', { name: 'Error de pago' })
+    expect(panel).not.toHaveFocus()
   })
 })
 

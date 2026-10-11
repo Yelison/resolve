@@ -7,6 +7,7 @@ import {
   EmptyState,
   Select,
   Skeleton,
+  skeletonBarClassName,
   ticketStatus,
   type SelectProps,
 } from '../../components/ui'
@@ -111,7 +112,7 @@ function PreviewBody({ ticket, isStaff }: { ticket: Ticket; isStaff: boolean }) 
         </div>
         <div className={styles.controls}>
           {isStaff ? (
-            <TicketControls ticket={ticket} disabled={update.isPending} onChange={change} />
+            <TicketControls ticket={ticket} saving={update.isPending} onChange={change} />
           ) : (
             <Badge tone={status.tone}>{customerStatusLabels[ticket.status]}</Badge>
           )}
@@ -143,11 +144,12 @@ function PreviewBody({ ticket, isStaff }: { ticket: Ticket; isStaff: boolean }) 
 
 function TicketControls({
   ticket,
-  disabled,
+  saving,
   onChange,
 }: {
   ticket: Ticket
-  disabled: boolean
+  /** Se está guardando un cambio: los campos siguen en su sitio (con el foco) pero no aceptan otro. */
+  saving: boolean
   onChange: ReturnType<typeof useTicketChange>['change']
 }) {
   const assignees = useAssignees()
@@ -160,7 +162,7 @@ function TicketControls({
       <Select
         label="Estado"
         value={ticket.status}
-        disabled={disabled}
+        aria-disabled={saving || undefined}
         onChange={onStatus}
         fieldClassName={styles.field}
       >
@@ -173,7 +175,8 @@ function TicketControls({
       <Select
         label="Responsable"
         value={ticket.assignee?.id ?? ''}
-        disabled={disabled || assignees.isPending}
+        disabled={assignees.isPending}
+        aria-disabled={saving || undefined}
         fieldClassName={styles.field}
         onChange={(event) => {
           const assigneeId = event.target.value || null
@@ -206,8 +209,8 @@ export function TicketPreviewSkeleton({ isStaff }: { isStaff: boolean }) {
       <span className="visually-hidden">Cargando ticket…</span>
       <header className={styles.header} aria-hidden="true">
         <div className={styles.titles}>
-          <p className={cx(styles.context, styles.ghost)}>{'\u00a0'.repeat(40)}</p>
-          <h2 className={cx(styles.title, styles.ghost)}>{'\u00a0'.repeat(30)}</h2>
+          <p className={cx(styles.context, styles.ghostTitle, skeletonBarClassName)}>{'\u00a0'.repeat(40)}</p>
+          <h2 className={cx(styles.title, styles.ghostTitle, skeletonBarClassName)}>{'\u00a0'.repeat(30)}</h2>
         </div>
         <div className={cx(styles.controls, styles.hidden)}>
           {isStaff ? (

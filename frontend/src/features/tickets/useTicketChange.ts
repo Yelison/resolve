@@ -16,6 +16,8 @@ export function useTicketChange(ticket: Pick<Ticket, 'number' | 'version'>) {
   const conflict = Boolean(update.error && isApiError(update.error, 412))
 
   function change(changes: TicketChanges, success: string) {
+    // Mientras se guarda, los campos no se desactivan (el navegador sacaría de ellos el foco): ignoran el cambio.
+    if (update.isPending) return
     // El reintento de un 503 repite esta llamada con su versión: si otra persona guardó entretanto, responde el 412.
     const variables = { version: ticket.version, changes }
     submission.send(() =>

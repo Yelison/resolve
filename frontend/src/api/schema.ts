@@ -1135,8 +1135,9 @@ export interface components {
             resolved: number;
         };
         TicketMetrics: {
+            /** @description Tickets that are not resolved (open, in progress and waiting): always `views.all` minus `views.resolved`. */
             open: number;
-            /** @description Tickets created today (organization time zone) that are still open. */
+            /** @description Tickets created today (organization time zone) that are still not resolved. */
             openedToday: number;
             inProgress: number;
             inProgressAssignedToMe: number;

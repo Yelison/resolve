@@ -9,6 +9,7 @@ import {
   IconButton,
   Menu,
   SearchField,
+  Select,
   Skeleton,
   ticketPriority,
   ticketStatus,
@@ -33,18 +34,22 @@ import { useMe } from '../session/queries'
 import { useTimeZone } from '../session/useTimeZone'
 import { useAssignees } from '../team/queries'
 import { InboxList, InboxListSkeleton } from './InboxList'
+import { groupsByDay, sortLabels } from './inboxText'
 import {
   effectiveInboxState,
   hasActiveFilters,
   inboxListParams,
   openStatusValues,
   readInboxState,
+  ticketSortValues,
   writeInboxState,
   type InboxState,
+  type TicketSort,
 } from './inboxParams'
 import { useInboxTickets, useQuickTicketUpdate, useTicketCount, useTicketMetrics, type TicketChanges } from './queries'
 import { NoTicketSelected, TicketPreview } from './TicketPreview'
 import { useBottomReserve } from './useBottomReserve'
+import { usePanelFocusRecovery } from './usePanelFocusRecovery'
 import styles from './TicketsPage.module.css'
 
 interface ViewPill {
@@ -90,6 +95,8 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
   const twoPanes = useMediaQuery('(min-width: 1200px)')
   const timeZone = useTimeZone()
   const reserve = useBottomReserve()
+  const previewRef = useRef<HTMLElement>(null)
+  usePanelFocusRecovery(previewRef)
   const [searchParams, setSearchParams] = useSearchParams()
   const state = effectiveInboxState(readInboxState(searchParams), isStaff)
   const [searchText, setSearchText] = useState(state.q)
@@ -145,18 +152,18 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
             fieldClassName={styles.search}
           />
           <ViewPills state={state} isStaff={isStaff} />
-          {isStaff && (
-            <div className={styles.filters}>
-              {state.view !== 'resolved' && (
-                <FilterMenu
-                  label="Estado"
-                  value={state.status}
-                  options={ticketStatusValues
-                    .filter((status) => openStatusValues.includes(status))
-                    .map((status) => ({ value: status, label: ticketStatus[status].label }))}
-                  onChange={(status) => update({ status: status as TicketStatus | undefined })}
-                />
-              )}
+          <div className={styles.filters}>
+            {isStaff && state.view !== 'resolved' && (
+              <FilterMenu
+                label="Estado"
+                value={state.status}
+                options={ticketStatusValues
+                  .filter((status) => openStatusValues.includes(status))
+                  .map((status) => ({ value: status, label: ticketStatus[status].label }))}
+                onChange={(status) => update({ status: status as TicketStatus | undefined })}
+              />
+            )}
+            {isStaff && (
               <FilterMenu
                 label="Prioridad"
                 value={state.priority}
@@ -166,9 +173,21 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
                 }))}
                 onChange={(priority) => update({ priority: priority as TicketPriority | undefined })}
               />
-              <AssigneeFilter value={state.assignee} onChange={(assignee) => update({ assignee })} />
-            </div>
-          )}
+            )}
+            {isStaff && <AssigneeFilter value={state.assignee} onChange={(assignee) => update({ assignee })} />}
+            <Select
+              label="Ordenar por"
+              value={state.sort}
+              onChange={(event) => update({ sort: event.target.value as TicketSort })}
+              fieldClassName={styles.sort}
+            >
+              {ticketSortValues.map((sort) => (
+                <option key={sort} value={sort}>
+                  {sortLabels[sort]}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
 
         <ListBody
@@ -184,7 +203,7 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
       </section>
 
       {twoPanes && (
-        <section aria-label="Vista previa del ticket" className={styles.previewPane}>
+        <section ref={previewRef} tabIndex={-1} aria-label="Vista previa del ticket" className={styles.previewPane}>
           {state.ticket ? (
             <TicketPreview number={state.ticket} isStaff={isStaff} onClear={() => update({ ticket: undefined })} />
           ) : (
@@ -257,7 +276,11 @@ function ListBody({
   onClearFilters,
   rowActions,
 }: ListBodyProps) {
-  if (list.isPending) return <InboxListSkeleton />
+  // Con `keepPreviousData`, la lista anterior sigue en pantalla mientras llega la del nuevo orden: se pinta (grupos y pie)
+  // con el orden con el que llegó, no con el pedido.
+  const [shownSort, setShownSort] = useState(state.sort)
+  if (!list.isPlaceholderData && shownSort !== state.sort) setShownSort(state.sort)
+  if (list.isPending) return <InboxListSkeleton grouped={groupsByDay(state.sort)} />
   if (!list.data) {
     const restricted = isApiError(list.error, 403)
     return (
@@ -334,6 +357,7 @@ function ListBody({
     <InboxList
       items={items}
       totalItems={totalItems}
+      sort={shownSort}
       selectedNumber={twoPanes ? state.ticket : undefined}
       linkTo={(ticket) =>
         twoPanes

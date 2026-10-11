@@ -5,7 +5,8 @@ import type { TicketSummary } from '../../domain/ticket'
 import { groupByDay } from './dateGroups'
 import { InboxItem, InboxItemGhost } from './InboxItem'
 import { INBOX_PAGE_SIZE } from './queries'
-import { showingCount } from './inboxText'
+import type { TicketSort } from './inboxParams'
+import { groupsByDay, showingCount, sortFooters } from './inboxText'
 import styles from './InboxList.module.css'
 
 export interface InboxListProps {
@@ -16,6 +17,8 @@ export interface InboxListProps {
   selectedNumber?: number
   /** Destino del enlace de cada fila. */
   linkTo: (ticket: TicketSummary) => To
+  /** El orden con el que llegó la lista: decide si hay grupos por día y qué dice el pie. */
+  sort: TicketSort
   customerView?: boolean
   /** Menú de acciones de cada fila; cada uno lleva su propia mutación, así que sus avisos no se pisan. */
   renderActions?: (ticket: TicketSummary) => ReactNode
@@ -36,6 +39,7 @@ export function InboxList({
   totalItems,
   selectedNumber,
   linkTo,
+  sort,
   customerView,
   renderActions,
   timeZone,
@@ -48,7 +52,11 @@ export function InboxList({
   const [activeId, setActiveId] = useState<string>()
   const focusFrom = useRef<number | null>(null)
   const now = useMinuteClock()
-  const sections = groupByDay(items, (ticket) => new Date(ticket.updatedAt), now, timeZone)
+  // Con otro orden que la fecha de actualización los grupos por día no se sostienen: lista plana, sin cabeceras.
+  const grouped = groupsByDay(sort)
+  const sections = grouped
+    ? groupByDay(items, (ticket) => new Date(ticket.updatedAt), now, timeZone)
+    : [{ group: 'older' as const, label: '', items: [...items] }]
 
   // La parada de Tab es la última fila enfocada, si sigue en la lista; si no, la abierta y, si no, la primera.
   const tabStopId =
@@ -94,7 +102,7 @@ export function InboxList({
         <div ref={listRef} onKeyDown={onKeyDown} onFocus={onFocus}>
           {sections.map((section) => (
             <section key={section.group} className={styles.section}>
-              <h2 className={styles.groupHeader}>{section.label}</h2>
+              {grouped && <h2 className={styles.groupHeader}>{section.label}</h2>}
               <ul className={styles.list}>
                 {section.items.map((ticket) => (
                   <InboxItem
@@ -135,7 +143,7 @@ export function InboxList({
         )}
       </div>
       <p className={styles.footer} role="status">
-        {showingCount(Math.min(items.length, totalItems), totalItems)} · ordenados por actualización
+        {showingCount(Math.min(items.length, totalItems), totalItems)} · {sortFooters[sort]}
       </p>
     </>
   )
@@ -152,14 +160,25 @@ function useMinuteClock(): Date {
 }
 
 /** Marcador de la lista mientras carga: filas con la altura real, sin saltos al llegar los datos. */
-export function InboxListSkeleton({ rows = 6, children }: { rows?: number; children?: ReactNode }) {
+export function InboxListSkeleton({
+  rows = 6,
+  grouped = true,
+  children,
+}: {
+  rows?: number
+  /** Con grupos por día la primera fila va bajo una cabecera; con otro orden, no. */
+  grouped?: boolean
+  children?: ReactNode
+}) {
   return (
     <div className={styles.scroller} role="status">
       <span className="visually-hidden">Cargando tickets…</span>
       {/* La cabecera de grupo que traerán los datos: la primera fila queda donde estará la real. */}
-      <div className={styles.groupHeader} aria-hidden="true">
-        {'\u00a0'}
-      </div>
+      {grouped && (
+        <div className={styles.groupHeader} aria-hidden="true">
+          {'\u00a0'}
+        </div>
+      )}
       <ul className={styles.list}>
         {Array.from({ length: rows }, (_, index) => (
           <InboxItemGhost key={index} />

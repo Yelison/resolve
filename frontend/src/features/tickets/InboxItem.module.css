@@ -7,7 +7,7 @@
   align-items: flex-start;
   min-width: 0;
   border-bottom: 1px solid var(--color-line);
-  box-shadow: inset 3px 0 0 transparent;
+  box-shadow: inset var(--space-4) 0 0 transparent;
   transition: background-color var(--duration-fast) ease;
 }
 
@@ -18,7 +18,7 @@
 .selected,
 .selected:hover {
   background: var(--color-blue-bg);
-  box-shadow: inset 3px 0 0 var(--color-brand);
+  box-shadow: inset var(--space-4) 0 0 var(--color-brand);
 }
 
 .link {
@@ -124,7 +124,7 @@
   padding-right: var(--space-8);
 }
 
-/* Carga: las mismas cajas que una fila real, pintadas como barras. */
+/* Carga: las mismas cajas que una fila real, pintadas con la barra fantasma compartida. */
 .ghost .who,
 .ghost .time,
 .ghost .subject,
@@ -132,11 +132,6 @@
 .ghost .assignee {
   align-self: flex-start;
   max-width: 100%;
-  border-radius: var(--radius-small);
-  background: var(--color-disabled);
-  color: transparent;
-  white-space: pre;
-  animation: pulse 1.4s ease-in-out infinite;
 }
 
 .ghost .who {
@@ -149,12 +144,6 @@
 
 .ghost .excerpt {
   min-width: 85%;
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.55;
-  }
 }
 
 @media (min-width: 768px) {

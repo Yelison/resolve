@@ -2,6 +2,22 @@ import type { TicketPriority, TicketStatus, TicketView } from '../../domain/tick
 import type { InboxListParams } from './queries'
 import { ticketPriorityValues, ticketStatusValues, ticketViewValues } from '../../domain/ticket'
 
+export type TicketSort = `${'updatedAt' | 'createdAt' | 'number' | 'priority' | 'status'},${'asc' | 'desc'}`
+
+/** Órdenes admitidos, en el orden en que se muestran: el de por defecto primero y, por campo, el más útil antes. */
+export const ticketSortValues: readonly TicketSort[] = [
+  'updatedAt,desc',
+  'updatedAt,asc',
+  'createdAt,desc',
+  'createdAt,asc',
+  'number,desc',
+  'number,asc',
+  'priority,desc',
+  'priority,asc',
+  'status,asc',
+  'status,desc',
+]
+
 /** Estado de la bandeja que vive en la URL, para poder compartirla y recargarla sin perder filtros ni selección. */
 export interface InboxState {
   view: TicketView
@@ -12,9 +28,10 @@ export interface InboxState {
   q: string
   /** Número del ticket abierto en la vista previa. */
   ticket?: number
+  sort: TicketSort
 }
 
-const DEFAULT_STATE: InboxState = { view: 'all', q: '' }
+const DEFAULT_STATE: InboxState = { view: 'all', q: '', sort: 'updatedAt,desc' }
 
 function oneOf<T extends string>(values: readonly T[], value: string | null): T | undefined {
   return values.find((candidate) => candidate === value)
@@ -26,7 +43,7 @@ function ticketNumber(value: string | null): number | undefined {
   return value !== null && /^\d+$/.test(value) && Number.isSafeInteger(number) && number > 0 ? number : undefined
 }
 
-/** Un `page` o un `sort` de enlaces antiguos se ignoran: la lista carga de 25 en 25 y siempre va por actualización. */
+/** Un `page` de enlaces antiguos se ignora: la lista carga de 25 en 25. */
 export function readInboxState(params: URLSearchParams): InboxState {
   return {
     view: oneOf(ticketViewValues, params.get('view')) ?? DEFAULT_STATE.view,
@@ -35,6 +52,7 @@ export function readInboxState(params: URLSearchParams): InboxState {
     assignee: params.get('assignee') || undefined,
     q: params.get('q') ?? '',
     ticket: ticketNumber(params.get('ticket')),
+    sort: oneOf(ticketSortValues, params.get('sort')) ?? DEFAULT_STATE.sort,
   }
 }
 
@@ -47,6 +65,7 @@ export function writeInboxState(state: InboxState): URLSearchParams {
   if (state.assignee) params.set('assignee', state.assignee)
   if (state.q.trim()) params.set('q', state.q.trim())
   if (state.ticket) params.set('ticket', String(state.ticket))
+  if (state.sort !== DEFAULT_STATE.sort) params.set('sort', state.sort)
   return params
 }
 
@@ -75,13 +94,19 @@ export function effectiveInboxState(state: InboxState, isStaff: boolean): InboxS
   return dropStatus ? { ...state, status: undefined } : state
 }
 
-/** La consulta de la bandeja para un estado ya efectivo; «Abiertos» (`all`) excluye los resueltos. */
+/**
+ * La consulta de la bandeja para un estado ya efectivo. «Abiertos» (`all`) excluye los resueltos, salvo que haya una
+ * búsqueda: quien busca un asunto, un cliente o un número quiere encontrarlo en cualquier estado (la búsqueda global
+ * lleva aquí con «Ver todos los resultados»), y cada fila dice el suyo.
+ */
 export function inboxListParams(state: InboxState): InboxListParams {
+  const searching = state.q.trim() !== ''
   return {
     view: state.view,
-    status: state.status ? [state.status] : state.view === 'all' ? [...openStatusValues] : [],
+    status: state.status ? [state.status] : state.view === 'all' && !searching ? [...openStatusValues] : [],
     priority: state.priority ? [state.priority] : [],
     assigneeId: state.assignee,
     q: state.q,
+    sort: state.sort,
   }
 }

@@ -39,6 +39,11 @@
   font: var(--font-section);
 }
 
+.fields select[aria-disabled='true'] {
+  cursor: progress;
+  opacity: 0.6;
+}
+
 .fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));

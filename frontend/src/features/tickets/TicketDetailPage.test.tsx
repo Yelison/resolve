@@ -90,6 +90,32 @@ describe('TicketDetailPage para agentes', () => {
     expect(await patch.clone().json()).toEqual({ status: 'waiting' })
   })
 
+  it('guardar un cambio no saca el foco del selector ni admite otro mientras tanto', async () => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const fetchSpy = staffApi({
+      'PATCH /api/tickets/1048': async () => {
+        await held
+        return { body: ticket({ status: 'waiting', version: 4 }) }
+      },
+    })
+    renderDetail()
+    const status = await screen.findByRole('combobox', { name: 'Estado' })
+    status.focus()
+    await userEvent.selectOptions(status, 'waiting')
+    await waitFor(() => expect(status).toHaveAttribute('aria-disabled', 'true'))
+    expect(status).not.toBeDisabled()
+    expect(status).toHaveFocus()
+    await userEvent.selectOptions(status, 'resolved')
+    release()
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('Estado: Esperando cliente')).toBeInTheDocument()
+    expect(status).toHaveFocus()
+    expect(
+      fetchSpy.mock.calls.map(([input]) => input as Request).filter((request) => request.method === 'PATCH'),
+    ).toHaveLength(1)
+  })
+
   it('avisa del conflicto y recarga el ticket cuando otra persona lo cambió', async () => {
     let reads = 0
     staffApi({

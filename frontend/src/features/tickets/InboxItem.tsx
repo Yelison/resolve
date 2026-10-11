@@ -1,6 +1,6 @@
 import { Link, type To } from 'react-router'
 import type { ReactNode } from 'react'
-import { Badge, ticketStatus } from '../../components/ui'
+import { Badge, skeletonBarClassName, ticketStatus } from '../../components/ui'
 import type { TicketSummary } from '../../domain/ticket'
 import { cx } from '../../lib/cx'
 import { formatRelative } from '../../lib/format'
@@ -109,13 +109,13 @@ export function InboxItemGhost() {
     <li className={cx(styles.item, styles.ghost)} aria-hidden="true">
       <span className={styles.link}>
         <span className={styles.top}>
-          <span className={styles.who}>{'\u00a0'}</span>
-          <span className={styles.time}>{'\u00a0'.repeat(8)}</span>
+          <span className={cx(styles.who, skeletonBarClassName)}>{'\u00a0'}</span>
+          <span className={cx(styles.time, skeletonBarClassName)}>{'\u00a0'.repeat(8)}</span>
         </span>
-        <span className={styles.subject}>{'\u00a0'}</span>
-        <span className={styles.excerpt}>{'\u00a0'}</span>
+        <span className={cx(styles.subject, skeletonBarClassName)}>{'\u00a0'}</span>
+        <span className={cx(styles.excerpt, skeletonBarClassName)}>{'\u00a0'}</span>
         <span className={styles.meta}>
-          <span className={styles.assignee}>{'\u00a0'.repeat(24)}</span>
+          <span className={cx(styles.assignee, skeletonBarClassName)}>{'\u00a0'.repeat(24)}</span>
         </span>
       </span>
     </li>

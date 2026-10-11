@@ -149,7 +149,7 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
             Información del ticket
           </h2>
           {isStaff ? (
-            <TicketFields ticket={ticket} disabled={update.isPending} onChange={change} />
+            <TicketFields ticket={ticket} saving={update.isPending} onChange={change} />
           ) : (
             <ReadOnlyFields ticket={ticket} />
           )}
@@ -161,11 +161,12 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
 
 function TicketFields({
   ticket,
-  disabled,
+  saving,
   onChange,
 }: {
   ticket: Ticket
-  disabled: boolean
+  /** Se está guardando un cambio: los campos siguen en su sitio (con el foco) pero no aceptan otro. */
+  saving: boolean
   onChange: (changes: TicketChanges, success: string) => void
 }) {
   const assignees = useAssignees()
@@ -174,7 +175,7 @@ function TicketFields({
       <Select
         label="Estado"
         value={ticket.status}
-        disabled={disabled}
+        aria-disabled={saving || undefined}
         onChange={(event) => {
           const status = event.target.value as Ticket['status']
           onChange({ status }, `Estado: ${ticketStatus[status].label}`)
@@ -189,7 +190,7 @@ function TicketFields({
       <Select
         label="Prioridad"
         value={ticket.priority}
-        disabled={disabled}
+        aria-disabled={saving || undefined}
         onChange={(event) => {
           const priority = event.target.value as Ticket['priority']
           onChange({ priority }, `Prioridad: ${ticketPriority[priority].label}`)
@@ -204,7 +205,8 @@ function TicketFields({
       <Select
         label="Responsable"
         value={ticket.assignee?.id ?? ''}
-        disabled={disabled || assignees.isPending}
+        disabled={assignees.isPending}
+        aria-disabled={saving || undefined}
         onChange={(event) => {
           const assigneeId = event.target.value || null
           const name = assignees.data?.find((member) => member.id === assigneeId)?.name

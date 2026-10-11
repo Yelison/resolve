@@ -1889,9 +1889,13 @@ components:
         - firstResponseTargetMinutes
         - views
       properties:
-        open: { type: integer, minimum: 0 }
+        open:
+          description: |
+            Tickets that are not resolved (open, in progress and waiting): always `views.all` minus `views.resolved`.
+          type: integer
+          minimum: 0
         openedToday:
-          description: Tickets created today (organization time zone) that are still open.
+          description: Tickets created today (organization time zone) that are still not resolved.
           type: integer
           minimum: 0
         inProgress: { type: integer, minimum: 0 }

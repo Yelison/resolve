@@ -3,6 +3,9 @@ import type { Ticket, TicketSummary } from '../src/api/schema'
 import { expect, mockApi, test, tickets } from './fixtures'
 
 const row = (page: Page) => page.locator('a[data-inbox-item]')
+/** Las cabeceras de grupo por día de la lista (no el título del panel de la derecha). */
+const listHeadings = (page: Page) =>
+  page.getByRole('region', { name: 'Bandeja de tickets' }).getByRole('heading', { level: 2 })
 const preview = (page: Page) => page.getByRole('region', { name: 'Vista previa del ticket' })
 const overflowX = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
@@ -140,6 +143,127 @@ test.describe('tickets · bandeja con vista previa', () => {
     await page.getByRole('button', { name: 'Crear ticket' }).click()
     await expect(page.getByRole('combobox', { name: 'Cliente' })).toBeFocused()
     await expect(page.getByText('Describe el problema en una frase.')).toBeVisible()
+  })
+})
+
+test.describe('tickets · búsqueda y orden', () => {
+  test('«Ver todos los resultados de tickets» de la búsqueda global encuentra también los resueltos', async ({
+    page,
+  }) => {
+    const resolved: TicketSummary = {
+      ...tickets[2]!,
+      id: 't-1040',
+      number: 1040,
+      subject: 'Factura resuelta de septiembre',
+      status: 'resolved',
+      lastMessage: null,
+    }
+    const requested: string[][] = []
+    await page.route('**/api/tickets?*', (route) => {
+      const url = new URL(route.request().url())
+      const statuses = url.searchParams.getAll('status')
+      const q = url.searchParams.get('q')?.toLowerCase() ?? ''
+      requested.push(statuses)
+      // Como el servidor: sin filtro de estado, todos; con él, solo los pedidos.
+      const items = [...tickets, resolved].filter(
+        (ticket) =>
+          (statuses.length === 0 || statuses.includes(ticket.status)) && ticket.subject.toLowerCase().includes(q),
+      )
+      return listPage(route, items)
+    })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    await expect(row(page)).toHaveCount(3)
+    await page.keyboard.press('Control+k')
+    await page.getByRole('combobox', { name: 'Buscar en Resolve' }).fill('factura')
+    await page.getByRole('option', { name: 'Ver todos los resultados de tickets' }).click()
+
+    await expect(page).toHaveURL(/\/tickets\?q=factura$/)
+    const found = row(page).filter({ hasText: '#1040' })
+    await expect(found).toBeVisible()
+    await expect(found).toContainText('Resuelto')
+    // La petición de la bandeja con búsqueda no lleva filtro de estado.
+    expect(requested.at(-1)).toEqual([])
+  })
+
+  test('«Ordenar por» cambia a lista plana, con el pie de su orden, y los enlaces con sort funcionan', async ({
+    page,
+  }) => {
+    await serveMany(page, 60)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    await expect(row(page)).toHaveCount(25)
+    await expect(listHeadings(page).first()).toBeVisible()
+    await expect(page.getByText('Mostrando 25 de 60 · ordenados por actualización')).toBeVisible()
+
+    await page.getByRole('combobox', { name: 'Ordenar por' }).selectOption({ label: 'Prioridad: urgente primero' })
+    await expect(page).toHaveURL(/sort=priority%2Cdesc/)
+    await expect(page.getByText('Mostrando 25 de 60 · ordenados por prioridad, los urgentes primero')).toBeVisible()
+    await expect(listHeadings(page)).toHaveCount(0)
+
+    await page.goto('/tickets?sort=number,asc')
+    await expect(page.getByRole('combobox', { name: 'Ordenar por' })).toHaveValue('number,asc')
+    await expect(page.getByText(/ordenados por número, de menor a mayor/)).toBeVisible()
+    await expect(listHeadings(page)).toHaveCount(0)
+
+    // Con la actualización, en cualquier sentido, vuelven los grupos por día.
+    await page.goto('/tickets?sort=updatedAt,asc')
+    await expect(listHeadings(page).first()).toBeVisible()
+    await expect(page.getByText(/ordenados por actualización, los más antiguos primero/)).toBeVisible()
+  })
+})
+
+test.describe('tickets · foco al guardar y al cambiar de ticket', () => {
+  test('guardar el estado con el teclado deja el foco en el selector, también con un conflicto', async ({ page }) => {
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    let conflict = false
+    await page.route('**/api/tickets/1048', async (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback()
+      await held
+      return conflict
+        ? route.fulfill({ status: 412, json: { status: 412, title: 'El recurso cambió' } })
+        : route.fallback()
+    })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets?ticket=1048')
+    const status = preview(page).getByRole('combobox', { name: 'Estado' })
+    await expect(status).toBeVisible()
+    await status.focus()
+    await page.keyboard.press('ArrowDown')
+    await expect(status).toHaveAttribute('aria-disabled', 'true')
+    await expect(status).toBeFocused()
+    release()
+    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Estado:')
+    await expect(status).not.toHaveAttribute('aria-disabled')
+    await expect(status).toBeFocused()
+    // El siguiente Tab sigue donde estaba, no desde el principio de la página.
+    await page.keyboard.press('Tab')
+    await expect(preview(page).getByRole('combobox', { name: 'Responsable' })).toBeFocused()
+
+    conflict = true
+    const responsible = preview(page).getByRole('combobox', { name: 'Responsable' })
+    // Laura es la última opción de la lista: ↑ elige a la anterior.
+    await page.keyboard.press('ArrowUp')
+    await expect(preview(page).getByText('El ticket cambió mientras lo editabas')).toBeVisible()
+    await expect(responsible).toBeFocused()
+  })
+
+  test('«Quitar la selección» y volver atrás con el foco en la vista previa no lo dejan en body', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets?ticket=999')
+    await preview(page).getByRole('button', { name: 'Quitar la selección' }).focus()
+    await page.keyboard.press('Enter')
+    await expect(preview(page).getByRole('heading', { name: 'Ningún ticket seleccionado' })).toBeVisible()
+    await expect(preview(page)).toBeFocused()
+
+    await page.goto('/tickets?ticket=1048')
+    await page.getByRole('link', { name: /#1047/ }).click()
+    await expect(preview(page).getByRole('heading', { level: 2 })).toHaveText(/Error al procesar el pago/)
+    await preview(page).getByRole('combobox', { name: 'Estado' }).focus()
+    await page.goBack()
+    await expect(preview(page).getByRole('heading', { level: 2 })).toHaveText('No puedo acceder a mi cuenta')
+    await expect(preview(page)).toBeFocused()
   })
 })
 
@@ -349,8 +473,13 @@ test.describe('tickets · textos largos', () => {
 })
 
 test.describe('tickets · sin saltos de layout', () => {
-  for (const width of [390, 1440]) {
-    test(`la lista y la vista previa empiezan en el mismo sitio cargando y con datos · ${width}px`, async ({
+  for (const [width, sort] of [
+    [390, 'updatedAt,desc'],
+    [1440, 'updatedAt,desc'],
+    [390, 'priority,desc'],
+    [1440, 'priority,desc'],
+  ] as const) {
+    test(`la lista y la vista previa empiezan en el mismo sitio cargando y con datos · ${width}px · ${sort}`, async ({
       page,
     }) => {
       let release!: () => void
@@ -364,7 +493,7 @@ test.describe('tickets · sin saltos de layout', () => {
         await route.fallback()
       })
       await page.setViewportSize({ width, height: 900 })
-      await page.goto(width >= 1200 ? '/tickets?ticket=1048' : '/tickets')
+      await page.goto(`/tickets?sort=${encodeURIComponent(sort)}${width >= 1200 ? '&ticket=1048' : ''}`)
       await expect(page.getByText('Cargando tickets…')).toBeAttached()
       const measure = async () => ({
         search: (await page.getByRole('searchbox', { name: 'Buscar tickets' }).boundingBox())!.y,

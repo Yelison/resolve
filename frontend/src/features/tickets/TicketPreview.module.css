@@ -25,6 +25,11 @@
   min-width: 0;
 }
 
+.ghostTitle {
+  align-self: flex-start;
+  max-width: 100%;
+}
+
 .context {
   color: var(--color-muted);
   font: var(--font-caption);
@@ -49,7 +54,13 @@
 }
 
 .field {
-  min-width: 150px;
+  min-width: calc(var(--space-40) * 4);
+}
+
+/* Guardando: el campo conserva el foco, pero se ve que no admite otro cambio. */
+.field select[aria-disabled='true'] {
+  cursor: progress;
+  opacity: 0.6;
 }
 
 /* La cabecera queda fija; la conversación se desplaza por su cuenta. */
@@ -64,26 +75,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-16);
-  max-width: 760px;
+  max-width: var(--reading-width);
   padding: var(--space-24) var(--space-32);
 }
 
 .state {
   padding: var(--space-32);
-}
-
-.ghost {
-  align-self: flex-start;
-  max-width: 100%;
-  border-radius: var(--radius-small);
-  background: var(--color-disabled);
-  color: transparent;
-  white-space: pre;
-  animation: pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.55;
-  }
 }

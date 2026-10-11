@@ -56,7 +56,7 @@ const bareTickets: BareTicket[] = [
 ]
 
 const metrics: TicketMetrics = {
-  open: 1,
+  open: 3,
   openedToday: 1,
   inProgress: 1,
   inProgressAssignedToMe: 0,

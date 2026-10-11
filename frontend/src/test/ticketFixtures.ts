@@ -42,5 +42,5 @@ export const metrics = {
   resolvedYesterday: 34,
   firstResponseMinutes: 18,
   firstResponseTargetMinutes: 30,
-  views: { all: 24, mine: 4, unassigned: 6, resolved: 10 },
+  views: { all: 34, mine: 4, unassigned: 6, resolved: 10 },
 }
