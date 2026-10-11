@@ -313,6 +313,57 @@ class KnowledgeApiTest extends KnowledgeFixture {
 	}
 
 	@Test
+	void everyListedArticleCarriesAPlainTextExcerptOfItsBody() throws Exception {
+		this.mvc.perform(get(API + "/knowledge/articles").with(as(LAURA)))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listArticles"))
+			.andExpect(jsonPath("$.items[0].excerpt").value("Las facturas están en Facturación, en la pestaña Historial."))
+			.andExpect(jsonPath("$.items[4].excerpt").value("Pulsa «Restablecer contraseña» y sigue los pasos."));
+		// Un cliente recibe el extracto de los artículos que puede leer, igual que antes recibía su fila.
+		this.mvc.perform(get(API + "/knowledge/articles").with(as(MARIA)))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("listArticles"))
+			.andExpect(jsonPath("$.items[0].excerpt").value("Las facturas están en Facturación, en la pestaña Historial."));
+	}
+
+	@Test
+	void theExcerptStripsMarkdownAndHtmlCutsLongBodiesAndFollowsEdits() throws Exception {
+		String body = "# Cambiar la contraseña\n\nEntra en [Ajustes](https://example.com/a) y pulsa **Guardar**.\n\n"
+				+ "```sh\nrm -rf /\n```\n\n<script>alert(1)</script>\n" + "Más texto de relleno. ".repeat(40);
+		String slug = createArticleWithBody(LAURA, "Con Markdown", body);
+
+		String excerpt = excerptOf(LAURA, slug);
+
+		assertThat(excerpt).startsWith("Cambiar la contraseña Entra en Ajustes y pulsa Guardar. alert(1) Más texto")
+			.endsWith("…")
+			.hasSizeLessThanOrEqualTo(160)
+			.doesNotContain("*", "#", "](", "rm -rf", "<", ">");
+
+		// El extracto se calcula al leer: editar el cuerpo lo cambia sin más pasos, y un cuerpo sin texto da «».
+		String version = getArticle(LAURA, slug).getResponse().getHeader("ETag").replace("\"", "");
+		String onlyCode = "{\"body\": \"---\\n\\n```\\ncódigo\\n```\"}";
+		assertThat(patchArticle(LAURA, slug, version, onlyCode).getResponse().getStatus()).isEqualTo(200);
+		assertThat(excerptOf(LAURA, slug)).isEmpty();
+		this.mvc.perform(get(API + "/knowledge/articles").with(as(LAURA)))
+			.andExpect(matchesContract("listArticles"));
+	}
+
+	private String createArticleWithBody(String user, String title, String body) throws Exception {
+		var result = postArticle(user, articleJson(title, body, this.accountCategory, "internal"));
+		assertThat(result.getResponse().getStatus()).isEqualTo(201);
+		return body(result).path("slug").asText();
+	}
+
+	private String excerptOf(String user, String slug) throws Exception {
+		for (JsonNode item : listArticles(user, "?size=100").path("items")) {
+			if (slug.equals(item.path("slug").asText())) {
+				return item.path("excerpt").asText();
+			}
+		}
+		throw new AssertionError("El artículo " + slug + " no aparece en la lista");
+	}
+
+	@Test
 	void sortsByTitleIgnoringCaseAndPaginates() throws Exception {
 		assertThat(slugs(listArticles(LAURA, "?sort=title,asc"))).containsExactly(CHANGE_PLAN, RECOVER, INVOICES,
 				REFUNDS, ESCALATION);

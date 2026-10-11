@@ -1566,7 +1566,20 @@ components:
       type: object
       additionalProperties: false
       required:
-        [id, name, email, company, openTickets, totalTickets, createdAt, archived, notes, archivedAt, version, portalAccess]
+        [
+          id,
+          name,
+          email,
+          company,
+          openTickets,
+          totalTickets,
+          createdAt,
+          archived,
+          notes,
+          archivedAt,
+          version,
+          portalAccess,
+        ]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -2240,7 +2253,7 @@ components:
       description: An article in lists, without its body.
       type: object
       additionalProperties: false
-      required: [id, slug, title, category, status, visibility, updatedAt, publishedAt]
+      required: [id, slug, title, category, status, visibility, excerpt, updatedAt, publishedAt]
       properties:
         id: { type: string, format: uuid }
         slug: { type: string, maxLength: 120 }
@@ -2248,6 +2261,15 @@ components:
         category: { $ref: '#/components/schemas/CategoryRef' }
         status: { $ref: '#/components/schemas/ArticleStatus' }
         visibility: { $ref: '#/components/schemas/ArticleVisibility' }
+        excerpt:
+          description: |
+            A short plain-text summary of the Markdown body, derived by the server when the list is read: Markdown
+            syntax (headings, emphasis, lists, quotes, tables, links, images and code) and HTML tags are removed,
+            fenced code blocks are dropped, whitespace is collapsed and it is cut at a word boundary with a trailing
+            "…" so that it never exceeds 160 characters. Empty when the body has no text. It is text, never markup:
+            clients must not insert it as HTML.
+          type: string
+          maxLength: 160
         updatedAt: { type: string, format: date-time }
         publishedAt:
           description: When the article was last published; null while it is a draft.
@@ -2256,8 +2278,8 @@ components:
 
     Article:
       description: |
-        An article with its Markdown body: every field of ArticleSummary plus `body`, `allowFeedback`, `version`,
-        `createdBy` and `updatedBy`. It is written out in full instead of composing ArticleSummary with `allOf`
+        An article with its Markdown body: every field of ArticleSummary except `excerpt` (the body itself is here)
+        plus `body`, `allowFeedback`, `version`, `createdBy` and `updatedBy`. It is written out in full instead of composing ArticleSummary with `allOf`
         (see the contract modelling notes in README.md). The body is plain Markdown text: the API neither renders
         nor sanitizes it, so clients must never insert it as HTML.
       type: object

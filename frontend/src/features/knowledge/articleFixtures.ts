@@ -16,6 +16,7 @@ export const articleSummary = (overrides: Partial<ArticleSummary> = {}): Article
   category: { id: 'cat-acceso', name: 'Cuenta y acceso', slug: 'cuenta-y-acceso' },
   status: 'published',
   visibility: 'public',
+  excerpt: 'Si no puedes iniciar sesión, solicita un enlace nuevo.',
   updatedAt: '2026-10-04T10:00:00Z',
   publishedAt: '2026-10-04T10:00:00Z',
   ...overrides,
@@ -45,12 +46,16 @@ export const articleBody = [
   'Abre el enlace antes de que venza.',
 ].join('\n')
 
-export const article = (overrides: Partial<Article> = {}): Article => ({
-  ...articleSummary(),
-  body: articleBody,
-  allowFeedback: true,
-  version: 3,
-  createdBy: { id: 'u-admin', name: 'Yelisson Ortiz' },
-  updatedBy: { id: 'u-admin', name: 'Yelisson Ortiz' },
-  ...overrides,
-})
+/** El detalle no lleva `excerpt`: el contrato lo reserva para las filas de las listas. */
+export const article = (overrides: Partial<Article> = {}): Article => {
+  const { excerpt: _excerpt, ...summary } = articleSummary()
+  return {
+    ...summary,
+    body: articleBody,
+    allowFeedback: true,
+    version: 3,
+    createdBy: { id: 'u-admin', name: 'Yelisson Ortiz' },
+    updatedBy: { id: 'u-admin', name: 'Yelisson Ortiz' },
+    ...overrides,
+  }
+}

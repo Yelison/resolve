@@ -31,19 +31,22 @@ public final class KnowledgeDtos {
 
 	}
 
-	/** Fila de las listas: sin cuerpo. */
+	/** Fila de las listas: sin cuerpo, con el extracto de texto plano que {@link Excerpts} deriva de él. */
 	public record ArticleSummaryDto(UUID id, String slug, String title, CategoryRefDto category, ArticleStatus status,
-			ArticleVisibility visibility, Instant updatedAt, @Nullable Instant publishedAt) {
+			ArticleVisibility visibility, String excerpt, Instant updatedAt, @Nullable Instant publishedAt) {
 
 		static ArticleSummaryDto from(Article article) {
 			return new ArticleSummaryDto(article.getId(), article.getSlug(), article.getTitle(),
 					CategoryRefDto.from(article.getCategory()), article.getStatus(), article.getVisibility(),
-					article.getUpdatedAt(), article.getPublishedAt());
+					Excerpts.of(article.getBody()), article.getUpdatedAt(), article.getPublishedAt());
 		}
 
 	}
 
-	/** Detalle: los campos de {@link ArticleSummaryDto} más cuerpo, valoraciones permitidas, versión y autores. */
+	/**
+	 * Detalle: los campos de {@link ArticleSummaryDto} salvo el extracto, más cuerpo, valoraciones permitidas, versión y
+	 * autores.
+	 */
 	public record ArticleDto(UUID id, String slug, String title, CategoryRefDto category, ArticleStatus status,
 			ArticleVisibility visibility, Instant updatedAt, @Nullable Instant publishedAt, String body,
 			boolean allowFeedback, long version, MemberRefDto createdBy, MemberRefDto updatedBy) {
