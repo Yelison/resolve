@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type Ref } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
 import {
   Button,
@@ -24,6 +24,9 @@ export interface MembersPanelProps {
   /** Aplica cambios al estado de la URL; cualquier filtro vuelve a la primera página. */
   onChange: (changes: Partial<TeamPageState>) => void
   onPageChange: (page: number) => void
+  /** Título de la lista, enfocable: el foco vuelve aquí cuando desaparece el botón que se pulsó. */
+  headingRef: Ref<HTMLHeadingElement>
+  onFocusMembers: () => void
   isAdmin: boolean
   actions: (member: TeamMember) => MenuItem[]
   onInvite: () => void
@@ -39,7 +42,17 @@ const statusFilterLabels: Record<MemberStatus, string> = {
 }
 
 /** Lista compacta de miembros con buscador, filtros de rol y estado y paginación de diez. */
-export function MembersPanel({ team, state, onChange, onPageChange, isAdmin, actions, onInvite }: MembersPanelProps) {
+export function MembersPanel({
+  team,
+  state,
+  onChange,
+  onPageChange,
+  headingRef,
+  onFocusMembers,
+  isAdmin,
+  actions,
+  onInvite,
+}: MembersPanelProps) {
   const [searchText, setSearchText] = useState(state.q)
   const debouncedSearch = useDebouncedValue(searchText)
 
@@ -75,6 +88,7 @@ export function MembersPanel({ team, state, onChange, onPageChange, isAdmin, act
   const clearFilters = () => {
     setSearchText('')
     onChange({ q: '', role: undefined, status: undefined })
+    onFocusMembers()
   }
 
   const total = team.isSuccess
@@ -90,7 +104,7 @@ export function MembersPanel({ team, state, onChange, onPageChange, isAdmin, act
   return (
     <section className={styles.panel} aria-labelledby="team-members-heading">
       <div className={styles.header}>
-        <h2 id="team-members-heading" className={styles.title}>
+        <h2 id="team-members-heading" ref={headingRef} tabIndex={-1} className={styles.title}>
           Miembros {counter !== null && <span className={styles.count}>{counter}</span>}
         </h2>
         <SearchField

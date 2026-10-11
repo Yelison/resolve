@@ -44,9 +44,9 @@
 
 .identity {
   display: flex;
-  flex: 1 1 160px;
+  flex: 1 1 0;
   flex-direction: column;
-  min-width: 0;
+  min-width: 7rem;
 }
 
 .email {
@@ -61,8 +61,14 @@
 }
 
 .cancel {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   margin-left: auto;
+  white-space: normal;
+}
+
+.reserved {
+  visibility: hidden;
 }
 
 .seeAll {

@@ -14,8 +14,13 @@
   color: var(--color-ink);
 }
 
-.skeleton {
-  padding: 0;
+.pending {
+  visibility: hidden;
+}
+
+.error {
+  font: var(--font-body);
+  color: var(--color-muted);
 }
 
 .counts {

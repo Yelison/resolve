@@ -46,7 +46,7 @@ export function InvitationsPanel({ invitations, onCancel, onSeeAll, headingRef }
               <Button
                 variant="secondary"
                 className={styles.cancel}
-                aria-label={`Cancelar la invitación de ${member.email}`}
+                aria-label={`Cancelar invitación de ${member.email}`}
                 onClick={() => onCancel(member)}
               >
                 Cancelar invitación
@@ -66,5 +66,33 @@ export function InvitationsPanel({ invitations, onCancel, onSeeAll, headingRef }
         </Button>
       )}
     </section>
+  )
+}
+
+/** Invitaciones de relleno para reservar el sitio: tres filas y «Ver las N», lo máximo que el panel muestra. */
+const placeholders: TeamMember[] = Array.from({ length: INVITATIONS_PREVIEW_SIZE + 1 }, (_, index) => ({
+  id: `placeholder-${index}`,
+  name: '',
+  email: 'persona@empresa.com',
+  role: 'agent',
+  status: 'invited',
+  openTickets: 0,
+  urgentOpenTickets: 0,
+  joinedAt: null,
+  invitedAt: null,
+}))
+
+/**
+ * El panel real, oculto con `visibility`, mientras llega la lista: así un administrador no ve aparecer un panel de
+ * 450 px entre otros dos. Si luego hay menos invitaciones (o ninguna), la página solo se contrae.
+ */
+export function InvitationsSkeleton() {
+  return (
+    <div className={styles.reserved} role="status">
+      <span className="visually-hidden">Cargando las invitaciones…</span>
+      <div aria-hidden="true">
+        <InvitationsPanel invitations={placeholders} onCancel={() => {}} onSeeAll={() => {}} />
+      </div>
+    </div>
   )
 }

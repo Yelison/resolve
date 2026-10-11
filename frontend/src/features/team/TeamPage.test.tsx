@@ -339,7 +339,7 @@ describe('TeamPage', () => {
       renderTeam()
       const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
       await userEvent.click(
-        within(panel).getByRole('button', { name: 'Cancelar la invitación de invitada1@acme.example' }),
+        within(panel).getByRole('button', { name: 'Cancelar invitación de invitada1@acme.example' }),
       )
       const dialog = await screen.findByRole('dialog', { name: '¿Cancelar esta invitación?' })
       expect(dialog).toHaveTextContent('invitada1@acme.example')
@@ -359,7 +359,7 @@ describe('TeamPage', () => {
       })
       renderTeam()
       const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
-      await userEvent.click(within(panel).getByRole('button', { name: /Cancelar la invitación de/ }))
+      await userEvent.click(within(panel).getByRole('button', { name: /Cancelar invitación de/ }))
       const dialog = await screen.findByRole('dialog', { name: '¿Cancelar esta invitación?' })
       await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar invitación' }))
       await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Equipo' })).toHaveFocus())
@@ -373,11 +373,136 @@ describe('TeamPage', () => {
       })
       renderTeam()
       const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
-      await userEvent.click(within(panel).getByRole('button', { name: /Cancelar la invitación de/ }))
+      await userEvent.click(within(panel).getByRole('button', { name: /Cancelar invitación de/ }))
       const dialog = await screen.findByRole('dialog', { name: '¿Cancelar esta invitación?' })
       await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar invitación' }))
       expect(await within(dialog).findByRole('alert')).toHaveTextContent('El miembro ya fue retirado del equipo.')
       expect(screen.queryByText('Invitación cancelada')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('revisión: reservas, foco y textos', () => {
+    const invitedMember = (index: number) =>
+      teamMember({
+        id: `u-inv-${index}`,
+        name: `invitada${index}`,
+        email: `invitada${index}@acme.example`,
+        status: 'invited',
+        openTickets: 0,
+        urgentOpenTickets: 0,
+        joinedAt: null,
+        invitedAt: new Date(Date.now() - index * 86_400_000).toISOString(),
+      })
+
+    it('un administrador tiene reservado el sitio de las invitaciones mientras carga; un agente no', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/members': () => new Promise(() => {}) as never })
+      renderTeam()
+      expect(await screen.findByText('Cargando las invitaciones…')).toBeInTheDocument()
+      // La reserva ocupa lo que ocuparía el máximo visible: tres filas y «Ver las N».
+      expect(screen.getAllByRole('button', { name: /Cancelar invitación de/, hidden: true })).toHaveLength(3)
+    })
+
+    it('un agente no reserva el panel de invitaciones', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/me': { body: agentMe },
+        'GET /api/members': () => new Promise(() => {}) as never,
+      })
+      renderTeam()
+      expect(await screen.findByText('Cargando el equipo…')).toBeInTheDocument()
+      expect(screen.queryByText('Cargando las invitaciones…')).not.toBeInTheDocument()
+    })
+
+    it('«Roles» va antes que las invitaciones en la columna lateral', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [...teamWithoutInvitations, invitedMember(1)] } })
+      renderTeam()
+      const invitations = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
+      const roles = screen.getByRole('region', { name: 'Roles' })
+      expect(roles.compareDocumentPosition(invitations) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it('tras «Ver las N» el foco va al título de la lista, no a body', async () => {
+      const five = [1, 2, 3, 4, 5].map(invitedMember)
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [...teamWithoutInvitations, ...five] } })
+      renderTeam()
+      const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
+      await userEvent.click(within(panel).getByRole('button', { name: /Ver las 5 invitaciones/ }))
+      await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: /^Miembros/ })).toHaveFocus())
+    })
+
+    it('tras «Quitar filtros» el foco va al título de la lista, no a body', async () => {
+      mockApi(baseRoutes)
+      renderTeam('/equipo?q=zzzz')
+      await userEvent.click(await screen.findByRole('button', { name: 'Quitar filtros' }))
+      await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: /^Miembros/ })).toHaveFocus())
+    })
+
+    it('tras «Ver el equipo actual» el foco va al título de la lista, no a body', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [teamMember()] } })
+      renderTeam('/equipo?estado=retirados')
+      await userEvent.click(await screen.findByRole('button', { name: 'Ver el equipo actual' }))
+      await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: /^Miembros/ })).toHaveFocus())
+    })
+
+    it('en la vista filtrada una invitación ofrece «Cancelar invitación», no «Retirar del equipo»', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [...teamWithoutInvitations, invitedMember(1)] } })
+      renderTeam('/equipo?estado=invitados')
+      await userEvent.click(await screen.findByRole('button', { name: 'Acciones de invitada1' }))
+      expect(screen.getByRole('menuitem', { name: 'Cambiar rol' })).toBeInTheDocument()
+      expect(screen.queryByRole('menuitem', { name: 'Retirar del equipo' })).not.toBeInTheDocument()
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Cancelar invitación' }))
+      expect(await screen.findByRole('dialog', { name: '¿Cancelar esta invitación?' })).toBeInTheDocument()
+    })
+
+    it('una invitación cancelada se ve en Retirados con la insignia «Invitación cancelada»', async () => {
+      const cancelled = { ...invitedMember(1), status: 'removed' as const }
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [...team, cancelled] } })
+      renderTeam('/equipo?estado=retirados')
+      const table = await screen.findByRole('table', { name: 'Equipo' })
+      expect(
+        within(within(table).getByRole('row', { name: /invitada1/ })).getByText('Invitación cancelada'),
+      ).toBeInTheDocument()
+      // Quien llegó a entrar sigue siendo «Retirado».
+      expect(within(within(table).getByRole('row', { name: /Pablo Viejo/ })).getByText('Retirado')).toBeInTheDocument()
+    })
+
+    it('el nombre accesible de «Cancelar invitación» contiene el texto visible', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [...teamWithoutInvitations, invitedMember(1)] } })
+      renderTeam()
+      const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
+      const button = within(panel).getByRole('button', { name: 'Cancelar invitación de invitada1@acme.example' })
+      expect(button.textContent).toBe('Cancelar invitación')
+      expect(button.getAttribute('aria-label')).toContain(button.textContent)
+    })
+
+    it('si falla la lista «Roles» lo explica y conserva su enlace', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/members': { status: 500, body: { status: 500, title: 'Error' } } })
+      renderTeam()
+      const roles = await screen.findByRole('region', { name: 'Roles' })
+      expect(await within(roles).findByText(/No pudimos cargar los roles/)).toBeInTheDocument()
+      expect(within(roles).getByRole('link', { name: 'Ver permisos por rol' })).toBeInTheDocument()
+    })
+
+    it('una barra no dibuja segmentos vacíos', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/members': {
+          body: [
+            teamMember({ id: 'a', name: 'Solo urgentes', openTickets: 2, urgentOpenTickets: 2 }),
+            teamMember({ id: 'b', name: 'Sin urgentes', openTickets: 2, urgentOpenTickets: 0 }),
+            teamMember({ id: 'c', name: 'Sin nada', openTickets: 0, urgentOpenTickets: 0 }),
+            teamMember({ id: 'd', name: 'Mixto', openTickets: 3, urgentOpenTickets: 1 }),
+          ],
+        },
+      })
+      renderTeam()
+      const load = await screen.findByRole('region', { name: 'Carga ahora' })
+      const segments = (name: string) => {
+        const row = within(load).getByText(name).closest('li')!
+        return row.querySelector('[aria-hidden="true"]:not(span span)')?.children.length
+      }
+      await within(load).findByText('Solo urgentes')
+      expect(['Solo urgentes', 'Sin urgentes', 'Sin nada', 'Mixto'].map(segments)).toEqual([1, 1, 0, 2])
     })
   })
 

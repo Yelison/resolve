@@ -159,8 +159,9 @@ function LoadBars({ entries }: { entries: LoadEntry[] }) {
             <span className={styles.name}>{member.name}</span>
           </span>
           <span className={styles.bar} aria-hidden="true">
-            <span className={styles.urgent} style={{ width: `${(urgent / scale) * 100}%` }} />
-            <span className={styles.rest} style={{ width: `${(rest / scale) * 100}%` }} />
+            {/* Un segmento vacío no se dibuja: el hueco entre segmentos solo existe si hay dos. */}
+            {urgent > 0 && <span className={styles.urgent} style={{ width: `${(urgent / scale) * 100}%` }} />}
+            {rest > 0 && <span className={styles.rest} style={{ width: `${(rest / scale) * 100}%` }} />}
           </span>
           <span className={styles.count}>
             {openCount(open)}

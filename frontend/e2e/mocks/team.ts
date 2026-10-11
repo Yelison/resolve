@@ -48,12 +48,14 @@ export function teamMock(): MockFeature {
     if (method === 'GET' && path === '/members') return json(route, [...members.values()])
     if (method === 'POST' && path === '/members') {
       const body = request.postDataJSON() as { email: string; name?: string; role: 'admin' | 'agent' }
-      if ([...members.values()].some((member) => member.email === body.email && member.status !== 'removed')) {
+      const existing = [...members.values()].find((member) => member.email === body.email)
+      if (existing && existing.status !== 'removed') {
         return problem(route, 400, 'Datos no válidos', [{ field: 'email', message: 'Ya forma parte del equipo.' }])
       }
+      // Como el backend: volver a invitar a alguien retirado reactiva su fila (mismo id) en lugar de crear otra.
       const invited = teamMember({
-        id: `u-nuevo-${nextMember++}`,
-        name: body.name ?? body.email.split('@')[0]!,
+        id: existing?.id ?? `u-nuevo-${nextMember++}`,
+        name: existing?.name ?? body.name ?? body.email.split('@')[0]!,
         email: body.email,
         role: body.role,
         status: 'invited',

@@ -8,7 +8,7 @@ import { focusPageHeading, focusPageHeadingIfFocusLost } from '../../lib/focusPa
 import { useMe } from '../session/queries'
 import { CancelInvitationDialog } from './CancelInvitationDialog'
 import { ChangeRoleDialog } from './ChangeRoleDialog'
-import { InvitationsPanel } from './InvitationsPanel'
+import { InvitationsPanel, InvitationsSkeleton } from './InvitationsPanel'
 import { InviteMemberDialog } from './InviteMemberDialog'
 import { LoadPanel } from './LoadPanel'
 import { MembersPanel } from './MembersPanel'
@@ -55,12 +55,21 @@ export function TeamPage() {
   // Al retirar o cancelar con éxito la fila sale de la lista, pero un instante después del cierre: el foco se lleva
   // desde un efecto para que corra después de que el diálogo devuelva el foco a su disparador.
   const [focusRequests, setFocusRequests] = useState(0)
-  const focusTarget = useRef<'heading' | 'invitations'>('heading')
+  const focusTarget = useRef<'heading' | 'invitations' | 'members'>('heading')
+  const membersHeading = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     if (focusRequests === 0) return
     if (focusTarget.current === 'invitations' && invitationsHeading.current) invitationsHeading.current.focus()
+    else if (focusTarget.current === 'members' && membersHeading.current) membersHeading.current.focus()
     else focusPageHeading()
   }, [focusRequests])
+
+  // «Ver las N», «Quitar filtros» y «Ver el equipo actual» hacen desaparecer el botón pulsado: el foco va al título de
+  // la lista, que dice cuántos miembros quedan, en lugar de caer en `body`.
+  function focusMembers() {
+    focusTarget.current = 'members'
+    setFocusRequests((count) => count + 1)
+  }
 
   function closeAfterRemoval() {
     setRemoving(null)
@@ -79,8 +88,11 @@ export function TeamPage() {
   function actionsFor(member: TeamMember): MenuItem[] {
     if (!isAdmin || member.status === 'removed') return []
     const items: MenuItem[] = [{ id: 'role', label: 'Cambiar rol', onSelect: () => setChangingRole(member) }]
-    // Retirarse a uno mismo es siempre un 409: la acción no se ofrece.
-    if (member.id !== selfId) {
+    // Una invitación no se «retira»: se cancela, con sus propios textos.
+    if (member.status === 'invited') {
+      items.push({ id: 'cancel', label: 'Cancelar invitación', tone: 'danger', onSelect: () => setCancelling(member) })
+      // Retirarse a uno mismo es siempre un 409: la acción no se ofrece.
+    } else if (member.id !== selfId) {
       items.push({
         id: 'remove',
         label: 'Retirar del equipo',
@@ -112,15 +124,21 @@ export function TeamPage() {
           onAsTableChange={(loadTable) => update({ loadTable, page: state.page })}
         />
         <div className={styles.side}>
+          {/* «Roles» mide siempre lo mismo y va primero: lo que varía (las invitaciones) queda al final de la columna. */}
+          <RolesPanel team={team} />
+          {/* Mientras carga, un administrador ya tiene reservado el sitio del panel con su altura máxima. */}
+          {isAdmin && team.isPending && <InvitationsSkeleton />}
           {showInvitations && (
             <InvitationsPanel
               invitations={invitations}
               headingRef={invitationsHeading}
               onCancel={setCancelling}
-              onSeeAll={() => update({ status: 'invited', role: undefined, q: '' })}
+              onSeeAll={() => {
+                update({ status: 'invited', role: undefined, q: '' })
+                focusMembers()
+              }}
             />
           )}
-          <RolesPanel team={team} />
         </div>
       </div>
 
@@ -129,6 +147,8 @@ export function TeamPage() {
         state={state}
         onChange={update}
         onPageChange={(page) => setSearchParams(writeTeamState({ ...state, page }))}
+        headingRef={membersHeading}
+        onFocusMembers={focusMembers}
         isAdmin={isAdmin}
         actions={actionsFor}
         onInvite={() => setInviting(true)}

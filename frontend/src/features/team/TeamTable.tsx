@@ -10,8 +10,8 @@ import {
   type BadgeTone,
   type MenuItem,
 } from '../../components/ui'
-import { openCount, urgentCount } from './teamCopy'
-import { memberStatusLabels, type MemberStatus, type TeamMember } from '../../domain/member'
+import { memberStatusLabel, openCount, urgentCount } from './teamCopy'
+import type { MemberStatus, TeamMember } from '../../domain/member'
 import { roleLabels } from '../../app/navigation'
 import styles from './TeamTable.module.css'
 
@@ -76,7 +76,7 @@ function MemberRow({ member, actions }: { member: TeamMember; actions: MenuItem[
       </span>
       <span role="none" className={styles.chips}>
         <span role="cell" className={styles.status}>
-          <Badge tone={statusTones[member.status]}>{memberStatusLabels[member.status]}</Badge>
+          <Badge tone={statusTones[member.status]}>{memberStatusLabel(member)}</Badge>
         </span>
         <span role="cell" className={styles.load}>
           {openCount(member.openTickets)}
