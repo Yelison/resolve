@@ -89,6 +89,70 @@ class TicketMetricsApiTest extends TicketsFixture {
 			.andExpect(jsonPath("$.firstResponseMinutes").isEmpty());
 	}
 
+	@Test
+	void countsTheUnassignedTicketsOlderThanFourHoursAsASubsetOfTheUnassignedView() throws Exception {
+		this.clock.set(Instant.parse("2026-10-04T08:00:00Z"));
+		createTicket(LAURA, this.mariaCustomer, "Lleva 5 h", "low", null); // 1
+		this.clock.advance(Duration.ofHours(2));
+		createTicket(LAURA, this.carlosCustomer, "Lleva 3 h", "low", null); // 2
+		createTicket(LAURA, this.anaCustomer, "Asignado", "low", this.laura); // 3
+		this.clock.advance(Duration.ofMinutes(1));
+		// Resuelto y sin responsable: no cuenta en la vista, así que tampoco en la métrica.
+		createTicket(LAURA, this.anaCustomer, "Resuelto", "low", null); // 4
+		patchTicket(LAURA, 4, 0, "{\"status\": \"resolved\"}");
+		createNorthwindTicket();
+		this.clock.set(Instant.parse("2026-10-04T13:00:00Z"));
+
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("getTicketMetrics"))
+			.andExpect(jsonPath("$.views.unassigned").value(2))
+			.andExpect(jsonPath("$.unassignedOver4Hours").value(1));
+	}
+
+	@Test
+	void theThresholdIsStrictlyMoreThanFourHours() throws Exception {
+		this.clock.set(Instant.parse("2026-10-04T08:00:00Z"));
+		createTicket(LAURA, this.mariaCustomer, "Justo 4 h", "low", null);
+		this.clock.advance(Duration.ofHours(4));
+
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
+			.andExpect(jsonPath("$.unassignedOver4Hours").value(0));
+
+		this.clock.advance(Duration.ofSeconds(1));
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
+			.andExpect(jsonPath("$.unassignedOver4Hours").value(1));
+	}
+
+	@Test
+	void aTicketThatLostItsAssigneeCountsFromThatChange() throws Exception {
+		this.clock.set(Instant.parse("2026-10-04T01:00:00Z"));
+		createTicket(LAURA, this.mariaCustomer, "Se desasignó hace poco", "low", this.laura); // 1
+		createTicket(LAURA, this.carlosCustomer, "Se desasignó hace mucho", "low", this.laura); // 2
+		this.clock.set(Instant.parse("2026-10-04T05:00:00Z"));
+		patchTicket(LAURA, 2, 0, "{\"assigneeId\": null}");
+		this.clock.set(Instant.parse("2026-10-04T11:00:00Z"));
+		patchTicket(LAURA, 1, 0, "{\"assigneeId\": null}");
+		this.clock.set(Instant.parse("2026-10-04T12:00:00Z"));
+
+		// Los dos se crearon hace más de 4 h, pero el primero quedó sin responsable hace 1 h.
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
+			.andExpect(jsonPath("$.views.unassigned").value(2))
+			.andExpect(jsonPath("$.unassignedOver4Hours").value(1));
+	}
+
+	@Test
+	void unassignedTicketsOfAnotherOrganizationAreNotCounted() throws Exception {
+		this.clock.set(Instant.parse("2026-10-04T01:00:00Z"));
+		createNorthwindTicket();
+		this.clock.set(Instant.parse("2026-10-04T13:00:00Z"));
+
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
+			.andExpect(jsonPath("$.unassignedOver4Hours").value(0));
+		this.mvc.perform(get(API + "/tickets/metrics").with(as(NORTHWIND_AGENT)))
+			.andExpect(jsonPath("$.unassignedOver4Hours").value(1));
+	}
+
 	private void reply(long number, String visibility) throws Exception {
 		this.mvc.perform(post(API + "/tickets/{number}/messages", number).with(as(LAURA)).contentType(MediaType.APPLICATION_JSON)
 			.content("{\"body\": \"Respuesta\", \"visibility\": \"%s\"}".formatted(visibility)))

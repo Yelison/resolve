@@ -1147,6 +1147,11 @@ export interface components {
             resolvedToday: number;
             resolvedYesterday: number;
             /**
+             * @description Tickets counted in `views.unassigned` that have had no assignee for more than 4 hours: since the
+             *     change that left them without one, or since creation if they never had one. A fixed threshold.
+             */
+            unassignedOver4Hours: number;
+            /**
              * @description Median minutes, rounded to the nearest integer, from creation to the first public agent
              *     message, over tickets created in the last 168 hours that have one; null when there are none.
              */
