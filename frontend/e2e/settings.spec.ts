@@ -181,7 +181,16 @@ test.describe('configuración: Empresa', () => {
     )
     await page.getByRole('textbox', { name: 'Objetivo de primera respuesta' }).focus()
     await page.getByRole('button', { name: 'Guardar cambios' }).click()
-    await expect(page.getByText('Los ajustes cambiaron mientras los editabas')).toBeInViewport()
+    const notice = page.getByRole('status').filter({ hasText: 'Los ajustes cambiaron mientras los editabas' })
+    await expect(notice).toBeInViewport()
+    // A la vista de verdad: por debajo de la barra superior, que es pegajosa, y no tapado por ella.
+    await expect
+      .poll(async () => {
+        const topbar = (await page.locator('header').first().boundingBox())!
+        const box = (await notice.boundingBox())!
+        return box.y - (topbar.y + topbar.height)
+      })
+      .toBeGreaterThanOrEqual(0)
   })
 
   test('un nombre de espacio de 120 caracteres no desborda la página en móvil', async ({ page }) => {
@@ -351,17 +360,29 @@ test.describe('configuración: General', () => {
     await expect(page.getByRole('radio', { name: 'Claro' })).toBeChecked()
   })
 
-  test('elegir el tema no mueve nada: el borde de selección no cambia el tamaño de las tarjetas', async ({ page }) => {
+  test('elegir el tema no mueve nada: el borde de selección no desplaza el contenido de la tarjeta', async ({
+    page,
+  }) => {
     await page.setViewportSize(desktop)
     await page.goto('/configuracion/general')
-    const card = page.getByRole('radio', { name: 'Claro' }).locator('xpath=ancestor::div[1]')
-    const size = async () => {
+    const radio = page.getByRole('radio', { name: 'Claro' })
+    const card = radio.locator('xpath=ancestor::div[1]')
+    // Todo relativo a la tarjeta: `check()` desplaza la página y las coordenadas absolutas cambian.
+    const measure = async () => {
       const box = (await card.boundingBox())!
-      return { width: box.width, height: box.height }
+      const thumb = (await card.locator('[aria-hidden="true"]').first().boundingBox())!
+      const dot = (await radio.boundingBox())!
+      return {
+        width: box.width,
+        height: box.height,
+        thumb: [thumb.x - box.x, thumb.y - box.y, thumb.width, thumb.height],
+        dot: [dot.x - box.x, dot.y - box.y],
+      }
     }
-    const before = await size()
-    await page.getByRole('radio', { name: 'Claro' }).check()
-    expect(await size()).toEqual(before)
+    const before = await measure()
+    await radio.check()
+    await expect(radio).toBeChecked()
+    expect(await measure()).toEqual(before)
   })
 
   test('con teclado las flechas cambian el tema', async ({ page }) => {
@@ -432,5 +453,30 @@ test.describe('configuración: Permisos', () => {
     await expect(page.getByRole('heading', { level: 2 }).locator('xpath=following-sibling::ul/li')).toHaveCount(14)
     const box = await roles.getByRole('button', { name: 'Cliente' }).boundingBox()
     expect(box!.height).toBeGreaterThanOrEqual(44)
+  })
+})
+
+test.describe('configuración: con el aviso de la demostración', () => {
+  test('la barra de guardar queda por encima del aviso y el campo enfocado por encima de la barra, a 390 px', async ({
+    page,
+  }) => {
+    await mockApi(page, 'admin', { demo: true })
+    await page.setViewportSize({ width: 390, height: 640 })
+    await page.goto('/configuracion/empresa')
+    const banner = page.getByRole('region', { name: 'Demostración pública' })
+    await expect(banner).toBeVisible()
+    const target = page.getByRole('textbox', { name: 'Objetivo de primera respuesta' })
+    await target.focus()
+    await expect(target).toBeFocused()
+    await expect
+      .poll(async () => {
+        const bar = (await saveBar(page).boundingBox())!
+        const notice = (await banner.boundingBox())!
+        return notice.y - (bar.y + bar.height)
+      })
+      .toBeGreaterThanOrEqual(-0.5)
+    const field = (await target.boundingBox())!
+    const bar = (await saveBar(page).boundingBox())!
+    expect(field.y + field.height).toBeLessThanOrEqual(bar.y + 0.5)
   })
 })

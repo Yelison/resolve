@@ -9,21 +9,35 @@ function matches(query: string, width: number) {
   return (!min || width >= Number(min[1])) && (!max || width <= Number(max[1]))
 }
 
-/** Hace que `matchMedia` responda como una ventana de `width` px (jsdom no coincide con ninguna por defecto: móvil). */
+/**
+ * Hace que `matchMedia` responda como una ventana de `width` px (jsdom no coincide con ninguna por defecto: móvil).
+ * `setWidth` cambia el ancho y avisa a quien escucha `change`, como al redimensionar la ventana.
+ */
 export function mockViewport(width: number) {
-  return vi.spyOn(window, 'matchMedia').mockImplementation(
+  let current = width
+  const listeners = new Set<() => void>()
+  const spy = vi.spyOn(window, 'matchMedia').mockImplementation(
     (query) =>
       ({
-        matches: matches(query, width),
+        get matches() {
+          return matches(query, current)
+        },
         media: query,
         onchange: null,
-        addEventListener: () => {},
-        removeEventListener: () => {},
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
         addListener: () => {},
         removeListener: () => {},
         dispatchEvent: () => false,
-      }) as MediaQueryList,
+      }) as unknown as MediaQueryList,
   )
+  return {
+    spy,
+    setWidth(next: number) {
+      current = next
+      for (const listener of [...listeners]) listener()
+    },
+  }
 }
 
 /** Hace que los elementos midan `width` px de ancho para `useElementWidth` (jsdom no mide ni observa nada). */

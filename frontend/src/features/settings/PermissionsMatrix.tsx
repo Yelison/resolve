@@ -20,7 +20,7 @@ import styles from './PermissionsMatrix.module.css'
 const sections = groupBySection()
 
 /** Ancho del panel desde el que caben la capacidad y las tres columnas de rol. */
-const TABLE_MIN_WIDTH = 640
+const TABLE_MIN_WIDTH = 720
 
 const legend: AccessStatus[] = ['allowed', 'limited', 'none']
 

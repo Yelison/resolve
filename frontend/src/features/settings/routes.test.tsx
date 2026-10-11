@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../../test/api'
@@ -186,16 +186,26 @@ describe('rutas de configuración (por debajo de 768 px)', () => {
 })
 
 describe('cambio de ancho', () => {
-  it('al ensanchar la ventana desde la lista se abre la primera sección del rol', async () => {
+  it('al ensanchar la ventana desde la lista se abre la primera sección del rol, sin navegar a mano', async () => {
     mockApi(settingsApi(adminMe))
     const viewport = mockViewport(390)
     const router = renderApp('/configuracion')
     expect(await screen.findByText('Yelisson Ortiz · tema como el sistema')).toBeInTheDocument()
-    viewport.mockRestore()
-    // La lista no se queda en pantalla ancha: el índice abre Empresa al renderizar de nuevo.
-    mockViewport(1440)
-    router.navigate('/configuracion/empresa')
-    expect(await screen.findByRole('textbox', { name: 'Nombre del espacio' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/configuracion')
+    act(() => viewport.setWidth(1440))
+    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/configuracion/empresa'))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Identidad' })).toBeInTheDocument()
+  })
+
+  it('al estrechar la ventana en una sección, esa sección pasa a ser una pantalla con «‹ Configuración»', async () => {
+    mockApi(settingsApi(adminMe))
+    const viewport = mockViewport(1440)
+    const router = renderApp('/configuracion/general')
+    expect(await screen.findByRole('navigation', { name: 'Secciones de configuración' })).toBeInTheDocument()
+    act(() => viewport.setWidth(390))
+    expect(await screen.findByRole('heading', { level: 1, name: 'General' })).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Secciones de configuración' })).not.toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/configuracion/general')
   })
 })
 

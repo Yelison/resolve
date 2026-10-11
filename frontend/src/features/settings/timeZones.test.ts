@@ -35,6 +35,14 @@ describe('timeZoneGroups', () => {
     expect(timeZoneLabel('America/Argentina/Buenos_Aires')).toBe('Buenos Aires (GMT−3)')
   })
 
+  it('las zonas de España, México y Argentina tienen nombre en español con tildes', () => {
+    expect(timeZoneLabel('Atlantic/Canary')).toBe('Canarias (GMT+1)')
+    expect(timeZoneLabel('America/Mazatlan')).toBe('Mazatlán (GMT−7)')
+    expect(timeZoneLabel('America/Argentina/Cordoba')).toBe('Córdoba (GMT−3)')
+    expect(timeZoneLabel('America/Argentina/Tucuman')).toBe('Tucumán (GMT−3)')
+    expect(timeZoneLabel('America/New_York')).toMatch(/^Nueva York \(GMT−[45]\)$/)
+  })
+
   it('el meridiano de Greenwich es «GMT» y UTC va sin desfase', () => {
     expect(timeZoneLabel('Atlantic/Reykjavik')).toBe('Reykjavik (GMT)')
     expect(timeZoneLabel('UTC')).toBe('UTC')
