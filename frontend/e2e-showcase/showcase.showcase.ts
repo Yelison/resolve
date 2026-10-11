@@ -107,7 +107,7 @@ test('recorre Resumen, Tickets, un ticket, Clientes, Conocimiento y Ajustes', as
   await expect(heading(page, 'Clientes')).toBeVisible()
 
   await nav.getByRole('link', { name: 'Conocimiento' }).click()
-  await expect(heading(page, 'Base de conocimiento')).toBeVisible()
+  await expect(heading(page, '¿Qué necesitas resolver?')).toBeVisible()
 
   await nav.getByRole('link', { name: 'Configuración' }).click()
   await expect(heading(page, 'Configuración')).toBeVisible()
@@ -182,7 +182,7 @@ test('los cambios no se guardan: un artículo creado desaparece al recargar aunq
   await expect(page.getByRole('link', { name: title })).toBeVisible()
 
   await page.reload()
-  await expect(heading(page, 'Base de conocimiento')).toBeVisible()
+  await expect(heading(page, '¿Qué necesitas resolver?')).toBeVisible()
   await expect(page.getByRole('link', { name: title })).toHaveCount(0)
 })
 

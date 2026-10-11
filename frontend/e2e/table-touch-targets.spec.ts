@@ -8,7 +8,6 @@ import { expect, test } from './fixtures'
 const tables = [
   { route: '/clientes', name: 'Clientes' },
   { route: '/equipo', name: 'Equipo' },
-  { route: '/conocimiento', name: 'Artículos' },
   { route: '/reportes', name: 'Rendimiento por agente' },
 ]
 
