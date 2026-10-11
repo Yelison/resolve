@@ -89,6 +89,46 @@ class CustomerGroupsApiTest extends CustomersFixture {
 	}
 
 	@Test
+	void everyPageCarriesItsOwnTotalsAndTheTotalOfCompaniesWhateverThePage() throws Exception {
+		UUID zeta1 = this.data.customer(this.acme, "Zeta Uno", "uno@zeta.example", "Zeta", JOINED.plusSeconds(10));
+		UUID zeta2 = this.data.customer(this.acme, "Zeta Dos", "dos@zeta.example", "zeta", JOINED.plusSeconds(20));
+		this.data.customer(this.acme, "Sin Nada", "nada@suelto.example", null, JOINED.plusSeconds(30));
+		this.data.ticket(this.acme, this.mariaCustomer, 81, "open");
+		this.data.ticket(this.acme, this.mariaCustomer, 82, "resolved");
+		this.data.ticket(this.acme, this.carlosCustomer, 83, "in_progress");
+		this.data.ticket(this.acme, this.carlosCustomer, 84, "waiting");
+		this.data.ticket(this.acme, this.anaCustomer, 85, "resolved");
+		this.data.ticket(this.acme, zeta1, 86, "open");
+		this.data.ticket(this.acme, zeta2, 87, "open");
+		this.data.ticket(this.acme, zeta2, 88, "open");
+
+		// Cinco empresas (la sin empresa cuenta) de dos en dos: cada página trae sus totales y el mismo total de empresas.
+		this.mvc.perform(get(BY_COMPANY).param("size", "2").with(as(LAURA)))
+			.andExpect(matchesContract("listCustomersByCompany"))
+			.andExpect(jsonPath("$.totalItems").value(5))
+			.andExpect(jsonPath("$.totalPages").value(3))
+			.andExpect(jsonPath("$.items[*].company").value(contains("Acme Studio", "Northstar")))
+			.andExpect(jsonPath("$.items[0].openTickets").value(1))
+			.andExpect(jsonPath("$.items[1].openTickets").value(2));
+		this.mvc.perform(get(BY_COMPANY).param("size", "2").param("page", "1").with(as(LAURA)))
+			.andExpect(jsonPath("$.totalItems").value(5))
+			.andExpect(jsonPath("$.items[*].company").value(contains("Orbit Labs", "Zeta")))
+			.andExpect(jsonPath("$.items[0].openTickets").value(0))
+			.andExpect(jsonPath("$.items[1].customerCount").value(2))
+			.andExpect(jsonPath("$.items[1].openTickets").value(3))
+			.andExpect(jsonPath("$.items[1].customers[*].name").value(contains("Zeta Dos", "Zeta Uno")));
+		this.mvc.perform(get(BY_COMPANY).param("size", "2").param("page", "2").with(as(LAURA)))
+			.andExpect(jsonPath("$.totalItems").value(5))
+			.andExpect(jsonPath("$.items", hasSize(1)))
+			.andExpect(jsonPath("$.items[0].company").value(org.hamcrest.Matchers.nullValue()))
+			.andExpect(jsonPath("$.items[0].openTickets").value(0));
+		this.mvc.perform(get(BY_COMPANY).param("size", "2").param("page", "9").with(as(LAURA)))
+			.andExpect(jsonPath("$.items", hasSize(0)))
+			.andExpect(jsonPath("$.totalItems").value(5))
+			.andExpect(jsonPath("$.totalPages").value(3));
+	}
+
+	@Test
 	void theSearchOnlyCountsAndShowsTheMatchingCustomersAndDropsEmptyCompanies() throws Exception {
 		manyCustomers();
 

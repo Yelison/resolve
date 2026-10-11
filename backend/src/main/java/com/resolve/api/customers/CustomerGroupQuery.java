@@ -51,31 +51,74 @@ class CustomerGroupQuery {
 	PageResponse<CustomerGroupRow> page(UUID organizationId, CustomerFilters filters,
 			PageQuery<CustomerSortField> page) {
 		Matching matching = matching(organizationId, filters);
+		// Primero las empresas de la página, sin tocar los tickets: el total sale de la misma consulta (ventana sobre los
+		// grupos, antes del LIMIT).
+		long[] total = { -1 };
 		List<GroupTotals> groups = matching.bind(this.jdbc.sql("""
-				SELECT m.grp, min(btrim(m.company)) AS company, count(*) AS customer_count,
-				       coalesce(sum(m.open_tickets), 0) AS open_tickets
-				FROM (SELECT c.id, c.company, %s AS grp, %s AS open_tickets %s) m
+				SELECT m.grp, min(btrim(m.company)) AS company, count(*) AS customer_count, count(*) OVER () AS total
+				FROM (SELECT c.id, c.company, %s AS grp %s) m
 				GROUP BY m.grp
 				ORDER BY m.grp NULLS LAST
 				LIMIT :limit OFFSET :offset
-				""".formatted(GROUP_KEY, OPEN_TICKETS, matching.from())))
+				""".formatted(GROUP_KEY, matching.from())))
 			.param("limit", page.size())
 			.param("offset", page.offset())
-			.query((row, index) -> new GroupTotals(row.getString("grp"), row.getString("company"),
-					row.getLong("customer_count"), row.getLong("open_tickets")))
+			.query((row, index) -> {
+				total[0] = row.getLong("total");
+				return new GroupTotals(row.getString("grp"), row.getString("company"), row.getLong("customer_count"), 0);
+			})
 			.list();
-		long total = matching.bind(this.jdbc.sql("""
-				SELECT count(*) FROM (SELECT 1 FROM (SELECT %s AS grp %s) m GROUP BY m.grp) groups
-				""".formatted(GROUP_KEY, matching.from()))).query(Long.class).single();
+		if (groups.isEmpty()) {
+			// Una página pasada la última no trae filas, y con ellas el total: se cuenta aparte.
+			total[0] = (page.offset() == 0) ? 0 : matching.bind(this.jdbc.sql("""
+					SELECT count(*) FROM (SELECT 1 FROM (SELECT %s AS grp %s) m GROUP BY m.grp) groups
+					""".formatted(GROUP_KEY, matching.from()))).query(Long.class).single();
+		}
+		Map<String, Long> openByGroup = openTickets(matching, groups);
 		Map<String, List<UUID>> previews = previews(organizationId, matching, page, groups);
 		Map<UUID, CustomerRow> rows = new HashMap<>();
 		this.customers.findAllWithCounts(organizationId, previews.values().stream().flatMap(List::stream).toList())
 			.forEach((row) -> rows.put(row.customer().getId(), row));
 		List<CustomerGroupRow> items = groups.stream()
-			.map((group) -> new CustomerGroupRow(blankToNull(group.company()), group.customerCount(), group.openTickets(),
+			.map((group) -> new CustomerGroupRow(blankToNull(group.company()), group.customerCount(),
+					openByGroup.getOrDefault(keyOf(group.key()), 0L),
 					previews.getOrDefault(keyOf(group.key()), List.of()).stream().map(rows::get).toList()))
 			.toList();
-		return PageResponse.of(items, page, total);
+		return PageResponse.of(items, page, total[0]);
+	}
+
+	/** Los tickets abiertos de cada empresa de la página: solo se cuentan los de sus clientes, no los de las demás. */
+	private Map<String, Long> openTickets(Matching matching, List<GroupTotals> groups) {
+		Map<String, Long> open = new HashMap<>();
+		if (groups.isEmpty()) {
+			return open;
+		}
+		var statement = matching.bind(this.jdbc.sql("""
+				SELECT m.grp, coalesce(sum((SELECT count(*) FROM tickets t
+				                            WHERE t.organization_id = :organizationId AND t.customer_id = m.id
+				                              AND t.status <> 'resolved')), 0) AS open_tickets
+				FROM (SELECT c.id, %s AS grp %s) m
+				WHERE %s
+				GROUP BY m.grp
+				""".formatted(GROUP_KEY, matching.from(), inPage(groups))));
+		statement = bindKeys(statement, groups);
+		statement.query((row, index) -> {
+			open.put(keyOf(row.getString("grp")), row.getLong("open_tickets"));
+			return index;
+		}).list();
+		return open;
+	}
+
+	/** Condición «el cliente es de una de las empresas de la página» sobre la columna {@code m.grp}. */
+	private static String inPage(List<GroupTotals> groups) {
+		boolean keys = groups.stream().anyMatch((group) -> group.key() != null);
+		boolean withoutCompany = groups.stream().anyMatch((group) -> group.key() == null);
+		return (keys ? "m.grp IN (:keys)" : "false") + (withoutCompany ? " OR m.grp IS NULL" : "");
+	}
+
+	private static JdbcClient.StatementSpec bindKeys(JdbcClient.StatementSpec statement, List<GroupTotals> groups) {
+		List<String> keys = groups.stream().map(GroupTotals::key).filter((key) -> key != null).toList();
+		return keys.isEmpty() ? statement : statement.param("keys", keys);
 	}
 
 	/** Los ids de los primeros {@link #PREVIEW} clientes de cada empresa de la página, en el orden pedido. */
@@ -85,15 +128,14 @@ class CustomerGroupQuery {
 		if (groups.isEmpty()) {
 			return previews;
 		}
-		List<String> keys = groups.stream().map(GroupTotals::key).filter((key) -> key != null).toList();
-		boolean withoutCompany = groups.stream().anyMatch((group) -> group.key() == null);
-		String inPage = (keys.isEmpty() ? "false" : "m.grp IN (:keys)") + (withoutCompany ? " OR m.grp IS NULL" : "");
 		String direction = (page.sort().direction() == SortDirection.DESC) ? "DESC" : "ASC";
 		String sort = switch (page.sort().field()) {
 			case NAME -> "lower(m.name)";
 			case CREATED_AT -> "m.created_at";
 			case OPEN_TICKETS -> "m.open_tickets";
 		};
+		// Los tickets solo se cuentan para ordenar por ellos.
+		String open = (page.sort().field() == CustomerSortField.OPEN_TICKETS) ? OPEN_TICKETS : "0";
 		var statement = matching.bind(this.jdbc.sql("""
 				SELECT ranked.id, ranked.grp FROM (
 				  SELECT m.id, m.grp, row_number() OVER (PARTITION BY m.grp ORDER BY %s %s, m.id ASC) AS position
@@ -102,10 +144,8 @@ class CustomerGroupQuery {
 				) ranked
 				WHERE ranked.position <= %d
 				ORDER BY ranked.grp NULLS LAST, ranked.position
-				""".formatted(sort, direction, GROUP_KEY, OPEN_TICKETS, matching.from(), inPage, PREVIEW)));
-		if (!keys.isEmpty()) {
-			statement = statement.param("keys", keys);
-		}
+				""".formatted(sort, direction, GROUP_KEY, open, matching.from(), inPage(groups), PREVIEW)));
+		statement = bindKeys(statement, groups);
 		statement.query((row, index) -> {
 			previews.computeIfAbsent(keyOf(row.getString("grp")), (key) -> new ArrayList<>())
 				.add(row.getObject("id", UUID.class));
