@@ -461,20 +461,24 @@ test.describe('configuración: con el aviso de la demostración', () => {
     page,
   }) => {
     await mockApi(page, 'admin', { demo: true })
-    await page.setViewportSize({ width: 390, height: 640 })
+    await page.setViewportSize({ width: 390, height: 520 })
     await page.goto('/configuracion/empresa')
     const banner = page.getByRole('region', { name: 'Demostración pública' })
     await expect(banner).toBeVisible()
+    const aboveBanner = async () => {
+      const bar = (await saveBar(page).boundingBox())!
+      const notice = (await banner.boundingBox())!
+      return notice.y - (bar.y + bar.height)
+    }
+    // Arriba del formulario la barra va pegada al borde inferior, donde también está el aviso: no se pisan.
+    await page.getByRole('textbox', { name: 'Nombre del espacio' }).focus()
+    await expect(page.getByRole('textbox', { name: 'Nombre del espacio' })).toBeInViewport()
+    await expect.poll(aboveBanner).toBeGreaterThanOrEqual(-0.5)
+    // Y el último campo, al enfocarse, queda por encima de la barra.
     const target = page.getByRole('textbox', { name: 'Objetivo de primera respuesta' })
     await target.focus()
     await expect(target).toBeFocused()
-    await expect
-      .poll(async () => {
-        const bar = (await saveBar(page).boundingBox())!
-        const notice = (await banner.boundingBox())!
-        return notice.y - (bar.y + bar.height)
-      })
-      .toBeGreaterThanOrEqual(-0.5)
+    await expect.poll(aboveBanner).toBeGreaterThanOrEqual(-0.5)
     const field = (await target.boundingBox())!
     const bar = (await saveBar(page).boundingBox())!
     expect(field.y + field.height).toBeLessThanOrEqual(bar.y + 0.5)
