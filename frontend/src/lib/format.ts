@@ -107,12 +107,17 @@ export function formatWeekdayShort(date: Date): string {
   return formatterFor('weekdayShort', { weekday: 'short' }, 'UTC').format(date).replace('.', '')
 }
 
+/** Cantidad con su singular o plural concordado: `plural(1, 'ticket', 'tickets')` da «1 ticket»; `plural(8, …)`, «8 tickets». */
+export function plural(count: number, uno: string, varios: string): string {
+  return `${count} ${count === 1 ? uno : varios}`
+}
+
 /** «1 nuevo hoy», «8 nuevos hoy». */
 export function newToday(count: number): string {
-  return count === 1 ? '1 nuevo hoy' : `${count} nuevos hoy`
+  return plural(count, 'nuevo hoy', 'nuevos hoy')
 }
 
 /** «1 asignado a ti», «4 asignados a ti». */
 export function assignedToYou(count: number): string {
-  return count === 1 ? '1 asignado a ti' : `${count} asignados a ti`
+  return plural(count, 'asignado a ti', 'asignados a ti')
 }

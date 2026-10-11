@@ -1,9 +1,10 @@
+import { plural } from '../../lib/format'
 import type { TicketStatus, TicketSummary } from '../../domain/ticket'
 import type { TicketSort } from './inboxParams'
 
 /** «1 ticket», «25 tickets». */
 export function ticketCount(count: number): string {
-  return count === 1 ? '1 ticket' : `${count} tickets`
+  return plural(count, 'ticket', 'tickets')
 }
 
 /** «Mostrando 25 de 132», sin plural que concordar: el total va después de «de». */
