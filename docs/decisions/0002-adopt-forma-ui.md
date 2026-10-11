@@ -130,7 +130,7 @@ Nothing else differs, measured twice: on the development server with all the pro
 
 ## Amendment 1 · 0.2.0: Tabs and Radio
 
-- **Status:** accepted, 2026-10-10. It landed in (this PR), which adopts `@yelison/forma-ui` 0.2.0.
+- **Status:** accepted, 2026-10-10. It landed in #128, which adopts `@yelison/forma-ui` 0.2.0.
 - **Scope:** it adds Tabs and Radio to the components that 0001 no longer covers, and the catalog's icon list (`iconNames`). Every other component stays under 0001. Checkbox and Switch are not part of it: they keep `shared/choice.module.css`, which Radio no longer uses.
 
 This is the amendment this ADR announced: the next families are measured with 0001's criteria and recorded here. The method is the same as for the adoption; the measured code is the one of this pull request.
