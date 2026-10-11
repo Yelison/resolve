@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useState, type RefObject } from 'react'
 import { Link } from 'react-router'
 import { isApiError } from '../../api/client'
@@ -7,7 +8,7 @@ import { cx } from '../../lib/cx'
 import { formatRelative } from '../../lib/format'
 import { demoErrorMessage, isLockTimeout, LOCK_TIMEOUT_MESSAGE } from '../../lib/mutationError'
 import { useMe } from '../session/queries'
-import { useQuickTicketUpdate, useTicketMetrics } from '../tickets/queries'
+import { ticketKeys, TicketPreconditionError, useQuickTicketUpdate, useTicketMetrics } from '../tickets/queries'
 import { selectAttention, type AttentionItem, type AttentionReason } from './attention'
 import { inboxLink, useAttentionTickets, type AttentionScope } from './attentionQueries'
 import { BlockError } from './BlockError'
@@ -61,12 +62,17 @@ export function AttentionPanel() {
   const me = useMe()
   const metrics = useTicketMetrics()
   const [chosen, setChosen] = useState<AttentionScope>()
+  // El alcance por defecto se decide una sola vez, cuando llegan las métricas por primera vez: una asignación hecha desde
+  // este mismo panel cambia `views.mine` y no debe cambiar la lista (ni quitar el foco) a quien acaba de pulsar.
+  const [fixedDefault, setFixedDefault] = useState<AttentionScope>()
   const mineCount = metrics.data?.views.mine
   const teamCount = metrics.data?.open
-  // Sin métricas no se sabe si hay algo asignado: mientras cargan no se elige alcance, y si fallan se muestra el equipo.
-  const scope: AttentionScope | undefined =
-    chosen ?? (metrics.isSuccess ? (mineCount! > 0 ? 'mine' : 'team') : metrics.isError ? 'team' : undefined)
-  const defaultedToTeam = chosen === undefined && scope === 'team' && metrics.isSuccess
+  if (fixedDefault === undefined && metrics.isSuccess) setFixedDefault(mineCount! > 0 ? 'mine' : 'team')
+  // Sin métricas no se sabe si hay algo asignado: mientras cargan no se elige alcance, y si fallan se muestra el equipo
+  // (sin fijarlo: si luego llegan, deciden).
+  const scope: AttentionScope | undefined = chosen ?? fixedDefault ?? (metrics.isError ? 'team' : undefined)
+  // La nota «no tienes tickets asignados» solo vale mientras es verdad.
+  const defaultedToTeam = chosen === undefined && fixedDefault === 'team' && mineCount === 0
 
   // Mientras llega la lista ya se sabe cuántos hay (las métricas decidieron el alcance): el esqueleto tiene tantas filas.
   const expected = scope === 'mine' ? mineCount : scope === 'team' ? teamCount : undefined
@@ -335,7 +341,17 @@ function AssignButton({
 }) {
   const me = useMe()
   const toast = useToast()
+  const queryClient = useQueryClient()
   const update = useQuickTicketUpdate()
+
+  /** El botón se sustituye por otro control o desaparece: el foco va al enlace del ticket, o al panel si la fila ya no está. */
+  function moveFocus() {
+    requestAnimationFrame(() => {
+      const link = document.querySelector<HTMLElement>(`[data-attention-link="${ticket.id}"]`)
+      ;(link ?? panelRef?.current)?.focus()
+    })
+  }
+
   return (
     <Button
       variant="secondary"
@@ -344,18 +360,34 @@ function AssignButton({
       disabled={!me.data}
       onClick={() =>
         update.mutate(
-          { number: ticket.number, changes: { assigneeId: me.data?.user.id } },
+          {
+            number: ticket.number,
+            changes: { assigneeId: me.data?.user.id },
+            // «Asignármelo» solo se ofrece porque nadie lo tenía: si entre tanto otra persona lo tomó, no se lo quita.
+            precondition: (current) => current.assignee === null,
+          },
           {
             onSuccess: () => {
               toast.show({ title: `Te asignaste el ticket #${ticket.number}` })
               onAssigned()
-              // El botón se sustituye por «Abrir»: el foco va al enlace del ticket, o al panel si la fila ya no está.
-              requestAnimationFrame(() => {
-                const link = document.querySelector<HTMLElement>(`[data-attention-link="${ticket.id}"]`)
-                ;(link ?? panelRef?.current)?.focus()
-              })
+              moveFocus()
             },
-            onError: (error) =>
+            onError: (error) => {
+              if (error instanceof TicketPreconditionError) {
+                const owner = error.current.assignee
+                toast.show({
+                  tone: 'info',
+                  title:
+                    owner && owner.id === me.data?.user.id
+                      ? `El ticket #${ticket.number} ya es tuyo`
+                      : `Ya lo tiene ${owner?.name ?? 'otra persona'}`,
+                  description: `Actualizamos la lista con el ticket #${ticket.number}.`,
+                })
+                void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
+                void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
+                moveFocus()
+                return
+              }
               toast.show({
                 tone: 'error',
                 title: `No se pudo asignar el ticket #${ticket.number}`,
@@ -364,7 +396,8 @@ function AssignButton({
                   : isApiError(error, 412)
                     ? 'Otra persona lo cambió a la vez. Revisa los cambios e inténtalo de nuevo.'
                     : (demoErrorMessage(error) ?? 'Inténtalo de nuevo en unos segundos.'),
-              }),
+              })
+            },
           },
         )
       }

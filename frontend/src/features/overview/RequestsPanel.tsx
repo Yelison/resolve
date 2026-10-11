@@ -10,14 +10,20 @@ import styles from './SidePanels.module.css'
 
 const series = [{ id: 'created', label: 'Solicitudes' }]
 
-/** Siete días sin solicitudes: dan la altura real del gráfico mientras carga. */
+/**
+ * Siete días con solicitudes: dan al esqueleto la altura real del gráfico (las cifras sobre las barras ocupan sitio que
+ * con todo a cero no se reserva).
+ */
 const ghostPoints = requestPoints(
-  Array.from({ length: 7 }, (_, index) => ({
+  [44, 61, 54, 72, 65, 35, 30].map((created, index) => ({
     date: `2026-01-0${index + 1}`,
-    created: 0,
+    created,
     resolved: 0,
   })),
 )
+
+/** La comparación más larga habitual: con ella el esqueleto reserva dos líneas en columnas estrechas. */
+const ghostComparison = '↑ 100 más (100 %) frente a los 7 días anteriores'
 
 /**
  * «Solicitudes esta semana»: las de los últimos 7 días con su total y la comparación con los 7 anteriores. El gráfico
@@ -38,9 +44,9 @@ export function RequestsPanel() {
         {data && <span className={styles.total}>{integer.format(data.created.value)}</span>}
       </div>
       {report.isPending ? (
-        <Ghost label="Cargando las solicitudes de la semana…">
-          <BarChart label="Solicitudes por día" series={series} points={ghostPoints} />
-          <p className={styles.comparison}>&nbsp;</p>
+        <Ghost label="Cargando las solicitudes de la semana…" contentClassName={styles.ghostStack}>
+          <BarChart label="Solicitudes por día" series={series} points={ghostPoints} showEveryLabel />
+          <p className={styles.comparison}>{ghostComparison}</p>
         </Ghost>
       ) : report.isError ? (
         <div className={styles.state}>

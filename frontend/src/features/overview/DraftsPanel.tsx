@@ -58,7 +58,7 @@ export function DraftsPanel() {
         <EmptyState
           icon="check"
           headingLevel={3}
-          title="No tienes borradores"
+          title="No hay borradores sin publicar"
           description="Los artículos sin publicar aparecerán aquí."
         />
       ) : (

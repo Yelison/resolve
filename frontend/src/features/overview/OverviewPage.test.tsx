@@ -409,26 +409,69 @@ describe('OverviewPage · necesitan atención', () => {
     expect(screen.queryByText(/No tienes tickets asignados\. Te mostramos/)).not.toBeInTheDocument()
   })
 
-  it('«Asignármelo» asigna el ticket, lo anuncia y deja el foco en el ticket', async () => {
+  it('«Asignármelo» asigna el ticket, lo anuncia y deja el foco en el ticket sin cambiar de alcance', async () => {
     const unassigned = urgent(1046, { assignee: null, subject: 'Cambiar correo de facturación' })
+    const mine = { id: 'u-admin', name: 'Yelisson Ortiz' }
     const patched: unknown[] = []
+    // Como el servidor: tras el PATCH el ticket es tuyo, así que `views.mine` pasa de 0 a 1.
+    let assigned = false
     mockApi({
       ...baseRoutes,
-      'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
-      'GET /api/tickets': { body: page([unassigned], 1) },
-      'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7 }) },
+      'GET /api/tickets/metrics': () => ({ body: { ...metrics, views: { ...metrics.views, mine: assigned ? 1 : 0 } } }),
+      'GET /api/tickets': () => ({ body: page([assigned ? { ...unassigned, assignee: mine } : unassigned], 1) }),
+      'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7, assignee: null }) },
       'PATCH /api/tickets/1046': async (request) => {
         patched.push([request.headers.get('If-Match'), await request.json()])
-        return { body: ticket({ number: 1046, version: 8, assignee: { id: 'u-admin', name: 'Yelisson Ortiz' } }) }
+        assigned = true
+        return { body: ticket({ number: 1046, version: 8, assignee: mine }) }
       },
     })
     renderOverview()
     await userEvent.click(await screen.findByRole('button', { name: /Asignármelo/ }))
     expect(await screen.findByText('Te asignaste el ticket #1046')).toBeInTheDocument()
     expect(patched).toEqual([['"7"', { assigneeId: 'u-admin' }]])
-    // Lo urgente que es tuyo pide «Responder»: el botón se sustituye por ese enlace y el foco no cae en `body`.
+    // Lo urgente que es tuyo pide «Responder»: el botón se sustituye por ese enlace.
     expect(await screen.findByRole('link', { name: /Responder/ })).toBeInTheDocument()
+    // Las métricas se vuelven a pedir y ahora hay uno tuyo, pero el panel sigue en «Todo el equipo»: no cambia de lista
+    // por una asignación hecha desde él, y el foco no cae en `body`.
+    expect(await screen.findByRole('button', { name: 'Para mí 1' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /^Todo el equipo/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('list', { name: 'Tickets que necesitan atención' })).not.toHaveAttribute(
+      'aria-busy',
+      'true',
+    )
     await vi.waitFor(() => expect(screen.getByRole('link', { name: /#1046 Cambiar correo/ })).toHaveFocus())
+    // La nota «no tienes tickets asignados» ya no es verdad y se quita.
+    expect(screen.queryByText(/No tienes tickets asignados\. Te mostramos/)).not.toBeInTheDocument()
+  })
+
+  it('«Asignármelo» no quita el ticket a quien se lo acaba de asignar: avisa y refresca', async () => {
+    const unassigned = urgent(1046, { assignee: null, subject: 'Cambiar correo de facturación' })
+    const laura = { id: 'u-laura', name: 'Laura Méndez' }
+    const patched: unknown[] = []
+    let listReads = 0
+    mockApi({
+      ...baseRoutes,
+      'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
+      // La lista se pintó sin responsable; al refrescarla ya trae a Laura.
+      'GET /api/tickets': () => ({
+        body: page([listReads++ === 0 ? unassigned : { ...unassigned, assignee: laura }], 1),
+      }),
+      'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7, assignee: laura }) },
+      'PATCH /api/tickets/1046': async (request) => {
+        patched.push(await request.json())
+        return { body: ticket({ number: 1046, version: 8 }) }
+      },
+    })
+    renderOverview()
+    await userEvent.click(await screen.findByRole('button', { name: /Asignármelo/ }))
+    expect(await screen.findByText('Ya lo tiene Laura Méndez')).toBeInTheDocument()
+    expect(patched).toEqual([])
+    // La lista se refresca: la fila ya muestra a Laura y no ofrece «Asignármelo».
+    expect(await screen.findByText(/Laura Méndez · hace/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Asignármelo/ })).not.toBeInTheDocument()
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: /#1046 Cambiar correo/ })).toHaveFocus())
+    expect(listReads).toBeGreaterThan(1)
   })
 
   it('si falla al asignar lo dice y el botón sigue ahí para repetirlo', async () => {
@@ -436,7 +479,7 @@ describe('OverviewPage · necesitan atención', () => {
       ...baseRoutes,
       'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
       'GET /api/tickets': { body: page([urgent(1046, { assignee: null })], 1) },
-      'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7 }) },
+      'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7, assignee: null }) },
       'PATCH /api/tickets/1046': { status: 412, body: { status: 412, title: 'Precondition Failed' } },
     })
     renderOverview()
@@ -559,7 +602,7 @@ describe('OverviewPage · columna derecha', () => {
   it('sin borradores lo dice', async () => {
     mockApi({ ...baseRoutes, 'GET /api/knowledge/articles': { body: drafts(0) } })
     renderOverview()
-    expect(await screen.findByText('No tienes borradores')).toBeInTheDocument()
+    expect(await screen.findByText('No hay borradores sin publicar')).toBeInTheDocument()
   })
 
   it('quien no puede escribir artículos no ve los borradores ni los pide', async () => {

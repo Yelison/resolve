@@ -13,17 +13,20 @@ export function Ghost({
   label,
   lines = 3,
   className,
+  contentClassName,
   children,
 }: {
   /** Lo que oyen los lectores de pantalla; vacío en los esqueletos que acompañan a otro que ya lo anuncia. */
   label: string
   lines?: number
   className?: string
+  /** Clase del contenido oculto: para darle el mismo `gap` que tiene el bloque real. */
+  contentClassName?: string
   children: ReactNode
 }) {
   return (
     <div className={cx(styles.ghost, className)}>
-      <div className={styles.content} aria-hidden="true" inert>
+      <div className={cx(styles.content, contentClassName)} aria-hidden="true" inert>
         {children}
       </div>
       <Skeleton lines={lines} label={label} className={styles.skeleton} />

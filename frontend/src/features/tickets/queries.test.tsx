@@ -12,6 +12,7 @@ import {
   useAddMessage,
   useCreateTicket,
   useInboxTickets,
+  TicketPreconditionError,
   useQuickTicketUpdate,
   useRecentActivity,
   useTicket,
@@ -58,6 +59,48 @@ describe('useQuickTicketUpdate', () => {
     expect(queryClient.getQueryData<Ticket>(key)).toMatchObject({ status: 'in_progress', version: 1 })
     // La lectura tardía se canceló: solo escribieron la lectura de la versión y el PATCH.
     expect(queryClient.getQueryState(key)?.dataUpdateCount).toBe(2)
+  })
+})
+
+describe('useQuickTicketUpdate · precondición', () => {
+  function setup(current: Ticket) {
+    const patches: unknown[] = []
+    mockApi({
+      'GET /api/tickets/1048': { body: current },
+      'PATCH /api/tickets/1048': async (request) => {
+        patches.push(await request.json())
+        return { body: ticket({ version: current.version + 1 }) }
+      },
+    })
+    const queryClient = createTestQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    return { patches, ...renderHook(() => useQuickTicketUpdate(), { wrapper }) }
+  }
+  const unassigned = (ticketNow: Ticket) => ticketNow.assignee === null
+
+  it('si el ticket cumple la precondición, envía el cambio', async () => {
+    const { result, patches } = setup(ticket({ assignee: null, version: 4 }))
+    act(() => result.current.mutate({ number: 1048, changes: { assigneeId: 'u-admin' }, precondition: unassigned }))
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(patches).toEqual([{ assigneeId: 'u-admin' }])
+  })
+
+  it('si ya no la cumple, no envía nada y falla con el ticket actual', async () => {
+    const { result, patches } = setup(ticket({ assignee: { id: 'u-daniel', name: 'Daniel Santos' }, version: 4 }))
+    act(() => result.current.mutate({ number: 1048, changes: { assigneeId: 'u-admin' }, precondition: unassigned }))
+    await waitFor(() => expect(result.current.isError).toBe(true))
+    expect(result.current.error).toBeInstanceOf(TicketPreconditionError)
+    expect((result.current.error as TicketPreconditionError).current.assignee?.name).toBe('Daniel Santos')
+    expect(patches).toEqual([])
+  })
+
+  it('sin precondición se comporta como siempre', async () => {
+    const { result, patches } = setup(ticket({ assignee: { id: 'u-daniel', name: 'Daniel Santos' } }))
+    act(() => result.current.mutate({ number: 1048, changes: { assigneeId: 'u-admin' } }))
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(patches).toHaveLength(1)
   })
 })
 

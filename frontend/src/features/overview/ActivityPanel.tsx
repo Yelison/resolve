@@ -15,10 +15,14 @@ export const ACTIVITY_SIZE = 5
 /** Cuántos se piden: los de «Ver más actividad» llegan con la primera petición, sin una segunda espera. */
 const ACTIVITY_REQUEST = 20
 
+/**
+ * Cinco eventos de dos líneas: lo habitual en una organización con actividad. Con menos eventos, o con títulos más cortos o
+ * más largos, el bloque cambia de altura al llegar los datos.
+ */
 const ghostEvents = Array.from({ length: ACTIVITY_SIZE }, (_, index) => ({
   id: `ghost-${index}`,
   kind: 'status' as const,
-  title: 'Laura Méndez cambió el estado a En progreso · #1047 Error al procesar el pago',
+  title: 'Laura Méndez cambió el estado a En progreso · #1047 Pago rechazado',
   at: new Date(0),
   timeLabel: 'Hoy, 21:09',
 }))

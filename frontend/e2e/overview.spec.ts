@@ -192,6 +192,57 @@ test.describe('inicio · sin saltos de layout', () => {
     })
   }
 
+  for (const width of [390, 1024, 1440]) {
+    test(`«Actividad reciente» no se mueve al llegar las solicitudes de la semana · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      let release!: () => void
+      const held = new Promise<void>((resolve) => (release = resolve))
+      await page.route('**/api/reports/summary?*', async (route) => {
+        await held
+        await route.fallback()
+      })
+      await page.goto('/')
+      const below = page.getByRole('region', { name: 'Actividad reciente' })
+      await expect(page.getByText('Cargando las solicitudes de la semana…')).toBeAttached()
+      const loading = (await below.boundingBox())!.y
+      release()
+      await expect(page.getByRole('img', { name: 'Solicitudes por día' })).toBeVisible()
+      const loaded = (await below.boundingBox())!.y
+      expect(Math.abs(loaded - loading), `cargando ${loading}, con datos ${loaded}`).toBeLessThanOrEqual(4)
+    })
+
+    test(`«Borradores sin publicar» no se mueve al llegar 5 eventos de actividad · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      let release!: () => void
+      const held = new Promise<void>((resolve) => (release = resolve))
+      // Cinco eventos con títulos de dos líneas, lo que reserva el esqueleto.
+      const events = Array.from({ length: 5 }, (_, index) => ({
+        ticketNumber: 1001 + index,
+        subject: 'Pago rechazado',
+        activity: {
+          id: `a-${index}`,
+          type: 'status_changed',
+          actor: { id: 'u-laura', name: 'Laura Méndez' },
+          createdAt: new Date(Date.now() - index * 60_000).toISOString(),
+          from: 'open',
+          to: 'in_progress',
+        },
+      }))
+      await page.route('**/api/tickets/activity?*', async (route) => {
+        await held
+        await route.fulfill({ json: events })
+      })
+      await page.goto('/')
+      const below = page.getByRole('region', { name: /Borradores sin publicar/ })
+      await expect(page.getByText('Cargando la actividad reciente…')).toBeAttached()
+      const loading = (await below.boundingBox())!.y
+      release()
+      await expect(page.getByRole('link', { name: /#1005 Pago rechazado/ })).toBeVisible()
+      const loaded = (await below.boundingBox())!.y
+      expect(Math.abs(loaded - loading), `cargando ${loading}, con datos ${loaded}`).toBeLessThanOrEqual(24)
+    })
+  }
+
   for (const width of [390, 1024]) {
     test(`al cambiar de alcance la lista anterior se queda hasta que llega la nueva · ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })

@@ -34,6 +34,10 @@
   color: var(--color-muted);
 }
 
+.ghostStack {
+  gap: var(--space-12);
+}
+
 .comparison {
   margin: 0;
   font: var(--font-caption);
