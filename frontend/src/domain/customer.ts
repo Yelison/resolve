@@ -4,6 +4,8 @@
  */
 export type {
   Customer,
+  CustomerCompanyGroup,
+  CustomerCompanyGroupPage,
   CustomerCreate,
   CustomerDetail,
   CustomerMetrics,

@@ -6,7 +6,7 @@ import { sessionMock, type SessionOptions } from './session'
 import { settingsMock } from './settings'
 import { json, type MockFeature, type MockRequest } from './shared'
 import { teamMock } from './team'
-import { ticketsMock } from './tickets'
+import { ticketsMock, tickets } from './tickets'
 
 /**
  * Las features de la API simulada y el despachador que las recorre. Lo comparten los e2e (`fixtures.ts`, que lo engancha
@@ -25,7 +25,8 @@ export function createMockFeatures(
   role: Me['role'] = 'admin',
   options: { articleStore?: ArticleStore } & SessionOptions = {},
 ): MockFeature[] {
-  const customers = customersMock()
+  // Los recuentos y el último ticket de cada cliente salen de los tickets simulados, no de una copia.
+  const customers = customersMock(() => tickets)
   const settings = settingsMock(role)
   return [
     // La sesión va primero (gana el primer manejador): sirve `/me`, el cierre de sesión y la elección de organización

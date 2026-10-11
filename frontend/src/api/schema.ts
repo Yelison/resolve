@@ -319,6 +319,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/customers/by-company": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Customers grouped by company, paginated by company
+         * @description The page counts companies, not customers, so a company is never split between two pages. Companies come
+         *     in name order (compared case-insensitively, with the same spelling rules as `/customers/companies`) and
+         *     the group of customers without a company comes last. Each group carries its totals over every customer
+         *     that matches the filters and a preview of its first customers (at most 3, in the requested `sort`), each
+         *     with the same fields as in `/customers`. Archived customers are left out unless `archived=true`. The
+         *     result never includes customers of other organizations.
+         */
+        get: operations["listCustomersByCompany"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/customers/companies": {
         parameters: {
             query?: never;
@@ -915,10 +940,24 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             archived: boolean;
+            /**
+             * @description The customer's most recent ticket by `updatedAt` (the highest `number` breaks a tie), whatever its status;
+             *     `null` when the customer has no tickets.
+             */
+            lastTicket: components["schemas"]["CustomerLastTicket"] | null;
+        };
+        /** @description The ticket a customer was last in touch about, as the customers list shows it. */
+        CustomerLastTicket: {
+            /** Format: int64 */
+            number: number;
+            subject: string;
+            status: components["schemas"]["TicketStatus"];
+            /** Format: date-time */
+            updatedAt: string;
         };
         /**
-         * @description A customer with its profile: every field of CustomerSummary plus `notes`, `archivedAt`, `version` and
-         *     `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
+         * @description A customer with its profile: every field of CustomerSummary except `lastTicket` (only the list needs it) plus
+         *     `notes`, `archivedAt`, `version` and `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
          *     `additionalProperties: false` on each `allOf` branch makes a JSON Schema validator reject the fields of
          *     the other branch.
          */
@@ -1049,6 +1088,28 @@ export interface components {
             page: number;
             size: number;
             /** Format: int64 */
+            totalItems: number;
+            totalPages: number;
+        };
+        /** @description The customers of one company that match the filters, with their totals and a preview. */
+        CustomerCompanyGroup: {
+            /** @description One of the spellings its customers use (the one `/customers/companies` lists); `null` for the customers without a company. */
+            company: string | null;
+            customerCount: number;
+            /** @description Open tickets (not `resolved`) summed over every customer of the group, not only the previewed ones. */
+            openTickets: number;
+            /** @description The first customers of the group (at most 3) in the requested order. */
+            customers: components["schemas"]["CustomerSummary"][];
+        };
+        /** @description An empty page past the last one is valid (200 with no items); `totalPages` is 0 when there are no groups. */
+        CustomerCompanyGroupPage: {
+            items: components["schemas"]["CustomerCompanyGroup"][];
+            page: number;
+            size: number;
+            /**
+             * Format: int64
+             * @description Number of companies (including the group without company, if any) that match.
+             */
             totalItems: number;
             totalPages: number;
         };
@@ -1786,6 +1847,11 @@ export interface components {
     parameters: {
         TicketNumber: number;
         CustomerId: string;
+        /**
+         * @description `true` lists only the customers without a company. It cannot be combined with `company` (a 400 field
+         *     error on `withoutCompany`).
+         */
+        WithoutCompany: boolean;
         /** @description Id of the member's user, as `TeamMember.id`. */
         MemberUserId: string;
         /** @description Zero-based page index. */
@@ -1838,6 +1904,7 @@ export type MemberRoleChange = components['schemas']['MemberRoleChange'];
 export type TeamMetrics = components['schemas']['TeamMetrics'];
 export type Customer = components['schemas']['Customer'];
 export type CustomerSummary = components['schemas']['CustomerSummary'];
+export type CustomerLastTicket = components['schemas']['CustomerLastTicket'];
 export type CustomerDetail = components['schemas']['CustomerDetail'];
 export type CustomerCreate = components['schemas']['CustomerCreate'];
 export type CustomerPatch = components['schemas']['CustomerPatch'];
@@ -1848,6 +1915,8 @@ export type TicketCreate = components['schemas']['TicketCreate'];
 export type TicketPatch = components['schemas']['TicketPatch'];
 export type TicketPage = components['schemas']['TicketPage'];
 export type CustomerPage = components['schemas']['CustomerPage'];
+export type CustomerCompanyGroup = components['schemas']['CustomerCompanyGroup'];
+export type CustomerCompanyGroupPage = components['schemas']['CustomerCompanyGroupPage'];
 export type ViewCounts = components['schemas']['ViewCounts'];
 export type TicketMetrics = components['schemas']['TicketMetrics'];
 export type MessageAuthor = components['schemas']['MessageAuthor'];
@@ -1893,6 +1962,7 @@ export type ResponsePreconditionRequired = components['responses']['Precondition
 export type ResponseConflict = components['responses']['Conflict'];
 export type ParameterTicketNumber = components['parameters']['TicketNumber'];
 export type ParameterCustomerId = components['parameters']['CustomerId'];
+export type ParameterWithoutCompany = components['parameters']['WithoutCompany'];
 export type ParameterMemberUserId = components['parameters']['MemberUserId'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterSize = components['parameters']['Size'];
@@ -2430,6 +2500,11 @@ export interface operations {
                 q?: string;
                 /** @description Exact company name, compared case-insensitively. An unknown company gives an empty page. */
                 company?: string;
+                /**
+                 * @description `true` lists only the customers without a company. It cannot be combined with `company` (a 400 field
+                 *     error on `withoutCompany`).
+                 */
+                withoutCompany?: components["parameters"]["WithoutCompany"];
                 /** @description `false` (default) lists active customers; `true` lists only archived ones. */
                 archived?: boolean;
                 /** @description Zero-based page index. */
@@ -2524,6 +2599,43 @@ export interface operations {
                     "application/json": components["schemas"]["CustomerMetrics"];
                 };
             };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listCustomersByCompany: {
+        parameters: {
+            query?: {
+                /** @description Searches the name, email and company; only matching customers count and show. */
+                q?: string;
+                /** @description `false` (default) lists active customers; `true` lists only archived ones. */
+                archived?: boolean;
+                /** @description Zero-based page index. */
+                page?: components["parameters"]["Page"];
+                size?: components["parameters"]["Size"];
+                /**
+                 * @description Order of the customers inside each group: `field,direction` with `name`, `createdAt` or
+                 *     `openTickets`, like `/customers`. It never changes the order of the companies.
+                 */
+                sort?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of company groups. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerCompanyGroupPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             503: components["responses"]["ServiceUnavailable"];

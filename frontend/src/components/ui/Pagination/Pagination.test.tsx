@@ -58,4 +58,12 @@ describe('Pagination', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(screen.getByText('1–3 de 3 resultados')).toBeInTheDocument()
   })
+
+  it('cuenta lo que se le indica en `unit`, con su singular y su plural', () => {
+    const unit = { one: 'empresa', many: 'empresas' }
+    const { rerender } = render(<Pagination page={1} pageSize={8} total={38} unit={unit} onPageChange={() => {}} />)
+    expect(screen.getByText('1–8 de 38 empresas')).toBeInTheDocument()
+    rerender(<Pagination page={1} pageSize={8} total={1} unit={unit} onPageChange={() => {}} />)
+    expect(screen.getByText('1–1 de 1 empresa')).toBeInTheDocument()
+  })
 })

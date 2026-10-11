@@ -14,6 +14,7 @@ import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.SortDirection;
 import com.resolve.api.common.web.SortSpec;
+import com.resolve.api.customers.CustomerDtos.CustomerCompanyGroupDto;
 import com.resolve.api.customers.CustomerDtos.CustomerDetailDto;
 import com.resolve.api.customers.CustomerDtos.CustomerMetricsDto;
 import com.resolve.api.customers.CustomerDtos.CustomerSummaryDto;
@@ -54,17 +55,33 @@ class CustomersController {
 	PageResponse<CustomerSummaryDto> list(@AuthenticationPrincipal CurrentMember member,
 			@RequestParam(required = false) @Nullable String q,
 			@RequestParam(required = false) @Nullable String company,
+			@RequestParam(required = false) @Nullable String withoutCompany,
 			@RequestParam(required = false) @Nullable String archived,
 			@RequestParam(required = false) @Nullable String page, @RequestParam(required = false) @Nullable String size,
 			@RequestParam(required = false) @Nullable String sort) {
 		List<FieldErrorDetail> errors = new ArrayList<>();
 		PageQuery<CustomerSortField> pageQuery = collect(errors,
 				() -> PageQuery.parse(page, size, sort, SORTABLE, DEFAULT_SORT));
-		CustomerFilters filters = collect(errors, () -> CustomerRequestParser.filters(q, company, archived));
+		CustomerFilters filters = collect(errors, () -> CustomerRequestParser.filters(q, company, withoutCompany, archived));
 		if (!errors.isEmpty()) {
 			throw new ApiValidationException(errors);
 		}
 		return this.service.list(member, filters, pageQuery);
+	}
+
+	@GetMapping("/customers/by-company")
+	PageResponse<CustomerCompanyGroupDto> listByCompany(@AuthenticationPrincipal CurrentMember member,
+			@RequestParam(required = false) @Nullable String q, @RequestParam(required = false) @Nullable String archived,
+			@RequestParam(required = false) @Nullable String page, @RequestParam(required = false) @Nullable String size,
+			@RequestParam(required = false) @Nullable String sort) {
+		List<FieldErrorDetail> errors = new ArrayList<>();
+		PageQuery<CustomerSortField> pageQuery = collect(errors,
+				() -> PageQuery.parse(page, size, sort, SORTABLE, DEFAULT_SORT));
+		CustomerFilters filters = collect(errors, () -> CustomerRequestParser.groupFilters(q, archived));
+		if (!errors.isEmpty()) {
+			throw new ApiValidationException(errors);
+		}
+		return this.service.listByCompany(member, filters, pageQuery);
 	}
 
 	/** Ejecuta un análisis y acumula sus errores para responder todos juntos. */

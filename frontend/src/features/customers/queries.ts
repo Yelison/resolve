@@ -7,6 +7,8 @@ import { ticketKeys } from '../tickets/queries'
 export interface CustomerListParams {
   q?: string
   company?: string
+  /** `true` lista solo los clientes sin empresa. */
+  withoutCompany?: boolean
   /** `true` lista solo los clientes archivados. */
   archived?: boolean
   /** Página de la interfaz, desde 1. */
@@ -15,10 +17,14 @@ export interface CustomerListParams {
   sort?: string
 }
 
+/** La lista por empresa: sin filtro de empresa (cada grupo ya es una) y paginada por empresas. */
+export type CustomerGroupsParams = Omit<CustomerListParams, 'company' | 'withoutCompany'>
+
 export const customerKeys = {
   all: ['customers'] as const,
   lists: () => [...customerKeys.all, 'list'] as const,
   list: (params: CustomerListParams) => [...customerKeys.lists(), params] as const,
+  groups: (params: CustomerGroupsParams) => [...customerKeys.lists(), 'by-company', params] as const,
   searches: () => [...customerKeys.all, 'search'] as const,
   search: (q: string) => [...customerKeys.searches(), q] as const,
   detail: (id: string) => [...customerKeys.all, 'detail', id] as const,
@@ -44,6 +50,7 @@ export function fetchCustomerList(params: CustomerListParams, signal?: AbortSign
         query: {
           q: params.q?.trim() || undefined,
           company: params.company || undefined,
+          withoutCompany: params.withoutCompany || undefined,
           archived: params.archived || undefined,
           page: toApiPage(params.page),
           size: params.pageSize,
@@ -55,10 +62,40 @@ export function fetchCustomerList(params: CustomerListParams, signal?: AbortSign
   )
 }
 
-export function useCustomerList(params: CustomerListParams) {
+/** Pide una página de empresas con sus totales y sus primeros clientes. */
+export function fetchCustomerGroups(params: CustomerGroupsParams, signal?: AbortSignal) {
+  return unwrap(
+    api.GET('/customers/by-company', {
+      params: {
+        query: {
+          q: params.q?.trim() || undefined,
+          archived: params.archived || undefined,
+          page: toApiPage(params.page),
+          size: params.pageSize,
+          sort: params.sort,
+        },
+      },
+      signal,
+    }),
+  )
+}
+
+/** `enabled` apaga la consulta que la vista no usa (la lista plana o la de empresas, según el modo). */
+export function useCustomerList(params: CustomerListParams, enabled = true) {
   return useQuery({
     queryKey: customerKeys.list(params),
     queryFn: ({ signal }) => fetchCustomerList(params, signal),
+    enabled,
+    // Mantiene la página anterior mientras llega la siguiente, sin parpadeos al filtrar o paginar.
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useCustomerGroups(params: CustomerGroupsParams, enabled = true) {
+  return useQuery({
+    queryKey: customerKeys.groups(params),
+    queryFn: ({ signal }) => fetchCustomerGroups(params, signal),
+    enabled,
     // Mantiene la página anterior mientras llega la siguiente, sin parpadeos al filtrar o paginar.
     placeholderData: keepPreviousData,
   })

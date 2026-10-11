@@ -489,6 +489,7 @@ paths:
           in: query
           description: Exact company name, compared case-insensitively. An unknown company gives an empty page.
           schema: { type: string, maxLength: 120 }
+        - $ref: '#/components/parameters/WithoutCompany'
         - name: archived
           in: query
           description: '`false` (default) lists active customers; `true` lists only archived ones.'
@@ -560,6 +561,49 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CustomerMetrics' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /customers/by-company:
+    get:
+      tags: [Customers]
+      operationId: listCustomersByCompany
+      summary: Customers grouped by company, paginated by company
+      description: |
+        The page counts companies, not customers, so a company is never split between two pages. Companies come
+        in name order (compared case-insensitively, with the same spelling rules as `/customers/companies`) and
+        the group of customers without a company comes last. Each group carries its totals over every customer
+        that matches the filters and a preview of its first customers (at most 3, in the requested `sort`), each
+        with the same fields as in `/customers`. Archived customers are left out unless `archived=true`. The
+        result never includes customers of other organizations.
+      parameters:
+        - name: q
+          in: query
+          description: Searches the name, email and company; only matching customers count and show.
+          schema: { type: string, maxLength: 120 }
+        - name: archived
+          in: query
+          description: '`false` (default) lists active customers; `true` lists only archived ones.'
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Size'
+        - name: sort
+          in: query
+          description: |
+            Order of the customers inside each group: `field,direction` with `name`, `createdAt` or
+            `openTickets`, like `/customers`. It never changes the order of the companies.
+          schema:
+            type: string
+            default: name,asc
+            pattern: '^(name|createdAt|openTickets),(asc|desc)$'
+      responses:
+        '200':
+          description: One page of company groups.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerCompanyGroupPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
@@ -1175,6 +1219,13 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    WithoutCompany:
+      name: withoutCompany
+      in: query
+      description: |
+        `true` lists only the customers without a company. It cannot be combined with `company` (a 400 field
+        error on `withoutCompany`).
+      schema: { type: boolean, default: false }
     MemberUserId:
       name: userId
       in: path
@@ -1543,7 +1594,7 @@ components:
       description: A customer in lists, with its ticket counts. `Customer` is the reference embedded in tickets.
       type: object
       additionalProperties: false
-      required: [id, name, email, company, openTickets, totalTickets, createdAt, archived]
+      required: [id, name, email, company, openTickets, totalTickets, createdAt, archived, lastTicket]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
@@ -1556,11 +1607,29 @@ components:
         totalTickets: { type: integer, minimum: 0 }
         createdAt: { type: string, format: date-time }
         archived: { type: boolean }
+        lastTicket:
+          description: |
+            The customer's most recent ticket by `updatedAt` (the highest `number` breaks a tie), whatever its status;
+            `null` when the customer has no tickets.
+          oneOf:
+            - $ref: '#/components/schemas/CustomerLastTicket'
+            - type: 'null'
+
+    CustomerLastTicket:
+      description: The ticket a customer was last in touch about, as the customers list shows it.
+      type: object
+      additionalProperties: false
+      required: [number, subject, status, updatedAt]
+      properties:
+        number: { type: integer, format: int64, minimum: 1 }
+        subject: { type: string }
+        status: { $ref: '#/components/schemas/TicketStatus' }
+        updatedAt: { type: string, format: date-time }
 
     CustomerDetail:
       description: |
-        A customer with its profile: every field of CustomerSummary plus `notes`, `archivedAt`, `version` and
-        `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
+        A customer with its profile: every field of CustomerSummary except `lastTicket` (only the list needs it) plus
+        `notes`, `archivedAt`, `version` and `portalAccess`. It is written out in full instead of composing CustomerSummary with `allOf`, because
         `additionalProperties: false` on each `allOf` branch makes a JSON Schema validator reject the fields of
         the other branch.
       type: object
@@ -1733,6 +1802,44 @@ components:
         page: { type: integer, minimum: 0 }
         size: { type: integer, minimum: 1, maximum: 100 }
         totalItems: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+
+    CustomerCompanyGroup:
+      description: The customers of one company that match the filters, with their totals and a preview.
+      type: object
+      additionalProperties: false
+      required: [company, customerCount, openTickets, customers]
+      properties:
+        company:
+          description: One of the spellings its customers use (the one `/customers/companies` lists); `null` for the customers without a company.
+          type: [string, 'null']
+        customerCount: { type: integer, minimum: 1 }
+        openTickets:
+          description: Open tickets (not `resolved`) summed over every customer of the group, not only the previewed ones.
+          type: integer
+          minimum: 0
+        customers:
+          description: The first customers of the group (at most 3) in the requested order.
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/CustomerSummary' }
+
+    CustomerCompanyGroupPage:
+      description: An empty page past the last one is valid (200 with no items); `totalPages` is 0 when there are no groups.
+      type: object
+      additionalProperties: false
+      required: [items, page, size, totalItems, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CustomerCompanyGroup' }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1, maximum: 100 }
+        totalItems:
+          description: Number of companies (including the group without company, if any) that match.
+          type: integer
+          format: int64
+          minimum: 0
         totalPages: { type: integer, minimum: 0 }
 
     ViewCounts:

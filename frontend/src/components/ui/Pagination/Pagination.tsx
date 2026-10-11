@@ -12,13 +12,22 @@ export interface PaginationProps {
   total: number
   /** Se llama con la página elegida. */
   onPageChange: (page: number) => void
+  /** Lo que se cuenta, en singular y plural; por defecto «resultado»/«resultados». Una lista paginada por empresas dice «empresas». */
+  unit?: { one: string; many: string }
   /** Clase del contenedor. */
   className?: string
 }
 
 const formatNumber = new Intl.NumberFormat('es').format
 
-export function Pagination({ page: requestedPage, pageSize, total, onPageChange, className }: PaginationProps) {
+export function Pagination({
+  page: requestedPage,
+  pageSize,
+  total,
+  onPageChange,
+  unit = { one: 'resultado', many: 'resultados' },
+  className,
+}: PaginationProps) {
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const page = clampPage(requestedPage, pageCount)
   const first = total === 0 ? 0 : (page - 1) * pageSize + 1
@@ -27,7 +36,7 @@ export function Pagination({ page: requestedPage, pageSize, total, onPageChange,
   return (
     <nav aria-label="Paginación" className={cx(styles.pagination, className)}>
       <p className={styles.summary}>
-        {first}–{last} de {formatNumber(total)} {total === 1 ? 'resultado' : 'resultados'}
+        {first}–{last} de {formatNumber(total)} {total === 1 ? unit.one : unit.many}
       </p>
       {pageCount > 1 && (
         <ul className={styles.pages}>

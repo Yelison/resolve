@@ -45,7 +45,7 @@ test.describe('búsqueda global', () => {
       const dialog = page.getByRole('dialog', { name: 'Buscar' })
       await expect(dialog).toBeVisible()
       await expect(combobox(page)).toBeFocused()
-      await combobox(page).fill('ac')
+      await combobox(page).fill('ar')
 
       const list = page.getByRole('listbox', { name: 'Resultados de la búsqueda' })
       await expect(list.getByRole('group', { name: 'Tickets' })).toBeVisible()
@@ -79,7 +79,7 @@ test.describe('búsqueda global', () => {
         await page.setViewportSize({ width, height: 700 })
         await page.goto('/tickets')
         await searchButton(page, width).click()
-        await combobox(page).fill('ac')
+        await combobox(page).fill('ar')
         await expect(live(page)).toHaveText(/^\d+ resultados$/)
         await settled(page)
         await noPageOverflow(page)
@@ -97,7 +97,7 @@ test.describe('búsqueda global', () => {
     await page.goto('/equipo')
     await page.keyboard.press('Control+k')
     await expect(combobox(page)).toBeFocused()
-    await combobox(page).fill('ac')
+    await combobox(page).fill('ar')
     await expect(page.getByRole('listbox')).toBeVisible()
     // Un solo Escape cierra aunque haya texto.
     await page.keyboard.press('Escape')
@@ -128,10 +128,10 @@ test.describe('búsqueda global', () => {
     ] as const) {
       await page.goto('/equipo')
       await searchButton(page, 1440).click()
-      await combobox(page).fill('ac')
+      await combobox(page).fill('ar')
       await page.getByRole('option', { name: `Ver todos los resultados de ${group}` }).click()
-      await expect(page).toHaveURL(new RegExp(`${path}\\?q=ac$`))
-      await expect(page.getByRole('searchbox', { name: field })).toHaveValue('ac')
+      await expect(page).toHaveURL(new RegExp(`${path}\\?q=ar$`))
+      await expect(page.getByRole('searchbox', { name: field })).toHaveValue('ar')
     }
   })
 
@@ -160,13 +160,13 @@ test.describe('búsqueda global', () => {
     )
     await page.goto('/equipo')
     await searchButton(page, 1440).click()
-    await combobox(page).fill('ac')
+    await combobox(page).fill('ar')
     const options = page.getByRole('listbox', { name: 'Resultados de la búsqueda' }).getByRole('option')
     await expect(live(page)).toHaveText(/^\d+ resultados$/)
     const shown = await options.count()
     expect(shown).toBeGreaterThan(0)
 
-    // Menos de 250 ms entre borrar y escribir: la consulta sigue siendo la de «ac».
+    // Menos de 250 ms entre borrar y escribir: la consulta sigue siendo la de «ar».
     await combobox(page).fill('')
     await combobox(page).pressSequentially('zq')
     await expect(options).toHaveCount(shown)
@@ -191,7 +191,7 @@ test.describe('búsqueda global', () => {
     })
     await page.goto('/tickets')
     await searchButton(page, 1440).click()
-    await combobox(page).fill('ac')
+    await combobox(page).fill('ar')
     const retry = page.getByRole('option', { name: /Reintentar clientes/ })
     await expect(retry).toBeVisible()
     await expect(page.getByRole('group', { name: 'Tickets' })).toBeVisible()
@@ -211,7 +211,7 @@ test.describe('búsqueda global', () => {
     page.on('request', (request) => requested.push(new URL(request.url()).pathname))
     await page.goto('/tickets')
     await searchButton(page, 1440).click()
-    await combobox(page).fill('ac')
+    await combobox(page).fill('ar')
     await expect(page.getByRole('group', { name: 'Tickets' })).toBeVisible()
     await expect(page.getByRole('group', { name: 'Artículos' })).toBeVisible()
     await expect(page.getByRole('group', { name: 'Clientes' })).toHaveCount(0)
@@ -236,7 +236,7 @@ test.describe('búsqueda global', () => {
       await page.setViewportSize({ width, height: 800 })
       await page.goto('/tickets')
       await searchButton(page, width).click()
-      await combobox(page).fill('ac')
+      await combobox(page).fill('ar')
       const option = page.getByRole('option', { name: new RegExp(long) })
       await expect(option).toBeVisible()
       await noPageOverflow(page)
@@ -253,7 +253,7 @@ test.describe('búsqueda global', () => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/tickets')
     await searchButton(page, 390).click()
-    await combobox(page).fill('ac')
+    await combobox(page).fill('ar')
     await expect(live(page)).toHaveText(/^\d+ resultados$/)
     for (const option of await page
       .getByRole('listbox', { name: 'Resultados de la búsqueda' })
@@ -282,7 +282,7 @@ test.describe('búsqueda global', () => {
       const empty = (await dialog.boundingBox())!
       const emptyField = (await combobox(page).boundingBox())!
 
-      await combobox(page).fill('ac')
+      await combobox(page).fill('ar')
       await expect(page.getByText('Buscando en tickets…')).toBeAttached()
       const loading = (await dialog.boundingBox())!
       expect(await combobox(page).boundingBox()).toEqual(emptyField)

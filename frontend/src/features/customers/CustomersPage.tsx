@@ -1,38 +1,45 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useSearchParams, type To } from 'react-router'
 import {
-  Alert,
   Button,
   buttonClassName,
   EmptyState,
   FilterChip,
   Icon,
   Menu,
-  Metric,
   Pagination,
   SearchField,
   Select,
-  Skeleton,
   type MenuItem,
 } from '../../components/ui'
-import type { CustomerMetrics } from '../../domain/customer'
+import { isApiError } from '../../api/client'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { useRetryFocus } from '../overview/useRetryFocus'
+import { useTimeZone } from '../session/useTimeZone'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
-import { CustomersTable } from './CustomersTable'
+import { CustomersDirectory, CustomersDirectorySkeleton, type DirectoryCard } from './CustomersDirectory'
+import { customersSummary, groupSummary, viewAllLabel } from './directory'
 import {
   customerSortValues,
+  forCompany,
   hasActiveCustomerFilters,
+  isCompanyView,
   readCustomerListState,
-  writeCustomerListState,
+  type CustomerGrouping,
   type CustomerListState,
   type CustomerSort,
+  withoutCompanyFilter,
+  writeCustomerListState,
 } from './listParams'
-import { useCompanies, useCustomerList, useCustomerMetrics } from './queries'
+import { useCompanies, useCustomerGroups, useCustomerList, useCustomerMetrics } from './queries'
 import styles from './CustomersPage.module.css'
 
+/** Clientes por página en la lista plana y empresas por página en la agrupada. */
 const PAGE_SIZE = 20
+const GROUPS_PAGE_SIZE = 8
+/** Valor de la opción «Sin empresa» del filtro; ninguna empresa real se llama así en la URL. */
+const NO_COMPANY = '__sin-empresa__'
 
 const sortLabels: Record<CustomerSort, string> = {
   'name,asc': 'Nombre: A–Z',
@@ -43,7 +50,12 @@ const sortLabels: Record<CustomerSort, string> = {
   'openTickets,asc': 'Tickets abiertos: menos primero',
 }
 
-/** Lista de clientes del personal. La guardia de rol la pone la ruta (`sectionRoute`). */
+const groupingLabels: Record<CustomerGrouping, string> = {
+  company: 'Empresa',
+  none: 'Sin agrupar',
+}
+
+/** Directorio de clientes del personal. La guardia de rol la pone la ruta (`sectionRoute`). */
 export function CustomersPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   // El alta se abre sobre la lista y conserva su búsqueda y filtros al cerrarse.
@@ -86,16 +98,40 @@ export function CustomersPage() {
     }
   }, [state.q])
 
-  const list = useCustomerList({ ...state, pageSize: PAGE_SIZE })
+  // La agrupación solo cambia cómo se pide la página: por empresas, o plana (sin agrupar o con una empresa elegida).
+  const flatView = state.group === 'none' || isCompanyView(state)
+  const flat = useCustomerList(
+    {
+      q: state.q,
+      company: state.company,
+      withoutCompany: state.withoutCompany,
+      archived: state.archived,
+      sort: state.sort,
+      page: state.page,
+      pageSize: PAGE_SIZE,
+    },
+    flatView,
+  )
+  const groups = useCustomerGroups(
+    { q: state.q, archived: state.archived, sort: state.sort, page: state.page, pageSize: GROUPS_PAGE_SIZE },
+    !flatView,
+  )
+  const list = flatView ? flat : groups
   const metrics = useCustomerMetrics()
   const companies = useCompanies()
-  const metricsFocus = useRetryFocus<HTMLDivElement>(metrics.isSuccess)
+  const timeZone = useTimeZone()
+  const summaryFocus = useRetryFocus<HTMLSpanElement>(metrics.isSuccess)
+  const listFocus = useRetryFocus<HTMLDivElement>(list.isSuccess)
   const companiesFocus = useRetryFocus<HTMLSelectElement>(companies.isSuccess)
+
+  // Quitar el chip, volver a todas las empresas o abrir una empresa solo cambia la consulta de la URL (el shell solo mueve el
+  // foco al cambiar de ruta) y el control pulsado desaparece: el foco va a la lista, que sigue montada.
+  const focusList = () => listFocus.ref.current?.focus()
 
   const filtersActive = hasActiveCustomerFilters(state)
   const clearFilters = () => {
     setSearchText('')
-    update({ q: '', company: undefined, archived: false })
+    update({ q: '', company: undefined, withoutCompany: false, archived: false })
   }
   // Una empresa que llega en la URL sin estar en la lista (p. ej. sin clientes activos) sigue siendo una opción.
   const companyOptions = [...(companies.data ?? [])]
@@ -104,7 +140,7 @@ export function CustomersPage() {
     <div className={pageStyles.page}>
       <PageHeader
         title="Clientes"
-        description="El contexto que tu equipo necesita para ayudar mejor."
+        description={<Summary metrics={metrics} focus={summaryFocus} />}
         actions={
           <Link ref={newCustomerLink} to={newCustomerTo} className={buttonClassName()}>
             <Icon name="plus" />
@@ -113,106 +149,153 @@ export function CustomersPage() {
         }
       />
 
-      {metrics.isPending ? (
-        <div className={styles.metricsPlaceholder}>
-          <Skeleton lines={2} label="Cargando métricas…" />
-        </div>
-      ) : metrics.isError ? (
-        <div className={styles.metricsPlaceholder}>
-          <Alert tone="red" title="No pudimos cargar las métricas de clientes">
-            <Button
-              variant="secondary"
-              aria-label="Reintentar cargar las métricas"
-              onClick={() => metricsFocus.retry(metrics.refetch)}
-            >
-              Reintentar
-            </Button>
-          </Alert>
-        </div>
-      ) : (
-        <MetricsRow metrics={metrics.data} rowRef={metricsFocus.ref} />
-      )}
-
-      <section className={styles.panel} aria-label="Lista de clientes">
-        <div className={styles.filters}>
-          <SearchField
-            label="Buscar clientes"
-            placeholder="Nombre, empresa o correo…"
-            value={searchText}
-            onValueChange={setSearchText}
-            fieldClassName={styles.search}
-          />
-          <Select
-            ref={companiesFocus.ref}
-            label="Empresa"
-            value={state.company ?? ''}
-            onChange={(event) => update({ company: event.target.value || undefined })}
-            fieldClassName={styles.select}
-            hint={
-              companies.isError ? (
-                <>
-                  No pudimos cargar las empresas.{' '}
-                  <button
-                    type="button"
-                    className={styles.retry}
-                    aria-label="Reintentar cargar las empresas"
-                    onClick={() => companiesFocus.retry(companies.refetch)}
-                  >
-                    Reintentar
-                  </button>
-                </>
-              ) : undefined
-            }
+      <section className={styles.filters} aria-label="Buscar y filtrar clientes">
+        <SearchField
+          label="Buscar clientes"
+          placeholder="Nombre, empresa o correo…"
+          value={searchText}
+          onValueChange={setSearchText}
+          fieldClassName={styles.search}
+        />
+        <Select
+          ref={companiesFocus.ref}
+          label="Empresa del cliente"
+          value={state.withoutCompany ? NO_COMPANY : (state.company ?? '')}
+          onChange={(event) => {
+            const value = event.target.value
+            update({ company: value && value !== NO_COMPANY ? value : undefined, withoutCompany: value === NO_COMPANY })
+          }}
+          fieldClassName={styles.select}
+          hint={
+            companies.isError ? (
+              <>
+                No pudimos cargar las empresas.{' '}
+                <button
+                  type="button"
+                  className={styles.retry}
+                  aria-label="Reintentar cargar las empresas"
+                  onClick={() => companiesFocus.retry(companies.refetch)}
+                >
+                  Reintentar
+                </button>
+              </>
+            ) : undefined
+          }
+        >
+          <option value="">Todas</option>
+          <option value={NO_COMPANY}>Sin empresa</option>
+          {companyOptions.map((company) => (
+            <option key={company} value={company}>
+              {company}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Ordenar por"
+          value={state.sort}
+          onChange={(event) => update({ sort: event.target.value as CustomerSort })}
+          fieldClassName={styles.select}
+        >
+          {customerSortValues.map((sort) => (
+            <option key={sort} value={sort}>
+              {sortLabels[sort]}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Agrupar"
+          value={state.group}
+          // Página 2 de empresas no es página 2 de clientes: al cambiar de agrupación se vuelve a la primera.
+          onChange={(event) => update({ group: event.target.value as CustomerGrouping })}
+          fieldClassName={styles.select}
+        >
+          {(Object.keys(groupingLabels) as CustomerGrouping[]).map((group) => (
+            <option key={group} value={group}>
+              {groupingLabels[group]}
+            </option>
+          ))}
+        </Select>
+        <ArchivedFilter archived={state.archived} onChange={(archived) => update({ archived })} />
+        {isCompanyView(state) && (
+          <button
+            type="button"
+            className={styles.chip}
+            aria-label={`Quitar el filtro Empresa del cliente: ${state.company ?? 'Sin empresa'}`}
+            onClick={() => {
+              setSearchParams(writeCustomerListState(withoutCompanyFilter(state)), { replace: true })
+              focusList()
+            }}
           >
-            <option value="">Todas</option>
-            {companyOptions.map((company) => (
-              <option key={company} value={company}>
-                {company}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Ordenar por"
-            value={state.sort}
-            onChange={(event) => update({ sort: event.target.value as CustomerSort })}
-            fieldClassName={styles.select}
-          >
-            {customerSortValues.map((sort) => (
-              <option key={sort} value={sort}>
-                {sortLabels[sort]}
-              </option>
-            ))}
-          </Select>
-          <ArchivedFilter archived={state.archived} onChange={(archived) => update({ archived })} />
-        </div>
-
-        <div className={styles.results}>
-          <div className={styles.resultsInner}>
-            <Results
-              state={state}
-              list={list}
-              filtersActive={filtersActive}
-              newCustomerTo={newCustomerTo}
-              onClearFilters={clearFilters}
-              onPageChange={(page) => setSearchParams(writeCustomerListState({ ...state, page }))}
-            />
-          </div>
-        </div>
+            <span className={styles.chipText}>Empresa del cliente: {state.company ?? 'Sin empresa'}</span>
+            <span aria-hidden="true">✕</span>
+          </button>
+        )}
       </section>
+
+      <div ref={listFocus.ref} className={styles.results} role="region" aria-label="Lista de clientes" tabIndex={-1}>
+        <Results
+          state={state}
+          flatView={flatView}
+          flat={flat}
+          groups={groups}
+          filtersActive={filtersActive}
+          newCustomerTo={newCustomerTo}
+          timeZone={timeZone}
+          onClearFilters={clearFilters}
+          onRetry={() => listFocus.retry(list.refetch)}
+          onPageChange={(page) => setSearchParams(writeCustomerListState({ ...state, page }))}
+          onFocusList={focusList}
+          backTo={{ search: writeCustomerListState(withoutCompanyFilter(state)).toString() }}
+        />
+      </div>
       <Outlet />
     </div>
   )
 }
 
-function MetricsRow({ metrics, rowRef }: { metrics: CustomerMetrics; rowRef: RefObject<HTMLDivElement | null> }) {
+/** Línea bajo el título con los datos que antes daban las métricas; reserva su línea mientras carga. */
+function Summary({
+  metrics,
+  focus,
+}: {
+  metrics: ReturnType<typeof useCustomerMetrics>
+  focus: ReturnType<typeof useRetryFocus<HTMLSpanElement>>
+}) {
+  if (metrics.isPending) {
+    return (
+      <>
+        {/* Mide lo que medirá la frase real, así la página no salta al llegar el resumen. */}
+        <span className={styles.summaryPlaceholder} aria-hidden="true">
+          {customersSummary({ total: 100, companies: 10, withOpenTickets: 10, newThisMonth: 10 })}
+        </span>
+        <span className="visually-hidden" role="status">
+          Cargando el resumen…
+        </span>
+      </>
+    )
+  }
+  if (metrics.isError) {
+    // Sin permisos no hay resumen que reintentar: lo dice la lista.
+    if (isApiError(metrics.error, 403)) return null
+    return (
+      <>
+        No pudimos cargar el resumen.{' '}
+        <button
+          type="button"
+          className={styles.retry}
+          aria-label="Reintentar cargar el resumen"
+          onClick={() => focus.retry(metrics.refetch)}
+        >
+          Reintentar
+        </button>
+      </>
+    )
+  }
+  // Texto al que va el foco tras un reintento con éxito.
   return (
-    // Grupo con nombre al que va el foco tras un reintento con éxito.
-    <div ref={rowRef} className={styles.metrics} role="group" aria-label="Métricas de clientes" tabIndex={-1}>
-      <Metric label="Clientes activos" value={metrics.total} />
-      <Metric label="Empresas" value={metrics.companies} />
-      <Metric label="Con tickets abiertos" value={metrics.withOpenTickets} />
-      <Metric label="Nuevos este mes" value={metrics.newThisMonth} />
-    </div>
+    <span ref={focus.ref} tabIndex={-1} className={styles.summary}>
+      {customersSummary(metrics.data)}
+    </span>
   )
 }
 
@@ -234,32 +317,57 @@ function ArchivedFilter({ archived, onChange }: { archived: boolean; onChange: (
 
 interface ResultsProps {
   state: CustomerListState
-  list: ReturnType<typeof useCustomerList>
+  flatView: boolean
+  flat: ReturnType<typeof useCustomerList>
+  groups: ReturnType<typeof useCustomerGroups>
   filtersActive: boolean
   newCustomerTo: To
+  timeZone: string
   onClearFilters: () => void
+  onRetry: () => void
   onPageChange: (page: number) => void
+  /** El foco va a la lista cuando el control que se pulsó desaparece al cambiar el filtro de empresa. */
+  onFocusList: () => void
+  /** Destino de «Volver a todas las empresas»: la misma lista sin el filtro de empresa. */
+  backTo: To
 }
 
-function Results({ state, list, filtersActive, newCustomerTo, onClearFilters, onPageChange }: ResultsProps) {
-  if (list.isPending) {
-    return (
-      <div className={styles.loading}>
-        <Skeleton lines={2} label="Cargando clientes…" />
-        <Skeleton lines={2} label="" />
-        <Skeleton lines={2} label="" />
-      </div>
-    )
-  }
+function Results({
+  state,
+  flatView,
+  flat,
+  groups,
+  filtersActive,
+  newCustomerTo,
+  timeZone,
+  onClearFilters,
+  onRetry,
+  onPageChange,
+  onFocusList,
+  backTo,
+}: ResultsProps) {
+  const list = flatView ? flat : groups
+  if (list.isPending) return <CustomersDirectorySkeleton label="Cargando clientes…" />
   if (list.isError) {
+    if (isApiError(list.error, 403)) {
+      return (
+        <EmptyState
+          className={styles.state}
+          kind="restricted"
+          title="No tienes acceso a los clientes"
+          description="Tu rol no permite ver esta lista. Pide acceso a quien administra tu equipo."
+        />
+      )
+    }
     return (
       <EmptyState
+        className={styles.state}
         kind="error"
         title="No pudimos cargar los clientes"
         description="Revisa tu conexión y vuelve a intentarlo."
         live={list.failureCount > 1}
         action={
-          <Button variant="secondary" onClick={() => void list.refetch()}>
+          <Button variant="secondary" aria-label="Reintentar cargar los clientes" onClick={onRetry}>
             Reintentar
           </Button>
         }
@@ -271,9 +379,10 @@ function Results({ state, list, filtersActive, newCustomerTo, onClearFilters, on
     if (state.page > 1 && page.totalItems > 0) {
       return (
         <EmptyState
+          className={styles.state}
           kind="noResults"
           title="Esta página ya no existe"
-          description="Hay menos clientes que antes."
+          description={flatView ? 'Hay menos clientes que antes.' : 'Hay menos empresas que antes.'}
           action={
             <Button variant="secondary" onClick={() => onPageChange(1)}>
               Ir a la primera página
@@ -285,10 +394,11 @@ function Results({ state, list, filtersActive, newCustomerTo, onClearFilters, on
     if (filtersActive) {
       return (
         <EmptyState
+          className={styles.state}
           kind="noResults"
           title="No encontramos clientes"
           description={
-            state.archived && !state.q.trim() && !state.company
+            state.archived && !state.q.trim() && !isCompanyView(state)
               ? 'No hay clientes archivados.'
               : 'Prueba otra búsqueda o quita los filtros.'
           }
@@ -302,6 +412,7 @@ function Results({ state, list, filtersActive, newCustomerTo, onClearFilters, on
     }
     return (
       <EmptyState
+        className={styles.state}
         icon="clients"
         title="Todavía no hay clientes"
         description="Añade al primero para ver aquí su historial de tickets."
@@ -313,17 +424,63 @@ function Results({ state, list, filtersActive, newCustomerTo, onClearFilters, on
       />
     )
   }
+  const companyView = isCompanyView(state)
+  let cards: DirectoryCard[]
+  if (!flatView) {
+    cards = groups.data!.items.map((group) => ({
+      key: group.company ?? 'sin-empresa',
+      company: { name: group.company, summary: groupSummary(group.customerCount, group.openTickets) },
+      customers: group.customers,
+      // Solo se ven los primeros: el resto se abre en la misma página, filtrando por la empresa.
+      more:
+        group.customerCount > group.customers.length
+          ? {
+              label: viewAllLabel(group.customerCount, group.company),
+              to: { search: writeCustomerListState(forCompany(state, group.company)).toString() },
+              onClick: onFocusList,
+            }
+          : undefined,
+    }))
+  } else {
+    const customers = flat.data!.items
+    cards = [
+      {
+        key: 'lista',
+        company:
+          state.group === 'company' && companyView
+            ? { name: state.company ?? null, summary: groupSummary(page.totalItems) }
+            : undefined,
+        customers,
+        showCompany: !(state.group === 'company' && companyView),
+      },
+    ]
+  }
   return (
     <>
       <p className="visually-hidden" role="status">
-        {page.totalItems === 1 ? '1 cliente' : `${page.totalItems} clientes`}
+        {flatView
+          ? page.totalItems === 1
+            ? '1 cliente'
+            : `${page.totalItems} clientes`
+          : page.totalItems === 1
+            ? '1 empresa'
+            : `${page.totalItems} empresas`}
       </p>
-      <CustomersTable
-        customers={page.items}
-        caption={page.items.length === 1 ? 'Mostrando 1 resultado' : `Mostrando ${page.items.length} resultados`}
-        captionHidden
+      <div aria-busy={list.isPlaceholderData}>
+        <CustomersDirectory cards={cards} label={flatView ? 'Clientes' : 'Clientes por empresa'} timeZone={timeZone} />
+      </div>
+      {companyView && (
+        <Link to={backTo} className={styles.back} onClick={onFocusList}>
+          ← Volver a todas las empresas
+        </Link>
+      )}
+      <Pagination
+        page={page.page + 1}
+        pageSize={page.size}
+        total={page.totalItems}
+        onPageChange={onPageChange}
+        unit={flatView ? undefined : { one: 'empresa', many: 'empresas' }}
       />
-      <Pagination page={page.page + 1} pageSize={page.size} total={page.totalItems} onPageChange={onPageChange} />
     </>
   )
 }

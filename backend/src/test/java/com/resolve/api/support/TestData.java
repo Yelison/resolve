@@ -120,6 +120,21 @@ public class TestData {
 		return id;
 	}
 
+	/** Ticket sin responsable ni mensajes con asunto y última actividad explícitos; {@code status} en formato de la API. */
+	public UUID ticketWithActivity(UUID organizationId, UUID customerId, long number, String subject, String status,
+			Instant updatedAt) {
+		UUID id = Ids.newId();
+		Timestamp at = Timestamp.from(updatedAt);
+		this.jdbc.sql("""
+				INSERT INTO tickets (id, organization_id, number, subject, description, status, priority, channel,
+				                     customer_id, created_at, updated_at)
+				VALUES (?, ?, ?, ?, 'Detalle', ?, 'medium', 'web', ?, ?, ?)
+				""")
+			.params(id, organizationId, number, subject, status, customerId, Timestamp.from(Instant.EPOCH), at)
+			.update();
+		return id;
+	}
+
 	/**
 	 * Cambio de estado registrado como lo haría la API: la entrada del historial con el actor y el ticket con su
 	 * estado nuevo. Se insertan directamente, sin pasar por la API que se prueba.

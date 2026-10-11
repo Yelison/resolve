@@ -75,7 +75,9 @@ describe('CustomerDetailPage', () => {
   it('muestra el subtítulo con la empresa y la fecha de alta, y el avatar y el botón de la maqueta', async () => {
     api()
     renderDetail()
-    expect(await screen.findByText('Cliente · Acme Studio · cliente desde 1 de septiembre de 2026')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Cliente · Lumen Diseño · cliente desde 1 de septiembre de 2026'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Editar cliente' })).toBeInTheDocument()
     expect(screen.getByText('MP')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Contexto de atención' })).toHaveTextContent(

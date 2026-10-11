@@ -37,7 +37,8 @@ final class CustomerRequestParser {
 	private CustomerRequestParser() {
 	}
 
-	static CustomerFilters filters(@Nullable String q, @Nullable String company, @Nullable String archived) {
+	static CustomerFilters filters(@Nullable String q, @Nullable String company, @Nullable String withoutCompany,
+			@Nullable String archived) {
 		CustomerRequestParser parser = new CustomerRequestParser();
 		String text = null;
 		if (q != null && ControlCharacters.in(q, false)) {
@@ -59,16 +60,33 @@ final class CustomerRequestParser {
 				parser.error("company", "La empresa admite como máximo " + MAX_COMPANY_LENGTH + " caracteres.");
 			}
 		}
-		boolean archivedOnly = false;
-		if (archived != null && !archived.isBlank()) {
-			switch (archived.trim()) {
-				case "true" -> archivedOnly = true;
-				case "false" -> archivedOnly = false;
-				default -> parser.error("archived", "Debe ser true o false.");
-			}
+		boolean archivedOnly = flag(parser, "archived", archived);
+		boolean noCompany = flag(parser, "withoutCompany", withoutCompany);
+		if (noCompany && companyFilter != null) {
+			parser.error("withoutCompany", "No se combina con una empresa.");
 		}
 		parser.throwIfInvalid();
-		return new CustomerFilters(text, companyFilter, archivedOnly);
+		return new CustomerFilters(text, companyFilter, noCompany, archivedOnly);
+	}
+
+	/** Un booleano de la consulta: ausente o vacío es {@code false}; solo se admite {@code true} o {@code false}. */
+	private static boolean flag(CustomerRequestParser parser, String field, @Nullable String value) {
+		if (value == null || value.isBlank()) {
+			return false;
+		}
+		return switch (value.trim()) {
+			case "true" -> true;
+			case "false" -> false;
+			default -> {
+				parser.error(field, "Debe ser true o false.");
+				yield false;
+			}
+		};
+	}
+
+	/** Filtros de la lista por empresa: solo búsqueda y estado, porque cada grupo ya es una empresa. */
+	static CustomerFilters groupFilters(@Nullable String q, @Nullable String archived) {
+		return filters(q, null, null, archived);
 	}
 
 	/** Id de la ruta: un UUID. Uno mal formado es un 400; uno bien formado pero ajeno o inexistente, un 404. */

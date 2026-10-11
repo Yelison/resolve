@@ -15,6 +15,7 @@ import com.resolve.api.common.web.DemoLimits;
 import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.Preconditions;
+import com.resolve.api.customers.CustomerDtos.CustomerCompanyGroupDto;
 import com.resolve.api.customers.CustomerDtos.CustomerDetailDto;
 import com.resolve.api.customers.CustomerDtos.CustomerMetricsDto;
 import com.resolve.api.customers.CustomerDtos.CustomerSummaryDto;
@@ -48,16 +49,19 @@ class CustomerService {
 
 	private final CustomerMetricsQuery metrics;
 
+	private final CustomerGroupQuery groups;
+
 	private final Clock clock;
 
 	private final DemoLimits demoLimits;
 
 	CustomerService(CustomerRepository customers, MembershipRepository memberships, PortalInvitations invitations,
-			CustomerMetricsQuery metrics, Clock clock, DemoLimits demoLimits) {
+			CustomerMetricsQuery metrics, CustomerGroupQuery groups, Clock clock, DemoLimits demoLimits) {
 		this.customers = customers;
 		this.memberships = memberships;
 		this.invitations = invitations;
 		this.metrics = metrics;
+		this.groups = groups;
 		this.clock = clock;
 		this.demoLimits = demoLimits;
 	}
@@ -66,6 +70,12 @@ class CustomerService {
 	PageResponse<CustomerSummaryDto> list(CurrentMember member, CustomerFilters filters,
 			PageQuery<CustomerSortField> page) {
 		return this.customers.search(member.organizationId(), filters, page).map(CustomerSummaryDto::from);
+	}
+
+	@Transactional(readOnly = true)
+	PageResponse<CustomerCompanyGroupDto> listByCompany(CurrentMember member, CustomerFilters filters,
+			PageQuery<CustomerSortField> page) {
+		return this.groups.page(member.organizationId(), filters, page).map(CustomerCompanyGroupDto::from);
 	}
 
 	@Transactional(readOnly = true)

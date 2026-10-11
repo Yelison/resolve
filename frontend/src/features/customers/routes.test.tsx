@@ -11,7 +11,7 @@ describe('rutas de la aplicación', () => {
   it.each(staffMes)('deja al personal abrir la lista de clientes como %s', async (_role, me) => {
     mockApi({
       'GET /api/me': { body: me },
-      'GET /api/customers': { body: { items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 } },
+      'GET /api/customers/by-company': { body: { items: [], page: 0, size: 8, totalItems: 0, totalPages: 0 } },
       'GET /api/customers/metrics': { body: { total: 0, companies: 0, withOpenTickets: 0, newThisMonth: 0 } },
       'GET /api/customers/companies': { body: [] },
     })
@@ -23,7 +23,7 @@ describe('rutas de la aplicación', () => {
   it('/clientes/nuevo abre el diálogo de alta sobre la lista, que sigue montada', async () => {
     mockApi({
       'GET /api/me': { body: adminMe },
-      'GET /api/customers': { body: { items: [], page: 0, size: 20, totalItems: 0, totalPages: 0 } },
+      'GET /api/customers/by-company': { body: { items: [], page: 0, size: 8, totalItems: 0, totalPages: 0 } },
       'GET /api/customers/metrics': { body: { total: 0, companies: 0, withOpenTickets: 0, newThisMonth: 0 } },
       'GET /api/customers/companies': { body: [] },
     })

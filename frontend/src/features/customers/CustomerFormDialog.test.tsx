@@ -257,7 +257,7 @@ describe('CustomerFormDialog', () => {
           patches += 1
           return patches === 1
             ? { status: 412, body: { status: 412, title: 'El recurso cambió' } }
-            : { body: customerDetail({ company: 'Acme Studio', version: 5 }) }
+            : { body: customerDetail({ company: 'Lumen Diseño', version: 5 }) }
         },
       })
       function Closing() {
@@ -275,10 +275,10 @@ describe('CustomerFormDialog', () => {
 
       // Vuelve al valor original, que es el que quiere conservar aunque el servidor tenga otro.
       await userEvent.clear(screen.getByRole('textbox', { name: 'Empresa' }))
-      await userEvent.type(screen.getByRole('textbox', { name: 'Empresa' }), 'Acme Studio')
+      await userEvent.type(screen.getByRole('textbox', { name: 'Empresa' }), 'Lumen Diseño')
       await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }))
       await waitFor(() => expect(patchesTo(fetchSpy)).toHaveLength(2))
-      expect(await patchesTo(fetchSpy)[1]!.clone().json()).toEqual({ company: 'Acme Studio' })
+      expect(await patchesTo(fetchSpy)[1]!.clone().json()).toEqual({ company: 'Lumen Diseño' })
       expect(patchesTo(fetchSpy)[1]!.headers.get('If-Match')).toBe('"4"')
       await waitFor(() => expect(onClose).toHaveBeenCalled())
     })

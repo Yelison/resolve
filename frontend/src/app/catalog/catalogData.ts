@@ -26,7 +26,7 @@ export const demoTickets: TicketSummary[] = [
     id: 't-1048',
     number: 1048,
     subject: 'No puedo acceder a mi cuenta',
-    customer: { id: 'c-1', name: 'María Pérez', email: 'maria@example.com', company: 'Acme Studio' },
+    customer: { id: 'c-1', name: 'María Pérez', email: 'maria@example.com', company: 'Lumen Diseño' },
     status: 'open',
     priority: 'urgent',
     channel: 'email',

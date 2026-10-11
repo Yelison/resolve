@@ -58,7 +58,8 @@ public final class ApiAccess {
 			Map.entry("listActivity", STAFF),
 			// Clientes: del personal; archivar, restaurar e invitar solo de administradores.
 			Map.entry("listCustomers", STAFF), Map.entry("createCustomer", STAFF),
-			Map.entry("getCustomerMetrics", STAFF), Map.entry("listCompanies", STAFF), Map.entry("getCustomer", STAFF),
+			Map.entry("getCustomerMetrics", STAFF), Map.entry("listCompanies", STAFF),
+			Map.entry("listCustomersByCompany", STAFF), Map.entry("getCustomer", STAFF),
 			Map.entry("updateCustomer", STAFF), Map.entry("archiveCustomer", ADMIN),
 			Map.entry("restoreCustomer", ADMIN), Map.entry("inviteCustomer", ADMIN),
 			// Equipo e informes.

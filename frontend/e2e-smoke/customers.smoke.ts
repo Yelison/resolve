@@ -42,7 +42,8 @@ test('un administrador crea un cliente y lo usa en un ticket nuevo', async ({ pa
   await test.step('el ticket cuelga del cliente en su ficha', async () => {
     await page.goto('/clientes')
     await page.getByRole('searchbox', { name: /Buscar/ }).fill(name)
-    await page.getByRole('link', { name }).click()
+    // «exact»: el último ticket del cliente («#N Ticket del cliente smoke …») también contiene su nombre.
+    await page.getByRole('link', { name, exact: true }).click()
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(name)
     await expect(page.getByRole('link', { name: new RegExp(subject) })).toBeVisible()
   })
