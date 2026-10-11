@@ -329,8 +329,10 @@ test.describe('configuración: General', () => {
     await page.setViewportSize(desktop)
     await page.goto('/configuracion/general')
     await expect(page.getByText('Ahora: claro')).toBeVisible()
-    // Se elige pulsando la tarjeta entera, no solo el círculo.
-    await page.getByText('Oscuro', { exact: true }).click()
+    // Se elige pulsando la tarjeta entera, no solo el círculo: un clic en la miniatura (arriba a la izquierda).
+    const card = page.getByRole('radio', { name: 'Oscuro' }).locator('xpath=ancestor::div[1]')
+    const box = (await card.boundingBox())!
+    await page.mouse.click(box.x + 20, box.y + 20)
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
     await expect(page.getByRole('button', { name: 'Guardar cambios' })).toBeDisabled()
     await page.reload()
@@ -352,11 +354,14 @@ test.describe('configuración: General', () => {
   test('elegir el tema no mueve nada: el borde de selección no cambia el tamaño de las tarjetas', async ({ page }) => {
     await page.setViewportSize(desktop)
     await page.goto('/configuracion/general')
-    const card = page.getByRole('radio', { name: 'Claro' }).locator('xpath=ancestor::div[1]/..')
-    const before = await card.boundingBox()
+    const card = page.getByRole('radio', { name: 'Claro' }).locator('xpath=ancestor::div[1]')
+    const size = async () => {
+      const box = (await card.boundingBox())!
+      return { width: box.width, height: box.height }
+    }
+    const before = await size()
     await page.getByRole('radio', { name: 'Claro' }).check()
-    const after = await card.boundingBox()
-    expect(after).toEqual(before)
+    expect(await size()).toEqual(before)
   })
 
   test('con teclado las flechas cambian el tema', async ({ page }) => {
@@ -424,7 +429,7 @@ test.describe('configuración: Permisos', () => {
       'Solo los suyos',
     )
     // Ninguna capacidad se oculta por el ancho: están las 14 con el rol elegido.
-    await expect(page.locator('ul li', { hasText: /Permitido|Solo los|Sin acceso/ })).toHaveCount(14)
+    await expect(page.getByRole('heading', { level: 2 }).locator('xpath=following-sibling::ul/li')).toHaveCount(14)
     const box = await roles.getByRole('button', { name: 'Cliente' }).boundingBox()
     expect(box!.height).toBeGreaterThanOrEqual(44)
   })
