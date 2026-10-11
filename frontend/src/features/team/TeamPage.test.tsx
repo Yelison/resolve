@@ -211,6 +211,7 @@ describe('TeamPage', () => {
     expect(within(table).getByText('Invitación pendiente')).toBeInTheDocument()
     expect(within(within(table).getByRole('row', { name: /Laura Méndez/ })).getByText('1 urgente')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Miembros 3' })).toBeInTheDocument()
+    expect(screen.getByText('Mostrando 3 miembros')).toBeInTheDocument()
   })
 
   it('los retirados solo aparecen tras el filtro «Retirados» y el chip lo quita', async () => {
@@ -258,6 +259,8 @@ describe('TeamPage', () => {
     const table = screen.getByRole('table', { name: 'Equipo' })
     expect(within(table).getAllByRole('row')).toHaveLength(2)
     expect(screen.getByRole('heading', { level: 2, name: 'Miembros 1 de 3' })).toBeInTheDocument()
+    // El pie de la tabla concuerda en singular con una sola coincidencia (y en plural sin filtrar, abajo).
+    expect(screen.getByText('Mostrando 1 miembro')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Rol' }))
     await userEvent.click(screen.getByRole('menuitem', { name: 'Administrador' }))

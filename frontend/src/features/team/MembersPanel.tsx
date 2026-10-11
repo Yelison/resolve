@@ -13,6 +13,7 @@ import {
 import { type MemberStatus, type TeamMember, type TeamRole } from '../../domain/member'
 import { roleLabels } from '../../app/navigation'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
+import { plural } from '../../lib/format'
 import { TeamTable } from './TeamTable'
 import { membersCount } from './teamCopy'
 import { TEAM_PAGE_SIZE, filterMembers, hasActiveTeamFilters, teamPageCount, type TeamPageState } from './teamParams'
@@ -318,7 +319,7 @@ function Results({
       </p>
       <TeamTable
         members={visible}
-        caption={visible.length === 1 ? 'Mostrando 1 miembro' : `Mostrando ${visible.length} miembros`}
+        caption={`Mostrando ${plural(visible.length, 'miembro', 'miembros')}`}
         captionHidden
         actions={actions}
       />

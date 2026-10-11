@@ -19,6 +19,7 @@ import { useTimeZone } from '../session/useTimeZone'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { CustomersDirectory, CustomersDirectorySkeleton, type DirectoryCard } from './CustomersDirectory'
+import { plural } from '../../lib/format'
 import { customersSummary, groupSummary, viewAllLabel } from './directory'
 import {
   customerSortValues,
@@ -458,13 +459,7 @@ function Results({
   return (
     <>
       <p className="visually-hidden" role="status">
-        {flatView
-          ? page.totalItems === 1
-            ? '1 cliente'
-            : `${page.totalItems} clientes`
-          : page.totalItems === 1
-            ? '1 empresa'
-            : `${page.totalItems} empresas`}
+        {flatView ? plural(page.totalItems, 'cliente', 'clientes') : plural(page.totalItems, 'empresa', 'empresas')}
       </p>
       <div aria-busy={list.isPlaceholderData}>
         <CustomersDirectory cards={cards} label={flatView ? 'Clientes' : 'Clientes por empresa'} timeZone={timeZone} />
