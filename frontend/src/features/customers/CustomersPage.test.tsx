@@ -218,14 +218,14 @@ describe('CustomersPage', () => {
     const router = renderCustomers('/clientes?q=a&archived=true&sort=createdAt%2Cdesc&page=2')
     const link = await screen.findByRole('link', { name: 'Ver los 14 clientes de Lumen Diseño' })
     expect(screen.queryByRole('link', { name: /Ver los .* de Northstar/ })).not.toBeInTheDocument()
-    expect(link).toHaveAttribute('href', '/clientes?q=a&company=Acme+Studio&archived=true&sort=createdAt%2Cdesc')
+    expect(link).toHaveAttribute('href', '/clientes?q=a&company=Lumen+Dise%C3%B1o&archived=true&sort=createdAt%2Cdesc')
 
     await userEvent.click(link)
     expect(router.state.location.pathname).toBe('/clientes')
-    expect(router.state.location.search).toBe('?q=a&company=Acme+Studio&archived=true&sort=createdAt%2Cdesc')
+    expect(router.state.location.search).toBe('?q=a&company=Lumen+Dise%C3%B1o&archived=true&sort=createdAt%2Cdesc')
     expect(await screen.findByRole('link', { name: 'Cliente 13' })).toBeInTheDocument()
     expect(requestsTo(fetchSpy, '/api/customers').at(-1)?.search).toBe(
-      '?q=a&company=Acme%20Studio&archived=true&page=0&size=20&sort=createdAt%2Cdesc',
+      '?q=a&company=Lumen%20Dise%C3%B1o&archived=true&page=0&size=20&sort=createdAt%2Cdesc',
     )
     expect(screen.getByRole('heading', { level: 2, name: 'Lumen Diseño' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Lumen Diseño' })).toHaveTextContent('14 clientes')
@@ -241,7 +241,7 @@ describe('CustomersPage', () => {
 
   it('quitar el chip de la empresa vuelve a todas las empresas', async () => {
     mockApi({ ...baseRoutes, ...oneCustomer() })
-    const router = renderCustomers('/clientes?company=Acme+Studio&page=3')
+    const router = renderCustomers('/clientes?company=Lumen+Dise%C3%B1o&page=3')
     await userEvent.click(
       await screen.findByRole('button', { name: 'Quitar el filtro Empresa del cliente: Lumen Diseño' }),
     )
