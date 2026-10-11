@@ -24,11 +24,18 @@ const TABLE_MIN_WIDTH = 720
 
 const legend: AccessStatus[] = ['allowed', 'limited', 'none']
 
-/** El icono de cada estado; «Sin acceso» es un guion porque el kit no trae un icono de cancelado. */
+/**
+ * La marca de cada estado. «Con límites» es el medio círculo de la maqueta y «Sin acceso» un guion: el kit no trae
+ * icono para ellos y un candado diría «bloqueado», lo contrario de «solo los suyos». Los dos son decorativos: el
+ * texto de al lado dice el estado.
+ */
 function StatusMark({ status }: { status: AccessStatus }) {
   if (status === 'allowed') return <Icon name="check" size={16} />
-  if (status === 'limited') return <Icon name="lock" size={16} />
-  return <span aria-hidden="true">—</span>
+  return (
+    <span aria-hidden="true" className={styles.glyph}>
+      {status === 'limited' ? '◐' : '—'}
+    </span>
+  )
 }
 
 /** Lo que un rol puede hacer con una capacidad: icono y texto (nunca solo color), con «Con límites» para los parciales. */

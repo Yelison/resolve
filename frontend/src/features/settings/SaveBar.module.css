@@ -48,3 +48,9 @@
     flex: none;
   }
 }
+
+/* Los botones de la propia barra no reservan el margen de la barra que los lleva: tabular hasta ellos no mueve la
+   página. Los campos de arriba sí (`forms.module.css`); la especificidad de `[type]` gana a esa regla. */
+.bar .actions button[type] {
+  scroll-margin-bottom: 0;
+}

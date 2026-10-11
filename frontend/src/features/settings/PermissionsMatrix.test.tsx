@@ -58,7 +58,10 @@ describe('PermissionsMatrix con ancho para la tabla', () => {
     const own = screen.getByRole('rowheader', { name: /^Ver tickets y sus mensajes/ }).closest('tr')!
     const cell = within(own).getAllByRole('cell')[2]!
     expect(cell).toHaveTextContent('Con límites: Solo los suyos')
-    expect(cell.querySelector('svg')).not.toBeNull()
+    // El medio círculo de la maqueta, decorativo: el candado se leería como «bloqueado».
+    const mark = cell.querySelector('[aria-hidden="true"]')
+    expect(mark).toHaveTextContent('◐')
+    expect(cell.querySelector('svg')).toBeNull()
     const published = screen.getByRole('rowheader', { name: /^Leer artículos/ }).closest('tr')!
     expect(within(published).getAllByRole('cell')[2]).toHaveTextContent('Con límites: Solo los públicos')
   })
@@ -68,6 +71,7 @@ describe('PermissionsMatrix con ancho para la tabla', () => {
     mockElementWidth(900)
     renderMatrix()
     const legend = screen.getByRole('list', { name: 'Leyenda' })
+    expect(legend).toHaveTextContent('◐')
     for (const text of ['Permitido', 'Con límites', 'Sin acceso']) {
       expect(within(legend).getByText(text)).toBeInTheDocument()
     }

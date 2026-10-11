@@ -257,6 +257,26 @@ describe('OrganizationTab', () => {
     expect(await retry.clone().json()).toEqual({ name: 'Acme Studio SL' })
   })
 
+  it('tras un 412 que cambió la zona, la pista dice «Ahora:» con la ciudad y el desfase, no con el identificador', async () => {
+    let version = 3
+    render({
+      'GET /api/organization': () => ({
+        body: organizationSettings(version === 3 ? {} : { timeZone: 'America/Mexico_City', version }),
+        headers: etag(version),
+      }),
+      'PATCH /api/organization': () => {
+        version = 4
+        return problem(412)
+      },
+    })
+    const zone = await field('Zona horaria')
+    await userEvent.selectOptions(zone, 'Europe/Madrid')
+    await userEvent.click(save())
+    expect(await screen.findByText(/Cambió: Zona horaria\./)).toBeInTheDocument()
+    expect(zone).toHaveValue('Europe/Madrid')
+    expect(zone).toHaveAccessibleDescription('Ahora: Ciudad de México (GMT−6)')
+  })
+
   it('al guardar actualiza ajustes y sesión, invalida lo que depende de la zona y del objetivo y enfoca el primer bloque', async () => {
     const { queryClient } = render({
       'PATCH /api/organization': {

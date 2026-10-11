@@ -284,6 +284,24 @@ test.describe('configuración: Empresa', () => {
     }
   })
 
+  for (const viewport of [
+    { width: 390, height: 640 },
+    { width: 1440, height: 700 },
+  ]) {
+    test(`tabular hasta la barra de guardar no desplaza la página, a ${viewport.width} px`, async ({ page }) => {
+      await page.setViewportSize(viewport)
+      await page.goto('/configuracion/empresa')
+      await page.getByRole('textbox', { name: 'Nombre del espacio' }).fill('Otro nombre')
+      const target = page.getByRole('textbox', { name: 'Objetivo de primera respuesta' })
+      await target.focus()
+      const before = await page.evaluate(() => window.scrollY)
+      await page.keyboard.press('Tab')
+      await expect(page.getByRole('button', { name: 'Descartar' })).toBeFocused()
+      // Los botones de la barra ya están a la vista: el foco no debe mover la página para dejar sitio a la barra.
+      expect(await page.evaluate(() => window.scrollY)).toBe(before)
+    })
+  }
+
   test('el agente ve Empresa en solo lectura, con el aviso y sin barra de guardar', async ({ page }) => {
     await mockApi(page, 'agent')
     await page.setViewportSize(desktop)

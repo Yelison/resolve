@@ -215,3 +215,10 @@
   max-width: 45%;
   text-align: end;
 }
+
+/* El glifo mide como un icono de 16 px para que el texto de al lado no cambie de sitio. */
+.glyph {
+  display: inline-block;
+  min-width: 16px;
+  text-align: center;
+}

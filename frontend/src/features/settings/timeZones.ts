@@ -22,12 +22,19 @@ const OTHER = 'Otras'
 /**
  * Nombre en español de las ciudades que lo tienen distinto (con tilde o traducido). `Intl` da el desfase de una zona
  * pero no el nombre de su ciudad, así que se mantiene esta tabla pequeña; el resto usa el nombre del identificador.
+ * Lleva los dos identificadores de las zonas que renombró la IANA: el moderno (`Asia/Kolkata`) y el de CLDR, que es el
+ * que lista Chromium (`Asia/Calcutta`).
  */
 const cityNames: Record<string, string> = {
   'Africa/Cairo': 'El Cairo',
   'Africa/Ceuta': 'Ceuta',
   'Africa/Johannesburg': 'Johannesburgo',
   'America/Argentina/Buenos_Aires': 'Buenos Aires',
+  'America/Buenos_Aires': 'Buenos Aires',
+  'America/Catamarca': 'Catamarca',
+  'America/Cordoba': 'Córdoba',
+  'America/Jujuy': 'Jujuy',
+  'America/Mendoza': 'Mendoza',
   'America/Argentina/Catamarca': 'Catamarca',
   'America/Argentina/Cordoba': 'Córdoba',
   'America/Argentina/Jujuy': 'Jujuy',
@@ -63,7 +70,12 @@ const cityNames: Record<string, string> = {
   'America/Sao_Paulo': 'São Paulo',
   'America/Tijuana': 'Tijuana',
   'America/Toronto': 'Toronto',
+  'Asia/Calcutta': 'Calcuta',
   'Asia/Dubai': 'Dubái',
+  'Asia/Katmandu': 'Katmandú',
+  'Asia/Kathmandu': 'Katmandú',
+  'Asia/Rangoon': 'Rangún',
+  'Asia/Saigon': 'Ho Chi Minh',
   'Atlantic/Canary': 'Canarias',
   'Asia/Kolkata': 'Calcuta',
   'Asia/Seoul': 'Seúl',
@@ -76,6 +88,7 @@ const cityNames: Record<string, string> = {
   'Europe/Dublin': 'Dublín',
   'Europe/Istanbul': 'Estambul',
   'Europe/Kiev': 'Kiev',
+  'Europe/Kyiv': 'Kiev',
   'Europe/Lisbon': 'Lisboa',
   'Europe/London': 'Londres',
   'Europe/Moscow': 'Moscú',
@@ -88,21 +101,29 @@ const cityNames: Record<string, string> = {
   'Pacific/Auckland': 'Auckland',
 }
 
-const offsets = new Map<string, string>()
+/** Los formateadores son caros de construir (hay ~420 zonas): uno por zona. `null` si el navegador no la conoce. */
+const formatters = new Map<string, Intl.DateTimeFormat | null>()
 
-/** Desfase de la zona respecto a GMT, con el signo menos tipográfico: «GMT−5», «GMT+5:30», «GMT» en el meridiano. */
-function offsetOf(id: string): string {
-  const cached = offsets.get(id)
+function formatterFor(id: string): Intl.DateTimeFormat | null {
+  const cached = formatters.get(id)
   if (cached !== undefined) return cached
-  let offset = ''
+  let formatter: Intl.DateTimeFormat | null = null
   try {
-    const parts = new Intl.DateTimeFormat('en', { timeZone: id, timeZoneName: 'shortOffset' }).formatToParts(new Date())
-    offset = (parts.find((part) => part.type === 'timeZoneName')?.value ?? '').replace('-', '\u2212')
+    formatter = new Intl.DateTimeFormat('en', { timeZone: id, timeZoneName: 'shortOffset' })
   } catch {
     // Una zona que el navegador no conoce (solo la sabe el servidor) se muestra sin desfase.
   }
-  offsets.set(id, offset)
-  return offset
+  formatters.set(id, formatter)
+  return formatter
+}
+
+/**
+ * Desfase de la zona respecto a GMT en el instante `at`, con el signo menos tipográfico: «GMT−5», «GMT+5:30», «GMT» en
+ * el meridiano. Se calcula cada vez (solo se cachea el formateador) porque cambia con el horario de verano.
+ */
+function offsetOf(id: string, at: Date): string {
+  const parts = formatterFor(id)?.formatToParts(at)
+  return (parts?.find((part) => part.type === 'timeZoneName')?.value ?? '').replace('-', '\u2212')
 }
 
 /** Nombre legible de la zona, con tildes: «Bogotá», «Ciudad de México», «Argentina/Buenos Aires» si no tiene el suyo. */
@@ -114,8 +135,8 @@ function cityOf(id: string): string {
 }
 
 /** Zona legible con su desfase: «Bogotá (GMT−5)». `UTC` ya lo dice todo y va sin desfase. */
-export function timeZoneLabel(id: string): string {
-  const offset = id === 'UTC' ? '' : offsetOf(id)
+export function timeZoneLabel(id: string, at: Date = new Date()): string {
+  const offset = id === 'UTC' ? '' : offsetOf(id, at)
   return offset ? `${cityOf(id)} (${offset})` : cityOf(id)
 }
 
@@ -133,14 +154,18 @@ function supportedZones(): string[] {
  * (p. ej. `UTC` en algunos motores o una zona que solo conoce el servidor), el campo no puede mostrar otra distinta
  * y guardar sin tocarlo la cambiaría sin querer.
  */
-export function timeZoneGroups(current: string, zones: string[] = supportedZones()): TimeZoneGroup[] {
+export function timeZoneGroups(
+  current: string,
+  zones: string[] = supportedZones(),
+  at: Date = new Date(),
+): TimeZoneGroup[] {
   const ids = zones.includes(current) ? zones : [...zones, current]
   const groups = new Map<string, TimeZoneGroup>()
   for (const id of [...ids].sort((a, b) => a.localeCompare(b, 'en'))) {
     const slash = id.indexOf('/')
     const region = slash === -1 ? OTHER : (regionLabels[id.slice(0, slash)] ?? OTHER)
     const group = groups.get(region) ?? { label: region, zones: [] }
-    group.zones.push({ id, label: timeZoneLabel(id) })
+    group.zones.push({ id, label: timeZoneLabel(id, at) })
     groups.set(region, group)
   }
   // Dentro de cada región, por el nombre que ve la persona.
