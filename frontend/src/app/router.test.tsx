@@ -48,7 +48,8 @@ describe('rutas de la aplicación', () => {
     })
     // Con todas las media queries coincidiendo la barra superior muestra las migas (en móvil solo lleva la marca).
     vi.spyOn(window, 'matchMedia').mockImplementation(
-      (query) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }) as MediaQueryList,
+      (query) =>
+        ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }) as unknown as MediaQueryList,
     )
     renderApp(path)
     await vi.waitFor(() => expect(document.title).toBe(`${name} · Resolve`))

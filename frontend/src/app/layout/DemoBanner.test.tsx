@@ -7,7 +7,10 @@ function stubLayout(height: number) {
   vi.stubGlobal(
     'ResizeObserver',
     class {
-      constructor(private readonly callback: () => void) {}
+      callback: () => void
+      constructor(callback: () => void) {
+        this.callback = callback
+      }
       observe() {
         this.callback()
       }
