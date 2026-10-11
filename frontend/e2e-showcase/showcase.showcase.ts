@@ -288,7 +288,9 @@ test('la búsqueda global funciona con la API simulada: Ctrl+K, resultados agrup
   await page.keyboard.press('Control+k')
   const search = page.getByRole('combobox', { name: 'Buscar en Resolve' })
   await expect(search).toBeFocused()
-  await search.fill('ac')
+  // «ca» encuentra un ticket («Cambiar correo de facturación»), un cliente («Carlos Ruiz») y un artículo («Descargar una
+  // factura»): desde #133 ninguna empresa de cliente se llama «Acme Studio», así que «ac» ya no daba clientes.
+  await search.fill('ca')
   const list = page.getByRole('listbox', { name: 'Resultados de la búsqueda' })
   await expect(list.getByRole('group', { name: 'Tickets' })).toBeVisible()
   await expect(list.getByRole('group', { name: 'Clientes' })).toBeVisible()
