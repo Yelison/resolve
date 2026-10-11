@@ -154,18 +154,14 @@ function supportedZones(): string[] {
  * (p. ej. `UTC` en algunos motores o una zona que solo conoce el servidor), el campo no puede mostrar otra distinta
  * y guardar sin tocarlo la cambiaría sin querer.
  */
-export function timeZoneGroups(
-  current: string,
-  zones: string[] = supportedZones(),
-  at: Date = new Date(),
-): TimeZoneGroup[] {
+export function timeZoneGroups(current: string, zones: string[] = supportedZones()): TimeZoneGroup[] {
   const ids = zones.includes(current) ? zones : [...zones, current]
   const groups = new Map<string, TimeZoneGroup>()
   for (const id of [...ids].sort((a, b) => a.localeCompare(b, 'en'))) {
     const slash = id.indexOf('/')
     const region = slash === -1 ? OTHER : (regionLabels[id.slice(0, slash)] ?? OTHER)
     const group = groups.get(region) ?? { label: region, zones: [] }
-    group.zones.push({ id, label: timeZoneLabel(id, at) })
+    group.zones.push({ id, label: timeZoneLabel(id) })
     groups.set(region, group)
   }
   // Dentro de cada región, por el nombre que ve la persona.
