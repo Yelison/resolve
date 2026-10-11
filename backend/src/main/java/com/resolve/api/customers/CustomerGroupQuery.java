@@ -54,7 +54,7 @@ class CustomerGroupQuery {
 		// Primero las empresas de la página, sin tocar los tickets: el total sale de la misma consulta (ventana sobre los
 		// grupos, antes del LIMIT).
 		long[] total = { -1 };
-		List<GroupTotals> groups = matching.bind(this.jdbc.sql("""
+		List<CompanyPage> groups = matching.bind(this.jdbc.sql("""
 				SELECT m.grp, min(btrim(m.company)) AS company, count(*) AS customer_count, count(*) OVER () AS total
 				FROM (SELECT c.id, c.company, %s AS grp %s) m
 				GROUP BY m.grp
@@ -65,7 +65,7 @@ class CustomerGroupQuery {
 			.param("offset", page.offset())
 			.query((row, index) -> {
 				total[0] = row.getLong("total");
-				return new GroupTotals(row.getString("grp"), row.getString("company"), row.getLong("customer_count"), 0);
+				return new CompanyPage(row.getString("grp"), row.getString("company"), row.getLong("customer_count"));
 			})
 			.list();
 		if (groups.isEmpty()) {
@@ -88,7 +88,7 @@ class CustomerGroupQuery {
 	}
 
 	/** Los tickets abiertos de cada empresa de la página: solo se cuentan los de sus clientes, no los de las demás. */
-	private Map<String, Long> openTickets(Matching matching, List<GroupTotals> groups) {
+	private Map<String, Long> openTickets(Matching matching, List<CompanyPage> groups) {
 		Map<String, Long> open = new HashMap<>();
 		if (groups.isEmpty()) {
 			return open;
@@ -110,20 +110,20 @@ class CustomerGroupQuery {
 	}
 
 	/** Condición «el cliente es de una de las empresas de la página» sobre la columna {@code m.grp}. */
-	private static String inPage(List<GroupTotals> groups) {
+	private static String inPage(List<CompanyPage> groups) {
 		boolean keys = groups.stream().anyMatch((group) -> group.key() != null);
 		boolean withoutCompany = groups.stream().anyMatch((group) -> group.key() == null);
 		return (keys ? "m.grp IN (:keys)" : "false") + (withoutCompany ? " OR m.grp IS NULL" : "");
 	}
 
-	private static JdbcClient.StatementSpec bindKeys(JdbcClient.StatementSpec statement, List<GroupTotals> groups) {
-		List<String> keys = groups.stream().map(GroupTotals::key).filter((key) -> key != null).toList();
+	private static JdbcClient.StatementSpec bindKeys(JdbcClient.StatementSpec statement, List<CompanyPage> groups) {
+		List<String> keys = groups.stream().map(CompanyPage::key).filter((key) -> key != null).toList();
 		return keys.isEmpty() ? statement : statement.param("keys", keys);
 	}
 
 	/** Los ids de los primeros {@link #PREVIEW} clientes de cada empresa de la página, en el orden pedido. */
 	private Map<String, List<UUID>> previews(UUID organizationId, Matching matching, PageQuery<CustomerSortField> page,
-			List<GroupTotals> groups) {
+			List<CompanyPage> groups) {
 		Map<String, List<UUID>> previews = new LinkedHashMap<>();
 		if (groups.isEmpty()) {
 			return previews;
@@ -185,7 +185,7 @@ class CustomerGroupQuery {
 
 	}
 
-	private record GroupTotals(@Nullable String key, @Nullable String company, long customerCount, long openTickets) {
+	private record CompanyPage(@Nullable String key, @Nullable String company, long customerCount) {
 	}
 
 }
