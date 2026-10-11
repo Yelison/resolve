@@ -22,6 +22,9 @@ public final class ProblemTypes {
 	/** 409: la organización que la pantalla dice mostrar no es la de la sesión. */
 	public static final String ORGANIZATION_MISMATCH = BASE + "organization-mismatch";
 
+	/** 409: la organización debe conservar al menos un administrador activo (cambiar el rol, retirar o salir). */
+	public static final String LAST_ADMIN = BASE + "last-admin";
+
 	private ProblemTypes() {
 	}
 

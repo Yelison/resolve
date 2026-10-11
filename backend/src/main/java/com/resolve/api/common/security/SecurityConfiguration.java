@@ -111,6 +111,9 @@ class SecurityConfiguration {
 				.authenticated()
 				.requestMatchers(HttpMethod.POST, api("/session/organization"))
 				.authenticated()
+				// Salir de una organización lo puede intentar cualquier persona; el servicio responde 403 a un cliente.
+				.requestMatchers(HttpMethod.DELETE, api("/me/organizations/{organizationId}"))
+				.authenticated()
 				.requestMatchers(HttpMethod.GET,
 						api("/me", "/tickets", "/tickets/{number}", "/tickets/{number}/messages"))
 				.authenticated()

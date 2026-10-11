@@ -46,9 +46,11 @@ public final class ApiAccess {
 	public static final String LOGOUT = "logout";
 
 	private static final Map<String, Set<Role>> ALLOWED = Map.ofEntries(
-			// Sesión y perfil: cualquier persona autenticada.
+			// Sesión y perfil: cualquier persona autenticada. Salir de una organización también: el 403 de un cliente lo da
+			// el servicio, con la membresía, no la seguridad con el rol.
 			Map.entry("getMe", ANYONE), Map.entry("updateMe", ANYONE), Map.entry("listSessionOrganizations", ANYONE),
-			Map.entry("selectSessionOrganization", ANYONE), Map.entry(LOGOUT, ANYONE),
+			Map.entry("selectSessionOrganization", ANYONE), Map.entry("leaveOrganization", ANYONE),
+			Map.entry(LOGOUT, ANYONE),
 			// Organización.
 			Map.entry("getOrganization", STAFF), Map.entry("updateOrganization", ADMIN),
 			// Tickets: los clientes leen los suyos; el resto es del personal.
@@ -100,6 +102,7 @@ public final class ApiAccess {
 			.replace("{number}", "1")
 			.replace("{id}", UUID.randomUUID().toString())
 			.replace("{userId}", UUID.randomUUID().toString())
+			.replace("{organizationId}", UUID.randomUUID().toString())
 			.replace("{slug}", "no-existe");
 		return MockMvcRequestBuilders.request(HttpMethod.valueOf(operation.method()), path)
 			.contentType(MediaType.APPLICATION_JSON)

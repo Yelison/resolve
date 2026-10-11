@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 
 /**
  * Foco de revisión 2 con hilos reales sobre PostgreSQL: dos administradores que se retiran o se degradan a la vez no
@@ -56,6 +57,7 @@ class MemberConcurrencyTest extends TeamFixture {
 		matchesContract("removeMember").match(results[1]);
 		assertThat(body(results[1]).path("detail").asString())
 			.isEqualTo("La organización debe conservar al menos un administrador activo.");
+		assertThat(body(results[1]).path("type").asString()).isEqualTo("https://resolve.example/problems/last-admin");
 		assertThat(this.data.membershipStatus(this.acme, second)).isEqualTo("removed");
 		// El que perdió sigue intacto.
 		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("active");
@@ -73,6 +75,7 @@ class MemberConcurrencyTest extends TeamFixture {
 		assertThat(results[1].getResponse().getStatus()).isEqualTo(409);
 		matchesContract("changeMemberRole").match(results[0]);
 		matchesContract("changeMemberRole").match(results[1]);
+		assertThat(body(results[1]).path("type").asString()).isEqualTo("https://resolve.example/problems/last-admin");
 		assertThat(activeAdmins()).isEqualTo(1);
 		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("active");
 	}
@@ -88,6 +91,55 @@ class MemberConcurrencyTest extends TeamFixture {
 		assertThat(results[0].getResponse().getStatus()).isEqualTo(200);
 		assertThat(results[1].getResponse().getStatus()).isEqualTo(409);
 		assertThat(activeAdmins()).isEqualTo(1);
+	}
+
+	@Test
+	@Timeout(30)
+	void twoAdminsLeavingTogetherLeaveExactlyOneActiveAdmin() throws Exception {
+		UUID second = this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example");
+		MvcResult[] results = race(() -> leave(ADMIN, this.acme), () -> leave("segunda@acme.example", this.acme));
+
+		assertThat(results[0].getResponse().getStatus()).isEqualTo(204);
+		assertThat(results[1].getResponse().getStatus()).isEqualTo(409);
+		matchesContract("leaveOrganization").match(results[0]);
+		matchesContract("leaveOrganization").match(results[1]);
+		assertThat(body(results[1]).path("type").asString()).isEqualTo("https://resolve.example/problems/last-admin");
+		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("removed");
+		// La que perdió sigue intacta y es la última.
+		assertThat(this.data.membershipStatus(this.acme, second)).isEqualTo("active");
+		assertThat(activeAdmins()).isEqualTo(1);
+	}
+
+	@Test
+	@Timeout(30)
+	void aLeaveAndTheOtherAdminsOwnDemotionCannotBothSucceed() throws Exception {
+		UUID second = this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example");
+		MvcResult[] results = race(() -> leave(ADMIN, this.acme),
+				() -> changeRole("segunda@acme.example", second, "agent"));
+
+		assertThat(results[0].getResponse().getStatus()).isEqualTo(204);
+		assertThat(results[1].getResponse().getStatus()).isEqualTo(409);
+		assertThat(body(results[1]).path("type").asString()).isEqualTo("https://resolve.example/problems/last-admin");
+		assertThat(activeAdmins()).isEqualTo(1);
+	}
+
+	@Test
+	@Timeout(30)
+	void aLeaveAndARemovalOfTheOtherAdminCannotBothSucceed() throws Exception {
+		UUID second = this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example");
+		// La segunda sale mientras la primera intenta retirarla: tras la salida, la retirada encuentra a la segunda ya
+		// retirada (409 de estado, no el del último administrador) y la primera sigue activa.
+		MvcResult[] results = race(() -> leave("segunda@acme.example", this.acme), () -> remove(ADMIN, second));
+
+		assertThat(results[0].getResponse().getStatus()).isEqualTo(204);
+		assertThat(results[1].getResponse().getStatus()).isEqualTo(409);
+		assertThat(body(results[1]).path("detail").asString()).isEqualTo("El miembro ya fue retirado del equipo.");
+		assertThat(activeAdmins()).isEqualTo(1);
+		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("active");
+	}
+
+	private MvcResult leave(String asUser, UUID organizationId) throws Exception {
+		return this.mvc.perform(delete(API + "/me/organizations/" + organizationId).with(as(asUser))).andReturn();
 	}
 
 	/**

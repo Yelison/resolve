@@ -36,6 +36,11 @@ final class MemberRequestParser {
 			.orElseThrow(() -> new ApiValidationException("userId", "Debe ser un identificador de miembro válido."));
 	}
 
+	static UUID organizationId(String value) {
+		return Uuids.parse(value)
+			.orElseThrow(() -> new ApiValidationException("organizationId", "Debe ser un identificador de organización válido."));
+	}
+
 	record NewInvite(String email, String name, Role role) {
 	}
 

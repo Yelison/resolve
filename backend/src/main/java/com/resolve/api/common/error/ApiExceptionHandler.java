@@ -1,5 +1,6 @@
 package com.resolve.api.common.error;
 
+import java.net.URI;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -60,7 +61,11 @@ class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	/** Reglas de negocio que el estado actual del recurso no permite; no es un error de versión (412). */
 	@ExceptionHandler
 	ProblemDetail handleConflict(ConflictException exception) {
-		return problem(HttpStatus.CONFLICT, "Conflicto", exception.getMessage());
+		ProblemDetail problem = problem(HttpStatus.CONFLICT, "Conflicto", exception.getMessage());
+		if (exception.type() != null) {
+			problem.setType(URI.create(exception.type()));
+		}
+		return problem;
 	}
 
 	/** Dos escrituras simultáneas pasaron la comprobación de versión: la segunda pierde igual que con If-Match. */
