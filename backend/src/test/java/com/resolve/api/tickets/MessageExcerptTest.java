@@ -23,6 +23,8 @@ class MessageExcerptTest {
 	@Test
 	void leavesUnderscoresInsideWordsAlone() {
 		assertThat(MessageExcerpt.of("Usa ticket_id y user_name tal cual")).isEqualTo("Usa ticket_id y user_name tal cual");
+		// Un guion bajo pegado a una palabra no abre una cursiva aunque otro lo cierre más adelante.
+		assertThat(MessageExcerpt.of("Usa foo_bar_ y 2 * 3 * 4")).isEqualTo("Usa foo_bar_ y 2 * 3 * 4");
 	}
 
 	@Test
