@@ -186,7 +186,7 @@ test.describe('inicio · sin saltos de layout', () => {
       await expect(page.getByRole('link', { name: /Sin responsable/ })).toHaveCount(0)
       const loading = (await panel.boundingBox())!.y
       release()
-      await expect(page.getByText('Tickets abiertos')).toBeVisible()
+      await expect(page.getByText('Tickets abiertos', { exact: true })).toBeVisible()
       const loaded = (await panel.boundingBox())!.y
       expect(Math.abs(loaded - loading), `cargando ${loading}, con datos ${loaded}`).toBeLessThanOrEqual(4)
     })
