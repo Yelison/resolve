@@ -41,6 +41,9 @@ export type InboxListParams = InboxFilterParams & { sort: string }
 
 export const INBOX_PAGE_SIZE = 25
 
+/** Qué tickets evalúa «Necesitan atención»: los sin resolver asignados a ti o todos los de la organización. */
+export type AttentionScope = 'mine' | 'team'
+
 export const ticketKeys = {
   all: ['tickets'] as const,
   lists: () => [...ticketKeys.all, 'list'] as const,
@@ -48,6 +51,8 @@ export const ticketKeys = {
   /** La bandeja carga por páginas acumuladas: una forma de datos distinta de `list`, pero con su mismo prefijo. */
   inbox: (params: InboxListParams) => [...ticketKeys.lists(), 'inbox', params] as const,
   count: (params: InboxFilterParams) => [...ticketKeys.lists(), 'count', params] as const,
+  /** Lo que necesita atención: cuelga de `lists` para que cualquier cambio en un ticket o en sus mensajes lo vuelva a pedir. */
+  attention: (scope: AttentionScope, size: number) => [...ticketKeys.lists(), 'attention', scope, size] as const,
   metrics: () => [...ticketKeys.all, 'metrics'] as const,
   /** Actividad reciente de toda la organización (no la de un ticket: esa es `activity(number)`). */
   feed: () => [...ticketKeys.all, 'feed'] as const,
@@ -126,6 +131,22 @@ export function useTicketCount(params: InboxFilterParams, enabled = true) {
     queryFn: async ({ signal }) =>
       (await fetchTicketList({ ...params, page: 1, pageSize: 1, sort: 'updatedAt,desc' }, signal)).totalItems,
     enabled,
+  })
+}
+
+/**
+ * Los tickets que necesitan atención en un alcance, con su motivo, ya elegidos y ordenados por el servidor (los `size`
+ * primeros), y cuántos hay en total. Sin alcance (aún se decide cuál mostrar) no pide nada. Al cambiar de alcance
+ * conserva la lista anterior hasta que llega la nueva, para que lo de debajo no salte.
+ */
+export function useAttention(scope: AttentionScope | undefined, size: number) {
+  const requested = scope ?? 'team'
+  return useQuery({
+    queryKey: ticketKeys.attention(requested, size),
+    queryFn: ({ signal }) =>
+      unwrap(api.GET('/tickets/attention', { params: { query: { scope: requested, size } }, signal })),
+    enabled: scope !== undefined,
+    placeholderData: keepPreviousData,
   })
 }
 

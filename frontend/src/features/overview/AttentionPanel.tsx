@@ -1,27 +1,33 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link } from 'react-router'
 import { isApiError } from '../../api/client'
 import { Badge, Button, buttonClassName, EmptyState, useToast, type BadgeTone } from '../../components/ui'
-import type { TicketSummary } from '../../domain/ticket'
+import type { AttentionItem, AttentionReasonKind, AttentionTicket } from '../../api/schema'
 import { cx } from '../../lib/cx'
 import { formatRelative } from '../../lib/format'
 import { demoErrorMessage, isLockTimeout, LOCK_TIMEOUT_MESSAGE } from '../../lib/mutationError'
 import { useMe } from '../session/queries'
-import { ticketKeys, TicketPreconditionError, useQuickTicketUpdate, useTicketMetrics } from '../tickets/queries'
-import { selectAttention, type AttentionItem, type AttentionReason } from './attention'
-import { inboxLink, useAttentionTickets, type AttentionScope } from './attentionQueries'
+import {
+  ticketKeys,
+  TicketPreconditionError,
+  useAttention,
+  useQuickTicketUpdate,
+  useTicketMetrics,
+  type AttentionScope,
+} from '../tickets/queries'
+import { ATTENTION_LIMIT, describeAttention, inboxLink } from './attention'
 import { BlockError } from './BlockError'
 import { Ghost } from './Ghost'
 import { useNow } from './useNow'
 import { useRetryFocus } from './useRetryFocus'
 import styles from './AttentionPanel.module.css'
 
-const reasonTones: Record<AttentionReason, BadgeTone> = {
+const reasonTones: Record<AttentionReasonKind, BadgeTone> = {
   urgent: 'red',
   unanswered: 'amber',
   unassigned: 'amber',
-  customerReplied: 'blue',
+  customer_replied: 'blue',
   high: 'blue',
   waiting: 'neutral',
 }
@@ -38,30 +44,27 @@ const ghostItems: AttentionItem[] = [1, 2, 3, 4, 5, 6].map((number) => ({
     subject: 'Error al procesar el pago con la tarjeta corporativa',
     status: 'open',
     priority: 'medium',
-    channel: 'email',
     customer: { id: 'ghost', name: 'Nombre Cliente', email: 'cliente@correo.test', company: null },
     assignee: null,
-    lastMessage: null,
-    createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
   // La mitad de los motivos llevan una línea de detalle: se alternan.
-  ...(number % 2 === 0
-    ? { reason: 'unanswered' as const, label: 'Sin respuesta', detail: 'Sin respuesta desde hace 3 h' }
-    : { reason: 'urgent' as const, label: 'Urgente' }),
-  action: 'assign',
+  reason:
+    number % 2 === 0
+      ? { kind: 'unanswered', since: '2026-01-01T00:00:00Z', excerpt: null }
+      : { kind: 'urgent', since: '2026-01-01T00:00:00Z', excerpt: null },
 }))
 
 /** Para las filas de muestra: no se leen, solo ocupan su altura. */
 const ghostNow = new Date(0)
 
-function ticketPath(ticket: TicketSummary) {
+function ticketPath(ticket: AttentionTicket) {
   return `/tickets/${ticket.number}`
 }
 
 /**
- * «Necesitan atención»: los 6 tickets más urgentes del alcance elegido, cada uno con su motivo y la acción que toca.
- * Por defecto «Para mí»; si no tienes nada asignado, «Todo el equipo», y la línea del pie lo explica. La elección de
+ * «Necesitan atención»: los 6 tickets más urgentes del alcance elegido, cada uno con su motivo y la acción que toca. El
+ * servidor elige y ordena (sobre todos los tickets del alcance, no sobre una página); aquí solo se dibuja. Por defecto «Para mí»; si no tienes nada asignado, «Todo el equipo», y la línea del pie lo explica. La elección de
  * quien usa la página no se pisa: el valor por defecto solo se decide mientras no haya elegido.
  */
 export function AttentionPanel() {
@@ -84,26 +87,35 @@ export function AttentionPanel() {
   const expected = scope === 'mine' ? mineCount : scope === 'team' ? teamCount : undefined
   const ghostRows = Math.min(ghostItems.length, Math.max(1, expected ?? 3))
 
-  const tickets = useAttentionTickets(scope)
-  const focus = useRetryFocus<HTMLElement>(tickets.isSuccess)
+  const attention = useAttention(scope, ATTENTION_LIMIT)
+  const focus = useRetryFocus<HTMLElement>(attention.isSuccess)
   const now = useNow()
 
   // Tickets que la persona acaba de asignarse: se leen como suyos hasta que la lista se vuelve a pedir.
   const [assigned, setAssigned] = useState<ReadonlySet<string>>(new Set())
   const user = me.data?.user
-  const candidates = tickets.data?.items.map((ticket) =>
-    assigned.has(ticket.id) && user && ticket.assignee === null
-      ? { ...ticket, assignee: { id: user.id, name: user.name } }
-      : ticket,
+  const items = attention.data?.items.map((item) =>
+    assigned.has(item.ticket.id) && user && item.ticket.assignee === null
+      ? { ...item, ticket: { ...item.ticket, assignee: { id: user.id, name: user.name } } }
+      : item,
   )
-  const attention = candidates ? selectAttention(candidates, now, user?.id) : undefined
-  // El total es el de la bandeja con el mismo filtro: la cifra del pie y la de la bandeja coinciden.
-  const total = tickets.data?.totalItems ?? 0
+  // Los abiertos del alcance, sean o no motivo de atención: la cifra del pie y la de la bandeja coinciden.
+  const open = attention.data?.open ?? 0
+
+  // Si la fila del ticket que se acaba de asignar ya no está cuando llega la lista nueva (asignado deja de ser motivo),
+  // el foco que tenía su enlace pasa al panel y no a `body`.
+  const justAssigned = useRef<string>(undefined)
+  useEffect(() => {
+    const id = justAssigned.current
+    if (id === undefined || document.querySelector(`[data-attention-link="${id}"]`)) return
+    justAssigned.current = undefined
+    if (document.activeElement === document.body || document.activeElement === null) focus.ref.current?.focus()
+  }, [attention.data, focus.ref])
 
   // El pie y el vacío hablan del alcance de la lista que se ve, no del que se acaba de pulsar: mientras llega la nueva
   // lista (la anterior sigue a la vista) no cambian, y lo de debajo no se mueve. Se actualiza al asentarse los datos.
   const [shown, setShown] = useState<{ scope: AttentionScope; explainDefault: boolean }>()
-  if (scope && !tickets.isPlaceholderData && tickets.isSuccess) {
+  if (scope && !attention.isPlaceholderData && attention.isSuccess) {
     if (shown?.scope !== scope || shown.explainDefault !== defaultedToTeam) {
       setShown({ scope, explainDefault: defaultedToTeam })
     }
@@ -118,18 +130,18 @@ export function AttentionPanel() {
         </h2>
         <ScopeToggle scope={scope} onChange={setChosen} mine={mineCount} team={teamCount} />
       </div>
-      {tickets.isError && !tickets.data ? (
+      {attention.isError && !attention.data ? (
         <div className={styles.state}>
           <BlockError
-            error={tickets.error}
-            failureCount={tickets.failureCount}
+            error={attention.error}
+            failureCount={attention.failureCount}
             title="No pudimos cargar los tickets"
             restrictedTitle="No tienes permiso para ver los tickets"
             retryLabel="Reintentar cargar los tickets que necesitan atención"
-            onRetry={() => focus.retry(tickets.refetch)}
+            onRetry={() => focus.retry(attention.refetch)}
           />
         </div>
-      ) : !attention || scope === undefined ? (
+      ) : !items || scope === undefined ? (
         <Ghost label="Cargando los tickets que necesitan atención…" className={styles.ghost}>
           <ul className={styles.list}>
             {ghostItems.slice(0, ghostRows).map((item) => (
@@ -141,24 +153,27 @@ export function AttentionPanel() {
         </Ghost>
       ) : (
         // Al cambiar de alcance se ve la lista anterior (atenuada y sin poder activarse) hasta que llega la nueva.
-        <div inert={tickets.isPlaceholderData} className={cx(tickets.isPlaceholderData && styles.stale)}>
-          {attention.items.length === 0 ? (
+        <div inert={attention.isPlaceholderData} className={cx(attention.isPlaceholderData && styles.stale)}>
+          {items.length === 0 ? (
             <div className={styles.state}>
-              <NothingUrgent scope={shownScope ?? scope} total={total} />
+              <NothingUrgent scope={shownScope ?? scope} open={open} />
             </div>
           ) : (
             <ul
               className={styles.list}
               aria-label="Tickets que necesitan atención"
-              aria-busy={tickets.isPlaceholderData}
+              aria-busy={attention.isPlaceholderData}
             >
-              {attention.items.map((item) => (
+              {items.map((item) => (
                 <Row
                   key={item.ticket.id}
                   item={item}
                   userId={user?.id}
                   now={now}
-                  onAssigned={() => setAssigned((ids) => new Set(ids).add(item.ticket.id))}
+                  onAssigned={() => {
+                    justAssigned.current = item.ticket.id
+                    setAssigned((ids) => new Set(ids).add(item.ticket.id))
+                  }}
                   panelRef={focus.ref}
                 />
               ))}
@@ -166,8 +181,8 @@ export function AttentionPanel() {
           )}
           <Footer
             scope={shownScope ?? scope}
-            shown={attention.items.length}
-            total={total}
+            shown={items.length}
+            total={open}
             explainDefault={shown?.explainDefault ?? defaultedToTeam}
           />
         </div>
@@ -215,8 +230,8 @@ function ScopeToggle({
 }
 
 /** Sin tickets con motivo: lo que se dice depende de si no hay nada, nada tuyo o solo nada urgente. */
-function NothingUrgent({ scope, total }: { scope: AttentionScope; total: number }) {
-  if (total === 0) {
+function NothingUrgent({ scope, open }: { scope: AttentionScope; open: number }) {
+  if (open === 0) {
     return scope === 'mine' ? (
       <EmptyState
         icon="check"
@@ -294,7 +309,8 @@ function Row({
   onAssigned: () => void
   panelRef?: RefObject<HTMLElement | null>
 }) {
-  const { ticket } = item
+  const { ticket, reason } = item
+  const { label, detail, action } = describeAttention(item, now, userId)
   const who = ticket.assignee
     ? ticket.assignee.id === userId
       ? 'asignado a ti'
@@ -302,27 +318,25 @@ function Row({
     : 'sin responsable'
   return (
     <li className={styles.row}>
-      <Badge tone={reasonTones[item.reason]} className={styles.reason}>
-        {item.label}
+      <Badge tone={reasonTones[reason.kind]} className={styles.reason}>
+        {label}
       </Badge>
       <div className={styles.main}>
         <Link to={ticketPath(ticket)} className={styles.subject} data-attention-link={ticket.id}>
           #{ticket.number} {ticket.subject}
         </Link>
-        {item.detail && <span className={styles.detail}>{item.detail}</span>}
-        {item.reason === 'customerReplied' && ticket.lastMessage && (
-          <span className={styles.excerpt}>«{ticket.lastMessage.excerpt}»</span>
-        )}
+        {detail && <span className={styles.detail}>{detail}</span>}
+        {reason.excerpt !== null && <span className={styles.excerpt}>«{reason.excerpt}»</span>}
         <span className={styles.meta}>
           {ticket.customer.name} · {who} · {formatRelative(new Date(ticket.updatedAt), now)}
         </span>
       </div>
       <div className={styles.action}>
-        {item.action === 'assign' ? (
+        {action === 'assign' ? (
           <AssignButton ticket={ticket} onAssigned={onAssigned} panelRef={panelRef} />
         ) : (
           <Link to={ticketPath(ticket)} className={buttonClassName({ variant: 'secondary' })}>
-            {item.action === 'reply' ? 'Responder' : 'Abrir'}
+            {action === 'reply' ? 'Responder' : 'Abrir'}
             <span className="visually-hidden"> el ticket #{ticket.number}</span>
           </Link>
         )}
@@ -341,7 +355,7 @@ function AssignButton({
   onAssigned,
   panelRef,
 }: {
-  ticket: TicketSummary
+  ticket: AttentionTicket
   onAssigned: () => void
   panelRef?: RefObject<HTMLElement | null>
 }) {

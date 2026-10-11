@@ -2,10 +2,17 @@ import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActivityFeedItem, ArticleSummary, ReportSummary, TicketSummary } from '../../api/schema'
+import type {
+  ActivityFeedItem,
+  ArticleSummary,
+  AttentionItem,
+  AttentionList,
+  AttentionReasonKind,
+  ReportSummary,
+} from '../../api/schema'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { createTestQueryClient, renderWithProviders } from '../../test/render'
-import { metrics, page, summary, ticket } from '../../test/ticketFixtures'
+import { metrics, ticket } from '../../test/ticketFixtures'
 import { reportDays, reportSummary } from '../reports/reportFixtures'
 import { ticketKeys } from '../tickets/queries'
 import { OverviewPage } from './OverviewPage'
@@ -63,86 +70,81 @@ const drafts = (shown: number, total = shown) => ({
   totalPages: Math.ceil(total / 3),
 })
 
-const urgent = (number: number, overrides: Partial<TicketSummary> = {}) =>
-  summary({
-    id: `t-${number}`,
-    number,
-    subject: `Urgente ${number}`,
-    priority: 'urgent',
-    status: 'open',
-    assignee: { id: 'u-admin', name: 'Yelisson Ortiz' },
-    customer: { id: 'c-1', name: 'María Pérez', email: 'maria@cliente.example', company: null },
-    createdAt: ago(60 * 5),
-    updatedAt: ago(5),
-    ...overrides,
-  })
+const mineRef = { id: 'u-admin', name: 'Yelisson Ortiz' }
 
-/** Los motivos de la maqueta del caso con muchos datos, con el usuario como responsable de los tuyos. */
-const manyTickets = (): TicketSummary[] => [
-  urgent(1148),
-  urgent(1145, { createdAt: ago(60 * 9) }),
-  summary({
-    id: 't-1131',
-    number: 1131,
-    subject: 'Doble cargo en la tarjeta',
-    priority: 'medium',
-    status: 'open',
-    assignee: { id: 'u-admin', name: 'Yelisson Ortiz' },
-    customer: { id: 'c-2', name: 'Mateo Jiménez', email: 'mateo@fintek.example', company: 'Fintek' },
-    lastMessage: {
-      excerpt: 'Me cobraron dos veces',
-      authorName: 'Mateo Jiménez',
-      internal: false,
-      createdAt: ago(60 * 3 + 5),
+/** Un elemento como lo devuelve el servidor: el ticket y su motivo, ya decidido. */
+const attentionItem = (
+  number: number,
+  kind: AttentionReasonKind,
+  overrides: { subject?: string; since?: string; excerpt?: string | null } & Partial<AttentionItem['ticket']> = {},
+): AttentionItem => {
+  const { since = ago(60 * 5), excerpt = null, ...ticket } = overrides
+  return {
+    ticket: {
+      id: `t-${number}`,
+      number,
+      subject: `Urgente ${number}`,
+      status: 'open',
+      priority: kind === 'urgent' ? 'urgent' : 'medium',
+      customer: { id: 'c-1', name: 'María Pérez', email: 'maria@cliente.example', company: null },
+      assignee: mineRef,
+      updatedAt: ago(5),
+      ...ticket,
     },
-    createdAt: ago(60 * 8),
+    reason: { kind, since, excerpt },
+  }
+}
+
+const urgent = (number: number, overrides: Parameters<typeof attentionItem>[2] = {}) =>
+  attentionItem(number, 'urgent', overrides)
+
+const attentionList = (items: AttentionItem[], open = items.length, total = items.length): AttentionList => ({
+  items,
+  total,
+  open,
+})
+
+/** Los motivos de la maqueta del caso con muchos datos, en el orden en que los devuelve el servidor. */
+const manyItems = (): AttentionItem[] => [
+  urgent(1145, { since: ago(60 * 9) }),
+  urgent(1148),
+  attentionItem(1131, 'unanswered', {
+    subject: 'Doble cargo en la tarjeta',
+    customer: { id: 'c-2', name: 'Mateo Jiménez', email: 'mateo@fintek.example', company: 'Fintek' },
+    since: ago(60 * 3 + 5),
     updatedAt: ago(60 * 3),
   }),
-  summary({
-    id: 't-1127',
-    number: 1127,
-    subject: 'La exportación a CSV sale vacía',
-    priority: 'medium',
-    status: 'in_progress',
-    assignee: { id: 'u-admin', name: 'Yelisson Ortiz' },
-    customer: { id: 'c-3', name: 'Camila Rojas', email: 'camila@pino.example', company: 'Estudio Pino' },
-    lastMessage: { excerpt: 'Sigue saliendo vacía', authorName: 'Camila Rojas', internal: false, createdAt: ago(40) },
-    createdAt: ago(60 * 30),
-    updatedAt: ago(40),
-  }),
-  summary({
-    id: 't-1119',
-    number: 1119,
-    subject: 'Necesito borrar mis datos',
-    priority: 'high',
-    status: 'in_progress',
-    assignee: { id: 'u-admin', name: 'Yelisson Ortiz' },
-    lastMessage: { excerpt: 'Hecho', authorName: 'Yelisson Ortiz', internal: false, createdAt: ago(60 * 24) },
-    createdAt: ago(60 * 48),
-    updatedAt: ago(60 * 24),
-  }),
-  summary({
-    id: 't-1102',
-    number: 1102,
-    subject: 'El informe semanal no incluye mi equipo',
-    priority: 'low',
-    status: 'waiting',
-    assignee: { id: 'u-admin', name: 'Yelisson Ortiz' },
-    createdAt: ago(60 * 24 * 9),
-    updatedAt: ago(60 * 24 * 5 + 30),
-  }),
-  summary({
-    id: 't-1090',
-    number: 1090,
+  attentionItem(1090, 'unassigned', {
     subject: 'Cambiar correo de facturación',
-    priority: 'medium',
     status: 'in_progress',
     assignee: null,
-    lastMessage: { excerpt: 'Listo', authorName: 'Yelisson Ortiz', internal: false, createdAt: ago(60 * 2) },
-    createdAt: ago(60 * 10),
+    since: ago(60 * 10),
     updatedAt: ago(60 * 2),
   }),
+  attentionItem(1127, 'customer_replied', {
+    subject: 'La exportación a CSV sale vacía',
+    status: 'in_progress',
+    customer: { id: 'c-3', name: 'Camila Rojas', email: 'camila@pino.example', company: 'Estudio Pino' },
+    since: ago(40),
+    excerpt: 'Sigue saliendo vacía',
+    updatedAt: ago(40),
+  }),
+  attentionItem(1119, 'high', {
+    subject: 'Necesito borrar mis datos',
+    status: 'in_progress',
+    priority: 'high',
+    since: ago(60 * 48),
+    updatedAt: ago(60 * 24),
+  }),
 ]
+
+const waitingItem = () =>
+  attentionItem(1102, 'waiting', {
+    subject: 'El informe semanal no incluye mi equipo',
+    status: 'waiting',
+    since: ago(60 * 24 * 5 + 30),
+    updatedAt: ago(60 * 24 * 5 + 30),
+  })
 
 const manyMetrics = { ...metrics, views: { all: 40, mine: 12, unassigned: 6, resolved: 10 }, open: 34 }
 
@@ -152,11 +154,8 @@ const baseRoutes = {
   'GET /api/reports/summary': { body: report() },
   'GET /api/tickets/activity': { body: feed(2) },
   'GET /api/knowledge/articles': { body: drafts(1) },
-  'GET /api/tickets': {
-    body: page([
-      urgent(1048),
-      summary({ id: 't-1047', number: 1047, subject: 'Error de pago', priority: 'high', status: 'in_progress' }),
-    ]),
+  'GET /api/tickets/attention': {
+    body: attentionList([urgent(1048), attentionItem(1047, 'high', { subject: 'Error de pago' })], 2),
   },
 }
 
@@ -216,7 +215,7 @@ describe('OverviewPage · así va el soporte hoy', () => {
       'GET /api/reports/summary': never,
       'GET /api/tickets/activity': never,
       'GET /api/knowledge/articles': never,
-      'GET /api/tickets': never,
+      'GET /api/tickets/attention': never,
     })
     renderOverview()
     for (const label of [
@@ -294,17 +293,18 @@ describe('OverviewPage · así va el soporte hoy', () => {
 })
 
 describe('OverviewPage · necesitan atención', () => {
-  it('por defecto muestra «Para mí» y pide los abiertos asignados a ti', async () => {
+  it('por defecto muestra «Para mí» y pide al servidor los 6 de lo asignado a ti, sin pedir la bandeja', async () => {
     const fetchSpy = mockApi({ ...baseRoutes, 'GET /api/tickets/metrics': { body: manyMetrics } })
     renderOverview()
     const mine = await screen.findByRole('button', { name: 'Para mí 12' })
     expect(mine).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Todo el equipo 34' })).toHaveAttribute('aria-pressed', 'false')
     await screen.findByRole('list', { name: 'Tickets que necesitan atención' })
-    const request = requestsTo(fetchSpy, '/api/tickets').at(-1)!
-    expect(request.searchParams.get('view')).toBe('mine')
-    expect(request.searchParams.get('sort')).toBe('priority,desc')
-    expect(request.searchParams.get('size')).toBe('100')
+    const request = requestsTo(fetchSpy, '/api/tickets/attention').at(-1)!
+    expect(request.searchParams.get('scope')).toBe('mine')
+    expect(request.searchParams.get('size')).toBe('6')
+    // Ya no se pide una página de 100 tickets para elegirlos aquí: el servidor decide sobre todos.
+    expect(requestsTo(fetchSpy, '/api/tickets')).toHaveLength(0)
   })
 
   it('sin nada asignado empieza por «Todo el equipo» y explica por qué', async () => {
@@ -318,21 +318,18 @@ describe('OverviewPage · necesitan atención', () => {
       await screen.findByText('No tienes tickets asignados. Te mostramos lo que el equipo tiene pendiente.'),
     ).toBeInTheDocument()
     await screen.findByRole('list', { name: 'Tickets que necesitan atención' })
-    const request = requestsTo(fetchSpy, '/api/tickets').at(-1)!
-    expect(request.searchParams.get('view')).toBe('all')
-    expect(request.searchParams.getAll('status')).toEqual(['open', 'in_progress', 'waiting'])
+    expect(requestsTo(fetchSpy, '/api/tickets/attention').at(-1)!.searchParams.get('scope')).toBe('team')
   })
 
   it('dice el motivo de cada ticket y ofrece la acción que toca', async () => {
     mockApi({
       ...baseRoutes,
       'GET /api/tickets/metrics': { body: manyMetrics },
-      'GET /api/tickets': { body: page(manyTickets(), 12) },
+      'GET /api/tickets/attention': { body: attentionList(manyItems(), 12, 30) },
     })
     renderOverview()
     const list = await screen.findByRole('list', { name: 'Tickets que necesitan atención' })
     const rows = within(list).getAllByRole('listitem')
-    // Urgentes primero (el que más espera, antes), luego sin respuesta, sin asignar, respondió, alta y esperando.
     expect(rows).toHaveLength(6)
     expect(rows.map((row) => within(row).getAllByRole('link')[0]!.textContent)).toEqual([
       '#1145 Urgente 1145',
@@ -342,6 +339,11 @@ describe('OverviewPage · necesitan atención', () => {
       '#1127 La exportación a CSV sale vacía',
       '#1119 Necesito borrar mis datos',
     ])
+    expect(
+      rows.map(
+        (row) => within(row).getAllByText(/^(Urgente|Sin respuesta|Sin asignar|Respondió|Alta)$/)[0]!.textContent,
+      ),
+    ).toEqual(['Urgente', 'Urgente', 'Sin respuesta', 'Sin asignar', 'Respondió', 'Alta'])
     expect(within(rows[2]!).getByText('Sin respuesta desde hace 3 h')).toBeInTheDocument()
     expect(within(rows[4]!).getByText('El cliente respondió hace 40 min')).toBeInTheDocument()
     expect(within(rows[4]!).getByText('«Sigue saliendo vacía»')).toBeInTheDocument()
@@ -351,12 +353,32 @@ describe('OverviewPage · necesitan atención', () => {
     expect(within(rows[4]!).getByRole('link', { name: /Abrir/ })).toHaveAttribute('href', '/tickets/1127')
   })
 
-  it('el motivo «Esperando al cliente N días» aparece cuando cabe en los 6', async () => {
-    const waiting = manyTickets().find((candidate) => candidate.number === 1102)!
+  it('respeta el orden del servidor: no vuelve a ordenar ni a decidir motivos', async () => {
+    // Un orden que el cliente nunca produciría (alta antes que urgente): lo que llega es lo que se pinta.
+    mockApi({
+      ...baseRoutes,
+      'GET /api/tickets/attention': {
+        body: attentionList([manyItems()[5]!, urgent(1148), waitingItem()], 3),
+      },
+    })
+    renderOverview()
+    const list = await screen.findByRole('list', { name: 'Tickets que necesitan atención' })
+    expect(
+      within(list)
+        .getAllByRole('listitem')
+        .map((row) => within(row).getAllByRole('link')[0]!.textContent),
+    ).toEqual([
+      '#1119 Necesito borrar mis datos',
+      '#1148 Urgente 1148',
+      '#1102 El informe semanal no incluye mi equipo',
+    ])
+  })
+
+  it('el motivo «Esperando al cliente N días» se escribe con el «desde cuándo» del servidor', async () => {
     mockApi({
       ...baseRoutes,
       'GET /api/tickets/metrics': { body: manyMetrics },
-      'GET /api/tickets': { body: page([waiting], 1) },
+      'GET /api/tickets/attention': { body: attentionList([waitingItem()], 1) },
     })
     renderOverview()
     expect(await screen.findByText('Esperando al cliente 5 días')).toBeInTheDocument()
@@ -367,9 +389,10 @@ describe('OverviewPage · necesitan atención', () => {
     mockApi({
       ...baseRoutes,
       'GET /api/tickets/metrics': { body: manyMetrics },
-      'GET /api/tickets': { body: page(manyTickets(), 12) },
+      'GET /api/tickets/attention': { body: attentionList(manyItems(), 12, 30) },
     })
     renderOverview()
+    // La cifra es la de abiertos del alcance (la de la bandeja), no la de los que tienen motivo.
     expect(await screen.findByText('Los 6 más urgentes de 12')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Ver los 12 en la bandeja' })).toHaveAttribute(
       'href',
@@ -385,7 +408,7 @@ describe('OverviewPage · necesitan atención', () => {
   it('si caben todos no habla de «los más urgentes» ni de «Ver los 1»', async () => {
     mockApi({
       ...baseRoutes,
-      'GET /api/tickets': { body: page([urgent(1048)], 1) },
+      'GET /api/tickets/attention': { body: attentionList([urgent(1048)], 1) },
     })
     renderOverview()
     expect(await screen.findByText('1 ticket abierto')).toBeInTheDocument()
@@ -411,19 +434,23 @@ describe('OverviewPage · necesitan atención', () => {
 
   it('«Asignármelo» asigna el ticket, lo anuncia y deja el foco en el ticket sin cambiar de alcance', async () => {
     const unassigned = urgent(1046, { assignee: null, subject: 'Cambiar correo de facturación' })
-    const mine = { id: 'u-admin', name: 'Yelisson Ortiz' }
     const patched: unknown[] = []
     // Como el servidor: tras el PATCH el ticket es tuyo, así que `views.mine` pasa de 0 a 1.
     let assigned = false
     mockApi({
       ...baseRoutes,
       'GET /api/tickets/metrics': () => ({ body: { ...metrics, views: { ...metrics.views, mine: assigned ? 1 : 0 } } }),
-      'GET /api/tickets': () => ({ body: page([assigned ? { ...unassigned, assignee: mine } : unassigned], 1) }),
+      'GET /api/tickets/attention': () => ({
+        body: attentionList(
+          [assigned ? { ...unassigned, ticket: { ...unassigned.ticket, assignee: mineRef } } : unassigned],
+          1,
+        ),
+      }),
       'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7, assignee: null }) },
       'PATCH /api/tickets/1046': async (request) => {
         patched.push([request.headers.get('If-Match'), await request.json()])
         assigned = true
-        return { body: ticket({ number: 1046, version: 8, assignee: mine }) }
+        return { body: ticket({ number: 1046, version: 8, assignee: mineRef }) }
       },
     })
     renderOverview()
@@ -445,6 +472,27 @@ describe('OverviewPage · necesitan atención', () => {
     expect(screen.queryByText(/No tienes tickets asignados\. Te mostramos/)).not.toBeInTheDocument()
   })
 
+  it('si al asignarlo el ticket deja de necesitar atención, el foco pasa al panel y no a «body»', async () => {
+    // «Sin asignar» era su único motivo: con responsable, el servidor ya no lo devuelve.
+    const unassigned = attentionItem(1046, 'unassigned', { assignee: null, subject: 'Cambiar correo de facturación' })
+    let assigned = false
+    mockApi({
+      ...baseRoutes,
+      'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
+      'GET /api/tickets/attention': () => ({ body: assigned ? attentionList([], 1) : attentionList([unassigned], 1) }),
+      'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7, assignee: null }) },
+      'PATCH /api/tickets/1046': () => {
+        assigned = true
+        return { body: ticket({ number: 1046, version: 8, assignee: mineRef }) }
+      },
+    })
+    renderOverview()
+    await userEvent.click(await screen.findByRole('button', { name: /Asignármelo/ }))
+    expect(await screen.findByText('Te asignaste el ticket #1046')).toBeInTheDocument()
+    expect(await screen.findByText('Nada urgente por ahora')).toBeInTheDocument()
+    await vi.waitFor(() => expect(screen.getByRole('region', { name: 'Necesitan atención' })).toHaveFocus())
+  })
+
   it('«Asignármelo» no quita el ticket a quien se lo acaba de asignar: avisa y refresca', async () => {
     const unassigned = urgent(1046, { assignee: null, subject: 'Cambiar correo de facturación' })
     const laura = { id: 'u-laura', name: 'Laura Méndez' }
@@ -454,8 +502,11 @@ describe('OverviewPage · necesitan atención', () => {
       ...baseRoutes,
       'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
       // La lista se pintó sin responsable; al refrescarla ya trae a Laura.
-      'GET /api/tickets': () => ({
-        body: page([listReads++ === 0 ? unassigned : { ...unassigned, assignee: laura }], 1),
+      'GET /api/tickets/attention': () => ({
+        body: attentionList(
+          [listReads++ === 0 ? unassigned : { ...unassigned, ticket: { ...unassigned.ticket, assignee: laura } }],
+          1,
+        ),
       }),
       'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7, assignee: laura }) },
       'PATCH /api/tickets/1046': async (request) => {
@@ -478,7 +529,7 @@ describe('OverviewPage · necesitan atención', () => {
     mockApi({
       ...baseRoutes,
       'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
-      'GET /api/tickets': { body: page([urgent(1046, { assignee: null })], 1) },
+      'GET /api/tickets/attention': { body: attentionList([urgent(1046, { assignee: null })], 1) },
       'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7, assignee: null }) },
       'PATCH /api/tickets/1046': { status: 412, body: { status: 412, title: 'Precondition Failed' } },
     })
@@ -496,7 +547,7 @@ describe('OverviewPage · necesitan atención', () => {
         'GET /api/tickets/metrics': {
           body: { ...metrics, open: 0, views: { all: 3, mine: 0, unassigned: 0, resolved: 3 } },
         },
-        'GET /api/tickets': { body: page([]) },
+        'GET /api/tickets/attention': { body: attentionList([], 0) },
       })
       renderOverview()
       expect(await screen.findByText('Nada pendiente')).toBeInTheDocument()
@@ -506,7 +557,7 @@ describe('OverviewPage · necesitan atención', () => {
       mockApi({
         ...baseRoutes,
         'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
-        'GET /api/tickets': { body: page([]) },
+        'GET /api/tickets/attention': { body: attentionList([], 0) },
       })
       renderOverview()
       await userEvent.click(await screen.findByRole('button', { name: 'Para mí 0' }))
@@ -516,9 +567,7 @@ describe('OverviewPage · necesitan atención', () => {
     it('con tickets abiertos pero ninguno con motivo dice que no hay nada urgente', async () => {
       mockApi({
         ...baseRoutes,
-        'GET /api/tickets': {
-          body: page([summary({ priority: 'medium', status: 'in_progress', lastMessage: null })], 1),
-        },
+        'GET /api/tickets/attention': { body: attentionList([], 3) },
       })
       renderOverview()
       expect(await screen.findByText('Nada urgente por ahora')).toBeInTheDocument()
@@ -638,7 +687,7 @@ describe('OverviewPage · error', () => {
       'Actividad reciente',
     ],
     [
-      'GET /api/tickets',
+      'GET /api/tickets/attention',
       'No pudimos cargar los tickets',
       'Reintentar cargar los tickets que necesitan atención',
       'region',
@@ -675,7 +724,7 @@ describe('OverviewPage · error', () => {
     ['GET /api/tickets/metrics', 'No tienes permiso para ver las métricas'],
     ['GET /api/reports/summary', 'No tienes permiso para ver las solicitudes'],
     ['GET /api/tickets/activity', 'No tienes permiso para ver la actividad'],
-    ['GET /api/tickets', 'No tienes permiso para ver los tickets'],
+    ['GET /api/tickets/attention', 'No tienes permiso para ver los tickets'],
     ['GET /api/knowledge/articles', 'No tienes permiso para ver los borradores'],
   ] as const)('si %s responde 403 dice que no hay permiso, sin ofrecer reintentar', async (route, title) => {
     mockApi({ ...baseRoutes, [route]: { status: 403, body: { status: 403, title: 'Forbidden' } } })
@@ -689,7 +738,7 @@ describe('OverviewPage · error', () => {
     renderOverview()
     expect(await screen.findByText('No pudimos cargar las métricas')).toBeInTheDocument()
     await screen.findByRole('list', { name: 'Tickets que necesitan atención' })
-    expect(requestsTo(fetchSpy, '/api/tickets').at(-1)!.searchParams.get('view')).toBe('all')
+    expect(requestsTo(fetchSpy, '/api/tickets/attention').at(-1)!.searchParams.get('scope')).toBe('team')
     // Sin cifras, los botones del selector se quedan con su nombre.
     expect(screen.getByRole('button', { name: 'Todo el equipo' })).toHaveAttribute('aria-pressed', 'true')
   })
