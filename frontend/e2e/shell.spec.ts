@@ -285,56 +285,54 @@ test.describe('shell', () => {
       await expect(page.getByRole('navigation', { name: 'Ruta de navegación' })).toContainText('Tickets')
     })
 
-    test('mientras carga /me solo se ven las secciones comunes y, para un cliente, nada se mueve al llegar la sesión', async ({
-      page,
-    }) => {
-      await mockApi(page, 'customer')
-      await page.setViewportSize({ width: 1440, height: 900 })
-      let release!: () => void
-      const gate = new Promise<void>((resolve) => (release = resolve))
-      await page.route('**/api/me', async (route) => {
-        await gate
-        await route.fallback()
+    for (const role of ['customer', 'admin'] as const) {
+      test(`mientras carga /me no hay enlaces ni nombre de sección, y al llegar (${role}) cada enlace queda en su sitio sin mover el marco`, async ({
+        page,
+      }) => {
+        await mockApi(page, role)
+        await page.setViewportSize({ width: 1440, height: 900 })
+        let release!: () => void
+        const gate = new Promise<void>((resolve) => (release = resolve))
+        await page.route('**/api/me', async (route) => {
+          await gate
+          await route.fallback()
+        })
+        await page.goto('/tickets')
+        const nav = page.getByRole('navigation', { name: 'Principal' })
+        const placeholder = nav.locator('xpath=following-sibling::div[last()]')
+        const account = page.getByRole('button', { name: /^Cuenta:/ })
+        // El marco: la posición y el ancho del menú (su alto crece con los enlaces) y el sitio del perfil.
+        const frame = async () => {
+          const menu = (await nav.boundingBox())!
+          return { x: menu.x, y: menu.y, width: menu.width }
+        }
+        await expect(nav).toBeVisible()
+        await expect(sidebarLinks(page)).toHaveCount(0)
+        await expect(page).toHaveTitle('Resolve')
+        await expect(page.getByRole('navigation', { name: 'Ruta de navegación' }).getByText('Tickets')).toHaveCount(0)
+        const before = await frame()
+        const profileBefore = (await placeholder.boundingBox())!
+        release()
+        await expect(sidebarLinks(page).first()).toBeVisible()
+        const names = await sidebarLinks(page).allTextContents()
+        expect(names).toEqual(
+          role === 'customer'
+            ? ['Mis solicitudes', 'Ayuda', 'Configuración']
+            : ['Inicio', 'Tickets', 'Clientes', 'Equipo', 'Reportes', 'Conocimiento', 'Configuración'],
+        )
+        expect(await frame()).toEqual(before)
+        const profileAfter = (await account.boundingBox())!
+        expect(profileAfter.y).toBeCloseTo(profileBefore.y, 0)
+        expect(profileAfter.height).toBeCloseTo(profileBefore.height, 0)
+        // Cada enlace queda donde quedaría en una carga sin espera.
+        const positions = () =>
+          Promise.all(names.map(async (_, index) => (await sidebarLinks(page).nth(index).boundingBox())!))
+        const arrived = await positions()
+        await page.unroute('**/api/me')
+        await page.reload()
+        await expect(sidebarLinks(page)).toHaveCount(names.length)
+        expect(await positions()).toEqual(arrived)
       })
-      await page.goto('/tickets')
-      const nav = page.getByRole('navigation', { name: 'Principal' })
-      await expect(sidebarLinks(page)).toHaveText(['Tickets', 'Conocimiento', 'Configuración'])
-      await expect(nav.getByRole('link', { name: 'Clientes' })).toHaveCount(0)
-      const boxes = async () =>
-        Promise.all([nav.boundingBox(), ...[0, 1, 2].map((index) => sidebarLinks(page).nth(index).boundingBox())])
-      const before = await boxes()
-      release()
-      await expect(sidebarLinks(page)).toHaveText(['Mis solicitudes', 'Ayuda', 'Configuración'])
-      const after = await boxes()
-      expect(after).toEqual(before)
-    })
-
-    test('mientras carga /me el personal ve las comunes y al llegar se suman las suyas sin mover el marco del menú', async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width: 1440, height: 900 })
-      let release!: () => void
-      const gate = new Promise<void>((resolve) => (release = resolve))
-      await page.route('**/api/me', async (route) => {
-        await gate
-        await route.fallback()
-      })
-      await page.goto('/tickets')
-      const nav = page.getByRole('navigation', { name: 'Principal' })
-      await expect(sidebarLinks(page)).toHaveText(['Tickets', 'Conocimiento', 'Configuración'])
-      const before = (await nav.boundingBox())!
-      release()
-      await expect(sidebarLinks(page)).toHaveText([
-        'Inicio',
-        'Tickets',
-        'Clientes',
-        'Equipo',
-        'Reportes',
-        'Conocimiento',
-        'Configuración',
-      ])
-      const after = (await nav.boundingBox())!
-      expect({ x: after.x, y: after.y, width: after.width }).toEqual({ x: before.x, y: before.y, width: before.width })
-    })
+    }
   })
 })

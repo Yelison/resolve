@@ -76,6 +76,9 @@ function AppFrame() {
   // Cada ruta con `crumb` aporta un nivel; los anteriores enlazan a su ruta.
   const crumbs = useMatches().flatMap((match) => {
     const handle = match.handle as RouteHandle | undefined
+    // Una sección con nombre propio para el cliente no se nombra hasta conocer el rol: con «Tickets» un cliente vería
+    // un nombre que no es el suyo mientras carga `/me`.
+    if (handle?.customerCrumb && !me.data) return []
     const crumb = (me.data?.role === 'customer' && handle?.customerCrumb) || handle?.crumb
     if (!crumb) return []
     return [{ label: typeof crumb === 'function' ? crumb(match.params) : crumb, to: match.pathname }]
@@ -122,9 +125,18 @@ function AppFrame() {
   }, [searchOpen])
 
   const sidebarContent = {
-    // Sin sesión no se conoce el rol: ofrecer las secciones del personal llevaría a un cliente a avisos que no puede abrir.
+    // Sin el rol no se pinta ningún enlace: ni los del personal llevarían a un cliente a avisos que no puede abrir, ni
+    // los de un cliente se moverían al llegar el personal.
     items: sessionFailed ? [] : navigationFor(me.data?.role),
-    sectionLabel: sessionFailed ? 'Sesión no disponible' : me.data?.role === 'customer' ? 'Soporte' : 'Gestión',
+    // Mientras carga la sesión la etiqueta se queda en blanco pero conserva su línea (espacio duro): al llegar el rol los
+    // enlaces ya están donde van a quedar.
+    sectionLabel: sessionFailed
+      ? 'Sesión no disponible'
+      : !me.data
+        ? '\u00a0'
+        : me.data.role === 'customer'
+          ? 'Soporte'
+          : 'Gestión',
     workspace: workspaceName,
     user: { name: userName, role: me.data ? roleLabels[me.data.role] : '' },
     // Sin la sesión cargada no se ofrece ninguna acción de cuenta, pero el perfil ya ocupa su sitio.
