@@ -15,6 +15,7 @@ import com.resolve.api.common.web.SortDirection;
 import com.resolve.api.common.web.SortSpec;
 import com.resolve.api.tickets.TicketDtos.ActivityDto;
 import com.resolve.api.tickets.TicketDtos.ActivityFeedItemDto;
+import com.resolve.api.tickets.TicketDtos.AttentionListDto;
 import com.resolve.api.tickets.TicketDtos.MessageDto;
 import com.resolve.api.tickets.TicketDtos.TicketDto;
 import com.resolve.api.tickets.TicketDtos.TicketSummaryDto;
@@ -87,6 +88,19 @@ class TicketsController {
 			errors.addAll(exception.errors());
 			return null;
 		}
+	}
+
+	/**
+	 * Solo personal: la regla de URL de {@code SecurityConfiguration} responde 403 a un cliente antes de llegar aquí, y
+	 * {@code ApiAccessMatrixTest} falla si esa regla deja de cubrir la ruta. Los textos llegan como cadenas para que un
+	 * valor inválido sea un 400 sobre su campo.
+	 */
+	@GetMapping("/attention")
+	AttentionListDto attention(@AuthenticationPrincipal CurrentMember member,
+			@RequestParam(required = false) @Nullable String scope,
+			@RequestParam(required = false) @Nullable String size) {
+		TicketRequestParser.AttentionRequest request = TicketRequestParser.attention(scope, size);
+		return this.service.attention(member, request.scope(), request.size());
 	}
 
 	@GetMapping("/metrics")

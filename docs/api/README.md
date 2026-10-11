@@ -169,7 +169,7 @@ Creating a ticket and changing its status, priority or assignee writes an activi
 
 The Overview and Reports screens calculate nothing beyond the items marked **(client)**: every other number is shown as the server sends it. Comparisons are always an absolute difference first; a percentage is only added when the base is greater than zero and the result does not round to 0.
 
-**Overview** (`GET /api/tickets/metrics`, `GET /api/reports/summary?period=7d`, `GET /api/tickets/activity` and `GET /api/tickets`):
+**Overview** (`GET /api/tickets/metrics`, `GET /api/reports/summary?period=7d`, `GET /api/tickets/activity` and `GET /api/tickets/attention`):
 
 | On screen | Source and definition |
 | --- | --- |
@@ -179,7 +179,7 @@ The Overview and Reports screens calculate nothing beyond the items marked **(cl
 | Sin responsable | `views.unassigned`: tickets without an assignee whose status is not `resolved` (`waiting` ones count). The link opens the inbox on that view |
 | Solicitudes · Últimos 7 días | `byDay[].created` of the 7-day report: tickets created per calendar day of the organization, today included. The alternative table lists the same seven values |
 | Actividad reciente | The latest 5 entries of the activity feed (see [Activity](#activity)) |
-| Necesitan atención | The first 5 tickets with status `open` or `in_progress`, sorted by priority, highest first (`sort=priority,desc`: ranked urgent, high, medium, low; not alphabetical); within the same priority the highest ticket number (the newest) comes first, always `t.number desc`, so a new urgent ticket is listed first |
+| Necesitan atención | `GET /api/tickets/attention?scope=mine\|team&size=6`: the server picks and sorts, so the screen calculates nothing except the wording of the time ("hace 3 h", from `reason.since`). Among **all** the unresolved tickets of the scope (`mine`: assigned to the caller; `team`: the whole organization; there is no cap on the tickets considered), each one has at most one reason, the first that applies: `urgent` (priority `urgent`); `unanswered` (status `open` and the latest **public** message is the customer's, or there is none, for at least 1 hour; with no public message it counts from creation); `unassigned`; `customer_replied` (the latest public message is the customer's; `reason.excerpt` carries its plain text); `high` (priority `high`); `waiting` (status `waiting` and the last activity at least 1 day old). Messages are judged by visibility and author kind, so an internal note never answers the customer nor hides what the customer wrote. Reasons come in that order, and within one the ticket that has waited longest (`reason.since`) first, then the highest number. `open` (unresolved tickets of the scope, with or without a reason) is the count the footer link to the inbox shows; `total` is how many of them need attention. See `listTicketsNeedingAttention` in [`openapi.yaml`](openapi.yaml) |
 
 **Reports** (`GET /api/reports/summary?period=7d|30d|90d`; the period lives in the URL as `?period=`):
 
@@ -217,6 +217,7 @@ These are the endpoints proposed for the first delivery. `GET /api/me` is an add
 | `GET /api/tickets/{number}/messages` | all | Conversation; customers only receive `public` messages |
 | `POST /api/tickets/{number}/messages` | admin, agent | Reply (`public`) or internal note (`internal`) |
 | `GET /api/tickets/activity` | admin, agent | Latest activity of the whole organization, each with the number and subject of its ticket (`size` 1–50, default 10) |
+| `GET /api/tickets/attention` | admin, agent | Unresolved tickets that need attention in a scope (`scope=mine\|team`, required; `size` 1–50, default 6), each with its reason, most urgent first, plus the counts of the scope; customers get `403` |
 | `GET /api/tickets/{number}/activity` | admin, agent | Activity log |
 | `GET /api/customers` | admin, agent | Customer list and search: `q`, `company`, `archived`, sorting and pagination |
 | `GET /api/customers/metrics` | admin, agent | Customer metrics of the whole organization |

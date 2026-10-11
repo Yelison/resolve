@@ -202,6 +202,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tickets/attention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unresolved tickets that need attention, each with its reason, most urgent first (not paginated)
+         * @description Staff only. Picks, among every unresolved ticket of the scope, the ones that need attention and returns the
+         *     first `size` of them, most urgent first. A ticket has at most one reason, the first of this list that applies:
+         *
+         *     1. `urgent`: the priority is `urgent`.
+         *     2. `unanswered`: the status is `open` and the latest **public** message was written by the customer (or there
+         *        is none) at least 1 hour ago. A ticket without public messages counts from its creation.
+         *     3. `unassigned`: nobody is assigned.
+         *     4. `customer_replied`: the latest **public** message was written by the customer.
+         *     5. `high`: the priority is `high`.
+         *     6. `waiting`: the status is `waiting` and the last activity is at least 1 day old.
+         *
+         *     Internal notes never count as an answer and never hide a reason: messages are judged by their visibility and
+         *     by the kind of their author, not by the latest message of any kind. Items are ordered by reason (the order
+         *     above), then by `reason.since` ascending (the one that has waited longest first), then by ticket number
+         *     descending. There is no cap on the tickets considered: the scope is evaluated in full.
+         */
+        get: operations["listTicketsNeedingAttention"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tickets/{number}": {
         parameters: {
             query?: never;
@@ -1236,6 +1270,56 @@ export interface components {
             createdAt: string;
         };
         /**
+         * @description Why a ticket needs attention, in the order the list is sorted. See `listTicketsNeedingAttention`.
+         * @enum {string}
+         */
+        AttentionReasonKind: "urgent" | "unanswered" | "unassigned" | "customer_replied" | "high" | "waiting";
+        /** @description The reason a ticket needs attention, with what is needed to write it down. */
+        AttentionReason: {
+            kind: components["schemas"]["AttentionReasonKind"];
+            /**
+             * Format: date-time
+             * @description Since when the ticket is in that situation: the creation of the ticket (`urgent`, `unassigned`, `high`),
+             *     the latest public customer message or, when there is none, the creation (`unanswered`), that message
+             *     (`customer_replied`) or the last activity (`waiting`).
+             */
+            since: string;
+            /**
+             * @description Plain text of the latest public customer message (no Markdown, at most 140 characters, a longer text ends
+             *     in `…`) for `customer_replied`; `null` for any other reason.
+             */
+            excerpt: string | null;
+        };
+        /** @description The ticket of an attention item, with what its row needs and without the conversation. */
+        AttentionTicket: {
+            /** Format: uuid */
+            id: string;
+            /** Format: int64 */
+            number: number;
+            subject: string;
+            status: components["schemas"]["TicketStatus"];
+            priority: components["schemas"]["TicketPriority"];
+            customer: components["schemas"]["Customer"];
+            assignee: components["schemas"]["MemberRef"] | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AttentionItem: {
+            ticket: components["schemas"]["AttentionTicket"];
+            reason: components["schemas"]["AttentionReason"];
+        };
+        AttentionList: {
+            /** @description The first `size` tickets that need attention, most urgent first. */
+            items: components["schemas"]["AttentionItem"][];
+            /** @description How many tickets of the scope need attention (all of them, not only the ones in `items`). */
+            total: number;
+            /**
+             * @description How many unresolved tickets the scope has, with or without a reason: what the inbox lists for the same
+             *     scope (`view=mine`, or `view=all` with the open statuses). `total` is never greater.
+             */
+            open: number;
+        };
+        /**
          * @description An activity entry of the organization together with the ticket it belongs to.
          * @example {
          *       "ticketNumber": 1048,
@@ -1890,6 +1974,10 @@ export interface components {
         Size: number;
         /** @description Number of entries to return. */
         ActivityFeedSize: number;
+        /** @description `mine`: the unresolved tickets assigned to the caller. `team`: every unresolved ticket of the organization. */
+        AttentionScope: "mine" | "team";
+        /** @description Maximum number of items to return. */
+        AttentionSize: number;
         /** @description Slug of the article; it never changes after creation. */
         ArticleSlug: string;
         /**
@@ -1959,6 +2047,11 @@ export type TicketCreatedActivity = components['schemas']['TicketCreatedActivity
 export type StatusChangedActivity = components['schemas']['StatusChangedActivity'];
 export type PriorityChangedActivity = components['schemas']['PriorityChangedActivity'];
 export type AssigneeChangedActivity = components['schemas']['AssigneeChangedActivity'];
+export type AttentionReasonKind = components['schemas']['AttentionReasonKind'];
+export type AttentionReason = components['schemas']['AttentionReason'];
+export type AttentionTicket = components['schemas']['AttentionTicket'];
+export type AttentionItem = components['schemas']['AttentionItem'];
+export type AttentionList = components['schemas']['AttentionList'];
 export type ActivityFeedItem = components['schemas']['ActivityFeedItem'];
 export type ReportSummary = components['schemas']['ReportSummary'];
 export type ReportRange = components['schemas']['ReportRange'];
@@ -1999,6 +2092,8 @@ export type ParameterMemberUserId = components['parameters']['MemberUserId'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterSize = components['parameters']['Size'];
 export type ParameterActivityFeedSize = components['parameters']['ActivityFeedSize'];
+export type ParameterAttentionScope = components['parameters']['AttentionScope'];
+export type ParameterAttentionSize = components['parameters']['AttentionSize'];
 export type ParameterArticleSlug = components['parameters']['ArticleSlug'];
 export type ParameterOrganizationId = components['parameters']['OrganizationId'];
 export type ParameterReportPeriod = components['parameters']['ReportPeriod'];
@@ -2344,6 +2439,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityFeedItem"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            503: components["responses"]["ServiceUnavailable"];
+        };
+    };
+    listTicketsNeedingAttention: {
+        parameters: {
+            query: {
+                /** @description `mine`: the unresolved tickets assigned to the caller. `team`: every unresolved ticket of the organization. */
+                scope: components["parameters"]["AttentionScope"];
+                /** @description Maximum number of items to return. */
+                size?: components["parameters"]["AttentionSize"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The tickets that need attention, with the counts of the scope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttentionList"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -3459,8 +3583,10 @@ export const ticketCreatedActivityTypeValues: ReadonlyArray<FlattenedDeepRequire
 export const statusChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["StatusChangedActivity"]["type"]> = ["status_changed"];
 export const priorityChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["PriorityChangedActivity"]["type"]> = ["priority_changed"];
 export const assigneeChangedActivityTypeValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AssigneeChangedActivity"]["type"]> = ["assignee_changed"];
+export const attentionReasonKindValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["AttentionReasonKind"]> = ["urgent", "unanswered", "unassigned", "customer_replied", "high", "waiting"];
 export const reportRangeDaysValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportRange"]["days"]> = [7, 30, 90];
 export const reportResolutionBucketBucketValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ReportResolutionBucket"]["bucket"]> = ["under1h", "from1To4h", "from4To8h", "from8To24h", "from1To3d", "over3d"];
 export const articleStatusValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ArticleStatus"]> = ["draft", "published"];
 export const articleVisibilityValues: ReadonlyArray<FlattenedDeepRequired<components>["schemas"]["ArticleVisibility"]> = ["internal", "public"];
+export const componentsParametersAttentionScopeValues: ReadonlyArray<FlattenedDeepRequired<components>["parameters"]["AttentionScope"]> = ["mine", "team"];
 export const componentsParametersReportPeriodValues: ReadonlyArray<FlattenedDeepRequired<components>["parameters"]["ReportPeriod"]> = ["7d", "30d", "90d"];

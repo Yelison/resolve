@@ -1,6 +1,8 @@
 import type {
   Activity,
   ActivityFeedItem,
+  AttentionList,
+  AttentionReasonKind,
   Customer,
   LastMessage,
   Me,
@@ -9,7 +11,7 @@ import type {
   TicketMetrics,
   TicketSummary,
 } from '../../src/api/schema'
-import { daniel, json, laura, minutesAgo, type MockFeature, type MockHandler } from './shared'
+import { daniel, json, laura, minutesAgo, problem, type MockFeature, type MockHandler } from './shared'
 import { dayGroup } from '../../src/features/tickets/dateGroups'
 import { customerRef, customers } from './customers'
 import { me } from './session'
@@ -123,7 +125,10 @@ const detail = (summary: TicketSummary): Ticket => ({
   version: 2,
 })
 
-/** Conversación de cada ticket. El #1048 termina en una nota interna: un cliente no debe verla como último mensaje. */
+/**
+ * Conversación de cada ticket. El #1048 y el #1047 terminan en una nota interna: un cliente no debe verla como último
+ * mensaje, y para el personal no oculta lo que el cliente escribió.
+ */
 const conversations: Record<number, Message[]> = {
   1048: [
     {
@@ -149,8 +154,19 @@ const conversations: Record<number, Message[]> = {
       author: { id: customers[1]!.id, name: customers[1]!.name, kind: 'customer' },
       createdAt: minutesAgo(12),
     },
+    // Una nota interna al final: no es una respuesta, y el ticket sigue necesitando atención («El cliente respondió»).
+    {
+      id: 'm-4',
+      body: 'Lo estoy revisando con el banco.',
+      visibility: 'internal',
+      author: { id: daniel.id, name: daniel.name, kind: 'agent' },
+      createdAt: minutesAgo(5),
+    },
   ],
 }
+
+/** Texto plano de hasta 140 caracteres; si se recorta, termina en «…». Los cuerpos simulados no llevan Markdown. */
+const excerptOf = (body: string) => (body.length > 140 ? `${body.slice(0, 139).trimEnd()}…` : body)
 
 /** Como el servidor: el último mensaje que ve quien lee, en texto plano de hasta 140 caracteres; un cliente nunca ve notas. */
 export function lastMessageOf(number: number, role: Me['role']): LastMessage | null {
@@ -159,8 +175,81 @@ export function lastMessageOf(number: number, role: Me['role']): LastMessage | n
   )
   const last = visible.at(-1)
   if (!last) return null
-  const excerpt = last.body.length > 140 ? `${last.body.slice(0, 139).trimEnd()}…` : last.body
-  return { excerpt, authorName: last.author.name, internal: last.visibility === 'internal', createdAt: last.createdAt }
+  return {
+    excerpt: excerptOf(last.body),
+    authorName: last.author.name,
+    internal: last.visibility === 'internal',
+    createdAt: last.createdAt,
+  }
+}
+
+const HOUR = 3_600_000
+
+/**
+ * Los tickets que necesitan atención, con las reglas del servidor (`TicketAttentionQuery`): un motivo por ticket, el
+ * primero que cumple, de «Urgente» a «Esperando». Los mensajes se juzgan por su visibilidad y por el tipo de autor,
+ * así que una nota interna no cuenta como respuesta ni tapa un mensaje del cliente. Dentro de un motivo va primero el
+ * que lleva más tiempo así y, a igualdad, el de número mayor. `open` y `total` no dependen de `size`.
+ */
+export function attentionOf(
+  items: readonly BareTicket[],
+  customerOf: (id: string) => Customer,
+  scope: 'mine' | 'team',
+  size: number,
+  now = Date.now(),
+): AttentionList {
+  const order: AttentionReasonKind[] = ['urgent', 'unanswered', 'unassigned', 'customer_replied', 'high', 'waiting']
+  const open = items.filter(
+    (ticket) => ticket.status !== 'resolved' && (scope === 'team' || ticket.assignee?.id === me.user.id),
+  )
+  const reasoned = open.flatMap((ticket) => {
+    const lastPublic = (conversations[ticket.number] ?? []).filter((message) => message.visibility === 'public').at(-1)
+    const customerLast = lastPublic?.author.kind === 'customer'
+    const created = Date.parse(ticket.createdAt)
+    const messageAt = lastPublic ? Date.parse(lastPublic.createdAt) : undefined
+    const updated = Date.parse(ticket.updatedAt)
+    let kind: AttentionReasonKind | undefined
+    let since = created
+    if (ticket.priority === 'urgent') {
+      kind = 'urgent'
+    } else if (ticket.status === 'open' && (!lastPublic || customerLast) && now - (messageAt ?? created) >= HOUR) {
+      kind = 'unanswered'
+      since = messageAt ?? created
+    } else if (ticket.assignee === null) {
+      kind = 'unassigned'
+    } else if (customerLast) {
+      kind = 'customer_replied'
+      since = messageAt!
+    } else if (ticket.priority === 'high') {
+      kind = 'high'
+    } else if (ticket.status === 'waiting' && now - updated >= 24 * HOUR) {
+      kind = 'waiting'
+      since = updated
+    }
+    return kind
+      ? [{ ticket, kind, since, excerpt: kind === 'customer_replied' ? excerptOf(lastPublic!.body) : null }]
+      : []
+  })
+  reasoned.sort(
+    (a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.since - b.since || b.ticket.number - a.ticket.number,
+  )
+  return {
+    items: reasoned.slice(0, size).map(({ ticket, kind, since, excerpt }) => ({
+      ticket: {
+        id: ticket.id,
+        number: ticket.number,
+        subject: ticket.subject,
+        status: ticket.status,
+        priority: ticket.priority,
+        customer: customerOf(ticket.customer.id),
+        assignee: ticket.assignee,
+        updatedAt: ticket.updatedAt,
+      },
+      reason: { kind, since: new Date(since).toISOString(), excerpt },
+    })),
+    total: reasoned.length,
+    open: open.length,
+  }
 }
 
 const withLastMessage = (ticket: BareTicket, role: Me['role']): TicketSummary => ({
@@ -185,6 +274,18 @@ export function ticketsMock(customerOf: (id: string) => Customer, role: Me['role
 
     if (method === 'GET' && path === '/tickets/metrics') return json(route, metricsOf(bareTickets))
     if (method === 'GET' && path === '/tickets/activity') return json(route, recentActivity)
+    if (method === 'GET' && path === '/tickets/attention') {
+      // Como el servidor: solo el personal, y el alcance es obligatorio.
+      if (role === 'customer') return problem(route, 403, 'Sin permiso')
+      const scope = url.searchParams.get('scope')
+      if (scope !== 'mine' && scope !== 'team') {
+        return problem(route, 400, 'Petición no válida', [
+          { field: 'scope', message: 'Valor no válido. Usa: mine, team.' },
+        ])
+      }
+      const size = Number(url.searchParams.get('size') ?? 6)
+      return json(route, attentionOf(bareTickets, customerOf, scope, size))
+    }
     if (method === 'GET' && path === '/assignees') return json(route, [daniel, laura])
     if (method === 'GET' && path === '/tickets') {
       const status = url.searchParams.getAll('status')

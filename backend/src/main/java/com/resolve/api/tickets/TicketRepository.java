@@ -1,6 +1,7 @@
 package com.resolve.api.tickets;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +30,13 @@ interface TicketRepository extends Repository<Ticket, UUID>, TicketSearch {
 			where t.organizationId = :organizationId and t.number = :number
 			""")
 	Optional<Ticket> findInOrganization(UUID organizationId, long number);
+
+	/** Varios tickets de la organización con su cliente y responsable, en una sola consulta; sin orden. */
+	@Query("""
+			select t from Ticket t join fetch t.customer left join fetch t.assignee
+			where t.organizationId = :organizationId and t.id in :ids
+			""")
+	List<Ticket> findAllInOrganization(UUID organizationId, Collection<UUID> ids);
 
 	@Query("""
 			select t from Ticket t join fetch t.customer c left join fetch t.assignee

@@ -2,10 +2,10 @@ import { expect, test, type Page } from '@playwright/test'
 import { demoUsers, loginAs } from './fixtures'
 
 /**
- * Contra el backend real: un ticket urgente recién creado aparece en «Necesitan atención» de Inicio. La lista son los 6
- * más urgentes del alcance, con los urgentes primero, así que el ticket se crea urgente (entra aunque otras ejecuciones
- * hayan dejado tickets medios abiertos) y se resuelve al final para no ocupar un puesto en las ejecuciones siguientes.
- * El ticket no tiene responsable, así que está en «Todo el equipo», no en «Para mí».
+ * Contra el backend real: un ticket urgente recién creado aparece en «Necesitan atención» de Inicio, con su motivo. El
+ * servidor elige y ordena los 6 primeros del alcance, con los urgentes primero, así que el ticket se crea urgente (entra
+ * aunque otras ejecuciones hayan dejado tickets medios abiertos) y se resuelve al final para no ocupar un puesto en las
+ * ejecuciones siguientes. El ticket no tiene responsable, así que está en «Todo el equipo», no en «Para mí».
  */
 async function teamList(page: Page) {
   await page.goto('/')
@@ -37,6 +37,10 @@ test('un ticket urgente nuevo aparece en «Necesitan atención» de Inicio', asy
       const list = await teamList(page)
       const link = list.getByRole('link', { name: new RegExp(subject) })
       await expect(link).toBeVisible()
+      // El motivo viene del servidor: urgente manda sobre «sin respuesta» y «sin asignar», que también cumple.
+      await expect(
+        list.getByRole('listitem').filter({ hasText: subject }).getByText('Urgente', { exact: true }),
+      ).toBeVisible()
       await link.click()
       await expect(page).toHaveURL(new RegExp(`/tickets/${number}$`))
     })

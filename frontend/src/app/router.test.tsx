@@ -24,7 +24,7 @@ describe('rutas de la aplicación', () => {
       'GET /api/reports/summary': { body: reportSummary({ byDay: [] }) },
       'GET /api/tickets/activity': { body: [] },
       'GET /api/knowledge/articles': { body: { items: [], page: 0, size: 3, totalItems: 0, totalPages: 0 } },
-      'GET /api/tickets': { body: page([]) },
+      'GET /api/tickets/attention': { body: { items: [], total: 0, open: 0 } },
     })
     const router = renderApp('/')
     // El título de la página de inicio es el saludo con el nombre; «Inicio» queda en el menú y en las migas.

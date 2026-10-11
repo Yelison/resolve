@@ -1,10 +1,15 @@
 import { expect, mockApi, test, tickets } from './fixtures'
+import { attentionOf } from './mocks/tickets'
 
 const greeting = /^Buen(os días|as tardes|as noches), Yelisson$/
 
 test.describe('inicio', () => {
   test('muestra el saludo, el pulso del día, lo que necesita atención y la columna derecha', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
+    const listRequests: string[] = []
+    page.on('request', (request) => {
+      if (/\/api\/tickets(\?|$)/.test(request.url())) listRequests.push(request.url())
+    })
     await page.goto('/')
     await expect(page.getByRole('heading', { level: 1, name: greeting })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Inicio', exact: true })).toHaveAttribute('aria-current', 'page')
@@ -27,6 +32,13 @@ test.describe('inicio', () => {
     await expect(list.getByRole('listitem')).toHaveCount(3)
     await expect(list.getByText('Urgente', { exact: true })).toBeVisible()
     await expect(list.getByText('Sin asignar', { exact: true })).toBeVisible()
+    // El servidor elige y ordena (urgente, sin asignar, respondió): Inicio ya no pide una página de 100 tickets.
+    await expect(list.getByRole('listitem').getByText(/^(Urgente|Sin asignar|Respondió)$/)).toHaveText([
+      'Urgente',
+      'Sin asignar',
+      'Respondió',
+    ])
+    expect(listRequests, 'Inicio no debe pedir la lista de tickets').toEqual([])
     await expect(page.getByRole('img', { name: 'Solicitudes por día' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Borradores sin publicar' })).toBeVisible()
 
@@ -92,7 +104,9 @@ test.describe('inicio', () => {
     await page.goto('/')
     const mine = page.getByRole('button', { name: /^Para mí/ })
     await expect(mine).toHaveAttribute('aria-pressed', 'false')
-    const request = page.waitForRequest((req) => req.url().includes('/api/tickets?') && req.url().includes('view=mine'))
+    const request = page.waitForRequest(
+      (req) => req.url().includes('/api/tickets/attention?') && req.url().includes('scope=mine'),
+    )
     await mine.focus()
     await page.keyboard.press('Enter')
     await request
@@ -121,6 +135,43 @@ test.describe('inicio', () => {
     expect(body).toEqual({ assigneeId: expect.any(String) })
     await expect(row.getByRole('button', { name: /Asignármelo/ })).toHaveCount(0)
     await expect(row.getByRole('link', { name: /^#1046 / })).toBeFocused()
+  })
+
+  test('si al asignarlo el ticket deja de necesitar atención, la fila se va y el foco queda en el panel', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    let assigned = false
+    // Como el servidor: «Sin asignar» era el único motivo del #1046; con responsable ya no necesita atención.
+    await page.route('**/api/tickets/attention?*', async (route) => {
+      const bare = tickets.map(({ lastMessage: _lastMessage, ...rest }) => rest)
+      const customerOf = (id: string) => tickets.find((ticket) => ticket.customer.id === id)!.customer
+      const body = attentionOf(bare, customerOf, 'team', 6)
+      if (assigned) {
+        body.items = body.items.filter((item) => item.ticket.number !== 1046)
+        body.total = body.items.length
+      }
+      await route.fulfill({ json: body })
+    })
+    await page.route('**/api/tickets/1046', async (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback()
+      assigned = true
+      const { lastMessage: _lastMessage, ...detail } = tickets.find((ticket) => ticket.number === 1046)!
+      await route.fulfill({
+        json: { ...detail, assignee: { id: 'u-admin', name: 'Yelisson Ortiz' }, description: 'Detalle', version: 3 },
+      })
+    })
+    await page.goto('/')
+    const list = page.getByRole('list', { name: 'Tickets que necesitan atención' })
+    await expect(list.getByRole('listitem')).toHaveCount(3)
+    await list
+      .getByRole('listitem')
+      .filter({ hasText: 'Cambiar correo de facturación' })
+      .getByRole('button', { name: /Asignármelo/ })
+      .click()
+    await expect(page.getByText('Te asignaste el ticket #1046')).toBeVisible()
+    await expect(list.getByRole('listitem')).toHaveCount(2)
+    await expect(page.getByRole('region', { name: 'Necesitan atención' })).toBeFocused()
   })
 
   for (const [width, columns] of [
@@ -199,7 +250,7 @@ test.describe('inicio · sin saltos de layout', () => {
       await page.setViewportSize({ width, height: 900 })
       let release!: () => void
       const held = new Promise<void>((resolve) => (release = resolve))
-      await page.route('**/api/tickets?*', async (route) => {
+      await page.route('**/api/tickets/attention?*', async (route) => {
         await held
         await route.fallback()
       })
@@ -276,7 +327,7 @@ test.describe('inicio · sin saltos de layout', () => {
       const before = (await below.boundingBox())!.y
       let release!: () => void
       const held = new Promise<void>((resolve) => (release = resolve))
-      await page.route('**/api/tickets?*view=mine*', async (route) => {
+      await page.route('**/api/tickets/attention?*scope=mine*', async (route) => {
         await held
         await route.fallback()
       })
@@ -299,17 +350,25 @@ test.describe('inicio · textos largos', () => {
     }) => {
       await page.setViewportSize({ width, height: 900 })
       const base = tickets[0]!
-      await page.route('**/api/tickets?*', async (route) => {
+      const row = (number: number, subject: string, customerName: string) => ({
+        ticket: {
+          id: `t-x${number}`,
+          number,
+          subject,
+          status: 'open',
+          priority: 'urgent',
+          customer: { ...base.customer, name: customerName },
+          assignee: null,
+          updatedAt: base.updatedAt,
+        },
+        reason: { kind: 'urgent', since: base.createdAt, excerpt: null },
+      })
+      await page.route('**/api/tickets/attention?*', async (route) => {
         await route.fulfill({
           json: {
-            items: [
-              { ...base, subject: longSubject, customer: { ...base.customer, name: longToken } },
-              { ...base, id: 't-x2', number: 2001, subject: longToken, priority: 'urgent' },
-            ],
-            page: 0,
-            size: 100,
-            totalItems: 2,
-            totalPages: 1,
+            items: [row(base.number, longSubject, longToken), row(2001, longToken, base.customer.name)],
+            total: 2,
+            open: 2,
           },
         })
       })

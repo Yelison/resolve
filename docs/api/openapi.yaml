@@ -345,6 +345,41 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
+  /tickets/attention:
+    get:
+      tags: [Tickets]
+      operationId: listTicketsNeedingAttention
+      summary: Unresolved tickets that need attention, each with its reason, most urgent first (not paginated)
+      description: |
+        Staff only. Picks, among every unresolved ticket of the scope, the ones that need attention and returns the
+        first `size` of them, most urgent first. A ticket has at most one reason, the first of this list that applies:
+
+        1. `urgent`: the priority is `urgent`.
+        2. `unanswered`: the status is `open` and the latest **public** message was written by the customer (or there
+           is none) at least 1 hour ago. A ticket without public messages counts from its creation.
+        3. `unassigned`: nobody is assigned.
+        4. `customer_replied`: the latest **public** message was written by the customer.
+        5. `high`: the priority is `high`.
+        6. `waiting`: the status is `waiting` and the last activity is at least 1 day old.
+
+        Internal notes never count as an answer and never hide a reason: messages are judged by their visibility and
+        by the kind of their author, not by the latest message of any kind. Items are ordered by reason (the order
+        above), then by `reason.since` ascending (the one that has waited longest first), then by ticket number
+        descending. There is no cap on the tickets considered: the scope is evaluated in full.
+      parameters:
+        - $ref: '#/components/parameters/AttentionScope'
+        - $ref: '#/components/parameters/AttentionSize'
+      responses:
+        '200':
+          description: The tickets that need attention, with the counts of the scope.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttentionList' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
   /tickets/{number}:
     parameters:
       - $ref: '#/components/parameters/TicketNumber'
@@ -1246,6 +1281,18 @@ components:
       in: query
       description: Number of entries to return.
       schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+    AttentionScope:
+      name: scope
+      in: query
+      required: true
+      description: |
+        `mine`: the unresolved tickets assigned to the caller. `team`: every unresolved ticket of the organization.
+      schema: { type: string, enum: [mine, team] }
+    AttentionSize:
+      name: size
+      in: query
+      description: Maximum number of items to return.
+      schema: { type: integer, minimum: 1, maximum: 50, default: 6 }
     ArticleSlug:
       name: slug
       in: path
@@ -2021,6 +2068,79 @@ components:
             - $ref: '#/components/schemas/MemberRef'
             - type: 'null'
         createdAt: { type: string, format: date-time }
+
+    AttentionReasonKind:
+      description: Why a ticket needs attention, in the order the list is sorted. See `listTicketsNeedingAttention`.
+      type: string
+      enum: [urgent, unanswered, unassigned, customer_replied, high, waiting]
+
+    AttentionReason:
+      description: The reason a ticket needs attention, with what is needed to write it down.
+      type: object
+      additionalProperties: false
+      required: [kind, since, excerpt]
+      properties:
+        kind: { $ref: '#/components/schemas/AttentionReasonKind' }
+        since:
+          description: |
+            Since when the ticket is in that situation: the creation of the ticket (`urgent`, `unassigned`, `high`),
+            the latest public customer message or, when there is none, the creation (`unanswered`), that message
+            (`customer_replied`) or the last activity (`waiting`).
+          type: string
+          format: date-time
+        excerpt:
+          description: |
+            Plain text of the latest public customer message (no Markdown, at most 140 characters, a longer text ends
+            in `…`) for `customer_replied`; `null` for any other reason.
+          type: [string, 'null']
+          maxLength: 140
+
+    AttentionTicket:
+      description: The ticket of an attention item, with what its row needs and without the conversation.
+      type: object
+      additionalProperties: false
+      required: [id, number, subject, status, priority, customer, assignee, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        number: { type: integer, format: int64, minimum: 1 }
+        subject: { type: string }
+        status: { $ref: '#/components/schemas/TicketStatus' }
+        priority: { $ref: '#/components/schemas/TicketPriority' }
+        customer: { $ref: '#/components/schemas/Customer' }
+        assignee:
+          oneOf:
+            - $ref: '#/components/schemas/MemberRef'
+            - type: 'null'
+        updatedAt: { type: string, format: date-time }
+
+    AttentionItem:
+      type: object
+      additionalProperties: false
+      required: [ticket, reason]
+      properties:
+        ticket: { $ref: '#/components/schemas/AttentionTicket' }
+        reason: { $ref: '#/components/schemas/AttentionReason' }
+
+    AttentionList:
+      type: object
+      additionalProperties: false
+      required: [items, total, open]
+      properties:
+        items:
+          description: The first `size` tickets that need attention, most urgent first.
+          type: array
+          items: { $ref: '#/components/schemas/AttentionItem' }
+          maxItems: 50
+        total:
+          description: How many tickets of the scope need attention (all of them, not only the ones in `items`).
+          type: integer
+          minimum: 0
+        open:
+          description: |
+            How many unresolved tickets the scope has, with or without a reason: what the inbox lists for the same
+            scope (`view=mine`, or `view=all` with the open statuses). `total` is never greater.
+          type: integer
+          minimum: 0
 
     ActivityFeedItem:
       description: An activity entry of the organization together with the ticket it belongs to.
