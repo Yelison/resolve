@@ -41,7 +41,14 @@ describe('navegación principal', () => {
     expect(paths('agent')).toEqual(all)
   })
 
-  it('sin sesión devuelve todas las secciones', () => {
-    expect(paths(undefined)).toEqual(mainNavigation.map((item) => item.to))
+  it('sin sesión solo ofrece las secciones comunes a todos los roles, con el nombre del personal', () => {
+    expect(paths(undefined)).toEqual(['/tickets', '/conocimiento', '/configuracion'])
+    expect(labels(undefined)).toEqual(['Tickets', 'Conocimiento', 'Configuración'])
+  })
+
+  it('lo que se ve sin sesión cabe en el menú de todos los roles', () => {
+    for (const role of ['admin', 'agent', 'customer'] as const) {
+      expect(paths(role)).toEqual(expect.arrayContaining(paths(undefined)))
+    }
   })
 })

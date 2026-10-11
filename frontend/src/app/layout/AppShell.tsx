@@ -24,6 +24,8 @@ import { useSidebarPreference } from './useSidebarPreference'
 export interface RouteHandle {
   /** Nombre de la página para las migas de pan y el título del documento; puede depender de los parámetros. */
   crumb?: string | ((params: Readonly<Record<string, string | undefined>>) => string)
+  /** Nombre de la sección para los clientes («Mis solicitudes»), si difiere del del personal. */
+  customerCrumb?: string
 }
 
 /** Estructura de la aplicación, tras la puerta de sesión: sin sesión (401 en /me) lleva a `/entrar`. */
@@ -73,7 +75,8 @@ function AppFrame() {
 
   // Cada ruta con `crumb` aporta un nivel; los anteriores enlazan a su ruta.
   const crumbs = useMatches().flatMap((match) => {
-    const crumb = (match.handle as RouteHandle | undefined)?.crumb
+    const handle = match.handle as RouteHandle | undefined
+    const crumb = (me.data?.role === 'customer' && handle?.customerCrumb) || handle?.crumb
     if (!crumb) return []
     return [{ label: typeof crumb === 'function' ? crumb(match.params) : crumb, to: match.pathname }]
   })

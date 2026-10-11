@@ -208,6 +208,47 @@ describe('AppShell para clientes', () => {
     expect(within(drawer).queryByRole('link', { name: 'Tickets' })).not.toBeInTheDocument()
     expect(within(drawer).queryByRole('link', { name: 'Clientes' })).not.toBeInTheDocument()
   })
+
+  it('pone el nombre del cliente en el título de la pestaña', async () => {
+    mockApi({ 'GET /api/me': { body: customerMe } })
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppShell />,
+          children: [
+            { path: 'tickets', element: <h1>x</h1>, handle: { crumb: 'Tickets', customerCrumb: 'Mis solicitudes' } },
+          ],
+        },
+      ],
+      { initialEntries: ['/tickets'] },
+    )
+    renderWithProviders(<RouterProvider router={router} />)
+    await waitFor(() => expect(document.title).toBe('Mis solicitudes · Resolve'))
+  })
+})
+
+describe('AppShell mientras carga /me', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('el menú solo ofrece lo común a todos los roles y se ajusta al rol cuando llega', async () => {
+    let respond!: (value: { body: unknown }) => void
+    mockApi({ 'GET /api/me': () => new Promise((resolve) => (respond = resolve)) })
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    const names = () =>
+      within(within(drawer).getByRole('navigation', { name: 'Principal' }))
+        .getAllByRole('link')
+        .map((link) => link.textContent)
+    expect(names()).toEqual(['Tickets', 'Conocimiento', 'Configuración'])
+    await waitFor(() => expect(respond).toBeTypeOf('function'))
+    await act(async () => respond({ body: customerMe }))
+    await within(drawer).findByText('María Pérez')
+    expect(names()).toEqual(['Mis solicitudes', 'Ayuda', 'Configuración'])
+  })
 })
 
 describe('AppShell sin sesión', () => {

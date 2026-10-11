@@ -1,4 +1,4 @@
-import type { Role } from '../api/schema'
+import { roleValues, type Role } from '../api/schema'
 import type { SidebarNavItem } from '../components/ui'
 
 /** Entrada de la navegación principal: el elemento del menú más los roles que pueden abrir la sección. */
@@ -35,10 +35,12 @@ export const roleLabels: Record<Role, string> = {
 
 /**
  * Secciones visibles para cada rol, con el nombre que le corresponde: los clientes las ven como «Mis solicitudes» y
- * «Ayuda». Sin rol (mientras `/me` carga) devuelve todas las secciones con el nombre del personal.
+ * «Ayuda». Sin rol (mientras `/me` carga) devuelve solo las secciones comunes a todos los roles, con el nombre del
+ * personal: es lo que ve el rol con menos permisos, así que ni un cliente ve parpadear entradas que no puede abrir ni
+ * el personal ve desaparecer ninguna al llegar la sesión.
  */
 export function navigationFor(role: Role | undefined): NavigationItem[] {
-  if (!role) return mainNavigation
+  if (!role) return mainNavigation.filter((item) => roleValues.every((value) => item.roles.includes(value)))
   return mainNavigation
     .filter((item) => item.roles.includes(role))
     .map((item) => (role === 'customer' && item.customerLabel ? { ...item, label: item.customerLabel } : item))

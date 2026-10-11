@@ -43,7 +43,7 @@ function sectionRoute(
   item: NavigationItem,
   { element, children }: { element?: ReactNode; children?: RouteObject[] },
 ): RouteObject {
-  const handle: RouteHandle = { crumb: item.label }
+  const handle: RouteHandle = { crumb: item.label, customerCrumb: item.customerLabel }
   const guarded = (
     <RequireRole roles={item.roles} title={item.label}>
       {children ? <Outlet /> : element}
