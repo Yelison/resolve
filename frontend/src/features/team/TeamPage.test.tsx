@@ -215,7 +215,7 @@ describe('TeamPage', () => {
     const { router } = renderTeam()
     await screen.findByRole('table', { name: 'Equipo' })
     await userEvent.click(screen.getByRole('button', { name: 'Estado' }))
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Retirado' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Retirados' }))
     const table = await screen.findByRole('table', { name: 'Equipo' })
     expect(within(table).getAllByRole('row')).toHaveLength(2)
     expect(within(table).getByText('Pablo Viejo')).toBeInTheDocument()
@@ -223,7 +223,7 @@ describe('TeamPage', () => {
     expect(router.state.location.search).toBe('?estado=retirados')
     // Los retirados no tienen acciones.
     expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Quitar el filtro Estado: Retirado' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Quitar el filtro Estado: Retirados' }))
     expect(router.state.location.search).toBe('')
   })
 

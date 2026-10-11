@@ -25,6 +25,7 @@
 
 .totals {
   min-width: 0;
+  min-height: 20px;
   font: var(--font-body);
   color: var(--color-muted);
 }
@@ -137,6 +138,10 @@
   gap: var(--space-12) var(--space-16);
 }
 
+.reserved {
+  visibility: hidden;
+}
+
 .legend {
   display: flex;
   flex-wrap: wrap;
@@ -202,7 +207,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.placeholderAvatar,
 .placeholderName {
   display: block;
   height: 12px;
@@ -210,11 +214,10 @@
   background: var(--color-disabled);
 }
 
+/* El avatar real, para que la fila mida lo mismo con datos y sin ellos; sin iniciales. */
 .placeholderAvatar {
-  flex: none;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-round);
+  background: var(--color-disabled);
+  color: transparent;
 }
 
 .placeholderName {

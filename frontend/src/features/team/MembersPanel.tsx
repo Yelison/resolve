@@ -10,7 +10,7 @@ import {
   Skeleton,
   type MenuItem,
 } from '../../components/ui'
-import { memberStatusLabels, type MemberStatus, type TeamMember, type TeamRole } from '../../domain/member'
+import { type MemberStatus, type TeamMember, type TeamRole } from '../../domain/member'
 import { roleLabels } from '../../app/navigation'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
 import { TeamTable } from './TeamTable'
@@ -31,6 +31,12 @@ export interface MembersPanelProps {
 
 const roleItems: TeamRole[] = ['agent', 'admin']
 const statusItems: MemberStatus[] = ['active', 'invited', 'removed']
+/** Cómo se nombra cada estado como filtro: en plural, salvo la invitación pendiente. */
+const statusFilterLabels: Record<MemberStatus, string> = {
+  active: 'Activos',
+  invited: 'Invitación pendiente',
+  removed: 'Retirados',
+}
 
 /** Lista compacta de miembros con buscador, filtros de rol y estado y paginación de diez. */
 export function MembersPanel({ team, state, onChange, onPageChange, isAdmin, actions, onInvite }: MembersPanelProps) {
@@ -132,11 +138,11 @@ function StatusFilter({
   onChange: (status: MemberStatus | undefined) => void
 }) {
   if (status) {
-    return <RemovableChip label={`Estado: ${memberStatusLabels[status]}`} onRemove={() => onChange(undefined)} />
+    return <RemovableChip label={`Estado: ${statusFilterLabels[status]}`} onRemove={() => onChange(undefined)} />
   }
   const items: MenuItem[] = statusItems.map((item) => ({
     id: item,
-    label: memberStatusLabels[item],
+    label: statusFilterLabels[item],
     onSelect: () => onChange(item),
   }))
   return (

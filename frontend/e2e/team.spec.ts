@@ -1,4 +1,39 @@
+import type { Page } from '@playwright/test'
+import type { TeamMember } from '../src/api/schema'
 import { expect, me, test } from './fixtures'
+import { teamMember } from './mocks/shared'
+
+/** Equipo grande para las pruebas de muchos datos: `active` agentes activos (el 8.º con un nombre de 120 caracteres) y `invited` invitaciones. */
+function bigTeam(active: number, invited: number, longNames = false): TeamMember[] {
+  const people = Array.from({ length: active }, (_, index) =>
+    teamMember({
+      id: `u-p${index}`,
+      name: longNames && index === 7 ? 'B'.repeat(120) : `Persona ${String(index + 1).padStart(2, '0')}`,
+      email: `persona${index + 1}@acme.example`,
+      role: index < 2 ? 'admin' : 'agent',
+      openTickets: 12 - Math.min(index, 11),
+      urgentOpenTickets: index % 3 === 0 ? 2 : 0,
+    }),
+  )
+  const invites = Array.from({ length: invited }, (_, index) =>
+    teamMember({
+      id: `u-i${index}`,
+      name: `invitada${index + 1}`,
+      email: longNames && index === 0 ? `${'c'.repeat(100)}@acme.example` : `invitada${index + 1}@acme.example`,
+      status: 'invited',
+      joinedAt: null,
+      invitedAt: new Date(Date.now() - (index + 2) * 86_400_000).toISOString(),
+    }),
+  )
+  return [...people, ...invites]
+}
+
+/** Sirve `members` en `GET /members`; el resto de la API simulada sigue igual. */
+async function serveTeam(page: Page, members: TeamMember[]) {
+  await page.route('**/api/members', (route) =>
+    route.request().method() === 'GET' ? route.fulfill({ json: members }) : route.fallback(),
+  )
+}
 
 test.describe('equipo', () => {
   test('la lista muestra el equipo actual, sus métricas y oculta a los retirados', async ({ page }) => {
@@ -6,7 +41,8 @@ test.describe('equipo', () => {
     await page.goto('/equipo')
     const table = page.getByRole('table', { name: 'Equipo' })
     await expect(table.getByRole('row')).toHaveCount(6) // encabezado + 5 actuales
-    await expect(page.getByText('Carga promedio')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Carga ahora' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Roles' })).toBeVisible()
     await expect(table.getByText('Invitación pendiente')).toBeVisible()
     await expect(table.getByText('Pablo Viejo')).toHaveCount(0)
 
@@ -85,8 +121,11 @@ test.describe('equipo', () => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/equipo')
     await expect(page.getByRole('table', { name: 'Equipo' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Carga ahora' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Roles' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Invitar agente' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: /Acciones de/ })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: /Invitaciones pendientes/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Acciones de|Cancelar la invitación/ })).toHaveCount(0)
   })
 
   test('en móvil el equipo son tarjetas y el diálogo de invitación cabe en 320 px', async ({ page }) => {
@@ -218,5 +257,150 @@ test.describe('equipo · foco al cerrar un diálogo', () => {
     await expect(page.getByRole('button', { name: /Acciones de/ })).toHaveCount(0)
     await dialog.getByRole('button', { name: 'Cancelar' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Equipo' })).toBeFocused()
+  })
+})
+
+test.describe('equipo · carga, invitaciones y muchos datos', () => {
+  test('cancela una invitación con confirmación y desaparece el panel', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/equipo')
+    const panel = page.getByRole('region', { name: /Invitaciones pendientes/ })
+    await expect(panel).toContainText('sofia@acme.example')
+    await expect(panel).toContainText('Enviada hace 1 hora')
+    await expect(page.getByText(/Reenviar|Caducada/)).toHaveCount(0)
+    await panel.getByRole('button', { name: 'Cancelar la invitación de sofia@acme.example' }).click()
+    const dialog = page.getByRole('dialog', { name: '¿Cancelar esta invitación?' })
+    await dialog.getByRole('button', { name: 'Cancelar invitación' }).click()
+    await expect(page.getByText('Invitación cancelada')).toBeVisible()
+    await expect(panel).toHaveCount(0)
+    await expect(page.getByRole('heading', { level: 1, name: 'Equipo' })).toBeFocused()
+  })
+
+  test('con 22 personas y 6 invitaciones: ocho barras, desplegar, filtrar por invitación y paginar', async ({
+    page,
+  }) => {
+    await serveTeam(page, bigTeam(22, 6))
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/equipo')
+    const load = page.getByRole('region', { name: 'Carga ahora' })
+    const bars = load.getByRole('list', { name: 'Tickets abiertos por persona' }).getByRole('listitem')
+    await expect(bars).toHaveCount(8)
+    await load.getByRole('button', { name: 'Ver las 22 personas' }).click()
+    await expect(page).toHaveURL(/carga=todas/)
+    await expect(bars).toHaveCount(22)
+    await load.getByRole('button', { name: 'Ver solo las 8 más cargadas' }).click()
+    await expect(bars).toHaveCount(8)
+
+    const panel = page.getByRole('region', { name: /Invitaciones pendientes/ })
+    await expect(panel.getByRole('listitem')).toHaveCount(3)
+    await panel.getByRole('button', { name: 'Ver las 6 invitaciones pendientes' }).click()
+    await expect(page).toHaveURL(/estado=invitados/)
+    await expect(panel).toHaveCount(0)
+    const table = page.getByRole('table', { name: 'Equipo' })
+    await expect(table.getByRole('row')).toHaveCount(7)
+    await page.getByRole('button', { name: 'Quitar el filtro Estado: Invitación pendiente' }).click()
+    await expect(page).not.toHaveURL(/estado=/)
+    await expect(panel).toBeVisible()
+
+    await expect(table.getByRole('row')).toHaveCount(11)
+    await expect(page.getByText('1–10 de 28 resultados')).toBeVisible()
+    await page.getByRole('button', { name: 'Página 3' }).click()
+    await expect(table.getByRole('row')).toHaveCount(9)
+  })
+
+  test('«Ver como tabla» da las cifras de cada persona', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await page.goto('/equipo')
+    const load = page.getByRole('region', { name: 'Carga ahora' })
+    await load.getByRole('button', { name: 'Ver como tabla' }).click()
+    const table = load.getByRole('table', { name: 'Tickets abiertos por persona' })
+    await expect(table.getByRole('columnheader')).toHaveText(['Persona', 'Abiertos', 'Urgentes', 'Resto'])
+    await expect(table.getByRole('row', { name: /Laura Méndez/ })).toContainText('1')
+  })
+
+  test('«Carga ahora» y la columna lateral se apilan por debajo de 1200 px y van en paralelo desde 1200 px', async ({
+    page,
+  }) => {
+    const positions = async (width: number) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/equipo')
+      const load = (await page.getByRole('region', { name: 'Carga ahora' }).boundingBox())!
+      const roles = (await page.getByRole('region', { name: 'Roles' }).boundingBox())!
+      return { load, roles }
+    }
+    for (const width of [768, 1024, 1199]) {
+      const { load, roles } = await positions(width)
+      expect(roles.y, `apilados a ${width}px`).toBeGreaterThanOrEqual(load.y + load.height)
+    }
+    for (const width of [1200, 1440]) {
+      const { load, roles } = await positions(width)
+      expect(roles.x, `en paralelo a ${width}px`).toBeGreaterThanOrEqual(load.x + load.width)
+    }
+  })
+
+  for (const theme of ['light', 'dark'] as const) {
+    for (const width of [320, 390, 767, 768, 1024, 1199, 1200, 1440]) {
+      test(`sin scroll horizontal ni textos recortados con nombres de 120 caracteres · ${width}px · ${theme}`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: theme })
+        await serveTeam(page, bigTeam(22, 6, true))
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto('/equipo')
+        await page
+          .getByRole('region', { name: 'Carga ahora' })
+          .getByRole('button', { name: 'Ver las 22 personas' })
+          .click()
+        await expect(page.getByRole('table', { name: 'Equipo' })).toBeVisible()
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        )
+        expect(overflow).toBeLessThanOrEqual(0)
+        // Ningún texto de las secciones de la página queda recortado por su caja.
+        const clipped = await page
+          .locator('main section')
+          .evaluateAll((sections) =>
+            sections.flatMap((section) =>
+              [...section.querySelectorAll<HTMLElement>('*')]
+                .filter(
+                  (node) =>
+                    node.clientWidth > 2 &&
+                    node.scrollWidth > node.clientWidth + 1 &&
+                    getComputedStyle(node).overflowX !== 'auto',
+                )
+                .map((node) => `${node.tagName}.${node.className}`),
+            ),
+          )
+        expect(clipped).toEqual([])
+        // Controles táctiles de 44 px por debajo de 768 px.
+        if (width < 768) {
+          for (const control of await page.locator('main button:visible, main a:visible').all()) {
+            const box = (await control.boundingBox())!
+            expect(box.height, await control.innerText()).toBeGreaterThanOrEqual(43.5)
+          }
+        }
+      })
+    }
+  }
+
+  test('la carga reserva su sitio: con las peticiones retenidas el resto de la página no salta al llegar los datos', async ({
+    page,
+  }) => {
+    await serveTeam(page, bigTeam(12, 0))
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    await page.route('**/api/members', async (route) => {
+      await gate
+      await route.fallback()
+    })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/equipo')
+    const members = page.getByRole('heading', { level: 2, name: /^Miembros/ })
+    await expect(members).toBeVisible()
+    const before = (await members.boundingBox())!.y
+    release()
+    await expect(page.getByRole('table', { name: 'Equipo' })).toBeVisible()
+    const after = (await members.boundingBox())!.y
+    expect(Math.abs(after - before)).toBeLessThanOrEqual(1)
   })
 })

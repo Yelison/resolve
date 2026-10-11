@@ -221,23 +221,39 @@ function LoadTable({ entries }: { entries: LoadEntry[] }) {
   )
 }
 
-/** Mismas filas que las barras, para que la página no salte cuando llegan los datos. */
+/**
+ * Mismas filas y mismo pie que el gráfico, para que la página no salte cuando llegan los datos. El pie son los
+ * componentes reales ocultos (`visibility`): así su altura es la de verdad en cada ancho, sin números aparte.
+ */
 function LoadSkeleton() {
   return (
-    <div role="status" className={styles.list}>
-      <span className="visually-hidden">Cargando la carga del equipo…</span>
-      {Array.from({ length: LOAD_PREVIEW_SIZE }, (_, index) => (
-        <div key={index} className={styles.row} aria-hidden="true">
-          <span className={styles.who}>
-            <span className={styles.placeholderAvatar} />
-            <span className={styles.placeholderName} />
-          </span>
-          <span className={styles.bar} />
-          <span className={styles.count}>
-            <span className={styles.placeholderName} />
-          </span>
+    <>
+      <div role="status" className={styles.list}>
+        <span className="visually-hidden">Cargando la carga del equipo…</span>
+        {Array.from({ length: LOAD_PREVIEW_SIZE }, (_, index) => (
+          <div key={index} className={styles.row} aria-hidden="true">
+            <span className={styles.who}>
+              <Avatar name="··" size="small" decorative className={styles.placeholderAvatar} />
+              <span className={styles.placeholderName} />
+            </span>
+            <span className={styles.bar} />
+            <span className={styles.count}>
+              <span className={styles.placeholderName} />
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className={`${styles.footer} ${styles.reserved}`} aria-hidden="true">
+        <Legend />
+        <div className={styles.actions}>
+          <Button variant="secondary" tabIndex={-1}>
+            Ver las {LOAD_PREVIEW_SIZE + 1} personas
+          </Button>
+          <Button variant="secondary" tabIndex={-1}>
+            Ver como tabla
+          </Button>
         </div>
-      ))}
-    </div>
+      </div>
+    </>
   )
 }
