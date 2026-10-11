@@ -214,6 +214,71 @@ test.describe('inicio · sin saltos de layout', () => {
   }
 })
 
+test.describe('inicio · textos largos', () => {
+  const longSubject = 'Asunto larguísimo '.repeat(6).trim().slice(0, 120)
+  const longToken = 'x'.repeat(120)
+  const longTitle = 'Borrador con un título larguísimo que no se debe recortar '.repeat(3).slice(0, 120)
+
+  for (const width of [320, 1440]) {
+    test(`asuntos, clientes y borradores de 120 caracteres no desbordan ni se recortan · ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 })
+      const base = tickets[0]!
+      await page.route('**/api/tickets?*', async (route) => {
+        await route.fulfill({
+          json: {
+            items: [
+              { ...base, subject: longSubject, customer: { ...base.customer, name: longToken } },
+              { ...base, id: 't-x2', number: 2001, subject: longToken, priority: 'urgent' },
+            ],
+            page: 0,
+            size: 100,
+            totalItems: 2,
+            totalPages: 1,
+          },
+        })
+      })
+      await page.route('**/api/knowledge/articles?*', async (route) => {
+        const items = [
+          {
+            id: 'd-1',
+            slug: 'largo',
+            title: longTitle,
+            category: { id: 'c', name: 'Primeros pasos', slug: 'primeros-pasos' },
+            status: 'draft',
+            visibility: 'public',
+            excerpt: '',
+            updatedAt: new Date().toISOString(),
+            publishedAt: null,
+          },
+        ]
+        await route.fulfill({ json: { items, page: 0, size: 3, totalItems: 1, totalPages: 1 } })
+      })
+      await page.goto('/')
+      await expect(page.getByRole('link', { name: new RegExp(`^#${base.number} `) })).toBeVisible()
+      await expect(page.getByRole('link', { name: longTitle })).toBeVisible()
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      )
+      expect(overflow, 'scroll horizontal de la página').toBeLessThanOrEqual(0)
+      const clipped = await page
+        .locator('main a, main span, main p')
+        .evaluateAll((els) =>
+          els
+            .filter(
+              (el) =>
+                el.scrollWidth - el.clientWidth > 1 &&
+                getComputedStyle(el).display !== 'inline' &&
+                !el.classList.contains('visually-hidden'),
+            )
+            .map((el) => `${el.tagName}: ${el.textContent?.slice(0, 40)}`),
+        )
+      expect(clipped, 'textos recortados').toEqual([])
+    })
+  }
+})
+
 test.describe('inicio · rol cliente y nombres del menú', () => {
   test('un cliente aterriza en su bandeja y ve «Mis solicitudes» y «Ayuda»', async ({ page }) => {
     await mockApi(page, 'customer')

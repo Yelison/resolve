@@ -11,6 +11,9 @@ import styles from './SidePanels.module.css'
 /** Cuántos borradores se listan. */
 export const DRAFTS_SIZE = 3
 
+/** «Hoy, 02:44» → «hoy, 02:44»: va a mitad de frase. */
+const lowerFirst = (text: string) => text.charAt(0).toLocaleLowerCase('es') + text.slice(1)
+
 const ghostRows = Array.from({ length: DRAFTS_SIZE }, (_, index) => index)
 
 /**
@@ -67,7 +70,8 @@ export function DraftsPanel() {
                   {article.title}
                 </Link>
                 <span className={styles.draftMeta}>
-                  {article.category.name} · editado {formatDateTime(new Date(article.updatedAt), undefined, timeZone)}
+                  {article.category.name} · editado{' '}
+                  {lowerFirst(formatDateTime(new Date(article.updatedAt), undefined, timeZone))}
                 </span>
               </li>
             ))}

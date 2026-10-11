@@ -25,8 +25,8 @@ const reasonTones: Record<AttentionReason, BadgeTone> = {
   waiting: 'neutral',
 }
 
-/** Textos de muestra para el esqueleto: tres filas con un asunto largo, que es lo que más altura da. */
-const ghostItems: AttentionItem[] = [1, 2, 3].map((number) => ({
+/** Textos de muestra para el esqueleto: filas con un asunto largo, que es lo que más altura da. */
+const ghostItems: AttentionItem[] = [1, 2, 3, 4, 5, 6].map((number) => ({
   ticket: {
     id: `ghost-${number}`,
     number: 1000 + number,
@@ -67,6 +67,10 @@ export function AttentionPanel() {
   const scope: AttentionScope | undefined =
     chosen ?? (metrics.isSuccess ? (mineCount! > 0 ? 'mine' : 'team') : metrics.isError ? 'team' : undefined)
   const defaultedToTeam = chosen === undefined && scope === 'team' && metrics.isSuccess
+
+  // Mientras llega la lista ya se sabe cuántos hay (las métricas decidieron el alcance): el esqueleto tiene tantas filas.
+  const expected = scope === 'mine' ? mineCount : scope === 'team' ? teamCount : undefined
+  const ghostRows = Math.min(ghostItems.length, Math.max(1, expected ?? 3))
 
   const tickets = useAttentionTickets(scope)
   const focus = useRetryFocus<HTMLElement>(tickets.isSuccess)
@@ -116,10 +120,12 @@ export function AttentionPanel() {
       ) : !attention || scope === undefined ? (
         <Ghost label="Cargando los tickets que necesitan atención…" className={styles.ghost}>
           <ul className={styles.list}>
-            {ghostItems.map((item) => (
+            {ghostItems.slice(0, ghostRows).map((item) => (
               <Row key={item.ticket.id} item={item} userId={undefined} now={ghostNow} onAssigned={() => {}} />
             ))}
           </ul>
+          {/* El pie de muestra reserva también su altura, con la nota del alcance por defecto si va a haberla. */}
+          <Footer scope="team" shown={ghostRows} total={ghostRows + 1} explainDefault={defaultedToTeam} />
         </Ghost>
       ) : (
         // Al cambiar de alcance se ve la lista anterior (atenuada y sin poder activarse) hasta que llega la nueva.
