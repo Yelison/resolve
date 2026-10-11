@@ -10,6 +10,7 @@ import type {
   TicketSummary,
 } from '../../src/api/schema'
 import { daniel, json, laura, minutesAgo, type MockFeature, type MockHandler } from './shared'
+import { dayGroup } from '../../src/features/tickets/dateGroups'
 import { customerRef, customers } from './customers'
 import { me } from './session'
 
@@ -55,16 +56,32 @@ const bareTickets: BareTicket[] = [
   },
 ]
 
-const metrics: TicketMetrics = {
-  open: 3,
-  openedToday: 1,
-  inProgress: 1,
-  inProgressAssignedToMe: 0,
-  resolvedToday: 2,
-  resolvedYesterday: 1,
-  firstResponseMinutes: 18,
-  firstResponseTargetMinutes: 30,
-  views: { all: 3, mine: 0, unassigned: 1, resolved: 0 },
+/**
+ * Las métricas salen de los propios tickets, con las definiciones del servidor: `open` es todo lo que no está resuelto,
+ * `openedToday` lo no resuelto creado hoy en la zona de la organización, y las vistas cuentan lo mismo que la lista.
+ */
+function metricsOf(items: readonly BareTicket[]): TicketMetrics {
+  const unresolved = items.filter((ticket) => ticket.status !== 'resolved')
+  const now = new Date()
+  const timeZone = me.organization.timeZone
+  return {
+    open: unresolved.length,
+    openedToday: unresolved.filter((ticket) => dayGroup(new Date(ticket.createdAt), now, timeZone) === 'today').length,
+    inProgress: items.filter((ticket) => ticket.status === 'in_progress').length,
+    inProgressAssignedToMe: items.filter(
+      (ticket) => ticket.status === 'in_progress' && ticket.assignee?.id === me.user.id,
+    ).length,
+    resolvedToday: 2,
+    resolvedYesterday: 1,
+    firstResponseMinutes: 18,
+    firstResponseTargetMinutes: 30,
+    views: {
+      all: items.length,
+      mine: unresolved.filter((ticket) => ticket.assignee?.id === me.user.id).length,
+      unassigned: unresolved.filter((ticket) => ticket.assignee === null).length,
+      resolved: items.length - unresolved.length,
+    },
+  }
 }
 
 /** Actividad reciente de toda la organización, con el contrato de `listRecentActivity`. */
@@ -162,7 +179,7 @@ export function ticketsMock(customerOf: (id: string) => Customer, role: Me['role
   const handle: MockHandler = ({ route, url, path, method }) => {
     const ticketMatch = path.match(/^\/tickets\/(\d+)(\/messages|\/activity)?$/)
 
-    if (method === 'GET' && path === '/tickets/metrics') return json(route, metrics)
+    if (method === 'GET' && path === '/tickets/metrics') return json(route, metricsOf(bareTickets))
     if (method === 'GET' && path === '/tickets/activity') return json(route, recentActivity)
     if (method === 'GET' && path === '/assignees') return json(route, [daniel, laura])
     if (method === 'GET' && path === '/tickets') {

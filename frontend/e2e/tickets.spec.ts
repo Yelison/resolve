@@ -249,6 +249,24 @@ test.describe('tickets · foco al guardar y al cambiar de ticket', () => {
     await expect(responsible).toBeFocused()
   })
 
+  test('«Reintentar» con éxito deja el foco en el panel, no en body', async ({ page }) => {
+    let fail = true
+    await page.route('**/api/tickets/1048', (route) =>
+      fail && route.request().method() === 'GET'
+        ? route.fulfill({ status: 500, json: { status: 500, title: 'Error' } })
+        : route.fallback(),
+    )
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets?ticket=1048')
+    const retry = preview(page).getByRole('button', { name: 'Reintentar cargar el ticket #1048' })
+    await expect(retry).toBeVisible()
+    await retry.focus()
+    fail = false
+    await page.keyboard.press('Enter')
+    await expect(preview(page).getByRole('heading', { level: 2 })).toHaveText('No puedo acceder a mi cuenta')
+    await expect(preview(page)).toBeFocused()
+  })
+
   test('«Quitar la selección» y volver atrás con el foco en la vista previa no lo dejan en body', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/tickets?ticket=999')
@@ -256,6 +274,12 @@ test.describe('tickets · foco al guardar y al cambiar de ticket', () => {
     await page.keyboard.press('Enter')
     await expect(preview(page).getByRole('heading', { name: 'Ningún ticket seleccionado' })).toBeVisible()
     await expect(preview(page)).toBeFocused()
+    // Con el teclado, el panel enfocado se ve: anillo del tema, no `outline: none`.
+    const ring = await preview(page).evaluate((node) => {
+      const style = getComputedStyle(node)
+      return { visible: node.matches(':focus-visible'), style: style.outlineStyle, width: style.outlineWidth }
+    })
+    expect(ring).toEqual({ visible: true, style: 'solid', width: '2px' })
 
     await page.goto('/tickets?ticket=1048')
     await page.getByRole('link', { name: /#1047/ }).click()

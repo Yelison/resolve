@@ -98,8 +98,14 @@
   border-top: 1px solid var(--color-line);
 }
 
-.previewPane:focus {
+/* El panel recibe el foco por programa cuando se pierde el control que lo tenía: con teclado se ve dónde está. */
+.previewPane:focus:not(:focus-visible) {
   outline: none;
+}
+
+.previewPane:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: calc(var(--space-2) * -1);
 }
 
 .previewPane {
@@ -124,7 +130,7 @@
   }
 
   .sort {
-    flex: 0 1 280px;
+    flex: 0 1 calc(var(--space-40) * 7);
   }
 }
 

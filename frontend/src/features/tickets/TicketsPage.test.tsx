@@ -609,6 +609,26 @@ describe('TicketsPage con vista previa (desde 1200 px)', () => {
     expect(responsible).toHaveFocus()
   })
 
+  it('tras «Reintentar» con éxito, el foco vuelve al panel aunque la bandeja no se repinte', async () => {
+    setWide(true)
+    let attempts = 0
+    mockApi({
+      ...previewRoutes(),
+      'GET /api/tickets/1048': () => {
+        attempts += 1
+        return attempts <= 1 ? { status: 500, body: { status: 500, title: 'Error' } } : { body: ticket({ version: 5 }) }
+      },
+    })
+    renderInbox('/tickets?ticket=1048')
+    const panel = await screen.findByRole('region', { name: 'Vista previa del ticket' })
+    const retry = await within(panel).findByRole('button', { name: 'Reintentar cargar el ticket #1048' })
+    retry.focus()
+    await userEvent.keyboard('{Enter}')
+    // El botón desaparece al cargar el ticket: es un cambio interno de la vista previa, no de la bandeja.
+    expect(await within(panel).findByRole('heading', { name: 'No puedo acceder a mi cuenta' })).toBeInTheDocument()
+    await waitFor(() => expect(panel).toHaveFocus())
+  })
+
   it('«Quitar la selección» deja el foco en el panel, no en body', async () => {
     setWide(true)
     mockApi({

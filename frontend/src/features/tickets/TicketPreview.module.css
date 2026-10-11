@@ -57,12 +57,6 @@
   min-width: calc(var(--space-40) * 4);
 }
 
-/* Guardando: el campo conserva el foco, pero se ve que no admite otro cambio. */
-.field select[aria-disabled='true'] {
-  cursor: progress;
-  opacity: 0.6;
-}
-
 /* La cabecera queda fija; la conversación se desplaza por su cuenta. */
 .body {
   flex: 1 1 auto;
