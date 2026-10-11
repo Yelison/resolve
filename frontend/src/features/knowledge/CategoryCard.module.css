@@ -72,9 +72,16 @@ a.selected:hover {
 }
 
 .description {
+  /* Dos líneas reservadas siempre: todas las tarjetas miden igual y el esqueleto acierta con la altura real. */
+  display: -webkit-box;
+  min-height: 2lh;
   font: var(--font-body);
   color: var(--color-muted);
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 .count {
@@ -101,6 +108,10 @@ a.selected:hover {
 
 .short {
   width: 40%;
+}
+
+.skeleton .description {
+  block-size: 2lh;
 }
 
 @keyframes pulse {

@@ -29,7 +29,9 @@ export function CategoryCard({ category, tone, to, selected }: CategoryCardProps
       </span>
       <span className={styles.body}>
         <span className={styles.name}>{category.name}</span>
-        {category.description && <span className={styles.description}>{category.description}</span>}
+        <span className={styles.description} title={category.description ?? undefined}>
+          {category.description}
+        </span>
         <span className={styles.count}>{articleCountLabel(category.articles)}</span>
         {selected && <span className="visually-hidden">Filtro activo: pulsa para quitarlo.</span>}
       </span>
