@@ -1,8 +1,7 @@
 .card {
   display: flex;
-  flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-8);
+  gap: var(--space-16);
   min-width: 0;
   min-height: var(--touch-target);
   padding: var(--space-16);
@@ -10,40 +9,126 @@
   border-radius: var(--radius-panel);
   background: var(--color-surface);
   color: var(--color-ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+  text-decoration: none;
   transition: background-color var(--duration-fast) ease;
 }
 
-.card:hover {
+a.card:hover {
   background: var(--color-surface-hover);
 }
 
+a.card:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .selected,
-.selected:hover {
+a.selected:hover {
   border-color: var(--color-blue-ink);
   background: var(--color-blue-bg);
 }
 
-.icon {
+.tile {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border-radius: var(--radius-control);
+}
+
+.blue {
+  background: var(--color-blue-bg);
   color: var(--color-blue-ink);
 }
 
+.green {
+  background: var(--color-green-bg);
+  color: var(--color-green-ink);
+}
+
+.amber {
+  background: var(--color-amber-bg);
+  color: var(--color-amber-ink);
+}
+
+/* Con la tarjeta seleccionada el fondo ya es el azul de la baldosa: la baldosa pasa a la superficie para distinguirse. */
+.selected .tile {
+  background: var(--color-surface);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 .name {
-  font: var(--font-section);
+  font: var(--font-strong);
   overflow-wrap: anywhere;
 }
 
-.meta {
-  font: var(--font-caption);
+.description {
+  /* Dos líneas reservadas siempre: todas las tarjetas miden igual y el esqueleto acierta con la altura real. */
+  display: -webkit-box;
+  min-height: 2lh;
+  font: var(--font-body);
   color: var(--color-muted);
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.count {
+  font: var(--font-label);
+  color: var(--color-link);
+}
+
+/* Carga: mismas cajas, con barras de la altura de línea (`1lh`) en lugar de texto. */
+.bar {
+  display: block;
+  box-sizing: border-box;
+  block-size: 1lh;
+  border-block: 0.2lh solid transparent;
+  border-radius: var(--radius-small);
+  background: var(--color-disabled);
+  background-clip: padding-box;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.pending {
+  background: var(--color-disabled);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.short {
+  width: 40%;
+}
+
+.skeleton .description {
+  block-size: 2lh;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .pending {
+    animation: none;
+  }
 }
 
 @media (min-width: 768px) {
   .card {
-    padding: var(--space-24);
-    gap: var(--space-12);
+    padding: var(--space-20);
   }
 }

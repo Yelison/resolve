@@ -1,0 +1,89 @@
+/* Banda a sangre: sube hasta la cabecera y llega a los lados del contenido, con el margen de página de cada rango. */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-16);
+  margin: calc(var(--page-gutter) * -1) calc(var(--page-gutter) * -1) 0;
+  padding: var(--space-32) var(--page-gutter);
+  /* El límite del campo sobre la banda: el gris azulado del texto de la banda da más de 3:1 en claro y en oscuro. */
+  --hero-field-border: var(--color-nav-text);
+  background: var(--color-nav);
+  color: var(--color-nav-ink);
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font: var(--font-title-mobile);
+  overflow-wrap: anywhere;
+}
+
+.lead {
+  /* Ancho para que la línea del cliente y la del personal ocupen una sola línea en escritorio. */
+  max-width: 80ch;
+  margin: 0;
+  font: var(--font-body);
+  color: var(--color-nav-text);
+}
+
+.count {
+  font-weight: 600;
+  color: var(--color-nav-ink);
+}
+
+/* El número que aún no se conoce: una barra de dos dígitos que ocupa el sitio del texto. */
+.pending {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 2ch;
+  block-size: 1lh;
+  border-block: 0.25lh solid transparent;
+  border-radius: var(--radius-small);
+  background: var(--color-nav-text);
+  background-clip: padding-box;
+  opacity: 0.4;
+  vertical-align: top;
+}
+
+.search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  width: 100%;
+  max-width: 40rem;
+}
+
+/* El campo gana todo el sobrante de la fila: si el botón no cabe a su lado, pasa debajo y ocupa el ancho. */
+.search .field {
+  flex: 100 1 16rem;
+  min-height: calc(var(--touch-target) + var(--space-8));
+  border-color: var(--hero-field-border);
+  background: var(--color-surface);
+  text-align: left;
+}
+
+.search .field:focus-within {
+  border-color: var(--color-focus);
+}
+
+.submit {
+  flex: 1 0 auto;
+  min-height: calc(var(--touch-target) + var(--space-8));
+}
+
+@media (min-width: 768px) {
+  .hero {
+    padding-block: var(--space-40);
+  }
+
+  .title {
+    font: var(--font-title);
+  }
+}
+
+@media (min-width: 1200px) {
+  .hero {
+    padding-block: var(--space-48);
+  }
+}

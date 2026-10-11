@@ -49,6 +49,22 @@ export function useArticleList(params: ArticleListParams) {
   })
 }
 
+/**
+ * Cuántos artículos cumplen unos filtros, sin traerlos: una página de uno y su `totalItems`. Cada recuento tiene la
+ * clave de su lista, así que escribir o publicar un artículo los invalida junto con ella. `enabled` evita pedirlo a
+ * quien no lo va a ver.
+ */
+export function useArticleCount(filters: Pick<ArticleListParams, 'q' | 'category' | 'status'>, enabled = true) {
+  const params: ArticleListParams = { ...filters, page: 1, pageSize: 1 }
+  return useQuery({
+    queryKey: articleKeys.list(params),
+    queryFn: ({ signal }) => fetchArticleList(params, signal),
+    select: (page) => page.totalItems,
+    placeholderData: keepPreviousData,
+    enabled,
+  })
+}
+
 /** Categorías con los artículos que quien llama puede leer: un cliente no recibe las que no tienen ninguno. */
 export function useCategories() {
   return useQuery({

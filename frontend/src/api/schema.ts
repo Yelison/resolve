@@ -1647,6 +1647,14 @@ export interface components {
             category: components["schemas"]["CategoryRef"];
             status: components["schemas"]["ArticleStatus"];
             visibility: components["schemas"]["ArticleVisibility"];
+            /**
+             * @description A short plain-text summary of the Markdown body, derived by the server when the list is read: Markdown
+             *     syntax (headings, emphasis, lists, quotes, tables, links, images and code) and HTML tags are removed,
+             *     fenced code blocks are dropped, whitespace is collapsed and it is cut at a word boundary with a trailing
+             *     "…" so that it never exceeds 160 characters. Empty when the body has no text. It is text, never markup:
+             *     clients must not insert it as HTML.
+             */
+            excerpt: string;
             /** Format: date-time */
             updatedAt: string;
             /**
@@ -1656,10 +1664,10 @@ export interface components {
             publishedAt: string | null;
         };
         /**
-         * @description An article with its Markdown body: every field of ArticleSummary plus `body`, `allowFeedback`, `version`,
-         *     `createdBy` and `updatedBy`. It is written out in full instead of composing ArticleSummary with `allOf`
-         *     (see the contract modelling notes in README.md). The body is plain Markdown text: the API neither renders
-         *     nor sanitizes it, so clients must never insert it as HTML.
+         * @description An article with its Markdown body: every field of ArticleSummary except `excerpt` (the body itself is here)
+         *     plus `body`, `allowFeedback`, `version`, `createdBy` and `updatedBy`. It is written out in full instead of
+         *     composing ArticleSummary with `allOf` (see the contract modelling notes in README.md). The body is plain
+         *     Markdown text: the API neither renders nor sanitizes it, so clients must never insert it as HTML.
          */
         Article: {
             /** Format: uuid */

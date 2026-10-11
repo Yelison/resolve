@@ -23,6 +23,13 @@ describe('listParams', () => {
     )
   })
 
+  it('lee y escribe el despliegue de las categorías, que no cuenta como filtro', () => {
+    expect(readArticleListState(new URLSearchParams('categories=all')).allCategories).toBe(true)
+    expect(readArticleListState(new URLSearchParams('categories=otro')).allCategories).toBeUndefined()
+    expect(writeArticleListState({ q: '', page: 1, allCategories: true }).toString()).toBe('categories=all')
+    expect(hasActiveArticleFilters({ q: '', page: 1, allCategories: true })).toBe(false)
+  })
+
   it('detecta los filtros activos', () => {
     expect(hasActiveArticleFilters({ q: '', page: 4 })).toBe(false)
     expect(hasActiveArticleFilters({ q: '', category: 'a', page: 1 })).toBe(true)

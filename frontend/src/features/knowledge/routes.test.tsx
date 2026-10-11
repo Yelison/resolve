@@ -23,7 +23,9 @@ describe('rutas de la aplicación', () => {
       'GET /api/knowledge/articles': { body: articlePage([articleSummary()]) },
     })
     renderApp('/conocimiento')
-    expect(await screen.findByRole('heading', { level: 1, name: 'Base de conocimiento' }, COLD)).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: '¿En qué podemos ayudarte?' }, COLD),
+    ).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'Cómo recuperar el acceso a tu cuenta' }, COLD)).toBeInTheDocument()
     expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /Nuevo artículo/ })).not.toBeInTheDocument()

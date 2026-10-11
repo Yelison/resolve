@@ -1,48 +1,50 @@
 import type { Locator, Page } from '@playwright/test'
-import { articles, createArticleStore, expect, expectSingleVisibleCount, mockApi, test } from './fixtures'
+import { articles, createArticleStore, expect, mockApi, test } from './fixtures'
+
+const noHorizontalOverflow = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 
 const longTitle = articles.find((article) => article.id === 'a-largo')!.title
 
-/** Cabecera medida: `null` si no se pinta o queda reducida a 1 px solo para lectores de pantalla. */
-async function headerWidth(table: Locator, name: string) {
-  const header = table.getByRole('columnheader', { name }).first()
-  const box = await header.boundingBox()
-  return box && box.width > 1 ? box.width : null
-}
-
 test.describe('base de conocimiento', () => {
-  test('el personal ve categorías, la tabla con estado y puede filtrar por categoría, búsqueda y borradores', async ({
+  test('el personal ve la cabecera, las categorías, las tarjetas con extracto y puede filtrar por categoría, estado y búsqueda', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/conocimiento')
-    await expect(page.getByRole('heading', { level: 1, name: 'Base de conocimiento' })).toBeVisible()
-    const table = page.getByRole('table', { name: 'Artículos' })
-    await expect(table.getByRole('row')).toHaveCount(6) // encabezado + 5 artículos
-    await expect(table.getByText('Borrador')).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: '¿Qué necesitas resolver?' })).toBeVisible()
+    await expect(page.getByText('Busca en los 5 artículos de tu base de conocimiento')).toBeVisible()
+    const cards = page.getByRole('article')
+    await expect(cards).toHaveCount(5)
+    await expect(cards.first()).toContainText('Si olvidaste tu contraseña')
+    await expect(page.getByText('Borrador', { exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Nuevo artículo' })).toHaveAttribute('href', '/conocimiento/nuevo')
-    await expect(page.getByText('Entrar, contraseñas y verificación en dos pasos · 1 artículo')).toBeVisible()
+    // Las descripciones son las reales de la categoría, no un texto de relleno.
+    await expect(page.getByText('Entrar, contraseñas y verificación en dos pasos')).toBeVisible()
     await expect(page.getByText(/^Descripción de /)).toHaveCount(0)
-    await expectSingleVisibleCount(page)
+    // El recuento de resultados se ve una sola vez: el de la paginación.
+    await expect(page.getByText(/^\d+–\d+ de \d+ resultados?$/)).toHaveCount(1)
+    await expect(page.getByText(/^Mostrando \d+ resultados?$/)).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Publicados\s*4/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Borradores\s*1/ })).toBeVisible()
 
-    await page.getByRole('button', { name: /Facturación/ }).click()
+    await page.getByRole('link', { name: /Facturación/ }).click()
     await expect(page).toHaveURL(/category=facturacion/)
-    await expect(table.getByRole('row')).toHaveCount(2)
-    await expect(table.getByRole('link', { name: 'Descargar una factura' })).toHaveAttribute(
+    await expect(cards).toHaveCount(1)
+    await expect(page.getByRole('link', { name: 'Descargar una factura' })).toHaveAttribute(
       'href',
       '/conocimiento/descargar-una-factura',
     )
 
-    await page.getByRole('button', { name: /Facturación/ }).click()
-    await page.getByRole('button', { name: 'Estado' }).click()
-    await page.getByRole('menuitem', { name: 'Borradores' }).click()
+    await page.getByRole('link', { name: /Facturación/ }).click()
+    await page.getByRole('button', { name: /Borradores/ }).click()
     await expect(page).toHaveURL(/status=draft/)
-    await expect(table.getByRole('row')).toHaveCount(2)
+    await expect(cards).toHaveCount(1)
 
     await page.getByRole('searchbox', { name: 'Buscar artículos' }).fill('zzz')
     await expect(page.getByRole('heading', { name: 'No encontramos artículos' })).toBeVisible()
     await page.getByRole('button', { name: 'Limpiar filtros' }).click()
-    await expect(table.getByRole('row')).toHaveCount(6)
+    await expect(cards).toHaveCount(5)
     await expect(page).toHaveURL(/\/conocimiento$/)
   })
 
@@ -55,16 +57,18 @@ test.describe('base de conocimiento', () => {
     await expect(
       page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Conocimiento' }),
     ).toBeVisible()
-    const table = page.getByRole('table', { name: 'Artículos' })
-    await expect(table.getByRole('row')).toHaveCount(4) // encabezado + 3 publicados y públicos
+    await expect(page.getByRole('article')).toHaveCount(3) // los publicados y públicos
+    await expect(page.getByRole('heading', { level: 1, name: '¿En qué podemos ayudarte?' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'Temas' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'Artículos más recientes' })).toBeVisible()
+    await expect(page.getByText(/solicitud/i)).toHaveCount(0)
     await expect(page.getByText('Configurar notificaciones')).toHaveCount(0)
     await expect(page.getByText(longTitle)).toHaveCount(0)
-    await expect(table.getByRole('columnheader', { name: 'Estado' })).toHaveCount(0)
     await expect(page.getByText('Borrador')).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'Nuevo artículo' })).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Estado' })).toHaveCount(0)
+    await expect(page.getByRole('group', { name: 'Filtrar por estado' })).toHaveCount(0)
     // Una categoría sin artículos visibles no se muestra: «Primeros pasos» solo tiene uno público.
-    await expect(page.getByRole('button', { name: /Primeros pasos/ })).toContainText('1 artículo')
+    await expect(page.getByRole('link', { name: /Primeros pasos/ })).toContainText('1 artículo')
   })
 
   test('una carga directa de /conocimiento pinta la shell con un esqueleto mientras llega el chunk, sin avisos', async ({
@@ -88,10 +92,10 @@ test.describe('base de conocimiento', () => {
     await expect(page.getByRole('navigation', { name: 'Principal' })).toBeVisible()
     await expect(main).toBeVisible()
     await expect(main.getByText('Cargando…')).toBeVisible()
-    await expect(page.getByRole('table', { name: 'Artículos' })).toHaveCount(0)
+    await expect(page.getByRole('article')).toHaveCount(0)
     release()
     await navigation
-    await expect(page.getByRole('table', { name: 'Artículos' })).toBeVisible()
+    await expect(page.getByRole('article').first()).toBeVisible()
     expect(messages).toEqual([])
   })
 
@@ -123,47 +127,207 @@ test.describe('base de conocimiento', () => {
     await expect(page.getByRole('textbox', { name: 'Título' })).toBeVisible()
   })
 
-  for (const sidebar of ['expandido', 'colapsado'] as const) {
-    test(`a 1200 px con el sidebar ${sidebar} la tabla muestra la categoría como columna`, async ({ page }) => {
-      await page.setViewportSize({ width: 1200, height: 900 })
-      await page.goto('/conocimiento')
-      if (sidebar === 'colapsado') await page.getByRole('button', { name: 'Colapsar menú' }).click()
-      const table = page.getByRole('table', { name: 'Artículos' })
-      await expect(table.getByRole('columnheader').first()).toBeVisible()
-      expect(await headerWidth(table, 'Categoría'), 'Categoría debe verse').not.toBeNull()
-    })
-  }
+  /** Columnas reales de una rejilla: cuántas pistas dibuja el navegador. */
+  const columns = (list: Locator) =>
+    list.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' ').length)
 
-  for (const width of [1024, 1100, 1199]) {
-    test(`a ${width} px la categoría pasa bajo el título y no es columna`, async ({ page }) => {
+  for (const [width, categories, articles] of [
+    [320, 1, 1],
+    [390, 1, 1],
+    [767, 1, 1],
+    [768, 2, 2],
+    [1024, 2, 2],
+    [1199, 2, 2],
+    [1200, 3, 2],
+    [1440, 3, 2],
+  ] as const) {
+    test(`a ${width} px las categorías van en ${categories} columna(s) y los artículos en ${articles}, sin scroll horizontal`, async ({
+      page,
+    }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('/conocimiento')
-      const table = page.getByRole('table', { name: 'Artículos' })
-      await expect(table.getByRole('columnheader').first()).toBeVisible()
-      expect(await headerWidth(table, 'Categoría')).toBeNull()
-      await expect(table.getByRole('cell', { name: 'Cuenta y acceso' }).first()).toBeVisible()
+      await expect(page.getByRole('article').first()).toBeVisible()
+      expect(
+        await columns(page.getByRole('list').filter({ has: page.getByRole('link', { name: /Cuenta y acceso/ }) })),
+      ).toBe(categories)
+      expect(await columns(page.getByRole('list').filter({ has: page.getByRole('article') }))).toBe(articles)
+      expect(await noHorizontalOverflow(page)).toBeLessThanOrEqual(0)
     })
   }
 
-  test('a 390 px las filas son tarjetas, el título largo se ve entero y no hay scroll horizontal', async ({ page }) => {
+  test('a 1200 px con el sidebar colapsado el contenido sigue sin desbordar', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 900 })
+    await page.goto('/conocimiento')
+    await page.getByRole('button', { name: 'Colapsar menú' }).click()
+    await expect(page.getByRole('article').first()).toBeVisible()
+    expect(await noHorizontalOverflow(page)).toBeLessThanOrEqual(0)
+  })
+
+  test('a 320 px el buscador y su botón se apilan y a 1440 px van en la misma fila', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 })
+    await page.goto('/conocimiento')
+    const field = page.getByRole('searchbox', { name: 'Buscar artículos' })
+    const button = page.getByRole('search').getByRole('button', { name: 'Buscar' })
+    const [narrowField, narrowButton] = [(await field.boundingBox())!, (await button.boundingBox())!]
+    expect(narrowButton.y).toBeGreaterThanOrEqual(narrowField.y + narrowField.height)
+    expect(narrowButton.height).toBeGreaterThanOrEqual(44)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const [wideField, wideButton] = [(await field.boundingBox())!, (await button.boundingBox())!]
+    expect(Math.abs(wideButton.y - wideField.y)).toBeLessThan(wideField.height)
+  })
+
+  test('un nombre de categoría y un título de 120 caracteres sin espacios no se recortan ni desbordan', async ({
+    page,
+  }) => {
+    const long = 'L'.repeat(120)
+    const articleStore = createArticleStore()
+    const seed = articleStore.get('configurar-notificaciones')!
+    articleStore.set(seed.slug, { ...seed, title: long, status: 'published' })
+    await mockApi(page, 'admin', { articleStore })
+    for (const width of [320, 390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/conocimiento')
+      const link = page.getByRole('link', { name: long })
+      await expect(link).toBeVisible()
+      expect(await noHorizontalOverflow(page), `a ${width} px`).toBeLessThanOrEqual(0)
+      const box = (await link.boundingBox())!
+      expect(box.x + box.width, `a ${width} px`).toBeLessThanOrEqual(width)
+    }
+  })
+
+  test('el extracto ocupa dos líneas como máximo pero su texto completo sigue en la página', async ({ page }) => {
+    const sentence = 'Una frase bastante larga que no cabe en dos líneas de una tarjeta estrecha. '
+    const articleStore = createArticleStore()
+    const seed = articleStore.get('invitar-a-tu-equipo')!
+    articleStore.set(seed.slug, { ...seed, body: sentence.repeat(2).trim() })
+    await mockApi(page, 'admin', { articleStore })
+    await page.setViewportSize({ width: 320, height: 900 })
+    await page.goto('/conocimiento')
+    const excerpt = page.getByRole('article').filter({ hasText: 'Invitar a tu equipo' }).locator('p[title]')
+    await expect(excerpt).toHaveText(/Una frase bastante larga.*Una frase bastante larga/)
+    const lines = await excerpt.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return element.getBoundingClientRect().height / Number.parseFloat(style.lineHeight)
+    })
+    expect(lines).toBeLessThanOrEqual(2.01)
+  })
+
+  test('por debajo de 768 px los controles de la lista miden 44 px', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 })
     await page.goto('/conocimiento')
-    const link = page.getByRole('link', { name: longTitle })
-    await expect(link).toBeVisible()
-    const box = (await link.boundingBox())!
-    expect(box.height, 'el título envuelve en varias líneas').toBeGreaterThan(40)
-    expect(box.x + box.width).toBeLessThanOrEqual(390)
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    await expect(page.getByRole('article').first()).toBeVisible()
+    const controls = [
+      page.getByRole('link', { name: /Cuenta y acceso/ }),
+      page.getByRole('link', { name: 'Cómo recuperar el acceso a tu cuenta' }),
+      page.getByRole('button', { name: /Publicados/ }),
+      page.getByRole('button', { name: /Borradores/ }),
+      page.getByRole('link', { name: 'Nuevo artículo' }),
+      page.getByRole('search').getByRole('button', { name: 'Buscar' }),
+    ]
+    for (const control of controls) {
+      expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(43.5)
+    }
+  })
+
+  test('con más de seis categorías «Ver las N categorías» despliega el resto en la misma página y la URL lo recuerda', async ({
+    page,
+  }) => {
+    const extra = Array.from({ length: 9 }, (_, index) => ({
+      id: `c${index}`,
+      name: `Tema ${index + 1}`,
+      slug: `tema-${index + 1}`,
+      description: `Sobre el tema ${index + 1}`,
+      articles: index + 10,
+    }))
+    await page.route('**/api/knowledge/categories', (route) => route.fulfill({ json: extra }))
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/conocimiento')
+    const topic = (n: number) => page.getByRole('link', { name: new RegExp(`Tema ${n}\\b`) })
+    await expect(topic(9)).toBeVisible()
+    await expect(topic(4)).toBeVisible()
+    await expect(topic(3)).toHaveCount(0)
+    await page.getByRole('button', { name: 'Ver las 9 categorías' }).click()
+    await expect(page).toHaveURL(/categories=all/)
+    await expect(topic(1)).toBeVisible()
+    await page.reload()
+    await expect(topic(1)).toBeVisible()
+    await page.getByRole('button', { name: 'Ver menos' }).click()
+    await expect(page).not.toHaveURL(/categories=all/)
+    await expect(topic(1)).toHaveCount(0)
+  })
+
+  test('sin artículos el personal ve la llamada a crear el primero y un cliente no', async ({ page }) => {
+    await page.route('**/api/knowledge/articles*', (route) =>
+      route.fulfill({ json: { items: [], page: 0, size: 10, totalItems: 0, totalPages: 0 } }),
     )
-    expect(overflow).toBeLessThanOrEqual(0)
+    await page.goto('/conocimiento')
+    await expect(page.getByRole('heading', { name: 'Todavía no hay artículos' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Nuevo artículo' })).toHaveCount(2)
+    await mockApi(page, 'customer')
+    await page.goto('/conocimiento')
+    await expect(page.getByRole('heading', { name: 'Todavía no hay artículos' })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Nuevo artículo' })).toHaveCount(0)
+  })
+
+  test('un error en la lista se anuncia, ofrece reintentar y no oculta las categorías', async ({ page }) => {
+    let fail = true
+    await page.route('**/api/knowledge/articles*', async (route) => {
+      if (fail) return route.fulfill({ status: 500, json: { status: 500, title: 'Error' } })
+      return route.fallback()
+    })
+    await page.goto('/conocimiento')
+    await expect(page.getByRole('heading', { name: 'No pudimos cargar los artículos' })).toBeVisible()
+    await expect(page.getByRole('link', { name: /Cuenta y acceso/ })).toBeVisible()
+    fail = false
+    await page.getByRole('button', { name: 'Reintentar cargar los artículos' }).click()
+    await expect(page.getByRole('article').first()).toBeVisible()
+  })
+
+  test('un 403 en la lista dice que no hay permisos', async ({ page }) => {
+    await page.route('**/api/knowledge/articles*', (route) =>
+      route.fulfill({ status: 403, json: { status: 403, title: 'Prohibido' } }),
+    )
+    await page.goto('/conocimiento')
+    await expect(page.getByRole('heading', { name: 'No tienes acceso a estos artículos' })).toBeVisible()
+  })
+
+  test('al llegar los datos el contenido de debajo no se mueve (primera carga)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    let release!: () => void
+    const released = new Promise<void>((resolve) => (release = resolve))
+    await page.route('**/api/knowledge/categories', async (route) => {
+      await released
+      await route.fallback()
+    })
+    await page.goto('/conocimiento')
+    const articlesHeading = page.getByRole('heading', { level: 2, name: 'Artículos' })
+    await expect(articlesHeading).toBeVisible()
+    const before = (await articlesHeading.boundingBox())!.y
+    release()
+    await expect(page.getByRole('link', { name: /Cuenta y acceso/ })).toBeVisible()
+    await expect(page.getByRole('article').first()).toBeVisible()
+    const after = (await articlesHeading.boundingBox())!.y
+    // La línea de apoyo, las tarjetas de categoría y los botones del personal reservan su altura real mientras cargan.
+    expect(Math.abs(after - before)).toBeLessThanOrEqual(1)
+  })
+
+  test('el teclado alcanza el buscador, las categorías, las píldoras y los artículos', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/conocimiento')
+    await expect(page.getByRole('article').first()).toBeVisible()
+    await page.getByRole('searchbox', { name: 'Buscar artículos' }).focus()
+    const reached: string[] = []
+    for (let step = 0; step < 14; step++) {
+      await page.keyboard.press('Tab')
+      reached.push(await page.evaluate(() => document.activeElement?.textContent?.trim().slice(0, 30) ?? ''))
+    }
+    expect(reached.join('|')).toContain('Buscar')
+    expect(reached.join('|')).toContain('Cuenta y acceso')
+    expect(reached.join('|')).toContain('Publicados')
+    expect(reached.join('|')).toContain('Cómo recuperar el acceso')
   })
 })
-
 const SLUG = 'como-recuperar-el-acceso-a-tu-cuenta'
-
-const noHorizontalOverflow = (page: Page) =>
-  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 
 test.describe('lectura de un artículo', () => {
   test('a 1440 px el texto mide a lo sumo 720 px y el índice es un panel lateral que lleva al encabezado', async ({
@@ -339,7 +503,7 @@ test.describe('editor de artículos', () => {
     // Un borrador no lo ve el cliente: la lista y el enlace directo responden como si no existiera.
     await mockApi(page, 'customer', { articleStore })
     await page.goto('/conocimiento')
-    await expect(page.getByRole('table', { name: 'Artículos' })).toBeVisible()
+    await expect(page.getByRole('article').first()).toBeVisible()
     await expect(page.getByRole('link', { name: 'Cambiar tu contraseña' })).toHaveCount(0)
 
     await mockApi(page, 'admin', { articleStore })
@@ -372,7 +536,7 @@ test.describe('editor de artículos', () => {
 
     await mockApi(page, 'customer', { articleStore })
     await page.goto('/conocimiento')
-    await expect(page.getByRole('table', { name: 'Artículos' })).toBeVisible()
+    await expect(page.getByRole('article').first()).toBeVisible()
     await expect(page.getByRole('link', { name: 'Guía interna de escalado' })).toHaveCount(0)
     await page.goto('/conocimiento/guia-interna-de-escalado')
     await expect(page.getByRole('heading', { level: 1, name: 'Artículo no encontrado' })).toBeVisible()

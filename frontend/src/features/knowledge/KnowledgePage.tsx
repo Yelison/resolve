@@ -1,42 +1,38 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import {
-  Alert,
-  Button,
-  buttonClassName,
-  EmptyState,
-  FilterChip,
-  Icon,
-  Menu,
-  Pagination,
-  SearchField,
-  Skeleton,
-  type MenuItem,
-} from '../../components/ui'
-import type { ArticleStatus, Category } from '../../domain/article'
+import { Alert, Button, buttonClassName, EmptyState, Icon, Pagination } from '../../components/ui'
+import { isApiError } from '../../api/client'
+import type { ArticleStatus } from '../../domain/article'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
-import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
 import { useTimeZone } from '../session/useTimeZone'
-import { ArticlesTable } from './ArticlesTable'
-import { CategoryCard } from './CategoryCard'
+import { ArticleCard, ArticleCardSkeleton } from './ArticleCard'
+import { CategoryCard, CategoryCardSkeleton } from './CategoryCard'
+import { categoryTones } from './categoryTones'
+import { KnowledgeHero } from './KnowledgeHero'
 import {
   hasActiveArticleFilters,
   readArticleListState,
   writeArticleListState,
   type ArticleListState,
 } from './listParams'
-import { useArticleList, useCategories } from './queries'
+import { useArticleCount, useArticleList, useCategories } from './queries'
+import { StatusPills } from './StatusPills'
 import styles from './KnowledgePage.module.css'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 
-const statusLabels: Record<ArticleStatus, string> = { published: 'Publicados', draft: 'Borradores' }
+/** Categorías visibles antes de «Ver las N categorías»: las de más artículos. */
+const VISIBLE_CATEGORIES = 6
+
+/** Tarjetas de carga: lo que cabe en la primera pantalla sin saber cuántas habrá. */
+const CATEGORY_PLACEHOLDERS = 3
+const ARTICLE_PLACEHOLDERS = 4
 
 /**
- * Lista de la base de conocimiento. La ve todo el mundo: el servidor solo entrega a un cliente los artículos
- * publicados y públicos, y la interfaz no muestra al cliente el estado ni la acción de crear.
+ * Centro de ayuda de la base de conocimiento. La ve todo el mundo: el servidor solo entrega a un cliente los
+ * artículos publicados y públicos, y la interfaz no muestra al cliente el estado ni la acción de crear.
  */
 export function KnowledgePage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -71,107 +67,169 @@ export function KnowledgePage() {
     }
   }, [state.q])
 
-  const list = useArticleList({ ...state, pageSize: PAGE_SIZE })
+  const list = useArticleList({
+    q: state.q,
+    category: state.category,
+    status: state.status,
+    page: state.page,
+    pageSize: PAGE_SIZE,
+  })
   const categories = useCategories()
+  // Una sola consulta de recuento: el estado que la lista no está filtrando. El otro sale de `totalItems` de la lista
+  // (sin filtro de estado es publicados + borradores; con uno, es el de ese estado). Los recuentos siguen la búsqueda
+  // y la categoría, no el estado. `ArticleStatus` solo tiene estos dos valores; si un día tuviera más, habría que pedir
+  // un recuento por estado.
+  const otherStatus: ArticleStatus = state.status === 'draft' ? 'published' : 'draft'
+  const other = useArticleCount({ q: state.q, category: state.category, status: otherStatus }, isStaff)
+  // Con `keepPreviousData`, al cambiar de píldora la lista y el recuento enseñan cada uno su resultado anterior, que es
+  // el del estado contrario: mezclarlos, aunque los dos estén retrasados, intercambia los números. Solo se muestran con
+  // datos al día; mientras tanto las píldoras se quedan sin número.
+  const consistent = list.isSuccess && other.isSuccess && !list.isPlaceholderData && !other.isPlaceholderData
+  const statusCounts = {
+    published: undefined as number | undefined,
+    draft: undefined as number | undefined,
+  }
+  if (consistent) {
+    const total = list.data.totalItems
+    if (state.status === 'published') {
+      statusCounts.published = total
+      statusCounts.draft = other.data
+    } else if (state.status === 'draft') {
+      statusCounts.draft = total
+      statusCounts.published = other.data
+    } else {
+      statusCounts.draft = other.data
+      statusCounts.published = total - other.data
+    }
+  }
 
   const clearFilters = () => {
     setSearchText('')
     update({ q: '', category: undefined, status: undefined })
   }
-  const selectCategory = (category: Category) =>
-    update({ category: state.category === category.slug ? undefined : category.slug })
+  // El botón «Buscar» adelanta el envío del texto actual sin esperar al debounce.
+  const submitSearch = () => {
+    pushedSearch.current = searchText.trim()
+    update({ q: searchText })
+  }
+  const categoryFilter = (slug: string) => {
+    const search = writeArticleListState({ ...state, page: 1, category: state.category === slug ? undefined : slug })
+    return { search: search.size > 0 ? `?${search}` : '' }
+  }
+
+  // El total sale de las categorías: es lo que quien consulta puede leer y no cambia con la búsqueda.
+  const articleCount = categories.isPending
+    ? undefined
+    : categories.isError
+      ? null
+      : categories.data.reduce((total, category) => total + category.articles, 0)
+  const hideCategories = !isStaff && categories.isSuccess && categories.data.length === 0
 
   return (
     <div className={pageStyles.page}>
-      <PageHeader
-        title="Base de conocimiento"
-        description="Respuestas claras que ayudan a tus clientes y a tu equipo."
-        actions={
-          isStaff && (
-            <Link to="/conocimiento/nuevo" className={buttonClassName()}>
-              <Icon name="plus" />
-              Nuevo artículo
-            </Link>
-          )
-        }
+      <KnowledgeHero
+        audience={isStaff ? 'staff' : 'customer'}
+        articleCount={articleCount}
+        value={searchText}
+        onValueChange={setSearchText}
+        onSubmit={submitSearch}
       />
 
-      <div className={styles.filters}>
-        <SearchField
-          label="Buscar artículos"
-          placeholder="Buscar por título, contenido o categoría…"
-          value={searchText}
-          onValueChange={setSearchText}
-          fieldClassName={styles.search}
-        />
-        {isStaff && <StatusFilter status={state.status} onChange={(status) => update({ status })} />}
-      </div>
-
-      <Categories categories={categories} selected={state.category} onSelect={selectCategory} />
-
-      <section className={styles.panel} aria-label="Lista de artículos">
-        <div className={styles.results}>
-          <div className={styles.resultsInner}>
-            <Results
-              state={state}
-              list={list}
-              isStaff={isStaff}
-              timeZone={timeZone}
-              onClearFilters={clearFilters}
-              onPageChange={(page) => setSearchParams(writeArticleListState({ ...state, page }))}
-            />
+      {!hideCategories && (
+        <section className={styles.section} aria-labelledby="kb-categories">
+          <div className={styles.sectionHeader}>
+            <div className={styles.titleGroup}>
+              <h2 id="kb-categories" className={styles.sectionTitle}>
+                {isStaff ? 'Categorías' : 'Temas'}
+              </h2>
+              {isStaff && categories.isSuccess && categories.data.length > 0 && (
+                <span className={styles.sectionCount}>
+                  {categories.data.length}
+                  <span className="visually-hidden"> categorías</span>
+                </span>
+              )}
+            </div>
+            {isStaff && (
+              <Link to="/conocimiento/nuevo" className={buttonClassName()}>
+                <Icon name="plus" />
+                Nuevo artículo
+              </Link>
+            )}
           </div>
+          <Categories
+            isStaff={isStaff}
+            categories={categories}
+            selected={state.category}
+            filterFor={categoryFilter}
+            expanded={Boolean(state.allCategories)}
+            onExpandedChange={(allCategories) =>
+              update({ allCategories: allCategories || undefined, page: state.page })
+            }
+          />
+        </section>
+      )}
+
+      <section className={styles.section} aria-labelledby="kb-articles">
+        <div className={styles.sectionHeader}>
+          <h2 id="kb-articles" className={styles.sectionTitle}>
+            {isStaff ? 'Artículos' : 'Artículos más recientes'}
+          </h2>
+          {isStaff && (
+            <StatusPills
+              status={state.status}
+              counts={statusCounts}
+              onChange={(status: ArticleStatus | undefined) => update({ status })}
+            />
+          )}
         </div>
+        <Results
+          state={state}
+          list={list}
+          isStaff={isStaff}
+          timeZone={timeZone}
+          onClearFilters={clearFilters}
+          onPageChange={(page) => setSearchParams(writeArticleListState({ ...state, page }))}
+        />
       </section>
     </div>
   )
 }
 
-function StatusFilter({
-  status,
-  onChange,
-}: {
-  status: ArticleStatus | undefined
-  onChange: (status: ArticleStatus | undefined) => void
-}) {
-  const items: MenuItem[] = [
-    { id: 'all', label: 'Todos', onSelect: () => onChange(undefined) },
-    { id: 'published', label: statusLabels.published, onSelect: () => onChange('published') },
-    { id: 'draft', label: statusLabels.draft, onSelect: () => onChange('draft') },
-  ]
-  return (
-    <Menu label="Filtrar por estado" items={items} placement="bottom-start">
-      {(trigger) => (
-        <FilterChip selected={status !== undefined} {...trigger}>
-          {status ? `Estado: ${statusLabels[status]}` : 'Estado'}
-        </FilterChip>
-      )}
-    </Menu>
-  )
-}
-
 function Categories({
+  isStaff,
   categories,
   selected,
-  onSelect,
+  filterFor,
+  expanded,
+  onExpandedChange,
 }: {
+  isStaff: boolean
   categories: ReturnType<typeof useCategories>
   selected: string | undefined
-  onSelect: (category: Category) => void
+  filterFor: (slug: string) => { search: string }
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
 }) {
   if (categories.isPending) {
     return (
-      <div className={styles.categoriesPlaceholder}>
-        <Skeleton lines={2} label="Cargando categorías…" />
+      <div role="status">
+        <span className="visually-hidden">{isStaff ? 'Cargando categorías…' : 'Cargando temas…'}</span>
+        <ul className={styles.categories} aria-hidden="true">
+          {Array.from({ length: CATEGORY_PLACEHOLDERS }, (_, index) => (
+            <li key={index}>
+              <CategoryCardSkeleton />
+            </li>
+          ))}
+        </ul>
       </div>
     )
   }
   if (categories.isError) {
     return (
-      <Alert tone="red" title="No pudimos cargar las categorías">
+      <Alert tone="red" title={isStaff ? 'No pudimos cargar las categorías' : 'No pudimos cargar los temas'}>
         <Button
           variant="secondary"
-          aria-label="Reintentar cargar las categorías"
+          aria-label={isStaff ? 'Reintentar cargar las categorías' : 'Reintentar cargar los temas'}
           onClick={() => void categories.refetch()}
         >
           Reintentar
@@ -180,14 +238,44 @@ function Categories({
     )
   }
   if (categories.data.length === 0) return null
+  // Las de más artículos primero; a igualdad, el orden alfabético que ya trae el servidor.
+  const ranked = categories.data
+    .map((category, index) => ({ category, tone: categoryTones[index % categoryTones.length]! }))
+    .sort((a, b) => b.category.articles - a.category.articles)
+  const collapsible = ranked.length > VISIBLE_CATEGORIES
+  const visible = collapsible && !expanded ? ranked.slice(0, VISIBLE_CATEGORIES) : ranked
+  // Una categoría filtrada que quedaría fuera del recorte se mantiene a la vista: es el filtro activo.
+  // Si el slug filtrado no corresponde a ninguna categoría (borrada, inexistente o sin artículos visibles para este rol)
+  // no hay nada que mantener a la vista y el recorte se queda como está.
+  const selectedEntry = ranked.find(({ category }) => category.slug === selected)
+  const selectedHidden = selectedEntry !== undefined && !visible.includes(selectedEntry)
+  const shown = selectedHidden ? [...visible.slice(0, VISIBLE_CATEGORIES - 1), selectedEntry] : visible
   return (
-    <ul className={styles.categories} aria-label="Categorías">
-      {categories.data.map((category) => (
-        <li key={category.id}>
-          <CategoryCard category={category} selected={category.slug === selected} onSelect={onSelect} />
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul id="kb-category-list" className={styles.categories}>
+        {shown.map(({ category, tone }) => (
+          <li key={category.id}>
+            <CategoryCard
+              category={category}
+              tone={tone}
+              to={filterFor(category.slug)}
+              selected={category.slug === selected}
+            />
+          </li>
+        ))}
+      </ul>
+      {collapsible && (
+        <Button
+          variant="secondary"
+          className={styles.more}
+          aria-expanded={expanded}
+          aria-controls="kb-category-list"
+          onClick={() => onExpandedChange(!expanded)}
+        >
+          {expanded ? 'Ver menos' : isStaff ? `Ver las ${ranked.length} categorías` : `Ver los ${ranked.length} temas`}
+        </Button>
+      )}
+    </>
   )
 }
 
@@ -203,14 +291,28 @@ interface ResultsProps {
 function Results({ state, list, isStaff, timeZone, onClearFilters, onPageChange }: ResultsProps) {
   if (list.isPending) {
     return (
-      <div className={styles.loading}>
-        <Skeleton lines={2} label="Cargando artículos…" />
-        <Skeleton lines={2} label="" />
-        <Skeleton lines={2} label="" />
+      <div role="status">
+        <span className="visually-hidden">Cargando artículos…</span>
+        <ul className={styles.articles} aria-hidden="true">
+          {Array.from({ length: ARTICLE_PLACEHOLDERS }, (_, index) => (
+            <li key={index}>
+              <ArticleCardSkeleton />
+            </li>
+          ))}
+        </ul>
       </div>
     )
   }
   if (list.isError) {
+    if (isApiError(list.error, 403)) {
+      return (
+        <EmptyState
+          kind="restricted"
+          title="No tienes acceso a estos artículos"
+          description="Tu rol no permite consultarlos. Si crees que es un error, pide acceso a quien administra tu espacio."
+        />
+      )
+    }
     return (
       <EmptyState
         kind="error"
@@ -218,7 +320,7 @@ function Results({ state, list, isStaff, timeZone, onClearFilters, onPageChange 
         description="Revisa tu conexión y vuelve a intentarlo."
         live={list.failureCount > 1}
         action={
-          <Button variant="secondary" onClick={() => void list.refetch()}>
+          <Button variant="secondary" aria-label="Reintentar cargar los artículos" onClick={() => void list.refetch()}>
             Reintentar
           </Button>
         }
@@ -279,13 +381,13 @@ function Results({ state, list, isStaff, timeZone, onClearFilters, onPageChange 
       <p className="visually-hidden" role="status">
         {page.totalItems === 1 ? '1 artículo' : `${page.totalItems} artículos`}
       </p>
-      <ArticlesTable
-        articles={page.items}
-        showStatus={isStaff}
-        timeZone={timeZone}
-        caption={page.items.length === 1 ? 'Mostrando 1 resultado' : `Mostrando ${page.items.length} resultados`}
-        captionHidden
-      />
+      <ul className={styles.articles}>
+        {page.items.map((article) => (
+          <li key={article.id}>
+            <ArticleCard article={article} timeZone={timeZone} showStatus={isStaff} />
+          </li>
+        ))}
+      </ul>
       <Pagination page={page.page + 1} pageSize={page.size} total={page.totalItems} onPageChange={onPageChange} />
     </>
   )

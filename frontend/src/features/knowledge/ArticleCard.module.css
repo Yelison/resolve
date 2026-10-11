@@ -1,0 +1,134 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+  height: 100%;
+  padding: var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+  margin: 0;
+}
+
+.category {
+  font: var(--font-caption);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  /* Una sola línea con «…»: el nombre completo sigue en el DOM y en el `title`. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title {
+  margin: 0;
+  font: var(--font-strong);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: inherit;
+  text-decoration: none;
+}
+
+/* El título largo ocupa dos líneas como máximo; el texto completo sigue en el DOM y en el `title` del enlace. */
+.linkText {
+  display: -webkit-box;
+  min-width: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.link:hover {
+  color: var(--color-link);
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-small);
+}
+
+.excerpt {
+  margin: 0;
+  font: var(--font-body);
+  color: var(--color-muted);
+  overflow-wrap: anywhere;
+  /* Dos líneas como máximo; el texto completo sigue en el DOM. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.updated {
+  margin: 0;
+  margin-top: auto;
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+/* Carga: mismas cajas que la tarjeta real, con barras de la altura de línea (`1lh`) en lugar de texto. */
+.bar {
+  display: block;
+  box-sizing: border-box;
+  block-size: 1lh;
+  border-block: 0.2lh solid transparent;
+  border-radius: var(--radius-small);
+  background: var(--color-disabled);
+  background-clip: padding-box;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.short {
+  width: 40%;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    animation: none;
+  }
+}
+
+/* El título real mide 44 px de alto por su área táctil: la barra que lo sustituye también. */
+@media (max-width: 767.98px) {
+  .skeleton .title {
+    min-block-size: var(--touch-target);
+  }
+}
+
+@media (min-width: 768px) {
+  .card {
+    padding: var(--space-20);
+  }
+
+  /* El área táctil de 44 px solo hace falta por debajo de 768 px. */
+  .link {
+    min-height: 0;
+  }
+}

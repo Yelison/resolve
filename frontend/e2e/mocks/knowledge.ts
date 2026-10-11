@@ -13,7 +13,7 @@ const categoryDescriptions: Record<string, string> = {
 }
 
 const articleSummary = (
-  article: Pick<ArticleSummary, 'id' | 'slug' | 'title' | 'category'> & Partial<ArticleSummary>,
+  article: Pick<ArticleSummary, 'id' | 'slug' | 'title' | 'category' | 'excerpt'> & Partial<ArticleSummary>,
 ): ArticleSummary => ({
   status: 'published',
   visibility: 'public',
@@ -26,6 +26,8 @@ const articleSummary = (
 export const articles: ArticleSummary[] = [
   articleSummary({
     id: 'a-recuperar',
+    excerpt:
+      'Si olvidaste tu contraseña o no recibes el código de verificación, sigue estos pasos para volver a entrar.',
     slug: 'como-recuperar-el-acceso-a-tu-cuenta',
     title: 'Cómo recuperar el acceso a tu cuenta',
     category: acceso,
@@ -33,6 +35,7 @@ export const articles: ArticleSummary[] = [
   }),
   articleSummary({
     id: 'a-invitar',
+    excerpt: 'Envía invitaciones desde Equipo y elige el rol de cada persona antes de que entre.',
     slug: 'invitar-a-tu-equipo',
     title: 'Invitar a tu equipo',
     category: primerosPasos,
@@ -40,12 +43,14 @@ export const articles: ArticleSummary[] = [
   }),
   articleSummary({
     id: 'a-factura',
+    excerpt: 'Encuentra tus facturas de cada mes y descárgalas en PDF desde la configuración de tu empresa.',
     slug: 'descargar-una-factura',
     title: 'Descargar una factura',
     category: facturacion,
   }),
   articleSummary({
     id: 'a-notificaciones',
+    excerpt: 'Activa o silencia los avisos por correo y por la aplicación.',
     slug: 'configurar-notificaciones',
     title: 'Configurar notificaciones',
     category: primerosPasos,
@@ -54,6 +59,7 @@ export const articles: ArticleSummary[] = [
   }),
   articleSummary({
     id: 'a-largo',
+    excerpt: 'Elige qué avisos recibe cada persona y por qué canal, y evita que el equipo se pierda lo importante.',
     slug: 'una-guia-extraordinariamente-larga',
     title:
       'Una guía extraordinariamente larga sobre cómo configurar cada una de las notificaciones de tu espacio de trabajo',
@@ -62,10 +68,10 @@ export const articles: ArticleSummary[] = [
   }),
 ]
 
-/** Cuerpo de demostración de los artículos: con encabezados `##` y `###` para el índice. */
-const articleBody = (title: string) =>
+/** Cuerpo de demostración de los artículos: abre con su extracto y sigue con encabezados `##` y `###` para el índice. */
+const articleBody = (excerpt: string) =>
   [
-    `Esta guía explica: ${title.toLowerCase()}.`,
+    excerpt,
     '',
     '## Solicita un enlace nuevo',
     '',
@@ -81,16 +87,48 @@ const articleBody = (title: string) =>
     '- Sigue las instrucciones.',
   ].join('\n')
 
+/**
+ * Extracto de demostración: el primer párrafo que no es un encabezado, sin la sintaxis más común, en 160 caracteres como
+ * máximo. Es una aproximación del que calcula el servidor (`Excerpts.java`), que es el que prueban los tests del backend.
+ */
+export function excerptOf(body: string): string {
+  const paragraph =
+    body
+      .split(/\n\s*\n/)
+      .map((block) => block.trim())
+      .find((block) => block && !block.startsWith('#')) ?? ''
+  const text = paragraph
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`>~]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (text.length <= 160) return text
+  const cut = text.slice(0, 159)
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), 1)).trimEnd()}…`
+}
+
+const summaryOf = (article: Article): ArticleSummary => ({
+  id: article.id,
+  slug: article.slug,
+  title: article.title,
+  category: article.category,
+  status: article.status,
+  visibility: article.visibility,
+  excerpt: excerptOf(article.body),
+  updatedAt: article.updatedAt,
+  publishedAt: article.publishedAt,
+})
+
 /** Artículos con cuerpo, versión y ETag como el servidor. Cada test crea el suyo; se comparte entre roles con `mockApi`. */
 export type ArticleStore = Map<string, Article>
 
 export function createArticleStore(): ArticleStore {
   return new Map(
-    articles.map((summary) => [
+    articles.map(({ excerpt, ...summary }) => [
       summary.slug,
       {
         ...summary,
-        body: articleBody(summary.title),
+        body: articleBody(excerpt),
         allowFeedback: true,
         version: 1,
         createdBy: me.user,
@@ -105,7 +143,7 @@ export function createArticleStore(): ArticleStore {
  * publicados y públicos, y sin las categorías que se quedan vacías.
  */
 export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = createArticleStore()): MockFeature {
-  const readable = (article: ArticleSummary) =>
+  const readable = (article: Pick<ArticleSummary, 'status' | 'visibility'>) =>
     role !== 'customer' || (article.status === 'published' && article.visibility === 'public')
   const articleJson = (route: MockRoute, article: Article, status = 200) =>
     route.fulfill({
@@ -145,7 +183,7 @@ export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = cre
           (!status || article.status === status) &&
           (!q || `${article.title} ${article.category.name}`.toLowerCase().includes(q)),
       )
-      const items = matches.slice(0, size)
+      const items = matches.slice(0, size).map(summaryOf)
       return json(route, {
         items,
         page: 0,
