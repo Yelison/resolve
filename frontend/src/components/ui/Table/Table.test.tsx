@@ -2,11 +2,12 @@ import { render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { Table, TableCell, TableHeaderCell, TableRow } from './Table'
 
-function renderTable(rows = ['Ana', 'Luis']) {
+function renderTable(rows = ['Ana', 'Luis'], captionHidden = false) {
   return render(
     <Table
       label="Equipo"
       caption="Mostrando 2 resultados"
+      captionHidden={captionHidden}
       actionsLabel="Acciones"
       header={
         <>
@@ -32,6 +33,17 @@ describe('Table', () => {
     const table = screen.getByRole('table', { name: 'Equipo' })
     expect(table).toHaveAccessibleDescription('Mostrando 2 resultados')
     expect(screen.getByText('Mostrando 2 resultados')).toBeVisible()
+  })
+
+  it('con `captionHidden` la leyenda sigue describiendo la tabla pero solo la oyen los lectores de pantalla', () => {
+    renderTable(['Ana', 'Luis'], true)
+    expect(screen.getByRole('table', { name: 'Equipo' })).toHaveAccessibleDescription('Mostrando 2 resultados')
+    expect(screen.getByText('Mostrando 2 resultados')).toHaveClass('visually-hidden')
+  })
+
+  it('sin `captionHidden` la leyenda se ve', () => {
+    renderTable()
+    expect(screen.getByText('Mostrando 2 resultados')).not.toHaveClass('visually-hidden')
   })
 
   it('añade al final de la cabecera la columna de acciones, solo para lectores de pantalla', () => {

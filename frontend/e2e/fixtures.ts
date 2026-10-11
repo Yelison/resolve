@@ -48,4 +48,18 @@ export const test = base.extend({
   },
 })
 
-export { expect } from '@playwright/test'
+import { expect } from '@playwright/test'
+
+export { expect }
+
+/**
+ * Bajo una tabla con paginación el recuento se ve una sola vez («1–3 de 3 resultados»): la leyenda «Mostrando …»
+ * sigue en la página para describir la tabla, pero reducida a 1 px para los lectores de pantalla.
+ */
+export async function expectSingleVisibleCount(page: Page) {
+  const caption = page.getByText(/^Mostrando \d+ resultados?$/)
+  await expect(caption).toHaveCount(1)
+  const box = await caption.boundingBox()
+  expect(box === null || box.width <= 1).toBe(true)
+  await expect(page.getByText(/^\d+–\d+ de \d+ resultados$/)).toBeVisible()
+}

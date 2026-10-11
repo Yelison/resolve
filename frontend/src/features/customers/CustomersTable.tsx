@@ -17,6 +17,8 @@ export interface CustomersTableProps {
   customers: CustomerSummary[]
   /** Texto visible bajo la tabla, p. ej. «Mostrando 5 resultados». */
   caption: string
+  /** Con paginación debajo, la leyenda solo queda para los lectores de pantalla (ver `Table`). */
+  captionHidden?: boolean
   /** Acciones de cada fila; el menú solo se dibuja si el arreglo no está vacío. */
   actions?: (customer: CustomerSummary) => MenuItem[]
 }
@@ -25,11 +27,12 @@ export interface CustomersTableProps {
  * Tabla de clientes sobre `Table`: tarjetas en contenedores estrechos (< 560 px), nombre, empresa, tickets y estado
  * hasta la tabla completa, que añade el correo.
  */
-export function CustomersTable({ customers, caption, actions }: CustomersTableProps) {
+export function CustomersTable({ customers, caption, captionHidden, actions }: CustomersTableProps) {
   return (
     <Table
       label="Clientes"
       caption={caption}
+      captionHidden={captionHidden}
       actionsLabel="Acciones"
       className={styles.table}
       header={

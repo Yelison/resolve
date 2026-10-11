@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { articles, createArticleStore, expect, mockApi, test } from './fixtures'
+import { articles, createArticleStore, expect, expectSingleVisibleCount, mockApi, test } from './fixtures'
 
 const longTitle = articles.find((article) => article.id === 'a-largo')!.title
 
@@ -21,6 +21,9 @@ test.describe('base de conocimiento', () => {
     await expect(table.getByRole('row')).toHaveCount(6) // encabezado + 5 artículos
     await expect(table.getByText('Borrador')).toBeVisible()
     await expect(page.getByRole('link', { name: 'Nuevo artículo' })).toHaveAttribute('href', '/conocimiento/nuevo')
+    await expect(page.getByText('Entrar, contraseñas y verificación en dos pasos · 1 artículo')).toBeVisible()
+    await expect(page.getByText(/^Descripción de /)).toHaveCount(0)
+    await expectSingleVisibleCount(page)
 
     await page.getByRole('button', { name: /Facturación/ }).click()
     await expect(page).toHaveURL(/category=facturacion/)

@@ -5,8 +5,14 @@ import styles from './Table.module.css'
 export interface TableProps {
   /** Nombre accesible de la tabla. */
   label: string
-  /** Texto visible bajo la tabla, p. ej. «Mostrando 5 resultados»; también la describe. */
+  /** Texto bajo la tabla, p. ej. «Mostrando 5 resultados»; también la describe (`aria-describedby`). */
   caption: string
+  /**
+   * Oculta la leyenda a la vista y la deja para los lectores de pantalla. Regla única: la tabla siempre se describe con
+   * `caption`, y el recuento solo se ve una vez. Con `Pagination` debajo, que ya muestra «1–3 de 3 resultados», se
+   * pasa `captionHidden`; sin paginación (equipo, reportes, matriz de permisos) la leyenda es el recuento visible.
+   */
+  captionHidden?: boolean
   /** Texto solo para lectores de pantalla de la última columna, la de acciones (p. ej. «Acciones»). */
   actionsLabel: string
   /** Un `TableHeaderCell` por columna de datos. */
@@ -26,7 +32,7 @@ export interface TableProps {
  * `--table-areas-card`, `--table-columns-mid`, `--table-areas-mid`, `--table-columns-wide` y `--table-areas-wide`
  * (opcionales: `--table-header-areas-mid` y `--table-caption-end`). Las áreas `name` y `actions` las usa el compartido.
  */
-export function Table({ label, caption, actionsLabel, header, children, className }: TableProps) {
+export function Table({ label, caption, captionHidden, actionsLabel, header, children, className }: TableProps) {
   const captionId = useId()
   return (
     <div className={cx(styles.wrapper, className)}>
@@ -43,7 +49,7 @@ export function Table({ label, caption, actionsLabel, header, children, classNam
           {children}
         </div>
       </div>
-      <p id={captionId} className={styles.caption}>
+      <p id={captionId} className={captionHidden ? 'visually-hidden' : styles.caption}>
         {caption}
       </p>
     </div>

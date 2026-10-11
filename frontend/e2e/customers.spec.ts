@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures'
+import { expect, expectSingleVisibleCount, test } from './fixtures'
 
 test.describe('clientes', () => {
   test('la lista filtra por empresa, busca y muestra los archivados', async ({ page }) => {
@@ -7,6 +7,7 @@ test.describe('clientes', () => {
     const table = page.getByRole('table', { name: 'Clientes' })
     await expect(table.getByRole('row')).toHaveCount(4) // encabezado + 3 activos
     await expect(page.getByText('Clientes activos')).toBeVisible()
+    await expectSingleVisibleCount(page)
 
     await page.getByRole('combobox', { name: 'Empresa' }).selectOption('Northstar')
     await expect(page).toHaveURL(/company=Northstar/)

@@ -6,6 +6,12 @@ const acceso = { id: 'cat-acceso', name: 'Cuenta y acceso', slug: 'cuenta-y-acce
 const facturacion = { id: 'cat-facturacion', name: 'Facturación', slug: 'facturacion' }
 const primerosPasos = { id: 'cat-pasos', name: 'Primeros pasos', slug: 'primeros-pasos' }
 
+const categoryDescriptions: Record<string, string> = {
+  [acceso.id]: 'Entrar, contraseñas y verificación en dos pasos',
+  [facturacion.id]: 'Planes, pagos y facturas',
+  [primerosPasos.id]: 'Configura tu espacio y empieza a atender',
+}
+
 const articleSummary = (
   article: Pick<ArticleSummary, 'id' | 'slug' | 'title' | 'category'> & Partial<ArticleSummary>,
 ): ArticleSummary => ({
@@ -118,7 +124,7 @@ export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = cre
     [acceso, facturacion, primerosPasos]
       .map((ref) => ({
         ...ref,
-        description: `Descripción de ${ref.name}`,
+        description: categoryDescriptions[ref.id] ?? null,
         articles: currentArticles().filter((article) => readable(article) && article.category.id === ref.id).length,
       }))
       .filter((entry) => role !== 'customer' || entry.articles > 0)

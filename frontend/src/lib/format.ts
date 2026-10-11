@@ -106,3 +106,13 @@ export function formatDateTime(date: Date, now: Date = new Date(), timeZone?: st
 export function formatWeekdayShort(date: Date): string {
   return formatterFor('weekdayShort', { weekday: 'short' }, 'UTC').format(date).replace('.', '')
 }
+
+/** «1 nuevo hoy», «8 nuevos hoy». */
+export function newToday(count: number): string {
+  return count === 1 ? '1 nuevo hoy' : `${count} nuevos hoy`
+}
+
+/** «1 asignado a ti», «4 asignados a ti». */
+export function assignedToYou(count: number): string {
+  return count === 1 ? '1 asignado a ti' : `${count} asignados a ti`
+}

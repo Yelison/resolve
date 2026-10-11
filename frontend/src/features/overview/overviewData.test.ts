@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { compareResolved, newToday, requestPoints } from './overviewData'
+import { compareResolved, requestPoints } from './overviewData'
 
 describe('compareResolved', () => {
   it('con más resueltos que ayer da la diferencia y el porcentaje', () => {
@@ -22,12 +22,6 @@ describe('compareResolved', () => {
   it('sin diferencia no hay flecha ni tendencia', () => {
     expect(compareResolved(7, 7)).toEqual({ text: 'Igual que ayer', arrow: null, trend: 'neutral' })
     expect(compareResolved(0, 0)).toEqual({ text: 'Igual que ayer', arrow: null, trend: 'neutral' })
-  })
-})
-
-describe('newToday', () => {
-  it('concuerda en singular y plural', () => {
-    expect([newToday(0), newToday(1), newToday(8)]).toEqual(['0 nuevos hoy', '1 nuevo hoy', '8 nuevos hoy'])
   })
 })
 

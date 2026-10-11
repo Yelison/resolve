@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBytes, formatDateTime, formatRelative, formatWeekdayShort } from './format'
+import { assignedToYou, formatBytes, formatDateTime, formatRelative, formatWeekdayShort, newToday } from './format'
 
 describe('formatBytes', () => {
   it.each([
@@ -119,5 +119,21 @@ describe('formatWeekdayShort', () => {
   it('da tres letras por día, sin punto y con «mié» en lugar de «X»', () => {
     const week = [28, 29, 30, 1, 2, 3, 4].map((day, index) => new Date(Date.UTC(2026, index < 3 ? 8 : 9, day)))
     expect(week.map(formatWeekdayShort)).toEqual(['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'])
+  })
+})
+
+describe('newToday', () => {
+  it('concuerda en singular y plural', () => {
+    expect([newToday(0), newToday(1), newToday(8)]).toEqual(['0 nuevos hoy', '1 nuevo hoy', '8 nuevos hoy'])
+  })
+})
+
+describe('assignedToYou', () => {
+  it('concuerda en singular y plural', () => {
+    expect([assignedToYou(0), assignedToYou(1), assignedToYou(4)]).toEqual([
+      '0 asignados a ti',
+      '1 asignado a ti',
+      '4 asignados a ti',
+    ])
   })
 })
