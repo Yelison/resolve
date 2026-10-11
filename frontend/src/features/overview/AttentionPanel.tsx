@@ -39,7 +39,7 @@ const ghostItems: AttentionItem[] = [1, 2, 3, 4, 5, 6].map((number) => ({
     status: 'open',
     priority: 'medium',
     channel: 'email',
-    customer: { id: 'ghost', name: 'María Pérez', email: 'maria@cliente.example', company: null },
+    customer: { id: 'ghost', name: 'Nombre Cliente', email: 'cliente@correo.test', company: null },
     assignee: null,
     lastMessage: null,
     createdAt: '2026-01-01T00:00:00Z',

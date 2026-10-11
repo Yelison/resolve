@@ -22,7 +22,7 @@ const ACTIVITY_REQUEST = 20
 const ghostEvents = Array.from({ length: ACTIVITY_SIZE }, (_, index) => ({
   id: `ghost-${index}`,
   kind: 'status' as const,
-  title: 'Laura Méndez cambió el estado a En progreso · #1047 Pago rechazado',
+  title: 'Nombre Apellido cambió el estado a En progreso · #1047 Pago rechazado',
   at: new Date(0),
   timeLabel: 'Hoy, 21:09',
 }))
