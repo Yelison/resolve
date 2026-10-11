@@ -122,6 +122,14 @@ describe('PermissionsMatrix sin ancho para la tabla', () => {
     )
   })
 
+  it('a 1024 px el panel mide ~656 px: la columna de capacidad quedaría demasiado estrecha, así que usa el selector', () => {
+    mockViewport(1024)
+    mockElementWidth(656)
+    renderMatrix()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Rol' })).toBeInTheDocument()
+  })
+
   it('con ventana de escritorio pero panel estrecho también usa el selector de rol', () => {
     mockViewport(768)
     mockElementWidth(392)
