@@ -14,14 +14,18 @@ final class TicketDtos {
 	private TicketDtos() {
 	}
 
-	record TicketSummaryDto(UUID id, long number, String subject, TicketStatus status, TicketPriority priority,
-			TicketChannel channel, CustomerDto customer, @Nullable MemberRefDto assignee, Instant createdAt,
-			Instant updatedAt) {
+	/** Vista previa del último mensaje de un ticket; {@code excerpt} es texto plano de a lo sumo 140 caracteres. */
+	record LastMessageDto(String excerpt, String authorName, boolean internal, Instant createdAt) {
+	}
 
-		static TicketSummaryDto from(Ticket ticket) {
+	record TicketSummaryDto(UUID id, long number, String subject, TicketStatus status, TicketPriority priority,
+			TicketChannel channel, CustomerDto customer, @Nullable MemberRefDto assignee,
+			@Nullable LastMessageDto lastMessage, Instant createdAt, Instant updatedAt) {
+
+		static TicketSummaryDto from(Ticket ticket, @Nullable LastMessageDto lastMessage) {
 			return new TicketSummaryDto(ticket.getId(), ticket.getNumber(), ticket.getSubject(), ticket.getStatus(),
 					ticket.getPriority(), ticket.getChannel(), CustomerDto.from(ticket.getCustomer()),
-					(ticket.getAssignee() != null) ? MemberRefDto.from(ticket.getAssignee()) : null,
+					(ticket.getAssignee() != null) ? MemberRefDto.from(ticket.getAssignee()) : null, lastMessage,
 					ticket.getCreatedAt(), ticket.getUpdatedAt());
 		}
 
