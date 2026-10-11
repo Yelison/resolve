@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { pendingInvitations, sentLabel } from './InvitationsPanel'
+import { pendingInvitations, sentLabel } from './teamInvitations'
 import { teamMember } from './teamFixtures'
 
 const now = new Date('2026-10-10T12:00:00Z')
