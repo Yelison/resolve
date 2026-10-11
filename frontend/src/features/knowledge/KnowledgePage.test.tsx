@@ -64,10 +64,11 @@ describe('KnowledgePage', () => {
       'GET /api/knowledge/articles': () => new Promise(() => {}) as never,
     })
     renderKnowledge()
-    expect(screen.getByText('Cargando categorías…')).toBeInTheDocument()
+    // Mientras /me carga se trata como cliente: «temas» y la invitación a abrir una solicitud.
+    expect(screen.getByText('Cargando temas…')).toBeInTheDocument()
     expect(screen.getByText('Cargando artículos…')).toBeInTheDocument()
     expect(screen.queryByRole('article')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: '¿Qué necesitas resolver?' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: '¿En qué podemos ayudarte?' })).toBeInTheDocument()
   })
 
   it('el personal ve la cabecera, las categorías con su descripción, las tarjetas con extracto y las píldoras', async () => {
@@ -105,6 +106,36 @@ describe('KnowledgePage', () => {
     expect(await screen.findByRole('button', { name: /Publicados\s*4/ })).toHaveAttribute('aria-pressed', 'false')
     expect(await screen.findByRole('button', { name: /Borradores\s*1/ })).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('el cliente ve «¿En qué podemos ayudarte?», «Temas» y el botón para abrir una solicitud, sin artículos de personal', async () => {
+    mockApi({
+      'GET /api/me': { body: customerMe },
+      'GET /api/knowledge/categories': { body: manyCategories },
+      'GET /api/knowledge/articles': { body: articlePage([articleSummary()]) },
+    })
+    renderKnowledge()
+    expect(await screen.findByRole('heading', { level: 1, name: '¿En qué podemos ayudarte?' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Busca una respuesta o empieza por un tema. Si no la encuentras, abre una solicitud.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Temas' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Categorías' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Artículos más recientes' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '¿No lo encuentras? Abre una solicitud' })).toHaveAttribute(
+      'href',
+      '/tickets',
+    )
+    expect(await screen.findByRole('button', { name: 'Ver los 8 temas' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Nuevo artículo/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Filtrar por estado' })).not.toBeInTheDocument()
+  })
+
+  it('el personal no ve la invitación a abrir una solicitud', async () => {
+    mockApi({ ...staffRoutes, 'GET /api/knowledge/articles': { body: articlePage([articleSummary()]) } })
+    renderKnowledge()
+    await screen.findByRole('heading', { level: 1, name: '¿Qué necesitas resolver?' })
+    expect(screen.queryByRole('link', { name: /Abre una solicitud/ })).not.toBeInTheDocument()
   })
 
   it('pide los artículos de diez en diez', async () => {

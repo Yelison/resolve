@@ -58,6 +58,10 @@ test.describe('base de conocimiento', () => {
       page.getByRole('navigation', { name: 'Principal' }).getByRole('link', { name: 'Conocimiento' }),
     ).toBeVisible()
     await expect(page.getByRole('article')).toHaveCount(3) // los publicados y públicos
+    await expect(page.getByRole('heading', { level: 1, name: '¿En qué podemos ayudarte?' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'Temas' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'Artículos más recientes' })).toBeVisible()
+    await expect(page.getByRole('link', { name: '¿No lo encuentras? Abre una solicitud' })).toBeVisible()
     await expect(page.getByText('Configurar notificaciones')).toHaveCount(0)
     await expect(page.getByText(longTitle)).toHaveCount(0)
     await expect(page.getByText('Borrador')).toHaveCount(0)

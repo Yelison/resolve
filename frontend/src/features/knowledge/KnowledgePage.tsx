@@ -26,6 +26,12 @@ const PAGE_SIZE = 10
 /** Categorías visibles antes de «Ver las N categorías»: las de más artículos. */
 const VISIBLE_CATEGORIES = 6
 
+/**
+ * Donde un cliente abre una solicitud. La creación de tickets es hoy solo del personal (`/tickets/nuevo`), así que el
+ * enlace lleva a la lista de sus tickets; cuando los clientes puedan crear, solo cambia esta constante.
+ */
+const REQUEST_PATH = '/tickets'
+
 /** Tarjetas de carga: lo que cabe en la primera pantalla sin saber cuántas habrá. */
 const CATEGORY_PLACEHOLDERS = 3
 const ARTICLE_PLACEHOLDERS = 4
@@ -105,6 +111,7 @@ export function KnowledgePage() {
   return (
     <div className={pageStyles.page}>
       <KnowledgeHero
+        audience={isStaff ? 'staff' : 'customer'}
         articleCount={articleCount}
         value={searchText}
         onValueChange={setSearchText}
@@ -115,7 +122,7 @@ export function KnowledgePage() {
         <section className={styles.section} aria-labelledby="kb-categories">
           <div className={styles.sectionHeader}>
             <h2 id="kb-categories" className={styles.sectionTitle}>
-              Categorías
+              {isStaff ? 'Categorías' : 'Temas'}
             </h2>
             {isStaff && (
               <Link to="/conocimiento/nuevo" className={buttonClassName()}>
@@ -125,6 +132,7 @@ export function KnowledgePage() {
             )}
           </div>
           <Categories
+            isStaff={isStaff}
             categories={categories}
             selected={state.category}
             filterFor={categoryFilter}
@@ -139,8 +147,13 @@ export function KnowledgePage() {
       <section className={styles.section} aria-labelledby="kb-articles">
         <div className={styles.sectionHeader}>
           <h2 id="kb-articles" className={styles.sectionTitle}>
-            Artículos
+            {isStaff ? 'Artículos' : 'Artículos más recientes'}
           </h2>
+          {!isStaff && (
+            <Link to={REQUEST_PATH} className={buttonClassName({ variant: 'secondary' })}>
+              ¿No lo encuentras? Abre una solicitud
+            </Link>
+          )}
           {isStaff && (
             <StatusPills
               status={state.status}
@@ -163,12 +176,14 @@ export function KnowledgePage() {
 }
 
 function Categories({
+  isStaff,
   categories,
   selected,
   filterFor,
   expanded,
   onExpandedChange,
 }: {
+  isStaff: boolean
   categories: ReturnType<typeof useCategories>
   selected: string | undefined
   filterFor: (slug: string) => { search: string }
@@ -178,7 +193,7 @@ function Categories({
   if (categories.isPending) {
     return (
       <div role="status">
-        <span className="visually-hidden">Cargando categorías…</span>
+        <span className="visually-hidden">{isStaff ? 'Cargando categorías…' : 'Cargando temas…'}</span>
         <ul className={styles.categories} aria-hidden="true">
           {Array.from({ length: CATEGORY_PLACEHOLDERS }, (_, index) => (
             <li key={index}>
@@ -191,10 +206,10 @@ function Categories({
   }
   if (categories.isError) {
     return (
-      <Alert tone="red" title="No pudimos cargar las categorías">
+      <Alert tone="red" title={isStaff ? 'No pudimos cargar las categorías' : 'No pudimos cargar los temas'}>
         <Button
           variant="secondary"
-          aria-label="Reintentar cargar las categorías"
+          aria-label={isStaff ? 'Reintentar cargar las categorías' : 'Reintentar cargar los temas'}
           onClick={() => void categories.refetch()}
         >
           Reintentar
@@ -236,7 +251,7 @@ function Categories({
           aria-controls="kb-category-list"
           onClick={() => onExpandedChange(!expanded)}
         >
-          {expanded ? 'Ver menos' : `Ver las ${ranked.length} categorías`}
+          {expanded ? 'Ver menos' : isStaff ? `Ver las ${ranked.length} categorías` : `Ver los ${ranked.length} temas`}
         </Button>
       )}
     </>
