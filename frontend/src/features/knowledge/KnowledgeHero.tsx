@@ -3,7 +3,7 @@ import { Button, SearchField } from '../../components/ui'
 import styles from './KnowledgeHero.module.css'
 
 export interface KnowledgeHeroProps {
-  /** Un cliente no tiene la cifra del personal: ve una invitación a buscar o a abrir una solicitud. */
+  /** Un cliente no ve la cifra del personal: ve una invitación a buscar. */
   audience: 'staff' | 'customer'
   /**
    * Artículos que quien consulta puede leer, sumados de las categorías: no cambia con la búsqueda. `undefined` mientras
@@ -20,7 +20,7 @@ const GENERIC_LEAD = 'Busca en tu base de conocimiento o empieza por una categor
 
 function Lead({ articleCount, audience }: Pick<KnowledgeHeroProps, 'articleCount' | 'audience'>) {
   if (audience === 'customer') {
-    return <>Busca una respuesta o empieza por un tema. Si no la encuentras, abre una solicitud.</>
+    return <>Busca una respuesta o empieza por un tema.</>
   }
   if (articleCount === null) return <>{GENERIC_LEAD}</>
   if (articleCount === 0) return <>Todavía no hay artículos en tu base de conocimiento.</>

@@ -26,12 +26,6 @@ const PAGE_SIZE = 10
 /** Categorías visibles antes de «Ver las N categorías»: las de más artículos. */
 const VISIBLE_CATEGORIES = 6
 
-/**
- * Donde un cliente abre una solicitud. La creación de tickets es hoy solo del personal (`/tickets/nuevo`), así que el
- * enlace lleva a la lista de sus tickets; cuando los clientes puedan crear, solo cambia esta constante.
- */
-const REQUEST_PATH = '/tickets'
-
 /** Tarjetas de carga: lo que cabe en la primera pantalla sin saber cuántas habrá. */
 const CATEGORY_PLACEHOLDERS = 3
 const ARTICLE_PLACEHOLDERS = 4
@@ -149,11 +143,6 @@ export function KnowledgePage() {
           <h2 id="kb-articles" className={styles.sectionTitle}>
             {isStaff ? 'Artículos' : 'Artículos más recientes'}
           </h2>
-          {!isStaff && (
-            <Link to={REQUEST_PATH} className={buttonClassName({ variant: 'secondary' })}>
-              ¿No lo encuentras? Abre una solicitud
-            </Link>
-          )}
           {isStaff && (
             <StatusPills
               status={state.status}
