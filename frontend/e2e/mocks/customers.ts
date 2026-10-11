@@ -119,7 +119,7 @@ export function customersMock(
         .filter(
           (customer) =>
             customer.archived === archived &&
-            (!company || customer.company === company) &&
+            (!company || customer.company?.toLowerCase() === company.toLowerCase()) &&
             (!withoutCompany || !customer.company?.trim()) &&
             (!q || `${customer.name} ${customer.email} ${customer.company ?? ''}`.toLowerCase().includes(q)),
         )
