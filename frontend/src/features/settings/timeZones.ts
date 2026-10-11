@@ -123,7 +123,16 @@ function formatterFor(id: string): Intl.DateTimeFormat | null {
  */
 function offsetOf(id: string, at: Date): string {
   const parts = formatterFor(id)?.formatToParts(at)
-  return (parts?.find((part) => part.type === 'timeZoneName')?.value ?? '').replace('-', '\u2212')
+  return normalizeOffset(parts?.find((part) => part.type === 'timeZoneName')?.value ?? '')
+}
+
+/**
+ * Deja el desfase que da `Intl` como lo mostramos. Según la versión de ICU, el meridiano llega como «GMT», «GMT+0»,
+ * «GMT-0», «GMT+00:00» o «UTC»: todos son «GMT». Los demás llevan el signo menos tipográfico («GMT-5» → «GMT−5»).
+ */
+export function normalizeOffset(raw: string): string {
+  if (/^(?:GMT|UTC)(?:[+\-\u2212]0{1,2}(?::00)?)?$/.test(raw)) return 'GMT'
+  return raw.replace('-', '\u2212')
 }
 
 /** Nombre legible de la zona, con tildes: «Bogotá», «Ciudad de México», «Argentina/Buenos Aires» si no tiene el suyo. */

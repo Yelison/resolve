@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { timeZoneGroups, timeZoneLabel } from './timeZones'
+import { normalizeOffset, timeZoneGroups, timeZoneLabel } from './timeZones'
 
 // Los desfases cambian con el horario de verano: sin fijar la fecha, estos tests dependerían del día en que corren.
 const WINTER = new Date('2026-01-15T12:00:00Z')
@@ -11,6 +11,31 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
+})
+
+describe('normalizeOffset', () => {
+  // Cadenas de distintas versiones de ICU: el test no depende del ICU de la máquina.
+  it.each(['GMT', 'GMT+0', 'GMT-0', 'GMT+00:00', 'GMT-00:00', 'GMT+0:00', 'GMT\u221200:00', 'UTC'])(
+    '«%s» es el meridiano: «GMT»',
+    (raw) => {
+      expect(normalizeOffset(raw)).toBe('GMT')
+    },
+  )
+
+  it.each([
+    ['GMT-5', 'GMT\u22125'],
+    ['GMT+1', 'GMT+1'],
+    ['GMT+5:30', 'GMT+5:30'],
+    ['GMT-3:30', 'GMT\u22123:30'],
+    ['GMT+10', 'GMT+10'],
+    ['GMT+13', 'GMT+13'],
+  ])('«%s» conserva su desfase: «%s»', (raw, shown) => {
+    expect(normalizeOffset(raw)).toBe(shown)
+  })
+
+  it('una cadena vacía (zona que el navegador no conoce) sigue vacía', () => {
+    expect(normalizeOffset('')).toBe('')
+  })
 })
 
 describe('timeZoneGroups', () => {
