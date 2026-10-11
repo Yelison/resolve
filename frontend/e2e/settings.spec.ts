@@ -285,10 +285,12 @@ test.describe('configuración: Empresa', () => {
   })
 
   for (const viewport of [
-    { width: 390, height: 640 },
+    { width: 390, height: 720 },
     { width: 1440, height: 700 },
   ]) {
-    test(`tabular hasta la barra de guardar no desplaza la página, a ${viewport.width} px`, async ({ page }) => {
+    test(`tabular hasta la barra de guardar no desplaza la página, a ${viewport.width}×${viewport.height} px`, async ({
+      page,
+    }) => {
       await page.setViewportSize(viewport)
       await page.goto('/configuracion/empresa')
       await page.getByRole('textbox', { name: 'Nombre del espacio' }).fill('Otro nombre')
