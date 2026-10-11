@@ -4,9 +4,9 @@ import { buttonClassName, EmptyState } from '../../components/ui'
 import { useMe } from '../session/queries'
 
 /**
- * Guardia de las pestañas del personal (Empresa y Permisos). La sección entera la abren todos los roles, así que la
+ * Guardia de las secciones del personal (Empresa y Permisos). La sección entera la abren todos los roles, así que la
  * guardia de la ruta no basta: aquí se decide por rol. Mientras `/me` carga se muestra `fallback` (el esqueleto de la
- * pestaña) y nunca el contenido; un cliente que llega por URL ve el aviso de sin acceso, como en el resto de secciones.
+ * sección) y nunca el contenido; un cliente que llega por URL ve el aviso de sin acceso, como en el resto de secciones.
  */
 export function StaffOnly({ fallback, children }: { fallback: ReactNode; children: ReactNode }) {
   const me = useMe()
@@ -16,10 +16,10 @@ export function StaffOnly({ fallback, children }: { fallback: ReactNode; childre
       <EmptyState
         kind="restricted"
         title="No tienes acceso a esta sección"
-        description="Tu rol no permite abrir esta pestaña."
+        description="Tu rol no permite abrir esta sección."
         action={
-          <Link to="/configuracion/perfil" className={buttonClassName({ variant: 'secondary' })}>
-            Ir a tu perfil
+          <Link to="/configuracion/general" className={buttonClassName({ variant: 'secondary' })}>
+            Ir a General
           </Link>
         }
       />

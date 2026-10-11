@@ -1,19 +1,19 @@
 import { Navigate } from 'react-router'
 import type { FeatureRoutes } from '../../app/router'
 import type { RouteHandle } from '../../app/layout/AppShell'
-import { AppearanceTab } from './AppearanceTab'
 import { FormGhost } from './FormGhost'
+import { GeneralSection } from './GeneralSection'
 import { OrganizationGhost, OrganizationTab } from './OrganizationTab'
 import { PermissionsMatrix } from './PermissionsMatrix'
-import { ProfileTab } from './ProfileTab'
 import { SettingsIndex, SettingsPage } from './SettingsPage'
 import { StaffOnly } from './StaffOnly'
 
 const crumb = (label: string): { handle: RouteHandle } => ({ handle: { crumb: label } })
 
 /**
- * Configuración: una página con pestañas en la URL. Empresa y Permisos son del personal (`StaffOnly`); Perfil y
- * Apariencia, de todos los roles. `/configuracion/roles` redirige a `permisos`.
+ * Configuración: una sección por URL. Empresa y Permisos (Espacio) son del personal (`StaffOnly`); General (Tu cuenta),
+ * de todos los roles. `/configuracion/perfil` y `/configuracion/apariencia` (que ahora son General) y
+ * `/configuracion/roles` redirigen a su sección actual.
  */
 export const settingsRoutes: FeatureRoutes = () => ({
   children: [
@@ -30,8 +30,6 @@ export const settingsRoutes: FeatureRoutes = () => ({
           ),
           ...crumb('Empresa'),
         },
-        { path: 'perfil', element: <ProfileTab />, ...crumb('Perfil') },
-        { path: 'apariencia', element: <AppearanceTab />, ...crumb('Apariencia') },
         {
           path: 'permisos',
           element: (
@@ -47,6 +45,9 @@ export const settingsRoutes: FeatureRoutes = () => ({
           ),
           ...crumb('Permisos'),
         },
+        { path: 'general', element: <GeneralSection />, ...crumb('General') },
+        { path: 'perfil', element: <Navigate to="/configuracion/general" replace /> },
+        { path: 'apariencia', element: <Navigate to="/configuracion/general" replace /> },
         { path: 'roles', element: <Navigate to="/configuracion/permisos" replace /> },
       ],
     },

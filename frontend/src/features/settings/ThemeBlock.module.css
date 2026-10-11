@@ -1,0 +1,166 @@
+/* El contenedor de la consulta: las opciones son tarjetas si caben tres y filas si no. */
+.box {
+  container: theme-choices / inline-size;
+  min-width: 0;
+}
+
+.choices {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Fila: miniatura, nombre y, a la derecha, el radio. */
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'thumb choice'
+    'thumb note';
+  align-items: center;
+  column-gap: var(--space-12);
+  box-sizing: border-box;
+  min-height: 64px;
+  padding: var(--space-8) var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+/* La selección engrosa el borde hacia dentro con la sombra: nada cambia de tamaño. */
+.card:has(input:checked) {
+  border-color: var(--color-brand);
+  box-shadow: inset 0 0 0 1px var(--color-brand);
+}
+
+.card:has(input:focus-visible) {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Toda la tarjeta es el área del radio: la etiqueta se extiende sobre ella. La altura táctil es de la clase de Resolve
+   (gana por orden a la base del paquete, y `production-bundle.spec.ts` lo mide en el build). */
+.choice {
+  grid-area: choice;
+  min-height: var(--touch-target);
+  flex-direction: row-reverse;
+  justify-content: space-between;
+  font: var(--font-strong);
+}
+
+/* El radio queda por encima de la etiqueta extendida: un clic en él (o de un test) le llega a él, no a la etiqueta. */
+.card input {
+  position: relative;
+  z-index: 1;
+}
+
+.choice::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.note {
+  grid-area: note;
+  font: var(--font-caption);
+  color: var(--color-muted);
+}
+
+.thumb {
+  grid-area: thumb;
+  display: flex;
+  box-sizing: border-box;
+  width: 56px;
+  height: 40px;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-small);
+}
+
+.half {
+  flex: 1;
+  background: var(--thumb-bg);
+}
+
+.themed {
+  background: var(--thumb-bg);
+}
+
+.nav {
+  width: 30%;
+  background: var(--thumb-nav);
+}
+
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  padding: var(--space-4);
+}
+
+.title {
+  height: 3px;
+  width: 60%;
+  border-radius: var(--radius-small);
+  background: var(--thumb-ink);
+}
+
+.panel {
+  flex: 1;
+  border: 1px solid var(--thumb-line);
+  border-radius: var(--radius-small);
+  background: var(--thumb-surface);
+}
+
+@container theme-choices (min-width: 480px) {
+  .choices {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-16);
+  }
+
+  .card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'thumb'
+      'choice'
+      'note';
+    align-items: start;
+    row-gap: 0;
+    padding: var(--space-12);
+  }
+
+  .thumb {
+    margin-bottom: var(--space-8);
+  }
+
+  .note {
+    margin-top: var(--space-4);
+  }
+
+  .thumb {
+    width: auto;
+    height: 80px;
+    border-radius: var(--radius-control);
+  }
+
+  .page {
+    gap: var(--space-8);
+    padding: var(--space-8);
+  }
+
+  .title {
+    height: 8px;
+  }
+
+  .choice {
+    flex-direction: row;
+    justify-content: flex-start;
+  }
+}

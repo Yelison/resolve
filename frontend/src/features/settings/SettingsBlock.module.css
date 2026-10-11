@@ -1,0 +1,68 @@
+/* El bloque es el contenedor de su propia consulta: las columnas dependen de su ancho, no del de la ventana. */
+.block {
+  container: settings-block / inline-size;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-16);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+.titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.title {
+  font: var(--font-section);
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+.title:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 4px;
+  border-radius: var(--radius-control);
+}
+
+.description {
+  font: var(--font-body);
+  color: var(--color-muted);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .block {
+    padding: var(--space-24);
+  }
+
+  .inner {
+    gap: var(--space-24);
+  }
+}
+
+/* Título a la izquierda y campos a la derecha cuando cada campo conserva su ancho útil. */
+@container settings-block (min-width: 544px) {
+  .block:not(.stacked) .inner {
+    display: grid;
+    grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+    align-items: start;
+  }
+}

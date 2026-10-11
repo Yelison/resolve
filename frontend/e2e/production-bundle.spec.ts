@@ -155,16 +155,16 @@ test('en el build, la clase de Resolve que se pasa al diálogo de la búsqueda g
 })
 
 /**
- * `Radio` es del paquete y los temas de Apariencia le pasan `className={styles.choice}`, que sube la altura de la fila a
+ * `Radio` es del paquete y los temas de General le pasan `className={styles.choice}`, que sube la altura de la fila a
  * `--touch-target` también en escritorio (el paquete la deja en 36 px por encima de 768 px). Las dos reglas son de una
  * sola clase: gana la de Resolve solo si llega después, es decir, si `styles.css` sigue abriendo `ui-*.css`. Mide el
  * resultado en el build.
  */
-test('en el build, la clase de Resolve de los radios de Apariencia gana por orden a la base del paquete', async ({
+test('en el build, la clase de Resolve de los radios del tema gana por orden a la base del paquete', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('/configuracion/apariencia')
+  await page.goto('/configuracion/general')
   const row = page.getByRole('radio', { name: 'Oscuro' }).locator('xpath=ancestor::label')
   await expect(row).toBeVisible()
   expect(await row.evaluate((el) => getComputedStyle(el).minHeight)).toBe('44px')
