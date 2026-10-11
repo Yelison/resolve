@@ -118,6 +118,34 @@ class TicketAttentionApiTest extends TicketsFixture {
 		assertThat(kinds(result)).containsExactly("urgent");
 	}
 
+	/** Un ticket que cumple dos motivos sale con el primero de la lista: «sin asignar» antes que «el cliente respondió». */
+	@Test
+	void unassignedWinsOverCustomerReplied() throws Exception {
+		Seed ticket = ticket("Sin dueño y con respuesta del cliente", "medium", null, hours(5));
+		inProgress(ticket, hours(5));
+		customerMessage(ticket, "Sigue sin funcionar", minutes(40));
+
+		JsonNode result = attention(LAURA, "team", null);
+
+		assertThat(numbers(result)).containsExactly(ticket.number());
+		assertThat(kinds(result)).containsExactly("unassigned");
+		assertThat(since(result, 0)).isEqualTo(NOW.minus(hours(5)));
+		assertThat(result.at("/items/0/reason/excerpt").isNull()).isTrue();
+	}
+
+	/** «Alta» antes que «esperando»: un ticket de prioridad alta que lleva días esperando al cliente sigue siendo «alta». */
+	@Test
+	void highWinsOverWaiting() throws Exception {
+		Seed ticket = ticket("Alta esperando al cliente", "high", this.laura, days(5));
+		setStatus(ticket, "waiting", days(2));
+
+		JsonNode result = attention(LAURA, "team", null);
+
+		assertThat(numbers(result)).containsExactly(ticket.number());
+		assertThat(kinds(result)).containsExactly("high");
+		assertThat(since(result, 0)).isEqualTo(NOW.minus(days(5)));
+	}
+
 	@Test
 	void aNewTicketIsUnansweredFromOneHourOnAndItCountsFromItsCreation() throws Exception {
 		Seed exactly = ticket("Justo una hora", "medium", this.laura, HOUR);
