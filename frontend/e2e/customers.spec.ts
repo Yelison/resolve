@@ -465,6 +465,9 @@ test.describe('clientes', () => {
           filters: top('section[aria-label="Buscar y filtrar clientes"]'),
           list: top('[aria-label="Lista de clientes"]'),
           header: Math.round(document.querySelector('header h1')!.parentElement!.getBoundingClientRect().height),
+          cards: Array.from(document.querySelectorAll('[aria-label="Lista de clientes"] section')).map((card) =>
+            Math.round(card.getBoundingClientRect().height),
+          ),
         }
       })
     const before = await marks()
@@ -476,6 +479,11 @@ test.describe('clientes', () => {
     expect(after.header).toBe(before.header)
     expect(after.filters).toBe(before.filters)
     expect(after.list).toBe(before.list)
+    // Las tarjetas del esqueleto miden lo que una real con un cliente de una línea; la de Northstar tiene un asunto largo
+    // que envuelve (el contenido manda) y solo puede ser más alta.
+    expect(after.cards[0]).toBe(before.cards[0])
+    expect(after.cards[2]).toBe(before.cards[2])
+    expect(after.cards[1]).toBeGreaterThanOrEqual(before.cards[1]!)
   })
 
   test('un error en el directorio ofrece reintentar y un 403 dice que no hay acceso', async ({ page }) => {
