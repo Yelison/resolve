@@ -61,6 +61,16 @@ export function MembersPanel({ team, state, onChange, onPageChange, isAdmin, act
     }
   }, [state.q])
 
+  // Al quitar un filtro su chip desaparece y el foco caería a `body`: pasa al control que lo sustituye.
+  const filters = useRef<HTMLDivElement>(null)
+  const restoreFocus = useRef<'role' | 'status' | null>(null)
+  useEffect(() => {
+    const target = restoreFocus.current
+    if (!target) return
+    restoreFocus.current = null
+    filters.current?.querySelector<HTMLElement>(`[data-filter="${target}"] button`)?.focus()
+  }, [state.role, state.status])
+
   const filtersActive = hasActiveTeamFilters(state)
   const clearFilters = () => {
     setSearchText('')
@@ -90,9 +100,25 @@ export function MembersPanel({ team, state, onChange, onPageChange, isAdmin, act
           onValueChange={setSearchText}
           fieldClassName={styles.search}
         />
-        <div className={styles.filters}>
-          <RoleFilter role={state.role} onChange={(role) => onChange({ role })} />
-          <StatusFilter status={state.status} onChange={(status) => onChange({ status })} />
+        <div ref={filters} className={styles.filters}>
+          <div data-filter="role" className={styles.filter}>
+            <RoleFilter
+              role={state.role}
+              onChange={(role) => {
+                if (!role) restoreFocus.current = 'role'
+                onChange({ role })
+              }}
+            />
+          </div>
+          <div data-filter="status" className={styles.filter}>
+            <StatusFilter
+              status={state.status}
+              onChange={(status) => {
+                if (!status) restoreFocus.current = 'status'
+                onChange({ status })
+              }}
+            />
+          </div>
         </div>
       </div>
       <div className={styles.results}>

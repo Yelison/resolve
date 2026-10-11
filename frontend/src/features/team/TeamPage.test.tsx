@@ -225,6 +225,8 @@ describe('TeamPage', () => {
     expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Quitar el filtro Estado: Retirados' }))
     expect(router.state.location.search).toBe('')
+    // El chip desaparece: el foco pasa al menú «Estado» que lo sustituye, nunca a `body`.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Estado' })).toHaveFocus())
   })
 
   it('sin retirados el filtro explica que no hay ninguno y vuelve al equipo actual', async () => {

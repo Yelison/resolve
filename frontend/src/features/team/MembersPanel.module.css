@@ -37,6 +37,10 @@
   gap: var(--space-8) var(--space-12);
 }
 
+.filter {
+  display: flex;
+}
+
 .chip {
   display: inline-flex;
   align-items: center;
