@@ -189,7 +189,8 @@ test.describe('equipo', () => {
       await page.goto('/equipo')
       await page.getByRole('button', { name: 'Invitar agente' }).click()
       const invite = page.getByRole('dialog', { name: 'Invitar agente' })
-      await invite.getByRole('textbox', { name: 'Correo' }).fill('largo@acme.example')
+      const email = `${'c'.repeat(100)}@acme.example`
+      await invite.getByRole('textbox', { name: 'Correo' }).fill(email)
       await invite.getByRole('textbox', { name: 'Nombre' }).fill(name)
       await invite.getByRole('button', { name: 'Invitar' }).click()
       await expect(invite).toBeHidden()
@@ -205,16 +206,43 @@ test.describe('equipo', () => {
         expect(clipped, 'ningún elemento del diálogo desborda').toEqual([])
       }
 
+      // Una invitación se cancela (no se «retira»): el diálogo nombra el correo.
       await page.getByRole('button', { name: `Acciones de ${name}` }).click()
-      await page.getByRole('menuitem', { name: 'Retirar del equipo' }).click()
-      const remove = page.getByRole('dialog', { name: '¿Retirar a este miembro del equipo?' })
-      await expect(remove).toContainText(name)
-      await fits(remove)
-      await remove.getByRole('button', { name: 'Cancelar' }).click()
+      await page.getByRole('menuitem', { name: 'Cancelar invitación' }).click()
+      const cancel = page.getByRole('dialog', { name: '¿Cancelar esta invitación?' })
+      await expect(cancel).toContainText(email)
+      await fits(cancel)
+      await cancel.getByRole('button', { name: 'Conservar invitación' }).click()
 
       await page.getByRole('button', { name: `Acciones de ${name}` }).click()
       await page.getByRole('menuitem', { name: 'Cambiar rol' }).click()
       await fits(page.getByRole('dialog', { name: 'Cambiar rol' }))
+    })
+  }
+})
+
+test.describe('equipo · nombres largos al retirar', () => {
+  for (const width of [320, 1440]) {
+    test(`el diálogo de retirar a alguien con un nombre de 120 caracteres no se recorta · ${width}px`, async ({
+      page,
+    }) => {
+      const name = 'B'.repeat(120)
+      await serveTeam(page, bigTeam(10, 0, true))
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/equipo')
+      await page.getByRole('button', { name: `Acciones de ${name}` }).click()
+      await page.getByRole('menuitem', { name: 'Retirar del equipo' }).click()
+      const remove = page.getByRole('dialog', { name: '¿Retirar a este miembro del equipo?' })
+      await expect(remove).toContainText(name)
+      const box = (await remove.boundingBox())!
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(width)
+      const clipped = await remove.evaluate((element) =>
+        [element, ...element.querySelectorAll<HTMLElement>('*')]
+          .filter((node) => node.scrollWidth > node.clientWidth + 1)
+          .map((node) => node.tagName),
+      )
+      expect(clipped, 'ningún elemento del diálogo desborda').toEqual([])
     })
   }
 })

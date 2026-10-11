@@ -35,7 +35,6 @@
 
 .item {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-8) var(--space-12);
   padding-bottom: var(--space-12);
