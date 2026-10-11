@@ -1,5 +1,6 @@
 package com.resolve.api.customers;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +48,7 @@ class CustomerSearchImpl implements CustomerSearch {
 			       or lower(c.email) like :pattern escape '\\'
 			       or lower(coalesce(c.company, '')) like :pattern escape '\\')
 			  and (:company is null or lower(c.company) = lower(cast(:company as string)))
+			  and (:withoutCompany = false or c.company is null or trim(c.company) = '')
 			""";
 
 	/**
@@ -78,7 +80,8 @@ class CustomerSearchImpl implements CustomerSearch {
 		String company = (filters.company() == null || filters.company().isBlank()) ? null : filters.company().trim();
 		String where = FILTER + (filters.archived() ? " and c.archivedAt is not null" : " and c.archivedAt is null");
 		List<CustomerRow> items = bind(this.entityManager.createQuery(SELECT + where + " order by " + orderBy(page), Object[].class),
-				organizationId, pattern, company)
+				organizationId, pattern, company,
+				filters.withoutCompany())
 			.setFirstResult((int) page.offset())
 			.setMaxResults(page.size())
 			.getResultList()
@@ -87,9 +90,26 @@ class CustomerSearchImpl implements CustomerSearch {
 			.toList();
 		items = withLastTickets(organizationId, items);
 		long total = bind(this.entityManager.createQuery("select count(c) " + where, Long.class), organizationId,
-				pattern, company)
+				pattern, company, filters.withoutCompany())
 			.getSingleResult();
 		return PageResponse.of(items, page, total);
+	}
+
+	@Override
+	public List<CustomerRow> findAllWithCounts(UUID organizationId, Collection<UUID> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		List<CustomerRow> rows = this.entityManager
+			.createQuery(SELECT + "from Customer c where c.organizationId = :organizationId and c.id in :ids",
+					Object[].class)
+			.setParameter("organizationId", organizationId)
+			.setParameter("ids", ids)
+			.getResultList()
+			.stream()
+			.map(CustomerSearchImpl::toRow)
+			.toList();
+		return withLastTickets(organizationId, rows);
 	}
 
 	@Override
@@ -124,10 +144,11 @@ class CustomerSearchImpl implements CustomerSearch {
 	}
 
 	private static <T> TypedQuery<T> bind(TypedQuery<T> query, UUID organizationId, @Nullable String pattern,
-			@Nullable String company) {
+			@Nullable String company, boolean withoutCompany) {
 		return query.setParameter("organizationId", organizationId)
 			.setParameter("pattern", pattern)
-			.setParameter("company", company);
+			.setParameter("company", company)
+			.setParameter("withoutCompany", withoutCompany);
 	}
 
 	private static String orderBy(PageQuery<CustomerSortField> page) {
