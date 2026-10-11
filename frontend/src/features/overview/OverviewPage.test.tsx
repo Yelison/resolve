@@ -502,6 +502,49 @@ describe('OverviewPage · necesitan atención', () => {
     await vi.waitFor(() => expect(screen.getByRole('region', { name: 'Necesitan atención' })).toHaveFocus())
   })
 
+  it('el foco que la persona movió después de asignar no vuelve al panel cuando una lista posterior ya no trae el ticket', async () => {
+    // «Urgente» sigue siéndolo con responsable: la fila se queda tras asignar. Más tarde otra lista no lo trae.
+    const unassigned = urgent(1046, { assignee: null, subject: 'Cambiar correo de facturación' })
+    let phase: 'before' | 'assigned' | 'gone' = 'before'
+    const queryClient = createTestQueryClient()
+    mockApi({
+      ...baseRoutes,
+      'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
+      'GET /api/tickets/attention': () => ({
+        body:
+          phase === 'gone'
+            ? attentionList([], 1)
+            : attentionList(
+                [
+                  phase === 'assigned'
+                    ? { ...unassigned, ticket: { ...unassigned.ticket, assignee: mineRef } }
+                    : unassigned,
+                ],
+                1,
+              ),
+      }),
+      'GET /api/tickets/1046': { body: ticket({ number: 1046, version: 7, assignee: null }) },
+      'PATCH /api/tickets/1046': () => {
+        phase = 'assigned'
+        return { body: ticket({ number: 1046, version: 8, assignee: mineRef }) }
+      },
+    })
+    renderOverview(queryClient)
+    await userEvent.click(await screen.findByRole('button', { name: /Asignármelo/ }))
+    expect(await screen.findByText('Te asignaste el ticket #1046')).toBeInTheDocument()
+    await vi.waitFor(() => expect(screen.getByRole('link', { name: /#1046 Cambiar correo/ })).toHaveFocus())
+    expect(await screen.findByRole('link', { name: /Responder/ })).toBeInTheDocument()
+    // La persona hace clic fuera: el foco queda en `body`.
+    act(() => (document.activeElement as HTMLElement).blur())
+    expect(document.body).toHaveFocus()
+    // Más tarde (otra persona lo resuelve) la lista ya no lo trae: el foco no se va al panel sin que nadie lo pidiera.
+    phase = 'gone'
+    await act(() => queryClient.invalidateQueries({ queryKey: ticketKeys.lists() }))
+    expect(await screen.findByText('Nada urgente por ahora')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Necesitan atención' })).not.toHaveFocus()
+    expect(document.body).toHaveFocus()
+  })
+
   it('«Asignármelo» no quita el ticket a quien se lo acaba de asignar: avisa y refresca', async () => {
     const unassigned = urgent(1046, { assignee: null, subject: 'Cambiar correo de facturación' })
     const laura = { id: 'u-laura', name: 'Laura Méndez' }

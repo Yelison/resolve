@@ -103,14 +103,17 @@ export function AttentionPanel() {
   const open = attention.data?.open ?? 0
 
   // Si la fila del ticket que se acaba de asignar ya no está cuando llega la lista nueva (asignado deja de ser motivo),
-  // el foco que tenía su enlace pasa al panel y no a `body`.
-  const justAssigned = useRef<string>(undefined)
+  // el foco que tenía su enlace pasa al panel y no a `body`. Solo vale para la primera lista posterior a la asignación,
+  // esté o no la fila: una lista más tardía no debe llevarse el foco de quien ya lo movió.
+  const justAssigned = useRef<{ id: string; list: unknown; at: number }>(undefined)
   useEffect(() => {
-    const id = justAssigned.current
-    if (id === undefined || document.querySelector(`[data-attention-link="${id}"]`)) return
+    const pending = justAssigned.current
+    // La lista nueva es la que ya no es la de antes de asignar (otro objeto, o un momento de lectura posterior).
+    if (pending === undefined || (attention.data === pending.list && attention.dataUpdatedAt <= pending.at)) return
     justAssigned.current = undefined
+    if (document.querySelector(`[data-attention-link="${pending.id}"]`)) return
     if (document.activeElement === document.body || document.activeElement === null) focus.ref.current?.focus()
-  }, [attention.data, focus.ref])
+  }, [attention.data, attention.dataUpdatedAt, focus.ref])
 
   // El pie y el vacío hablan del alcance de la lista que se ve, no del que se acaba de pulsar: mientras llega la nueva
   // lista (la anterior sigue a la vista) no cambian, y lo de debajo no se mueve. Se actualiza al asentarse los datos.
@@ -171,7 +174,7 @@ export function AttentionPanel() {
                   userId={user?.id}
                   now={now}
                   onAssigned={() => {
-                    justAssigned.current = item.ticket.id
+                    justAssigned.current = { id: item.ticket.id, list: attention.data, at: attention.dataUpdatedAt }
                     setAssigned((ids) => new Set(ids).add(item.ticket.id))
                   }}
                   panelRef={focus.ref}
