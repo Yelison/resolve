@@ -1,8 +1,7 @@
+import { plural } from '../../lib/format'
 import { memberStatusLabels, type TeamMember } from '../../domain/member'
 
 /** Textos con plural de la página de Equipo; `lib/format.ts` guarda los de uso común y estos son solo de esta pantalla. */
-
-const plural = (count: number, one: string, many: string) => (count === 1 ? `1 ${one}` : `${count} ${many}`)
 
 /** «1 abierto», «8 abiertos»: la carga de una persona. */
 export const openCount = (count: number) => plural(count, 'abierto', 'abiertos')
@@ -14,7 +13,7 @@ export const urgentCount = (count: number) => plural(count, 'urgente', 'urgentes
 export const openTicketsTotal = (count: number) => plural(count, 'ticket abierto', 'tickets abiertos')
 
 /** «1 sin asignar», «27 sin asignar». */
-export const unassignedCount = (count: number) => (count === 1 ? '1 sin asignar' : `${count} sin asignar`)
+export const unassignedCount = (count: number) => plural(count, 'sin asignar', 'sin asignar')
 
 /** «1 persona», «22 personas». */
 export const peopleCount = (count: number) => plural(count, 'persona', 'personas')

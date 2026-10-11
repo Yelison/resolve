@@ -485,6 +485,10 @@ test.describe('configuración: con el aviso de la demostración', () => {
     await page.goto('/configuracion/empresa')
     const banner = page.getByRole('region', { name: 'Demostración pública' })
     await expect(banner).toBeVisible()
+    // El aviso publica su altura en `:root` y la barra se sube con CSS sobre ella.
+    const published = () => page.evaluate(() => document.documentElement.style.getPropertyValue('--demo-banner-height'))
+    await expect.poll(published).toBe(`${(await banner.boundingBox())!.height}px`)
+    await expect(saveBar(page)).toHaveCSS('bottom', await published())
     const aboveBanner = async () => {
       const bar = (await saveBar(page).boundingBox())!
       const notice = (await banner.boundingBox())!

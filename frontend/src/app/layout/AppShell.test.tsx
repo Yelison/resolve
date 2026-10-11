@@ -208,6 +208,102 @@ describe('AppShell para clientes', () => {
     expect(within(drawer).queryByRole('link', { name: 'Tickets' })).not.toBeInTheDocument()
     expect(within(drawer).queryByRole('link', { name: 'Clientes' })).not.toBeInTheDocument()
   })
+
+  it('pone el nombre del cliente en el título de la pestaña', async () => {
+    mockApi({ 'GET /api/me': { body: customerMe } })
+    const router = createMemoryRouter(
+      [
+        {
+          path: '/',
+          element: <AppShell />,
+          children: [
+            { path: 'tickets', element: <h1>x</h1>, handle: { crumb: 'Tickets', customerCrumb: 'Mis solicitudes' } },
+          ],
+        },
+      ],
+      { initialEntries: ['/tickets'] },
+    )
+    renderWithProviders(<RouterProvider router={router} />)
+    await waitFor(() => expect(document.title).toBe('Mis solicitudes · Resolve'))
+  })
+})
+
+describe('AppShell mientras carga /me', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('no pinta ningún enlace del menú hasta conocer el rol, y cada rol los recibe con su nombre', async () => {
+    let respond!: (value: { body: unknown }) => void
+    mockApi({ 'GET /api/me': () => new Promise((resolve) => (respond = resolve)) })
+    renderShell()
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    const menu = within(drawer).getByRole('navigation', { name: 'Principal' })
+    expect(within(menu).queryAllByRole('link')).toHaveLength(0)
+    await waitFor(() => expect(respond).toBeTypeOf('function'))
+    await act(async () => respond({ body: customerMe }))
+    await within(drawer).findByText('María Pérez')
+    expect(
+      within(menu)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['Mis solicitudes', 'Ayuda', 'Configuración'])
+  })
+
+  describe('en una sección con nombre propio para el cliente', () => {
+    const renderCustomerSection = () => {
+      const router = createMemoryRouter(
+        [
+          {
+            path: '/',
+            element: <AppShell />,
+            children: [
+              { path: 'tickets', element: <h1>x</h1>, handle: { crumb: 'Tickets', customerCrumb: 'Mis solicitudes' } },
+            ],
+          },
+        ],
+        { initialEntries: ['/tickets'] },
+      )
+      renderWithProviders(<RouterProvider router={router} />)
+    }
+
+    beforeEach(() => {
+      // Con todas las media queries coincidiendo la barra superior muestra las migas.
+      vi.spyOn(window, 'matchMedia').mockImplementation(
+        (query) =>
+          ({
+            matches: true,
+            media: query,
+            addEventListener() {},
+            removeEventListener() {},
+          }) as unknown as MediaQueryList,
+      )
+    })
+
+    it('no pone miga ni nombre en el título hasta conocer el rol: ni «Tickets» ni «Mis solicitudes»', async () => {
+      let respond!: (value: { body: unknown }) => void
+      mockApi({ 'GET /api/me': () => new Promise((resolve) => (respond = resolve)) })
+      renderCustomerSection()
+      const crumbs = screen.getByRole('navigation', { name: 'Ruta de navegación' })
+      expect(document.title).toBe('Resolve')
+      expect(within(crumbs).queryByText(/Tickets|Mis solicitudes/)).not.toBeInTheDocument()
+      await waitFor(() => expect(respond).toBeTypeOf('function'))
+      await act(async () => respond({ body: customerMe }))
+      await waitFor(() => expect(document.title).toBe('Mis solicitudes · Resolve'))
+      expect(within(crumbs).getByText('Mis solicitudes')).toBeInTheDocument()
+    })
+
+    it('el personal recibe «Tickets» al llegar la sesión', async () => {
+      let respond!: (value: { body: unknown }) => void
+      mockApi({ 'GET /api/me': () => new Promise((resolve) => (respond = resolve)) })
+      renderCustomerSection()
+      expect(document.title).toBe('Resolve')
+      await waitFor(() => expect(respond).toBeTypeOf('function'))
+      await act(async () => respond({ body: adminMe }))
+      await waitFor(() => expect(document.title).toBe('Tickets · Resolve'))
+    })
+  })
 })
 
 describe('AppShell sin sesión', () => {

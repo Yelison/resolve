@@ -41,7 +41,8 @@ describe('navegación principal', () => {
     expect(paths('agent')).toEqual(all)
   })
 
-  it('sin sesión devuelve todas las secciones', () => {
-    expect(paths(undefined)).toEqual(mainNavigation.map((item) => item.to))
+  it('sin sesión no ofrece ninguna sección: el menú espera al rol para pintar sus enlaces', () => {
+    expect(paths(undefined)).toEqual([])
+    expect(labels(undefined)).toEqual([])
   })
 })

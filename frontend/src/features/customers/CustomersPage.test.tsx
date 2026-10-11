@@ -103,6 +103,20 @@ describe('CustomersPage', () => {
     expect(screen.queryByRole('heading', { level: 2 })).not.toBeInTheDocument()
   })
 
+  it('el anuncio de resultados concuerda en singular: «1 empresa» agrupado', async () => {
+    mockApi({ ...baseRoutes, ...oneCustomer() })
+    renderCustomers()
+    await screen.findByText(summary)
+    await waitFor(() => expect(screen.getAllByRole('status').map((node) => node.textContent)).toContain('1 empresa'))
+  })
+
+  it('el anuncio de resultados concuerda en singular: «1 cliente» en la lista plana', async () => {
+    mockApi({ ...baseRoutes, ...oneCustomer() })
+    renderCustomers('/clientes?group=none')
+    await screen.findByText(summary)
+    await waitFor(() => expect(screen.getAllByRole('status').map((node) => node.textContent)).toContain('1 cliente'))
+  })
+
   it('resume la cartera bajo el título y no dibuja métricas ni tabla', async () => {
     mockApi({ ...baseRoutes, ...oneCustomer() })
     renderCustomers()

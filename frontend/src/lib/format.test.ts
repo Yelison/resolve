@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { assignedToYou, formatBytes, formatDateTime, formatRelative, formatWeekdayShort, newToday } from './format'
+import {
+  assignedToYou,
+  formatBytes,
+  formatDateTime,
+  formatRelative,
+  formatWeekdayShort,
+  newToday,
+  plural,
+} from './format'
 
 describe('formatBytes', () => {
   it.each([
@@ -134,6 +142,24 @@ describe('assignedToYou', () => {
       '0 asignados a ti',
       '1 asignado a ti',
       '4 asignados a ti',
+    ])
+  })
+})
+
+describe('plural', () => {
+  it('antepone la cantidad y concuerda el singular solo con 1', () => {
+    expect([0, 1, 2, 1000].map((count) => plural(count, 'ticket', 'tickets'))).toEqual([
+      '0 tickets',
+      '1 ticket',
+      '2 tickets',
+      '1000 tickets',
+    ])
+  })
+
+  it('admite frases enteras y formas sin cambio', () => {
+    expect([plural(1, 'nuevo hoy', 'nuevos hoy'), plural(3, 'sin asignar', 'sin asignar')]).toEqual([
+      '1 nuevo hoy',
+      '3 sin asignar',
     ])
   })
 })

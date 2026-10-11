@@ -35,10 +35,12 @@ export const roleLabels: Record<Role, string> = {
 
 /**
  * Secciones visibles para cada rol, con el nombre que le corresponde: los clientes las ven como «Mis solicitudes» y
- * «Ayuda». Sin rol (mientras `/me` carga) devuelve todas las secciones con el nombre del personal.
+ * «Ayuda». Sin rol (mientras `/me` carga) no devuelve ninguna: el menú pinta solo su marco y cada rol ve aparecer sus
+ * enlaces una vez, ya en su sitio definitivo. Cualquier lista provisional movería los enlaces de uno de los dos roles
+ * (el personal tiene siete y el cliente tres) o mostraría al cliente nombres que no son los suyos.
  */
 export function navigationFor(role: Role | undefined): NavigationItem[] {
-  if (!role) return mainNavigation
+  if (!role) return []
   return mainNavigation
     .filter((item) => item.roles.includes(role))
     .map((item) => (role === 'customer' && item.customerLabel ? { ...item, label: item.customerLabel } : item))

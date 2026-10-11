@@ -1,6 +1,5 @@
 import type { CustomerMetrics } from '../../domain/customer'
-
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
+import { plural } from '../../lib/format'
 
 /**
  * Resumen bajo el título, con los datos que antes daban las métricas: «3 clientes de 3 empresas · 2 con tickets
@@ -36,7 +35,7 @@ export function viewAllLabel(customerCount: number, company: string | null): str
 /** Etiqueta de la fila: «2 abiertos», «1 abierto», «Sin abiertos». */
 export function openTicketsLabel(openTickets: number): string {
   if (openTickets === 0) return 'Sin abiertos'
-  return openTickets === 1 ? '1 abierto' : `${openTickets} abiertos`
+  return plural(openTickets, 'abierto', 'abiertos')
 }
 
 /** Iniciales de una empresa para su marca: dos palabras dan sus dos primeras letras («Lumen Diseño» → LD), una da dos («Northstar» → NO). */

@@ -1,6 +1,6 @@
 .bar {
   position: sticky;
-  bottom: 0;
+  bottom: var(--demo-banner-height, 0px);
   z-index: var(--z-sticky);
   display: flex;
   flex-direction: column;

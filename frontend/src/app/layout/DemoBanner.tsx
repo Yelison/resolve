@@ -11,7 +11,8 @@ export const DEMO_BANNER_TEXT = 'Demostración pública · los datos se reinicia
  *
  * Al estar pegado a la ventana, tapa lo que quede justo encima del borde. Su altura (varía con el ancho: envuelve en
  * móvil) se reserva en `scroll-padding-bottom` del documento, para que el foco por teclado y los saltos a un ancla
- * dejen el control por encima del aviso.
+ * dejen el control por encima del aviso. También la publica como `--demo-banner-height` en `:root`, para que lo que va
+ * pegado al mismo borde (la barra de guardar de Configuración) se suba con CSS, sin leer estilos en línea ajenos.
  */
 export function DemoBanner({
   name = 'Demostración pública',
@@ -29,11 +30,13 @@ export function DemoBanner({
     const root = document.documentElement
     const observer = new ResizeObserver(() => {
       root.style.scrollPaddingBottom = `${element.offsetHeight}px`
+      root.style.setProperty('--demo-banner-height', `${element.offsetHeight}px`)
     })
     observer.observe(element)
     return () => {
       observer.disconnect()
       root.style.removeProperty('scroll-padding-bottom')
+      root.style.removeProperty('--demo-banner-height')
     }
   }, [])
   return (
