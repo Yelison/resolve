@@ -7,6 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -36,6 +39,9 @@ class TicketAttentionApiTest extends TicketsFixture {
 
 	@Autowired
 	private JdbcClient jdbc;
+
+	@Autowired
+	private EntityManagerFactory entityManagerFactory;
 
 	private static Duration minutes(int minutes) {
 		return Duration.ofMinutes(minutes);
@@ -136,6 +142,8 @@ class TicketAttentionApiTest extends TicketsFixture {
 
 		assertThat(kinds(result)).containsExactly("unanswered");
 		assertThat(since(result, 0)).isEqualTo(NOW.minus(hours(2)));
+		// El extracto es solo de «el cliente respondió»: aquí el motivo no lo lleva aunque el último mensaje sea suyo.
+		assertThat(result.at("/items/0/reason/excerpt").isNull()).isTrue();
 	}
 
 	@Test
@@ -360,6 +368,32 @@ class TicketAttentionApiTest extends TicketsFixture {
 			assertThat(result.path("open").asInt()).isEqualTo(8);
 		}
 		assertThat(numbers(two)).containsExactly(8L, 7L);
+	}
+
+	/** Sin una consulta por ticket: las sentencias de JPA son las mismas con un ticket que con seis de distinto cliente y responsable. */
+	@Test
+	void theStatementsDoNotGrowWithTheNumberOfItems() throws Exception {
+		Statistics statistics = this.entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+		statistics.setStatisticsEnabled(true);
+		ticket("Uno", "urgent", this.laura, hours(5));
+		long withOne = statementsOf(statistics);
+		this.clock.set(NOW.minus(hours(6)));
+		createTicket(LAURA, this.carlosCustomer, "Dos", "urgent", this.daniel);
+		createTicket(LAURA, this.anaCustomer, "Tres", "urgent", null);
+		createTicket(LAURA, this.mariaCustomer, "Cuatro", "urgent", this.daniel);
+		createTicket(LAURA, this.carlosCustomer, "Cinco", "urgent", this.laura);
+		createTicket(LAURA, this.anaCustomer, "Seis", "urgent", this.daniel);
+
+		long withSix = statementsOf(statistics);
+
+		assertThat(attention(LAURA, "team", null).path("items")).hasSize(6);
+		assertThat(withSix).isEqualTo(withOne);
+	}
+
+	private long statementsOf(Statistics statistics) throws Exception {
+		statistics.clear();
+		attention(LAURA, "team", null);
+		return statistics.getPrepareStatementCount();
 	}
 
 	@Test
