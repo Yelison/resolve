@@ -1,4 +1,5 @@
 import { expect, mockApi, test, tickets } from './fixtures'
+import { attentionOf } from './mocks/tickets'
 
 const greeting = /^Buen(os días|as tardes|as noches), Yelisson$/
 
@@ -143,12 +144,14 @@ test.describe('inicio', () => {
     let assigned = false
     // Como el servidor: «Sin asignar» era el único motivo del #1046; con responsable ya no necesita atención.
     await page.route('**/api/tickets/attention?*', async (route) => {
-      const response = await route.fetch()
-      const body = await response.json()
-      body.items = body.items.filter(
-        (item: { ticket: { number: number } }) => !(assigned && item.ticket.number === 1046),
-      )
-      await route.fulfill({ response, json: body })
+      const bare = tickets.map(({ lastMessage: _lastMessage, ...rest }) => rest)
+      const customerOf = (id: string) => tickets.find((ticket) => ticket.customer.id === id)!.customer
+      const body = attentionOf(bare, customerOf, 'team', 6)
+      if (assigned) {
+        body.items = body.items.filter((item) => item.ticket.number !== 1046)
+        body.total = body.items.length
+      }
+      await route.fulfill({ json: body })
     })
     await page.route('**/api/tickets/1046', async (route) => {
       if (route.request().method() !== 'PATCH') return route.fallback()
