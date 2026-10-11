@@ -8,6 +8,7 @@ export const teamMember = (overrides: Partial<TeamMember> = {}): TeamMember => (
   role: 'agent',
   status: 'active',
   openTickets: 3,
+  urgentOpenTickets: 1,
   joinedAt: '2026-08-01T10:00:00Z',
   invitedAt: null,
   ...overrides,

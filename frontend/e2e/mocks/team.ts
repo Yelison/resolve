@@ -4,7 +4,7 @@ import { me } from './session'
 
 /** Equipo de demostración con el contrato de lista (`TeamMember`): activos, una invitación y un retirado. */
 export const team: TeamMember[] = [
-  teamMember({ ...laura, openTickets: 1 }),
+  teamMember({ ...laura, openTickets: 1, urgentOpenTickets: 1 }),
   teamMember({ ...daniel, openTickets: 1 }),
   teamMember({
     id: 'u-sofia',
@@ -95,7 +95,7 @@ export function teamMock(): MockFeature {
           409,
         )
       }
-      const removed: TeamMember = { ...target, status: 'removed', openTickets: 0 }
+      const removed: TeamMember = { ...target, status: 'removed', openTickets: 0, urgentOpenTickets: 0 }
       members.set(removed.id, removed)
       return json(route, removed)
     }

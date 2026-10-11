@@ -1,41 +1,49 @@
-import { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
-import { Alert, Button, EmptyState, FilterChip, Menu, Metric, Skeleton, type MenuItem } from '../../components/ui'
-import { isCurrentMember, type TeamMember, type TeamMetrics } from '../../domain/member'
+import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
+import { Button, type MenuItem } from '../../components/ui'
+import type { TeamMember } from '../../domain/member'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { focusPageHeading, focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
 import { useMe } from '../session/queries'
+import { CancelInvitationDialog } from './CancelInvitationDialog'
 import { ChangeRoleDialog } from './ChangeRoleDialog'
+import { InvitationsPanel, pendingInvitations } from './InvitationsPanel'
 import { InviteMemberDialog } from './InviteMemberDialog'
+import { LoadPanel } from './LoadPanel'
+import { MembersPanel } from './MembersPanel'
 import { RemoveMemberDialog } from './RemoveMemberDialog'
-import { TeamTable } from './TeamTable'
+import { RolesPanel } from './RolesPanel'
+import { readTeamState, writeTeamState, type TeamPageState } from './teamParams'
 import { useTeam, useTeamMetrics } from './queries'
 import styles from './TeamPage.module.css'
 
-const decimal = new Intl.NumberFormat('es', { maximumFractionDigits: 1 })
-
-/** Parámetro de la URL que muestra a los retirados, que por defecto no aparecen. */
-const REMOVED_PARAM = 'estado'
-const REMOVED_VALUE = 'retirados'
-
 /**
- * Equipo: métricas, lista de miembros e invitación. Todo el personal ve la página; solo un administrador ve
- * «Invitar agente» y el menú de acciones de cada fila (Q-03). La guardia de rol la pone la ruta (`sectionRoute`).
+ * Equipo: carga ahora, invitaciones pendientes, roles y lista de miembros. Todo el personal ve la página; solo un
+ * administrador ve «Invitar agente», el panel de invitaciones y el menú de acciones de cada fila (Q-03): un agente ve
+ * la carga, los roles y los miembros. La guardia de rol la pone la ruta (`sectionRoute`).
+ *
+ * El estado que cambia lo que se ve (búsqueda, filtros, página, carga desplegada y su vista) vive en la URL: ningún
+ * «Ver todos» abre otra página, y deshacerlo es quitar el filtro o plegar la sección.
  */
 export function TeamPage() {
   const me = useMe()
   const team = useTeam()
   const metrics = useTeamMetrics()
   const [searchParams, setSearchParams] = useSearchParams()
-  const showRemoved = searchParams.get(REMOVED_PARAM) === REMOVED_VALUE
+  const state = readTeamState(searchParams)
   const [inviting, setInviting] = useState(false)
   const [changingRole, setChangingRole] = useState<TeamMember | null>(null)
   const [removing, setRemoving] = useState<TeamMember | null>(null)
+  const [cancelling, setCancelling] = useState<TeamMember | null>(null)
+  const invitationsHeading = useRef<HTMLHeadingElement>(null)
 
   // Sin conocer el rol no se dibuja ninguna acción de administración: evita mostrarlas un instante a un agente.
   const isAdmin = me.data?.role === 'admin'
   const selfId = me.data?.user.id
+
+  const update = (changes: Partial<TeamPageState>) =>
+    setSearchParams(writeTeamState({ ...state, page: 1, ...changes }), { replace: true })
 
   // Si el disparador ya no existe al cerrar (un 403 ocultó las acciones), el foco no se pierde en el body.
   function closeDialog(close: () => void) {
@@ -43,16 +51,28 @@ export function TeamPage() {
     focusPageHeadingIfFocusLost()
   }
 
-  // Al retirar con éxito la fila sale del filtro activo, pero un instante después del cierre: el foco va al título.
-  // Se hace desde un efecto para que corra después de que el diálogo devuelva el foco a su disparador.
-  const [headingFocusRequests, setHeadingFocusRequests] = useState(0)
+  // Al retirar o cancelar con éxito la fila sale de la lista, pero un instante después del cierre: el foco se lleva
+  // desde un efecto para que corra después de que el diálogo devuelva el foco a su disparador.
+  const [focusRequests, setFocusRequests] = useState(0)
+  const focusTarget = useRef<'heading' | 'invitations'>('heading')
   useEffect(() => {
-    if (headingFocusRequests > 0) focusPageHeading()
-  }, [headingFocusRequests])
+    if (focusRequests === 0) return
+    if (focusTarget.current === 'invitations' && invitationsHeading.current) invitationsHeading.current.focus()
+    else focusPageHeading()
+  }, [focusRequests])
 
   function closeAfterRemoval() {
     setRemoving(null)
-    setHeadingFocusRequests((count) => count + 1)
+    focusTarget.current = 'heading'
+    setFocusRequests((count) => count + 1)
+  }
+
+  // Si quedan otras invitaciones el foco va a su panel; si era la última, el panel desaparece y va al título.
+  const invitations = team.isSuccess ? pendingInvitations(team.data) : []
+  function closeAfterCancellation() {
+    setCancelling(null)
+    focusTarget.current = invitations.length > 1 ? 'invitations' : 'heading'
+    setFocusRequests((count) => count + 1)
   }
 
   function actionsFor(member: TeamMember): MenuItem[] {
@@ -70,63 +90,48 @@ export function TeamPage() {
     return items
   }
 
+  // Mientras el filtro «invitación pendiente» está activo la lista ya dice lo mismo: el panel se oculta.
+  const showInvitations = isAdmin && invitations.length > 0 && state.status !== 'invited'
+
   return (
     <div className={pageStyles.page}>
       <PageHeader
         title="Equipo"
         description="Quién atiende, con qué carga y con qué permisos."
-        actions={
-          <div className={styles.actions}>
-            <Link to="/configuracion/permisos" className={styles.link}>
-              Ver permisos por rol
-            </Link>
-            {isAdmin && <Button onClick={() => setInviting(true)}>Invitar agente</Button>}
-          </div>
-        }
+        actions={isAdmin ? <Button onClick={() => setInviting(true)}>Invitar agente</Button> : undefined}
       />
 
-      {metrics.isPending ? (
-        <div className={styles.metricsPlaceholder}>
-          <Skeleton lines={2} label="Cargando métricas…" />
-        </div>
-      ) : metrics.isError ? (
-        <div className={styles.metricsPlaceholder}>
-          <Alert tone="red" title="No pudimos cargar las métricas del equipo">
-            <Button
-              variant="secondary"
-              aria-label="Reintentar cargar las métricas"
-              onClick={() => void metrics.refetch()}
-            >
-              Reintentar
-            </Button>
-          </Alert>
-        </div>
-      ) : (
-        <MetricsRow metrics={metrics.data} />
-      )}
-
-      <section className={styles.panel} aria-label="Miembros del equipo">
-        <div className={styles.filters}>
-          <StatusFilter
-            showRemoved={showRemoved}
-            onChange={(removed) =>
-              setSearchParams(removed ? { [REMOVED_PARAM]: REMOVED_VALUE } : {}, { replace: true })
-            }
-          />
-        </div>
-        <div className={styles.results}>
-          <div className={styles.resultsInner}>
-            <Results
-              team={team}
-              showRemoved={showRemoved}
-              isAdmin={isAdmin}
-              actions={actionsFor}
-              onInvite={() => setInviting(true)}
-              onShowCurrent={() => setSearchParams({}, { replace: true })}
+      <div className={styles.overview}>
+        <LoadPanel
+          team={team}
+          metrics={metrics}
+          expanded={state.allLoad}
+          onExpandedChange={(allLoad) => update({ allLoad, page: state.page })}
+          asTable={state.loadTable}
+          onAsTableChange={(loadTable) => update({ loadTable, page: state.page })}
+        />
+        <div className={styles.side}>
+          {showInvitations && (
+            <InvitationsPanel
+              invitations={invitations}
+              headingRef={invitationsHeading}
+              onCancel={setCancelling}
+              onSeeAll={() => update({ status: 'invited', role: undefined, q: '' })}
             />
-          </div>
+          )}
+          <RolesPanel team={team} />
         </div>
-      </section>
+      </div>
+
+      <MembersPanel
+        team={team}
+        state={state}
+        onChange={update}
+        onPageChange={(page) => setSearchParams(writeTeamState({ ...state, page }))}
+        isAdmin={isAdmin}
+        actions={actionsFor}
+        onInvite={() => setInviting(true)}
+      />
 
       <InviteMemberDialog open={inviting} onClose={() => closeDialog(() => setInviting(false))} />
       <ChangeRoleDialog member={changingRole} onClose={() => closeDialog(() => setChangingRole(null))} />
@@ -135,118 +140,11 @@ export function TeamPage() {
         onClose={() => closeDialog(() => setRemoving(null))}
         onRemoved={closeAfterRemoval}
       />
-    </div>
-  )
-}
-
-function MetricsRow({ metrics }: { metrics: TeamMetrics }) {
-  return (
-    <div className={styles.metrics}>
-      <Metric label="Agentes" value={metrics.staff} />
-      <Metric
-        label="Tickets asignados"
-        value={metrics.assignedOpen}
-        detail={metrics.unassignedOpen === 1 ? '1 sin asignar' : `${metrics.unassignedOpen} sin asignar`}
-      />
-      <Metric label="Carga promedio" value={decimal.format(metrics.averageLoad)} detail="Tickets por agente" />
-      <Metric
-        label="Primera respuesta"
-        value={metrics.firstResponseMinutes === null ? 'Sin datos' : `${metrics.firstResponseMinutes} min`}
-        detail={`Objetivo: ${metrics.firstResponseTargetMinutes} min`}
+      <CancelInvitationDialog
+        member={cancelling}
+        onClose={() => closeDialog(() => setCancelling(null))}
+        onCancelled={closeAfterCancellation}
       />
     </div>
-  )
-}
-
-function StatusFilter({ showRemoved, onChange }: { showRemoved: boolean; onChange: (removed: boolean) => void }) {
-  const items: MenuItem[] = [
-    { id: 'current', label: 'Equipo actual', onSelect: () => onChange(false) },
-    { id: 'removed', label: 'Retirados', onSelect: () => onChange(true) },
-  ]
-  return (
-    <Menu label="Filtrar por estado" items={items} placement="bottom-start">
-      {(trigger) => (
-        <FilterChip selected={showRemoved} {...trigger}>
-          {showRemoved ? 'Estado: Retirados' : 'Estado'}
-        </FilterChip>
-      )}
-    </Menu>
-  )
-}
-
-interface ResultsProps {
-  team: ReturnType<typeof useTeam>
-  showRemoved: boolean
-  isAdmin: boolean
-  actions: (member: TeamMember) => MenuItem[]
-  onInvite: () => void
-  onShowCurrent: () => void
-}
-
-function Results({ team, showRemoved, isAdmin, actions, onInvite, onShowCurrent }: ResultsProps) {
-  if (team.isPending) {
-    return (
-      <div className={styles.loading}>
-        <Skeleton lines={2} label="Cargando el equipo…" />
-        <Skeleton lines={2} label="" />
-        <Skeleton lines={2} label="" />
-      </div>
-    )
-  }
-  if (team.isError) {
-    return (
-      <EmptyState
-        kind="error"
-        title="No pudimos cargar el equipo"
-        description="Revisa tu conexión y vuelve a intentarlo."
-        live={team.failureCount > 1}
-        action={
-          <Button variant="secondary" onClick={() => void team.refetch()}>
-            Reintentar
-          </Button>
-        }
-      />
-    )
-  }
-  const members = team.data.filter((member) => (showRemoved ? member.status === 'removed' : isCurrentMember(member)))
-  if (members.length === 0) {
-    if (showRemoved) {
-      return (
-        <EmptyState
-          kind="noResults"
-          title="No hay miembros retirados"
-          description="Quien se retire del equipo aparecerá aquí."
-          action={
-            <Button variant="secondary" onClick={onShowCurrent}>
-              Ver el equipo actual
-            </Button>
-          }
-        />
-      )
-    }
-    return (
-      <EmptyState
-        icon="team"
-        title="Todavía no hay equipo"
-        description={
-          isAdmin
-            ? 'Invita a la primera persona para repartir los tickets.'
-            : 'Un administrador puede invitar a las primeras personas.'
-        }
-        action={isAdmin ? <Button onClick={onInvite}>Invitar agente</Button> : undefined}
-      />
-    )
-  }
-  return (
-    <>
-      <p className="visually-hidden" role="status">
-        {members.length === 1 ? '1 miembro' : `${members.length} miembros`}
-      </p>
-      <TeamTable
-        members={members}
-        caption={members.length === 1 ? 'Mostrando 1 miembro' : `Mostrando ${members.length} miembros`}
-        actions={actions}
-      />
-    </>
   )
 }

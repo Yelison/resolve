@@ -26,6 +26,21 @@ const team = [
   teamMember({ id: 'u-old', name: 'Pablo Viejo', email: 'pablo@acme.example', status: 'removed', openTickets: 0 }),
 ]
 
+/** `count` agentes activos: «Persona 1» tiene 1 ticket abierto, «Persona 22» tiene 22; los pares llevan un urgente. */
+const manyPeople = (count: number) =>
+  Array.from({ length: count }, (_, index) =>
+    teamMember({
+      id: `u-${index + 1}`,
+      name: `Persona ${index + 1}`,
+      email: `persona${index + 1}@acme.example`,
+      openTickets: index + 1,
+      urgentOpenTickets: (index + 1) % 2 === 0 ? 1 : 0,
+    }),
+  )
+
+/** El equipo de las pruebas sin la invitación de Sofía, que no trae fecha: las pruebas de invitaciones parten de cero. */
+const teamWithoutInvitations = team.filter((member) => member.status !== 'invited')
+
 const baseRoutes = {
   'GET /api/me': { body: adminMe },
   'GET /api/members': { body: team },
@@ -59,45 +74,148 @@ describe('TeamPage', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
-  it('muestra las cuatro métricas y el equipo actual sin los retirados', async () => {
+  it('muestra «Carga ahora» con los totales y solo a las personas activas', async () => {
+    mockApi(baseRoutes)
+    renderTeam()
+    const load = await screen.findByRole('region', { name: 'Carga ahora' })
+    // 10 asignados + 1 sin asignar.
+    expect(await within(load).findByText('11 tickets abiertos · 1 sin asignar')).toBeInTheDocument()
+    const rows = within(within(load).getByRole('list', { name: 'Tickets abiertos por persona' })).getAllByRole(
+      'listitem',
+    )
+    expect(rows).toHaveLength(2)
+    // Las iniciales del avatar van delante del nombre.
+    expect(rows[0]).toHaveTextContent(/Laura Méndez3 abiertos · 1 urgente$/)
+    expect(rows[1]).toHaveTextContent(/Yelisson Ortiz0 abiertos$/)
+    // La invitación pendiente y el retirado no atienden tickets.
+    expect(within(load).queryByText('Sofía Ríos')).not.toBeInTheDocument()
+    expect(within(load).queryByText('Pablo Viejo')).not.toBeInTheDocument()
+    // La leyenda nombra los dos colores con palabras.
+    expect(within(load).getByRole('list', { name: 'Leyenda' })).toHaveTextContent('UrgentesResto')
+  })
+
+  it('con más de ocho personas muestra las más cargadas y «Ver las N personas» las despliega en la misma página', async () => {
+    mockApi({ ...baseRoutes, 'GET /api/members': { body: manyPeople(22) } })
+    const { router } = renderTeam()
+    const load = await screen.findByRole('region', { name: 'Carga ahora' })
+    const list = () => within(load).getByRole('list', { name: 'Tickets abiertos por persona' })
+    expect(await within(load).findByText(/los 8 más cargados/)).toBeInTheDocument()
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(8)
+    // De más a menos: la persona 22 es la más cargada.
+    expect(within(list()).getAllByRole('listitem')[0]).toHaveTextContent('Persona 22')
+
+    await userEvent.click(within(load).getByRole('button', { name: 'Ver las 22 personas' }))
+    expect(router.state.location.search).toBe('?carga=todas')
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(22)
+    expect(within(load).getByText(/las 22 personas, de más a menos/)).toBeInTheDocument()
+
+    await userEvent.click(within(load).getByRole('button', { name: 'Ver solo las 8 más cargadas' }))
+    expect(router.state.location.search).toBe('')
+    expect(within(list()).getAllByRole('listitem')).toHaveLength(8)
+  })
+
+  it('un enlace con «carga=todas» abre la sección desplegada', async () => {
+    mockApi({ ...baseRoutes, 'GET /api/members': { body: manyPeople(12) } })
+    renderTeam('/equipo?carga=todas')
+    const load = await screen.findByRole('region', { name: 'Carga ahora' })
+    expect(await within(load).findByRole('button', { name: 'Ver solo las 8 más cargadas' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+  })
+
+  it('«Ver como tabla» da la alternativa textual con las cifras de cada persona', async () => {
+    mockApi(baseRoutes)
+    const { router } = renderTeam()
+    const load = await screen.findByRole('region', { name: 'Carga ahora' })
+    await userEvent.click(await within(load).findByRole('button', { name: 'Ver como tabla' }))
+    expect(router.state.location.search).toBe('?vista=tabla')
+    const table = within(load).getByRole('table', { name: 'Tickets abiertos por persona' })
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Persona', 'Abiertos', 'Urgentes', 'Resto'])
+    const laura = within(table).getByRole('row', { name: /Laura Méndez/ })
+    expect(
+      within(laura)
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent),
+    ).toEqual(['3', '1', '2'])
+    expect(within(load).queryByRole('list', { name: 'Leyenda' })).not.toBeInTheDocument()
+    await userEvent.click(within(load).getByRole('button', { name: 'Ver como gráfico' }))
+    expect(within(load).queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('sin personas activas lo dice con palabras de usuario', async () => {
+    mockApi({ ...baseRoutes, 'GET /api/members': { body: [team[2]] } })
+    renderTeam()
+    expect(await screen.findByText('Nadie atiende tickets todavía')).toBeInTheDocument()
+  })
+
+  it('si fallan los totales las barras y la lista siguen visibles y se pueden reintentar', async () => {
+    let attempts = 0
+    mockApi({
+      ...baseRoutes,
+      'GET /api/members/metrics': () =>
+        attempts++ === 0 ? { status: 500, body: { status: 500, title: 'Error' } } : { body: teamMetrics },
+    })
+    renderTeam()
+    expect(await screen.findByText('No pudimos cargar los totales.')).toBeInTheDocument()
+    expect(await screen.findByRole('table', { name: 'Equipo' })).toBeInTheDocument()
+    expect(within(screen.getByRole('region', { name: 'Carga ahora' })).getByText('Laura Méndez')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar cargar los totales de tickets' }))
+    expect(await screen.findByText('11 tickets abiertos · 1 sin asignar')).toBeInTheDocument()
+  })
+
+  it('si falla el equipo cada parte lo dice con su propio reintento y los totales siguen ahí', async () => {
+    let attempts = 0
+    mockApi({
+      ...baseRoutes,
+      'GET /api/members': () =>
+        attempts++ === 0 ? { status: 500, body: { status: 500, title: 'Error' } } : { body: team },
+    })
+    renderTeam()
+    expect(await screen.findByText('No pudimos cargar la carga del equipo')).toBeInTheDocument()
+    expect(screen.getByText('No pudimos cargar el equipo')).toBeInTheDocument()
+    expect(await screen.findByText('11 tickets abiertos · 1 sin asignar')).toBeInTheDocument()
+    // Los roles conservan su enlace aunque falle la lista.
+    expect(screen.getByRole('link', { name: 'Ver permisos por rol' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar cargar la lista de miembros' }))
+    expect(await screen.findByRole('table', { name: 'Equipo' })).toBeInTheDocument()
+    expect(screen.queryByText('No pudimos cargar la carga del equipo')).not.toBeInTheDocument()
+  })
+
+  it('«Roles» cuenta a administradores y agentes activos y enlaza a los permisos', async () => {
+    mockApi(baseRoutes)
+    renderTeam()
+    const roles = await screen.findByRole('region', { name: 'Roles' })
+    expect(await within(roles).findByText('Administradores')).toBeInTheDocument()
+    expect(within(roles).getByText('Administradores').nextElementSibling).toHaveTextContent('1')
+    // Laura (activa); Sofía está invitada y Pablo retirado.
+    expect(within(roles).getByText('Agentes').nextElementSibling).toHaveTextContent('1')
+    const link = within(roles).getByRole('link', { name: 'Ver permisos por rol' })
+    expect(link).toHaveAttribute('href', '/configuracion/permisos')
+    expect(screen.getByRole('heading', { level: 1, name: 'Equipo' }).closest('header')).not.toContainElement(link)
+  })
+
+  it('la lista muestra el equipo actual sin los retirados, con su carga y los urgentes con palabras', async () => {
     mockApi(baseRoutes)
     renderTeam()
     const table = await screen.findByRole('table', { name: 'Equipo' })
     expect(within(table).getAllByRole('row')).toHaveLength(4) // encabezado + 3
     expect(within(table).queryByText('Pablo Viejo')).not.toBeInTheDocument()
     expect(within(table).getByText('Invitación pendiente')).toBeInTheDocument()
-    const metric = (label: string) => screen.getByText(label).closest('dl')!
-    expect(metric('Agentes')).toHaveTextContent('4')
-    expect(metric('Tickets asignados')).toHaveTextContent('10')
-    expect(metric('Tickets asignados')).toHaveTextContent('1 sin asignar')
-    expect(metric('Carga promedio')).toHaveTextContent('2,5')
-    expect(metric('Carga promedio')).toHaveTextContent('Tickets por agente')
-    expect(metric('Primera respuesta')).toHaveTextContent('18 min')
-    expect(metric('Primera respuesta')).toHaveTextContent('Objetivo: 30 min')
+    expect(within(within(table).getByRole('row', { name: /Laura Méndez/ })).getByText('1 urgente')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Miembros 3' })).toBeInTheDocument()
   })
 
-  it('sin datos de primera respuesta lo dice', async () => {
-    mockApi({ ...baseRoutes, 'GET /api/members/metrics': { body: { ...teamMetrics, firstResponseMinutes: null } } })
-    renderTeam()
-    expect(await screen.findByText('Sin datos')).toBeInTheDocument()
-  })
-
-  it('enlaza a /configuracion/permisos desde la cabecera, sin el aviso «Permisos por rol»', async () => {
-    mockApi(baseRoutes)
-    renderTeam()
-    const link = await screen.findByRole('link', { name: 'Ver permisos por rol' })
-    expect(link).toHaveAttribute('href', '/configuracion/permisos')
-    expect(link.closest('header')).toBe(screen.getByRole('heading', { level: 1, name: 'Equipo' }).closest('header'))
-    expect(screen.queryByText(/ven al equipo en lectura/)).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Permisos por rol' })).not.toBeInTheDocument()
-  })
-
-  it('los retirados solo aparecen tras el filtro «Retirados»', async () => {
+  it('los retirados solo aparecen tras el filtro «Retirados» y el chip lo quita', async () => {
     mockApi(baseRoutes)
     const { router } = renderTeam()
     await screen.findByRole('table', { name: 'Equipo' })
     await userEvent.click(screen.getByRole('button', { name: 'Estado' }))
-    await userEvent.click(screen.getByRole('menuitem', { name: 'Retirados' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Retirado' }))
     const table = await screen.findByRole('table', { name: 'Equipo' })
     expect(within(table).getAllByRole('row')).toHaveLength(2)
     expect(within(table).getByText('Pablo Viejo')).toBeInTheDocument()
@@ -105,6 +223,8 @@ describe('TeamPage', () => {
     expect(router.state.location.search).toBe('?estado=retirados')
     // Los retirados no tienen acciones.
     expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Quitar el filtro Estado: Retirado' }))
+    expect(router.state.location.search).toBe('')
   })
 
   it('sin retirados el filtro explica que no hay ninguno y vuelve al equipo actual', async () => {
@@ -120,27 +240,143 @@ describe('TeamPage', () => {
     renderTeam()
     expect(await screen.findByText('Todavía no hay equipo')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Invitar agente' })).toHaveLength(2)
+    // Sin invitaciones el panel no se muestra.
+    expect(screen.queryByRole('region', { name: /Invitaciones pendientes/ })).not.toBeInTheDocument()
   })
 
-  it('si falla la carga ofrece reintentar', async () => {
-    let attempts = 0
-    mockApi({
-      ...baseRoutes,
-      'GET /api/members': () =>
-        attempts++ === 0 ? { status: 500, body: { status: 500, title: 'Error' } } : { body: team },
+  it('busca por nombre o correo y filtra por rol, y sin coincidencias ofrece quitar los filtros', async () => {
+    mockApi(baseRoutes)
+    const { router } = renderTeam()
+    await screen.findByRole('table', { name: 'Equipo' })
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar miembros' }), 'LAURA@')
+    await waitFor(() => expect(router.state.location.search).toBe('?q=LAURA%40'))
+    const table = screen.getByRole('table', { name: 'Equipo' })
+    expect(within(table).getAllByRole('row')).toHaveLength(2)
+    expect(screen.getByRole('heading', { level: 2, name: 'Miembros 1 de 3' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Rol' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Administrador' }))
+    expect(await screen.findByText('No encontramos miembros')).toBeInTheDocument()
+    expect(router.state.location.search).toContain('rol=administrador')
+    await userEvent.click(screen.getByRole('button', { name: 'Quitar filtros' }))
+    expect(await screen.findByRole('table', { name: 'Equipo' })).toBeInTheDocument()
+    expect(router.state.location.search).toBe('')
+    expect(screen.getByRole('searchbox', { name: 'Buscar miembros' })).toHaveValue('')
+  })
+
+  it('pagina de diez en diez y avisa cuando la página de la URL ya no existe', async () => {
+    mockApi({ ...baseRoutes, 'GET /api/members': { body: manyPeople(25) } })
+    const { router } = renderTeam()
+    const table = await screen.findByRole('table', { name: 'Equipo' })
+    expect(within(table).getAllByRole('row')).toHaveLength(11)
+    expect(screen.getByText('1–10 de 25 resultados')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Página 3' }))
+    expect(router.state.location.search).toBe('?pagina=3')
+    expect(within(screen.getByRole('table', { name: 'Equipo' })).getAllByRole('row')).toHaveLength(6)
+    await router.navigate('/equipo?pagina=9')
+    expect(await screen.findByText('Esta página ya no existe')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Ir a la primera página' }))
+    expect(await screen.findByText('1–10 de 25 resultados')).toBeInTheDocument()
+  })
+
+  describe('invitaciones pendientes', () => {
+    const invited = (index: number, daysAgo: number) =>
+      teamMember({
+        id: `u-inv-${index}`,
+        name: `invitada${index}`,
+        email: `invitada${index}@acme.example`,
+        status: 'invited',
+        openTickets: 0,
+        urgentOpenTickets: 0,
+        joinedAt: null,
+        invitedAt: new Date(Date.now() - daysAgo * 86_400_000).toISOString(),
+      })
+
+    it('lista el correo, el rol y cuándo se envió, sin «Reenviar» ni «Caducada»', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [...teamWithoutInvitations, invited(1, 2)] } })
+      renderTeam()
+      const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
+      expect(within(panel).getByRole('heading', { name: 'Invitaciones pendientes 1' })).toBeInTheDocument()
+      expect(within(panel).getByText('invitada1@acme.example')).toBeInTheDocument()
+      expect(within(panel).getByText('Agente · Enviada hace 2 días')).toBeInTheDocument()
+      expect(screen.queryByText(/Reenviar|Caducada/)).not.toBeInTheDocument()
+      // Con tres o menos no hay «Ver las N».
+      expect(within(panel).queryByRole('button', { name: /Ver las/ })).not.toBeInTheDocument()
     })
-    renderTeam()
-    expect(await screen.findByText('No pudimos cargar el equipo')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
-    expect(await screen.findByRole('table', { name: 'Equipo' })).toBeInTheDocument()
-  })
 
-  it('si fallan las métricas la lista sigue visible y se pueden reintentar', async () => {
-    mockApi({ ...baseRoutes, 'GET /api/members/metrics': { status: 500, body: { status: 500, title: 'Error' } } })
-    renderTeam()
-    expect(await screen.findByText('No pudimos cargar las métricas del equipo')).toBeInTheDocument()
-    expect(await screen.findByRole('table', { name: 'Equipo' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Reintentar cargar las métricas' })).toBeInTheDocument()
+    it('se ven las tres más recientes y «Ver las N» filtra la lista, oculta el panel y el chip lo deshace', async () => {
+      const five = [1, 2, 3, 4, 5].map((index) => invited(index, index))
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [...teamWithoutInvitations, ...five] } })
+      const { router } = renderTeam()
+      const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
+      expect(
+        within(panel)
+          .getAllByRole('listitem')
+          .map((item) => item.querySelector('span span')?.textContent),
+      ).toEqual(['invitada1@acme.example', 'invitada2@acme.example', 'invitada3@acme.example'])
+      expect(within(panel).getByRole('heading', { name: 'Invitaciones pendientes 5' })).toBeInTheDocument()
+
+      await userEvent.click(within(panel).getByRole('button', { name: 'Ver las 5 invitaciones pendientes' }))
+      expect(router.state.location.search).toBe('?estado=invitados')
+      expect(screen.queryByRole('region', { name: /Invitaciones pendientes/ })).not.toBeInTheDocument()
+      const table = screen.getByRole('table', { name: 'Equipo' })
+      expect(within(table).getAllByRole('row')).toHaveLength(6)
+      expect(screen.getByRole('heading', { level: 2, name: 'Miembros 5 de 7' })).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: 'Quitar el filtro Estado: Invitación pendiente' }))
+      expect(router.state.location.search).toBe('')
+      expect(await screen.findByRole('region', { name: /Invitaciones pendientes/ })).toBeInTheDocument()
+    })
+
+    it('«Cancelar invitación» pide confirmar, usa la API de retirar y avisa solo tras la respuesta', async () => {
+      const fetchSpy = mockApi({
+        ...baseRoutes,
+        'GET /api/members': { body: [...teamWithoutInvitations, invited(1, 2), invited(2, 3)] },
+        'POST /api/members/u-inv-1/remove': { body: { ...invited(1, 2), status: 'removed' } },
+      })
+      renderTeam()
+      const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
+      await userEvent.click(
+        within(panel).getByRole('button', { name: 'Cancelar la invitación de invitada1@acme.example' }),
+      )
+      const dialog = await screen.findByRole('dialog', { name: '¿Cancelar esta invitación?' })
+      expect(dialog).toHaveTextContent('invitada1@acme.example')
+      expect(requestsTo(fetchSpy, '/api/members/u-inv-1/remove')).toHaveLength(0)
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar invitación' }))
+      expect(await screen.findByText('Invitación cancelada')).toBeInTheDocument()
+      expect(requestsTo(fetchSpy, '/api/members/u-inv-1/remove')).toHaveLength(1)
+      // Quedaba otra invitación: el foco va a su panel, no se pierde en el body.
+      await waitFor(() => expect(screen.getByRole('heading', { name: /Invitaciones pendientes/ })).toHaveFocus())
+    })
+
+    it('cancelar la última invitación lleva el foco al título de la página', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/members': { body: [...teamWithoutInvitations, invited(1, 2)] },
+        'POST /api/members/u-inv-1/remove': { body: { ...invited(1, 2), status: 'removed' } },
+      })
+      renderTeam()
+      const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
+      await userEvent.click(within(panel).getByRole('button', { name: /Cancelar la invitación de/ }))
+      const dialog = await screen.findByRole('dialog', { name: '¿Cancelar esta invitación?' })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar invitación' }))
+      await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Equipo' })).toHaveFocus())
+    })
+
+    it('un error al cancelar se anuncia en el diálogo y no avisa de éxito', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/members': { body: [...teamWithoutInvitations, invited(1, 2)] },
+        'POST /api/members/u-inv-1/remove': problem(409, 'El miembro ya fue retirado del equipo.'),
+      })
+      renderTeam()
+      const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
+      await userEvent.click(within(panel).getByRole('button', { name: /Cancelar la invitación de/ }))
+      const dialog = await screen.findByRole('dialog', { name: '¿Cancelar esta invitación?' })
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar invitación' }))
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('El miembro ya fue retirado del equipo.')
+      expect(screen.queryByText('Invitación cancelada')).not.toBeInTheDocument()
+    })
   })
 
   describe('permisos', () => {
@@ -152,12 +388,30 @@ describe('TeamPage', () => {
       expect(screen.getByRole('button', { name: 'Acciones de Sofía Ríos' })).toBeInTheDocument()
     })
 
-    it('un agente ve el equipo y las métricas pero ninguna acción de administración', async () => {
-      mockApi({ ...baseRoutes, 'GET /api/me': { body: agentMe } })
+    it('un agente ve la carga, los roles y los miembros, sin invitar, sin invitaciones y sin menú de acciones', async () => {
+      mockApi({
+        ...baseRoutes,
+        'GET /api/me': { body: agentMe },
+        'GET /api/members': {
+          body: [...team, teamMember({ id: 'u-inv', status: 'invited', invitedAt: new Date().toISOString() })],
+        },
+      })
       renderTeam()
       expect(await screen.findByRole('table', { name: 'Equipo' })).toBeInTheDocument()
-      expect(screen.getByText('Carga promedio')).toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'Carga ahora' })).toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'Roles' })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Invitar agente' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: /Invitaciones pendientes/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Cancelar la invitación/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument()
+    })
+
+    it('mientras se carga la sesión no se dibuja ninguna acción de administración', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/me': () => new Promise(() => {}) as never })
+      renderTeam()
+      expect(await screen.findByRole('table', { name: 'Equipo' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Invitar agente' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: /Invitaciones pendientes/ })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Acciones de/ })).not.toBeInTheDocument()
     })
 
