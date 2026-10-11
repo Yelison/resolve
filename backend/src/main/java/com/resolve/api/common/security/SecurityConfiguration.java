@@ -93,11 +93,12 @@ class SecurityConfiguration {
 				.requestMatchers(HttpMethod.GET,
 						api("/knowledge/categories", "/knowledge/articles", "/knowledge/articles/{slug}"))
 				.authenticated()
-				// Los informes y el feed de actividad son del personal. «/tickets/activity» tiene que estar en esta regla,
-				// que va antes de «/tickets/{number}»: ese patrón también la reconoce y dejaría pasar a un cliente.
+				// Los informes, el feed de actividad y lo que necesita atención son del personal. «/tickets/activity» y
+				// «/tickets/attention» tienen que estar en esta regla, que va antes de «/tickets/{number}»: ese patrón
+				// también las reconoce y dejaría pasar a un cliente.
 				.requestMatchers(HttpMethod.GET,
-						api("/tickets/metrics", "/tickets/activity", "/tickets/{number}/activity", "/customers",
-								"/customers/**", "/assignees", "/members", "/members/metrics", "/reports/summary",
+						api("/tickets/metrics", "/tickets/activity", "/tickets/attention", "/tickets/{number}/activity",
+								"/customers", "/customers/**", "/assignees", "/members", "/members/metrics", "/reports/summary",
 								"/organization"))
 				.hasAnyRole(STAFF)
 				// Cada persona edita su propio nombre, sea cual sea su rol; sin esta regla la de /api/** lo limitaría al

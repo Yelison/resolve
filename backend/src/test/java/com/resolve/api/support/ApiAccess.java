@@ -54,7 +54,8 @@ public final class ApiAccess {
 			// Tickets: los clientes leen los suyos; el resto es del personal.
 			Map.entry("listTickets", ANYONE), Map.entry("getTicket", ANYONE), Map.entry("listMessages", ANYONE),
 			Map.entry("createTicket", STAFF), Map.entry("getTicketMetrics", STAFF),
-			Map.entry("listRecentActivity", STAFF), Map.entry("updateTicket", STAFF), Map.entry("createMessage", STAFF),
+			Map.entry("listRecentActivity", STAFF), Map.entry("listTicketsNeedingAttention", STAFF),
+			Map.entry("updateTicket", STAFF), Map.entry("createMessage", STAFF),
 			Map.entry("listActivity", STAFF),
 			// Clientes: del personal; archivar, restaurar e invitar solo de administradores.
 			Map.entry("listCustomers", STAFF), Map.entry("createCustomer", STAFF),

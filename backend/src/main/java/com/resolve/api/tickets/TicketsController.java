@@ -22,7 +22,6 @@ import com.resolve.api.tickets.TicketDtos.TicketSummaryDto;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -92,18 +91,14 @@ class TicketsController {
 	}
 
 	/**
-	 * Solo personal. La regla de URL de {@code SecurityConfiguration} deja pasar a cualquier miembro autenticado
-	 * («/tickets/attention» encaja con «/tickets/{number}»), así que se comprueba aquí, antes de leer los parámetros:
-	 * un cliente recibe 403 aunque su petición también sea inválida. Los textos llegan como cadenas para que un valor
-	 * inválido sea un 400 sobre su campo.
+	 * Solo personal: la regla de URL de {@code SecurityConfiguration} responde 403 a un cliente antes de llegar aquí, y
+	 * {@code ApiAccessMatrixTest} falla si esa regla deja de cubrir la ruta. Los textos llegan como cadenas para que un
+	 * valor inválido sea un 400 sobre su campo.
 	 */
 	@GetMapping("/attention")
 	AttentionListDto attention(@AuthenticationPrincipal CurrentMember member,
 			@RequestParam(required = false) @Nullable String scope,
 			@RequestParam(required = false) @Nullable String size) {
-		if (!member.isStaff()) {
-			throw new AccessDeniedException("Los tickets que necesitan atención son del personal.");
-		}
 		TicketRequestParser.AttentionRequest request = TicketRequestParser.attention(scope, size);
 		return this.service.attention(member, request.scope(), request.size());
 	}
