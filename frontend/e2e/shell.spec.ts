@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { expect, test } from './fixtures'
+import { expect, mockApi, test } from './fixtures'
 
 test.describe('shell', () => {
   test('móvil: el drawer se abre, atrapa el foco, se cierra con Escape y devuelve el foco', async ({ page }) => {
@@ -258,6 +258,83 @@ test.describe('shell', () => {
       const after = (await account(page).boundingBox())!
       expect(after.y).toBeCloseTo(before.y, 0)
       expect(after.height).toBeCloseTo(before.height, 0)
+    })
+  })
+
+  test.describe('menú, migas y título según el rol', () => {
+    const sidebarLinks = (page: Page) => page.getByRole('navigation', { name: 'Principal' }).getByRole('link')
+
+    for (const [path, name] of [
+      ['/tickets', 'Mis solicitudes'],
+      ['/conocimiento', 'Ayuda'],
+    ]) {
+      test(`un cliente ve ${path} como «${name}» en el menú, las migas y el título de la pestaña`, async ({ page }) => {
+        await mockApi(page, 'customer')
+        await page.setViewportSize({ width: 1440, height: 900 })
+        await page.goto(path)
+        await expect(page).toHaveTitle(`${name} · Resolve`)
+        await expect(page.getByRole('navigation', { name: 'Ruta de navegación' })).toContainText(name)
+        await expect(sidebarLinks(page).filter({ hasText: name })).toHaveCount(1)
+      })
+    }
+
+    test('el personal conserva «Tickets» en las migas y el título', async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.goto('/tickets')
+      await expect(page).toHaveTitle('Tickets · Resolve')
+      await expect(page.getByRole('navigation', { name: 'Ruta de navegación' })).toContainText('Tickets')
+    })
+
+    test('mientras carga /me solo se ven las secciones comunes y, para un cliente, nada se mueve al llegar la sesión', async ({
+      page,
+    }) => {
+      await mockApi(page, 'customer')
+      await page.setViewportSize({ width: 1440, height: 900 })
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      await page.route('**/api/me', async (route) => {
+        await gate
+        await route.fallback()
+      })
+      await page.goto('/tickets')
+      const nav = page.getByRole('navigation', { name: 'Principal' })
+      await expect(sidebarLinks(page)).toHaveText(['Tickets', 'Conocimiento', 'Configuración'])
+      await expect(nav.getByRole('link', { name: 'Clientes' })).toHaveCount(0)
+      const boxes = async () =>
+        Promise.all([nav.boundingBox(), ...[0, 1, 2].map((index) => sidebarLinks(page).nth(index).boundingBox())])
+      const before = await boxes()
+      release()
+      await expect(sidebarLinks(page)).toHaveText(['Mis solicitudes', 'Ayuda', 'Configuración'])
+      const after = await boxes()
+      expect(after).toEqual(before)
+    })
+
+    test('mientras carga /me el personal ve las comunes y al llegar se suman las suyas sin mover el marco del menú', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1440, height: 900 })
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      await page.route('**/api/me', async (route) => {
+        await gate
+        await route.fallback()
+      })
+      await page.goto('/tickets')
+      const nav = page.getByRole('navigation', { name: 'Principal' })
+      await expect(sidebarLinks(page)).toHaveText(['Tickets', 'Conocimiento', 'Configuración'])
+      const before = (await nav.boundingBox())!
+      release()
+      await expect(sidebarLinks(page)).toHaveText([
+        'Inicio',
+        'Tickets',
+        'Clientes',
+        'Equipo',
+        'Reportes',
+        'Conocimiento',
+        'Configuración',
+      ])
+      const after = (await nav.boundingBox())!
+      expect({ x: after.x, y: after.y, width: after.width }).toEqual({ x: before.x, y: before.y, width: before.width })
     })
   })
 })
