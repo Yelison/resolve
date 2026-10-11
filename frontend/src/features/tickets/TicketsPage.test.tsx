@@ -322,6 +322,34 @@ describe('TicketsPage para agentes', () => {
     expect(await patch.clone().json()).toEqual({ status: 'resolved' })
   })
 
+  it('dos acciones rápidas seguidas en filas distintas avisan cada una de su resultado', async () => {
+    // Un solo hook de mutación para toda la lista dejaría sin aviso a la primera: TanStack solo llama a los callbacks de
+    // la última llamada. La primera termina después de lanzar la segunda.
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    mockApi({
+      ...staffRoutes({
+        body: page([summary(), summary({ id: 't-1047', number: 1047, subject: 'Error de pago' })]),
+      }),
+      'GET /api/tickets/1048': { body: ticket({ version: 5 }) },
+      'GET /api/tickets/1047': { body: ticket({ number: 1047, id: 't-1047', version: 2 }) },
+      'PATCH /api/tickets/1048': async () => {
+        await held
+        return { body: ticket({ version: 6, status: 'resolved' }) }
+      },
+      'PATCH /api/tickets/1047': { body: ticket({ number: 1047, id: 't-1047', version: 3 }) },
+    })
+    renderInbox()
+    await userEvent.click(await screen.findByRole('button', { name: 'Acciones del ticket #1048' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Marcar como resuelto' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Acciones del ticket #1047' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Asignarme' }))
+    const region = screen.getByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('Te asignaste el ticket #1047')).toBeInTheDocument()
+    release()
+    expect(await within(region).findByText('Ticket #1048 resuelto')).toBeInTheDocument()
+  })
+
   it('por debajo de 1200 px no hay vista previa ni pide la conversación', async () => {
     const fetchSpy = mockApi(staffRoutes({ body: page([summary()]) }))
     renderInbox('/tickets?ticket=1048')
@@ -552,7 +580,7 @@ describe('TicketsPage para clientes', () => {
     expect(first).toHaveTextContent('Abierta')
     expect(first).not.toHaveTextContent('Urgente')
     const second = screen.getByRole('link', { name: /#1021/ })
-    expect(second).toHaveTextContent('Equipo de soporte')
+    expect(second).toHaveTextContent('Soporte')
     expect(second).toHaveTextContent('Pendiente de asignar')
     expect(second).toHaveTextContent('Tú: Gracias, quedo atenta.')
     expect(second).toHaveTextContent('Esperando tu respuesta')

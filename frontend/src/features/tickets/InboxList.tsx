@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode } from 'react'
 import type { To } from 'react-router'
-import { Alert, Button, type MenuItem } from '../../components/ui'
+import { Alert, Button } from '../../components/ui'
 import type { TicketSummary } from '../../domain/ticket'
 import { groupByDay } from './dateGroups'
 import { InboxItem, InboxItemGhost } from './InboxItem'
@@ -17,7 +17,8 @@ export interface InboxListProps {
   /** Destino del enlace de cada fila. */
   linkTo: (ticket: TicketSummary) => To
   customerView?: boolean
-  actionsFor?: (ticket: TicketSummary) => MenuItem[]
+  /** Menú de acciones de cada fila; cada uno lleva su propia mutación, así que sus avisos no se pisan. */
+  renderActions?: (ticket: TicketSummary) => ReactNode
   timeZone: string
   hasMore: boolean
   loadingMore: boolean
@@ -36,7 +37,7 @@ export function InboxList({
   selectedNumber,
   linkTo,
   customerView,
-  actionsFor,
+  renderActions,
   timeZone,
   hasMore,
   loadingMore,
@@ -103,7 +104,7 @@ export function InboxList({
                     selected={ticket.number === selectedNumber}
                     customerView={customerView}
                     tabStop={ticket.id === tabStopId}
-                    actions={actionsFor?.(ticket)}
+                    actions={renderActions?.(ticket)}
                     timeZone={timeZone}
                     now={now}
                   />

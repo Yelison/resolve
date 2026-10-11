@@ -128,12 +128,13 @@
   }
 
   .title {
-    font: var(--font-section);
-    font-size: 24px;
+    /* El título vive en una columna de 480 px junto a la vista previa: sigue la maqueta (24 px), no los 30 px de página. */
+    font: var(--font-title-mobile);
   }
 
   .view {
-    min-height: 32px;
+    /* Píldora compacta de la columna de la lista (la maqueta la dibuja de 32 px); por debajo de 1200 px mide la zona táctil. */
+    min-height: var(--space-32);
     padding: 0 var(--space-12);
   }
 }

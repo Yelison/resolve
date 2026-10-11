@@ -6,6 +6,7 @@ import {
   EmptyState,
   FilterChip,
   Icon,
+  IconButton,
   Menu,
   SearchField,
   Skeleton,
@@ -121,7 +122,6 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
     setSearchText('')
     update({ status: undefined, priority: undefined, assignee: undefined, q: '' })
   }
-  const actionsFor = useRowActions(isStaff && !twoPanes)
 
   const style = { '--inbox-reserve': `${reserve}px` } as CSSProperties
   return (
@@ -179,7 +179,7 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
           timeZone={timeZone}
           filtersActive={filtersActive}
           onClearFilters={clearFilters}
-          actionsFor={actionsFor}
+          rowActions={isStaff && !twoPanes}
         />
       </section>
 
@@ -244,7 +244,7 @@ interface ListBodyProps {
   timeZone: string
   filtersActive: boolean
   onClearFilters: () => void
-  actionsFor: (ticket: TicketSummary) => MenuItem[]
+  rowActions: boolean
 }
 
 function ListBody({
@@ -255,7 +255,7 @@ function ListBody({
   timeZone,
   filtersActive,
   onClearFilters,
-  actionsFor,
+  rowActions,
 }: ListBodyProps) {
   if (list.isPending) return <InboxListSkeleton />
   if (!list.data) {
@@ -341,7 +341,7 @@ function ListBody({
           : `/tickets/${ticket.number}`
       }
       customerView={!isStaff}
-      actionsFor={actionsFor}
+      renderActions={rowActions ? (ticket) => <RowActions ticket={ticket} /> : undefined}
       timeZone={timeZone}
       hasMore={list.hasNextPage}
       loadingMore={list.isFetchingNextPage}
@@ -352,15 +352,17 @@ function ListBody({
 }
 
 /**
- * Acciones rápidas de cada fila cuando no hay vista previa con sus propios controles (por debajo de 1200 px). Una sola
- * llamada: el reintento de un 503 de bloqueo la repite tal cual, con la versión que leyó la primera vez.
+ * Menú de acciones rápidas de una fila, para cuando no hay vista previa con sus propios controles (por debajo de
+ * 1200 px). Cada fila lleva su propia mutación: con una sola para toda la lista, TanStack solo llamaría a los
+ * callbacks de la última acción y la primera se quedaría sin aviso. Una sola llamada por acción: el reintento de un
+ * 503 de bloqueo la repite tal cual, con la versión que leyó la primera vez.
  */
-function useRowActions(enabled: boolean): (ticket: TicketSummary) => MenuItem[] {
+function RowActions({ ticket }: { ticket: TicketSummary }) {
   const me = useMe()
   const toast = useToast()
   const quickUpdate = useQuickTicketUpdate()
 
-  function run(ticket: TicketSummary, changes: TicketChanges, success: string) {
+  function run(changes: TicketChanges, success: string) {
     const variables = { number: ticket.number, changes }
     const attempt = () =>
       quickUpdate.mutate(variables, {
@@ -401,23 +403,25 @@ function useRowActions(enabled: boolean): (ticket: TicketSummary) => MenuItem[] 
     attempt()
   }
 
-  return (ticket) =>
-    enabled
-      ? [
-          {
-            id: 'assign-me',
-            label: 'Asignarme',
-            disabled: !me.data || ticket.assignee?.id === me.data.user.id,
-            onSelect: () => run(ticket, { assigneeId: me.data?.user.id }, `Te asignaste el ticket #${ticket.number}`),
-          },
-          {
-            id: 'resolve',
-            label: 'Marcar como resuelto',
-            disabled: ticket.status === 'resolved',
-            onSelect: () => run(ticket, { status: 'resolved' }, `Ticket #${ticket.number} resuelto`),
-          },
-        ]
-      : []
+  const items: MenuItem[] = [
+    {
+      id: 'assign-me',
+      label: 'Asignarme',
+      disabled: !me.data || ticket.assignee?.id === me.data.user.id,
+      onSelect: () => run({ assigneeId: me.data?.user.id }, `Te asignaste el ticket #${ticket.number}`),
+    },
+    {
+      id: 'resolve',
+      label: 'Marcar como resuelto',
+      disabled: ticket.status === 'resolved',
+      onSelect: () => run({ status: 'resolved' }, `Ticket #${ticket.number} resuelto`),
+    },
+  ]
+  return (
+    <Menu label={`Acciones del ticket #${ticket.number}`} items={items}>
+      {(trigger) => <IconButton icon="more" label={`Acciones del ticket #${ticket.number}`} {...trigger} />}
+    </Menu>
+  )
 }
 
 interface FilterOption {

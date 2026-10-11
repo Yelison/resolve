@@ -1,5 +1,6 @@
 import { Link, type To } from 'react-router'
-import { Badge, IconButton, Menu, ticketStatus, type MenuItem } from '../../components/ui'
+import type { ReactNode } from 'react'
+import { Badge, ticketStatus } from '../../components/ui'
 import type { TicketSummary } from '../../domain/ticket'
 import { cx } from '../../lib/cx'
 import { formatRelative } from '../../lib/format'
@@ -16,8 +17,8 @@ export interface InboxItemProps {
   customerView?: boolean
   /** Es la única parada de Tab de la lista; las demás filas se alcanzan con las flechas. */
   tabStop?: boolean
-  /** Acciones de la fila (solo cuando no hay vista previa con sus propios controles). */
-  actions?: MenuItem[]
+  /** Menú de acciones de la fila (solo cuando no hay vista previa con sus propios controles). */
+  actions?: ReactNode
   /** Fecha de referencia para el tiempo relativo; útil en pruebas. */
   now?: Date
   /** Zona IANA con la que se cuentan los días de «ayer». */
@@ -35,7 +36,7 @@ export function InboxItem({
   selected = false,
   customerView = false,
   tabStop = true,
-  actions = [],
+  actions,
   now,
   timeZone,
 }: InboxItemProps) {
@@ -44,7 +45,7 @@ export function InboxItem({
   const updatedAt = new Date(ticket.updatedAt)
   const assigneeName = ticket.assignee?.name
   const who = customerView
-    ? (assigneeName ?? 'Equipo de soporte')
+    ? (assigneeName ?? 'Soporte')
     : ticket.customer.company
       ? `${ticket.customer.name} · ${ticket.customer.company}`
       : ticket.customer.name
@@ -97,13 +98,7 @@ export function InboxItem({
           </span>
         </span>
       </Link>
-      {actions.length > 0 && (
-        <span className={styles.actions}>
-          <Menu label={`Acciones del ticket #${ticket.number}`} items={actions}>
-            {(trigger) => <IconButton icon="more" label={`Acciones del ticket #${ticket.number}`} {...trigger} />}
-          </Menu>
-        </span>
-      )}
+      {actions && <span className={styles.actions}>{actions}</span>}
     </li>
   )
 }
