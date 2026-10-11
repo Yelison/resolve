@@ -88,9 +88,16 @@ class ExcerptsTest {
 
 	@Test
 	void anUnclosedTagOrCommentLeavesNoMarkupBehind() {
-		assertThat(Excerpts.of("Texto <img src=x onerror=alert(1)")).doesNotContain("<");
-		assertThat(Excerpts.of("Texto </div y <b")).doesNotContain("<");
-		assertThat(Excerpts.of("Texto <!-- sin cerrar")).doesNotContain("<b").startsWith("Texto");
+		assertThat(Excerpts.of("Texto <img src=x onerror=alert(1)")).doesNotContainPattern("<[A-Za-z/]");
+		assertThat(Excerpts.of("Texto </div y <b")).doesNotContainPattern("<[A-Za-z/]");
+		assertThat(Excerpts.of("Texto <!-- sin cerrar")).startsWith("Texto");
+	}
+
+	@Test
+	void aLessThanSignGluedToATextIsKeptNotDeleted() {
+		assertThat(Excerpts.of("Si a<b entonces")).isEqualTo("Si a< b entonces");
+		assertThat(Excerpts.of("te quiero </3")).isEqualTo("te quiero < /3");
+		assertThat(Excerpts.of("Si a<b entonces")).doesNotContainPattern("<[A-Za-z/]");
 	}
 
 	@Test

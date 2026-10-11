@@ -81,9 +81,10 @@ export function KnowledgePage() {
   // un recuento por estado.
   const otherStatus: ArticleStatus = state.status === 'draft' ? 'published' : 'draft'
   const other = useArticleCount({ q: state.q, category: state.category, status: otherStatus }, isStaff)
-  // Con `keepPreviousData`, la lista y el recuento pueden traer cada uno el resultado anterior: solo se mezclan si los
-  // dos están al día o los dos están retrasados, nunca uno de cada.
-  const consistent = list.isSuccess && other.isSuccess && list.isPlaceholderData === other.isPlaceholderData
+  // Con `keepPreviousData`, al cambiar de píldora la lista y el recuento enseñan cada uno su resultado anterior, que es
+  // el del estado contrario: mezclarlos, aunque los dos estén retrasados, intercambia los números. Solo se muestran con
+  // datos al día; mientras tanto las píldoras se quedan sin número.
+  const consistent = list.isSuccess && other.isSuccess && !list.isPlaceholderData && !other.isPlaceholderData
   const statusCounts = {
     published: undefined as number | undefined,
     draft: undefined as number | undefined,

@@ -27,7 +27,10 @@ final class Excerpts {
 	/** Una etiqueta HTML; con `[^<>]*` no retrocede y puede ocupar varias líneas porque se aplica al texto ya unido. */
 	private static final Pattern TAG = Pattern.compile("</?[A-Za-z][^<>]*>");
 
-	/** Salvaguarda: un {@code <} seguido de letra o barra que sobreviva (etiqueta sin cerrar, texto cortado). */
+	/**
+	 * Salvaguarda: un {@code <} seguido de letra o barra que sobreviva (etiqueta sin cerrar, texto cortado). Se separa con
+	 * un espacio en lugar de borrarlo: {@code <img} deja de ser una etiqueta y {@code a<b} conserva su signo.
+	 */
 	private static final Pattern STRAY_TAG_START = Pattern.compile("<(?=[A-Za-z/])");
 
 	/** Autoenlaces {@code <https://…>}, {@code <mailto:…>} y {@code <correo@dominio>}: se conserva su contenido. */
@@ -106,7 +109,7 @@ final class Excerpts {
 		String text = joined.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'");
 		text = text.replace("&amp;", "&");
 		text = TAG.matcher(stripComments(text)).replaceAll(" ");
-		return STRAY_TAG_START.matcher(text).replaceAll("");
+		return STRAY_TAG_START.matcher(text).replaceAll("< ");
 	}
 
 	/** Quita {@code <!-- … -->}, también en varias líneas, con un recorrido lineal; una apertura sin cierre se deja. */

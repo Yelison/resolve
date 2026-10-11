@@ -169,6 +169,35 @@ describe('KnowledgePage', () => {
     expect(counts[0]!.searchParams.get('status')).toBe('published')
   })
 
+  it('al cambiar de píldora los recuentos no salen intercambiados mientras llegan los datos', async () => {
+    let hold = false
+    const waiting: (() => void)[] = []
+    mockApi({
+      ...staffRoutes,
+      'GET /api/knowledge/articles': async (request) => {
+        const status = new URL(request.url).searchParams.get('status')
+        const body = articlePage([status === 'draft' ? draft : articleSummary()], status === 'draft' ? 1 : 4)
+        if (hold) await new Promise<void>((resolve) => waiting.push(resolve))
+        return { body }
+      },
+    })
+    renderKnowledge('/conocimiento?status=published')
+    expect(await screen.findByRole('button', { name: /Borradores\s*1/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Publicados\s*4/ })).toBeInTheDocument()
+
+    hold = true
+    await userEvent.click(screen.getByRole('button', { name: /Borradores/ }))
+    // Las respuestas están retenidas: la lista y el recuento enseñan lo anterior y no pueden pintarse como nuevo.
+    await vi.waitFor(() => expect(waiting.length).toBeGreaterThan(0))
+    expect(screen.queryByRole('button', { name: /Publicados\s*1/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Borradores\s*4/ })).not.toBeInTheDocument()
+
+    hold = false
+    waiting.forEach((release) => release())
+    expect(await screen.findByRole('button', { name: /Borradores\s*1/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Publicados\s*4/ })).toBeInTheDocument()
+  })
+
   it('pide los artículos de diez en diez', async () => {
     const fetchSpy = mockApi({
       ...staffRoutes,
