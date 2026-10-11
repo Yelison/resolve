@@ -1,29 +1,8 @@
-.metrics {
-  display: grid;
-  /* Una columna si dos no caben a 150 px; nunca más de dos por debajo de 1200 px. */
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(150px, calc(50% - var(--space-6)))), 1fr));
-  gap: var(--space-12);
-}
-
-.metricsPlaceholder {
-  min-height: 96px;
-}
-
-.panel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  border: 1px solid var(--color-line);
-  border-radius: var(--radius-panel);
-  background: var(--color-surface);
-}
-
 .filters {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-12);
-  padding: var(--space-16);
 }
 
 .search {
@@ -32,6 +11,20 @@
 
 .select {
   flex: 1 1 100%;
+}
+
+.summary {
+  overflow-wrap: anywhere;
+}
+
+/* La frase real, invisible: reserva sus líneas y se pinta como una barra mientras llega. */
+.summaryPlaceholder {
+  border-radius: var(--radius-small);
+  background: var(--color-line);
+  color: transparent;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  user-select: none;
 }
 
 .retry {
@@ -55,41 +48,53 @@
     min-width: 0;
     min-height: 0;
   }
-}
-
-.results {
-  container: customers-results / inline-size;
-  min-width: 0;
-  padding: 0 var(--space-16) var(--space-16);
-}
-
-.loading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
-  min-height: 240px;
-}
-
-/* Mismo umbral que la tabla: en tarjetas hay margen interior; como tabla, las filas llegan al borde del panel. */
-@container customers-results (min-width: 560px) {
-  .resultsInner {
-    margin: 0 calc(var(--space-16) * -1) calc(var(--space-16) * -1);
-  }
-}
-
-@media (min-width: 768px) {
-  .metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
   .select {
     flex: 0 1 220px;
   }
 }
 
-@media (min-width: 1200px) {
-  .metrics {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--space-24);
-  }
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+/* Vacío, sin resultados, error y sin permisos: la misma superficie que las tarjetas del directorio. */
+.state {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-panel);
+}
+
+/* Chip del filtro de empresa: se quita con un toque. El nombre largo envuelve en lugar de recortarse. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-height: var(--touch-target);
+  max-width: 100%;
+  padding: var(--space-4) var(--space-12);
+  border: 0;
+  border-radius: var(--radius-round);
+  background: var(--color-ink);
+  color: var(--color-surface);
+  font: var(--font-label);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chipText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: var(--touch-target);
+  color: var(--color-blue-ink);
+  font: var(--font-label);
+  overflow-wrap: anywhere;
 }

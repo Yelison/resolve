@@ -5,7 +5,7 @@ export const customerDetail = (overrides: Partial<CustomerDetail> = {}): Custome
   id: 'c-maria',
   name: 'María Pérez',
   email: 'maria@cliente.example',
-  company: 'Acme Studio',
+  company: 'Lumen Diseño',
   openTickets: 1,
   totalTickets: 4,
   createdAt: '2026-09-01T10:00:00Z',

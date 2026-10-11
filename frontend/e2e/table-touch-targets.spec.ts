@@ -6,7 +6,6 @@ import { expect, test } from './fixtures'
  * cada fila deben seguir midiendo 44 px (el reset de la zona táctil solo desde 768 px, como `TicketRow`, #35).
  */
 const tables = [
-  { route: '/clientes', name: 'Clientes' },
   { route: '/equipo', name: 'Equipo' },
   { route: '/conocimiento', name: 'Artículos' },
   { route: '/reportes', name: 'Rendimiento por agente' },

@@ -8,12 +8,6 @@ import { expect, test } from './fixtures'
  * suelo de contenedor de 860 px. `TicketTable` usa los mismos umbrales con sus propias reglas de contenedor.
  */
 const tables = [
-  {
-    route: '/clientes',
-    name: 'Clientes',
-    full: ['Cliente', 'Empresa', 'Correo', 'Tickets', 'Estado'],
-    priority: ['Correo'],
-  },
   { route: '/equipo', name: 'Equipo', full: ['Agente', 'Rol', 'Estado', 'Carga'], priority: ['Rol'] },
   {
     route: '/tickets',

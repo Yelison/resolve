@@ -1093,7 +1093,7 @@ export interface components {
         };
         /** @description The customers of one company that match the filters, with their totals and a preview. */
         CustomerCompanyGroup: {
-            /** @description The company as spelled by its first customer; `null` for the customers without a company. */
+            /** @description One of the spellings its customers use (the one `/customers/companies` lists); `null` for the customers without a company. */
             company: string | null;
             customerCount: number;
             /** @description Open tickets (not `resolved`) summed over every customer of the group, not only the previewed ones. */
