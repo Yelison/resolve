@@ -9,7 +9,7 @@ const ticket: TicketSummary = {
   id: 't-1048',
   number: 1048,
   subject: 'No puedo acceder a mi cuenta',
-  customer: { id: 'c-1', name: 'María Pérez', email: 'maria@example.com', company: 'Lumen Diseño' },
+  customer: { id: 'c-1', name: 'María Pérez', email: 'maria@example.com', company: 'Acme Studio' },
   status: 'open',
   priority: 'urgent',
   channel: 'email',
@@ -66,7 +66,7 @@ describe('TicketTable y TicketRow', () => {
       'href',
       '/tickets/1048',
     )
-    expect(row).toHaveTextContent('María Pérez · Lumen Diseño')
+    expect(row).toHaveTextContent('María Pérez · Acme Studio')
     expect(row).toHaveTextContent('Abierto')
     expect(row).toHaveTextContent('Urgente')
     expect(within(row).getByText('hace 5 minutos')).toHaveAttribute('datetime', '2026-10-04T10:25:00.000Z')

@@ -7,7 +7,7 @@ export const summary = (overrides: Partial<TicketSummary> = {}): TicketSummary =
   status: 'open',
   priority: 'urgent',
   channel: 'email',
-  customer: { id: 'c-maria', name: 'María Pérez', email: 'maria@cliente.example', company: 'Lumen Diseño' },
+  customer: { id: 'c-maria', name: 'María Pérez', email: 'maria@cliente.example', company: 'Acme Studio' },
   assignee: { id: 'u-laura', name: 'Laura Méndez' },
   createdAt: '2026-10-04T15:00:00Z',
   updatedAt: '2026-10-04T15:12:00Z',

@@ -10,7 +10,7 @@ import { ticket } from '../../test/ticketFixtures'
 import { NewTicketPage } from './NewTicketPage'
 
 const customers = {
-  items: [{ id: 'c-maria', name: 'María Pérez', email: 'maria@cliente.example', company: 'Lumen Diseño' }],
+  items: [{ id: 'c-maria', name: 'María Pérez', email: 'maria@cliente.example', company: 'Acme Studio' }],
   page: 0,
   size: 20,
   totalItems: 1,

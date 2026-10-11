@@ -12,7 +12,7 @@ const customerRow = {
   id: 'c-maria',
   name: 'María Pérez',
   email: 'maria@cliente.example',
-  company: 'Lumen Diseño',
+  company: 'Acme Studio',
   openTickets: 1,
   totalTickets: 4,
   createdAt: '2026-09-01T10:00:00Z',
@@ -68,7 +68,7 @@ describe('GlobalSearch', () => {
     expect(within(tickets).getByRole('option', { name: /#1048 No puedo acceder a mi cuenta\s*Abierto/ })).toBeVisible()
     expect(within(tickets).getByRole('option', { name: 'Ver todos los resultados de tickets' })).toBeVisible()
     const customers = within(list).getByRole('group', { name: 'Clientes' })
-    expect(within(customers).getByRole('option', { name: /María Pérez\s*Lumen Diseño/ })).toBeVisible()
+    expect(within(customers).getByRole('option', { name: /María Pérez\s*Acme Studio/ })).toBeVisible()
     const articles = within(list).getByRole('group', { name: 'Artículos' })
     expect(
       within(articles).getByRole('option', { name: /Cómo recuperar el acceso a tu cuenta\s*Cuenta y acceso/ }),

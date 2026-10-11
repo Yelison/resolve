@@ -16,7 +16,7 @@ export interface DirectoryCard {
   /** Con una empresa entera de por medio, cada fila dice cuál es la suya. */
   showCompany?: boolean
   /** Enlace al pie que abre la empresa completa cuando solo se ven sus primeros clientes. */
-  more?: { label: string; to: To }
+  more?: { label: string; to: To; onClick?: () => void }
 }
 
 export interface CustomersDirectoryProps {
@@ -60,7 +60,7 @@ function CompanyCard({ card, timeZone, now }: { card: DirectoryCard; timeZone?: 
       )}
       <CustomerRows customers={card.customers} showCompany={card.showCompany} timeZone={timeZone} now={now} />
       {card.more && (
-        <Link to={card.more.to} className={styles.more}>
+        <Link to={card.more.to} className={styles.more} onClick={card.more.onClick}>
           {card.more.label}
         </Link>
       )}

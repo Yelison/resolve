@@ -436,10 +436,38 @@ test.describe('clientes', () => {
     await expect(page.getByRole('link', { name: 'Cliente 13' })).toBeVisible()
     await expect(page.getByRole('button', { name: /Quitar el filtro Empresa del cliente: Asociación/ })).toBeVisible()
     await expect(page.getByRole('group', { name: 'Clientes' })).toContainText('14 clientes')
-    // Es la misma página: se vuelve con el enlace o quitando el chip, y el foco no se pierde en `body`.
+    // Es la misma página: se vuelve con el enlace o quitando el chip (el foco, con teclado, se prueba abajo).
     await page.getByRole('link', { name: '← Volver a todas las empresas' }).click()
     await expect(page).toHaveURL(/\/clientes$/)
     await expect(page.getByRole('heading', { level: 2, name: 'Orbit Labs' })).toBeVisible()
+  })
+
+  test('con teclado, quitar el chip, volver a todas las empresas y abrir una empresa dejan el foco en la lista', async ({
+    page,
+  }) => {
+    const list = page.getByRole('region', { name: 'Lista de clientes' })
+
+    await page.goto('/clientes?company=Northstar')
+    const chip = page.getByRole('button', { name: 'Quitar el filtro Empresa del cliente: Northstar' })
+    await chip.focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/\/clientes$/)
+    await expect(page.getByRole('heading', { level: 2, name: 'Orbit Labs' })).toBeVisible()
+    await expect(list).toBeFocused()
+
+    await page.goto('/clientes?company=Northstar')
+    await page.getByRole('link', { name: '← Volver a todas las empresas' }).focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/\/clientes$/)
+    await expect(page.getByRole('heading', { level: 2, name: 'Orbit Labs' })).toBeVisible()
+    await expect(list).toBeFocused()
+
+    await mockVolume(page)
+    await page.goto('/clientes')
+    await page.getByRole('link', { name: `Ver los 14 clientes de ${longCompany}` }).focus()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/\/clientes\?company=/)
+    await expect(list).toBeFocused()
   })
 
   test('el esqueleto reserva el sitio del resumen y de la lista: nada se mueve al llegar los datos', async ({

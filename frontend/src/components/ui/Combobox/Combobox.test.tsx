@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { Combobox, type ComboboxOption } from './Combobox'
 
 const all: ComboboxOption[] = [
-  { value: 'c-1', label: 'María Pérez', description: 'Lumen Diseño' },
+  { value: 'c-1', label: 'María Pérez', description: 'Acme Studio' },
   { value: 'c-2', label: 'Carlos Ruiz', description: 'Northstar' },
 ]
 

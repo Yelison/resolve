@@ -124,6 +124,10 @@ export function CustomersPage() {
   const listFocus = useRetryFocus<HTMLDivElement>(list.isSuccess)
   const companiesFocus = useRetryFocus<HTMLSelectElement>(companies.isSuccess)
 
+  // Quitar el chip, volver a todas las empresas o abrir una empresa solo cambia la consulta de la URL (el shell solo mueve el
+  // foco al cambiar de ruta) y el control pulsado desaparece: el foco va a la lista, que sigue montada.
+  const focusList = () => listFocus.ref.current?.focus()
+
   const filtersActive = hasActiveCustomerFilters(state)
   const clearFilters = () => {
     setSearchText('')
@@ -217,7 +221,10 @@ export function CustomersPage() {
             type="button"
             className={styles.chip}
             aria-label={`Quitar el filtro Empresa del cliente: ${state.company ?? 'Sin empresa'}`}
-            onClick={() => setSearchParams(writeCustomerListState(withoutCompanyFilter(state)), { replace: true })}
+            onClick={() => {
+              setSearchParams(writeCustomerListState(withoutCompanyFilter(state)), { replace: true })
+              focusList()
+            }}
           >
             <span className={styles.chipText}>Empresa del cliente: {state.company ?? 'Sin empresa'}</span>
             <span aria-hidden="true">✕</span>
@@ -237,7 +244,7 @@ export function CustomersPage() {
           onClearFilters={clearFilters}
           onRetry={() => listFocus.retry(list.refetch)}
           onPageChange={(page) => setSearchParams(writeCustomerListState({ ...state, page }))}
-          onOpenCompany={(company) => setSearchParams(writeCustomerListState(forCompany(state, company)))}
+          onFocusList={focusList}
           backTo={{ search: writeCustomerListState(withoutCompanyFilter(state)).toString() }}
         />
       </div>
@@ -319,7 +326,8 @@ interface ResultsProps {
   onClearFilters: () => void
   onRetry: () => void
   onPageChange: (page: number) => void
-  onOpenCompany: (company: string | null) => void
+  /** El foco va a la lista cuando el control que se pulsó desaparece al cambiar el filtro de empresa. */
+  onFocusList: () => void
   /** Destino de «Volver a todas las empresas»: la misma lista sin el filtro de empresa. */
   backTo: To
 }
@@ -335,6 +343,7 @@ function Results({
   onClearFilters,
   onRetry,
   onPageChange,
+  onFocusList,
   backTo,
 }: ResultsProps) {
   const list = flatView ? flat : groups
@@ -428,6 +437,7 @@ function Results({
           ? {
               label: viewAllLabel(group.customerCount, group.company),
               to: { search: writeCustomerListState(forCompany(state, group.company)).toString() },
+              onClick: onFocusList,
             }
           : undefined,
     }))
@@ -460,7 +470,7 @@ function Results({
         <CustomersDirectory cards={cards} label={flatView ? 'Clientes' : 'Clientes por empresa'} timeZone={timeZone} />
       </div>
       {companyView && (
-        <Link to={backTo} className={styles.back}>
+        <Link to={backTo} className={styles.back} onClick={onFocusList}>
           ← Volver a todas las empresas
         </Link>
       )}

@@ -224,6 +224,7 @@ describe('CustomersPage', () => {
     expect(router.state.location.pathname).toBe('/clientes')
     expect(router.state.location.search).toBe('?q=a&company=Lumen+Dise%C3%B1o&archived=true&sort=createdAt%2Cdesc')
     expect(await screen.findByRole('link', { name: 'Cliente 13' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Lista de clientes' })).toHaveFocus()
     expect(requestsTo(fetchSpy, '/api/customers').at(-1)?.search).toBe(
       '?q=a&company=Lumen%20Dise%C3%B1o&archived=true&page=0&size=20&sort=createdAt%2Cdesc',
     )
@@ -237,6 +238,7 @@ describe('CustomersPage', () => {
     await userEvent.click(screen.getByRole('link', { name: '← Volver a todas las empresas' }))
     expect(router.state.location.search).toBe('?q=a&archived=true&sort=createdAt%2Cdesc')
     expect(await screen.findByRole('heading', { level: 2, name: 'Northstar' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Lista de clientes' })).toHaveFocus()
   })
 
   it('quitar el chip de la empresa vuelve a todas las empresas', async () => {
@@ -247,6 +249,8 @@ describe('CustomersPage', () => {
     )
     expect(router.state.location.search).toBe('')
     expect(await screen.findByText('1–1 de 1 empresa')).toBeInTheDocument()
+    // El chip desaparece al quitarlo: el foco pasa a la lista, no a `body`.
+    expect(screen.getByRole('region', { name: 'Lista de clientes' })).toHaveFocus()
     expect(screen.queryByRole('button', { name: /Quitar el filtro/ })).not.toBeInTheDocument()
   })
 
