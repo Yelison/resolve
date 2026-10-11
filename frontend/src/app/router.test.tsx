@@ -1,7 +1,7 @@
 import { screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../test/api'
-import { metrics } from '../test/ticketFixtures'
+import { metrics, page } from '../test/ticketFixtures'
 import { reportSummary } from '../features/reports/reportFixtures'
 import { mainNavigation } from './navigation'
 import { renderApp } from '../test/renderApp'
