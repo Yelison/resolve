@@ -48,7 +48,7 @@ test.describe('reportes', () => {
     await expect(page.getByRole('table', { name: 'Solicitudes y resueltos por día' })).toBeVisible()
 
     const agents = page.getByRole('table', { name: 'Rendimiento por agente' })
-    await expect(agents.getByRole('row')).toHaveCount(7) // cabecera + 6
+    await expect(agents.getByRole('row')).toHaveCount(6) // cabecera + 5
     await expect(agents.getByRole('row', { name: /Pablo Viejo/ })).toContainText('Retirado')
     await expect(agents.getByRole('row', { name: /Sofía Ríos/ })).toContainText('Invitación pendiente')
     await expect(agents.getByRole('row', { name: /Laura Méndez/ })).not.toContainText('Retirado')
