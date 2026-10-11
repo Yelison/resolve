@@ -3,6 +3,7 @@ package com.resolve.api.tickets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -24,6 +25,7 @@ import com.resolve.api.memberships.MembershipRepository;
 import com.resolve.api.memberships.UserAccount;
 import com.resolve.api.memberships.UserAccountRepository;
 import com.resolve.api.tickets.TicketDtos.ActivityDto;
+import com.resolve.api.tickets.TicketDtos.LastMessageDto;
 import com.resolve.api.tickets.TicketDtos.MessageAuthorDto;
 import com.resolve.api.tickets.TicketDtos.MessageDto;
 import com.resolve.api.tickets.TicketDtos.TicketDto;
@@ -62,6 +64,8 @@ class TicketService implements AssignedTicketReleaser {
 
 	private final TicketMetricsQuery metrics;
 
+	private final TicketLastMessages lastMessages;
+
 	private final Clock clock;
 
 	private final ObjectProvider<TicketUpdateHook> updateHook;
@@ -70,7 +74,7 @@ class TicketService implements AssignedTicketReleaser {
 
 	TicketService(TicketRepository tickets, TicketMessageRepository messages, TicketActivityRepository activities,
 			CustomerRepository customers, MembershipRepository memberships, UserAccountRepository users,
-			TicketMetricsQuery metrics, Clock clock,
+			TicketMetricsQuery metrics, TicketLastMessages lastMessages, Clock clock,
 			ObjectProvider<TicketUpdateHook> updateHook, DemoLimits demoLimits) {
 		this.tickets = tickets;
 		this.messages = messages;
@@ -79,6 +83,7 @@ class TicketService implements AssignedTicketReleaser {
 		this.memberships = memberships;
 		this.users = users;
 		this.metrics = metrics;
+		this.lastMessages = lastMessages;
 		this.clock = clock;
 		this.updateHook = updateHook;
 		this.demoLimits = demoLimits;
@@ -86,7 +91,11 @@ class TicketService implements AssignedTicketReleaser {
 
 	@Transactional(readOnly = true)
 	PageResponse<TicketSummaryDto> list(CurrentMember member, TicketFilters filters, PageQuery<TicketSortField> page) {
-		return this.tickets.search(TicketScope.of(member), filters, page).map(TicketSummaryDto::from);
+		PageResponse<Ticket> found = this.tickets.search(TicketScope.of(member), filters, page);
+		// Una sola consulta para toda la página, con la visibilidad del lector: sin una consulta por ticket.
+		Map<UUID, LastMessageDto> lastMessages = this.lastMessages.latest(member.organizationId(),
+				found.items().stream().map(Ticket::getId).toList(), member.isStaff());
+		return found.map((ticket) -> TicketSummaryDto.from(ticket, lastMessages.get(ticket.getId())));
 	}
 
 	@Transactional(readOnly = true)

@@ -41,6 +41,7 @@ export { SearchField, type SearchFieldProps } from './SearchField/SearchField'
 export { Select, type SelectProps } from './Select/Select'
 export { Sidebar, type SidebarAction, type SidebarNavItem, type SidebarProps } from './Sidebar/Sidebar'
 export { Skeleton, type SkeletonProps } from './Skeleton/Skeleton'
+export { skeletonBarClassName } from './Skeleton/skeletonBar'
 export { Sparkline, type SparklineProps } from './Sparkline/Sparkline'
 export { Switch, type SwitchProps } from './Switch/Switch'
 export {

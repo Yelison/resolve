@@ -97,10 +97,12 @@ test('recorre Resumen, Tickets, un ticket, Clientes, Conocimiento y Ajustes', as
   await expect(heading(page, 'Tickets')).toBeVisible()
   await expect(page).toHaveURL(/\/resolve\/tickets$/)
 
+  // Desde 1200 px elegir un ticket abre su vista previa; «Abrir completo» lleva al detalle.
   await page
     .getByRole('link', { name: /No puedo acceder a mi cuenta/ })
     .first()
     .click()
+  await page.getByRole('link', { name: 'Abrir completo' }).click()
   await expect(heading(page, 'No puedo acceder a mi cuenta')).toBeVisible()
 
   await nav.getByRole('link', { name: 'Clientes' }).click()
@@ -117,7 +119,7 @@ test('recorre Resumen, Tickets, un ticket, Clientes, Conocimiento y Ajustes', as
 test('se entra como cliente y se ve lo propio del cliente; cerrar sesión vuelve a /entrar', async ({ page }) => {
   await page.goto('')
   await enterAs(page, CUSTOMER)
-  await expect(heading(page, 'Resumen').or(heading(page, 'Tickets'))).toBeVisible()
+  await expect(heading(page, 'Resumen').or(heading(page, 'Mis solicitudes'))).toBeVisible()
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'Reportes' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'Tickets' })).toBeVisible()
@@ -141,7 +143,7 @@ test('recargar conserva el usuario y la ruta', async ({ page }) => {
   await expect(page).toHaveURL(/\/resolve\/tickets$/)
 
   await page.reload()
-  await expect(heading(page, 'Tickets')).toBeVisible()
+  await expect(heading(page, 'Mis solicitudes')).toBeVisible()
   await expect(page).toHaveURL(/\/resolve\/tickets$/)
   // Sigue siendo el cliente, no la administración.
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)

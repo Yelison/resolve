@@ -43,8 +43,9 @@ class TicketMetricsApiTest extends TicketsFixture {
 		this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
 			.andExpect(status().isOk())
 			.andExpect(matchesContract("getTicketMetrics"))
-			.andExpect(jsonPath("$.open").value(1))
-			.andExpect(jsonPath("$.openedToday").value(1))
+			// Abierto hoy (#2) y los dos en progreso (#3 y #4): todo lo que no está resuelto, creado hoy.
+			.andExpect(jsonPath("$.open").value(3))
+			.andExpect(jsonPath("$.openedToday").value(3))
 			.andExpect(jsonPath("$.inProgress").value(2))
 			.andExpect(jsonPath("$.inProgressAssignedToMe").value(1))
 			.andExpect(jsonPath("$.resolvedToday").value(1))
@@ -55,6 +56,29 @@ class TicketMetricsApiTest extends TicketsFixture {
 			.andExpect(jsonPath("$.views.mine").value(1))
 			.andExpect(jsonPath("$.views.unassigned").value(1))
 			.andExpect(jsonPath("$.views.resolved").value(2));
+	}
+
+	@Test
+	void openIsEveryTicketThatIsNotResolved() throws Exception {
+		createTicket(LAURA, this.mariaCustomer, "Abierto", "low", null); // 1
+		createTicket(LAURA, this.carlosCustomer, "En progreso", "low", this.laura); // 2
+		patchTicket(LAURA, 2, 0, "{\"status\": \"in_progress\"}");
+		createTicket(LAURA, this.anaCustomer, "Esperando al cliente", "low", null); // 3
+		patchTicket(LAURA, 3, 0, "{\"status\": \"waiting\"}");
+		createTicket(LAURA, this.anaCustomer, "Resuelto", "low", null); // 4
+		patchTicket(LAURA, 4, 0, "{\"status\": \"resolved\"}");
+		createNorthwindTicket();
+
+		// «Tickets abiertos» de Inicio y «Abiertos» de la bandeja cuentan lo mismo.
+		String body = this.mvc.perform(get(API + "/tickets/metrics").with(as(LAURA)))
+			.andExpect(matchesContract("getTicketMetrics"))
+			.andReturn()
+			.getResponse()
+			.getContentAsString();
+		var metrics = JSON.readTree(body);
+		org.assertj.core.api.Assertions.assertThat(metrics.get("open").asInt()).isEqualTo(3);
+		org.assertj.core.api.Assertions.assertThat(metrics.get("open").asInt())
+			.isEqualTo(metrics.at("/views/all").asInt() - metrics.at("/views/resolved").asInt());
 	}
 
 	@Test

@@ -35,7 +35,7 @@ export function createMockFeatures(
     settings,
     knowledgeMock(role, options.articleStore),
     reportsMock(),
-    ticketsMock(customers.customerRef),
+    ticketsMock(customers.customerRef, role),
     teamMock(),
     customers,
   ]

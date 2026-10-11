@@ -20,3 +20,13 @@
   color: var(--color-muted);
   pointer-events: none;
 }
+
+/*
+ * «No disponible» sin quitarle el foco: un campo con `aria-disabled` (por ejemplo, mientras guarda) sigue enfocable. Se ve
+ * como lo deshabilitado del kit (`.forma-button-icon-button:disabled` y las opciones, con opacidad .45), con el cursor de
+ * lo que no admite cambios. Es la única regla para todos los `Select` que lo usan.
+ */
+.select[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

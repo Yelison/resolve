@@ -1024,6 +1024,11 @@ export interface components {
             channel: components["schemas"]["TicketChannel"];
             customer: components["schemas"]["Customer"];
             assignee: components["schemas"]["MemberRef"] | null;
+            /**
+             * @description The latest message of the conversation, or `null` when there is none. Customers only ever see
+             *     their own conversation: an internal note is never their last message.
+             */
+            lastMessage: components["schemas"]["LastMessage"] | null;
             /** Format: date-time */
             createdAt: string;
             /**
@@ -1032,7 +1037,17 @@ export interface components {
              */
             updatedAt: string;
         };
-        /** @description Ticket detail. Same fields as TicketSummary plus `description` and `version`. */
+        /** @description Preview of the latest message of a ticket, for the inbox. */
+        LastMessage: {
+            /** @description Plain text (no Markdown), whitespace collapsed, at most 140 characters; a longer text ends in `…`. */
+            excerpt: string;
+            authorName: string;
+            /** @description Whether the message is an internal note. Always `false` for customers. */
+            internal: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        /** @description Ticket detail. Same fields as TicketSummary, except `lastMessage`, plus `description` and `version`. */
         Ticket: {
             /** Format: uuid */
             id: string;
@@ -1120,8 +1135,9 @@ export interface components {
             resolved: number;
         };
         TicketMetrics: {
+            /** @description Tickets that are not resolved (open, in progress and waiting): always `views.all` minus `views.resolved`. */
             open: number;
-            /** @description Tickets created today (organization time zone) that are still open. */
+            /** @description Tickets created today (organization time zone) that are still not resolved. */
             openedToday: number;
             inProgress: number;
             inProgressAssignedToMe: number;
@@ -1918,6 +1934,7 @@ export type CustomerCreate = components['schemas']['CustomerCreate'];
 export type CustomerPatch = components['schemas']['CustomerPatch'];
 export type CustomerMetrics = components['schemas']['CustomerMetrics'];
 export type TicketSummary = components['schemas']['TicketSummary'];
+export type LastMessage = components['schemas']['LastMessage'];
 export type Ticket = components['schemas']['Ticket'];
 export type TicketCreate = components['schemas']['TicketCreate'];
 export type TicketPatch = components['schemas']['TicketPatch'];

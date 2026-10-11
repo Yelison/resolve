@@ -34,7 +34,7 @@ describe('rutas de la aplicación', () => {
       'GET /api/tickets': { body: page([summary()]) },
     })
     renderApp('/tickets')
-    expect(await screen.findByText('No puedo acceder a mi cuenta')).toBeInTheDocument()
+    expect(await screen.findByText(/#1048 · No puedo acceder a mi cuenta/)).toBeInTheDocument()
     expect(screen.queryByText('No tienes acceso a esta sección')).not.toBeInTheDocument()
     expect(requestedPaths(fetchSpy)).toContain('/api/tickets')
   })

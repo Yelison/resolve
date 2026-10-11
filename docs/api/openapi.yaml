@@ -1704,7 +1704,7 @@ components:
     TicketSummary:
       type: object
       additionalProperties: false
-      required: [id, number, subject, status, priority, channel, customer, assignee, createdAt, updatedAt]
+      required: [id, number, subject, status, priority, channel, customer, assignee, lastMessage, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         number: { type: integer, format: int64, minimum: 1 }
@@ -1717,14 +1717,37 @@ components:
           oneOf:
             - $ref: '#/components/schemas/MemberRef'
             - type: 'null'
+        lastMessage:
+          description: |
+            The latest message of the conversation, or `null` when there is none. Customers only ever see
+            their own conversation: an internal note is never their last message.
+          oneOf:
+            - $ref: '#/components/schemas/LastMessage'
+            - type: 'null'
         createdAt: { type: string, format: date-time }
         updatedAt:
           description: Last activity, either a field change or a public message.
           type: string
           format: date-time
 
+    LastMessage:
+      description: Preview of the latest message of a ticket, for the inbox.
+      type: object
+      additionalProperties: false
+      required: [excerpt, authorName, internal, createdAt]
+      properties:
+        excerpt:
+          description: Plain text (no Markdown), whitespace collapsed, at most 140 characters; a longer text ends in `…`.
+          type: string
+          maxLength: 140
+        authorName: { type: string }
+        internal:
+          description: Whether the message is an internal note. Always `false` for customers.
+          type: boolean
+        createdAt: { type: string, format: date-time }
+
     Ticket:
-      description: Ticket detail. Same fields as TicketSummary plus `description` and `version`.
+      description: Ticket detail. Same fields as TicketSummary, except `lastMessage`, plus `description` and `version`.
       type: object
       additionalProperties: false
       required:
@@ -1866,9 +1889,13 @@ components:
         - firstResponseTargetMinutes
         - views
       properties:
-        open: { type: integer, minimum: 0 }
+        open:
+          description: |
+            Tickets that are not resolved (open, in progress and waiting): always `views.all` minus `views.resolved`.
+          type: integer
+          minimum: 0
         openedToday:
-          description: Tickets created today (organization time zone) that are still open.
+          description: Tickets created today (organization time zone) that are still not resolved.
           type: integer
           minimum: 0
         inProgress: { type: integer, minimum: 0 }

@@ -39,18 +39,20 @@ for (const scheme of ['light', 'dark'] as const) {
   })
 }
 
-/** El buscador comparte barra con selectores: los dos enfocan con el mismo anillo (ADR 0002: ya no queda ningún campo de 1 px). */
+/** El buscador y los selectores de la bandeja de /tickets: los dos enfocan con el mismo anillo (ADR 0002: ya no queda ningún campo de 1 px). */
 for (const scheme of ['light', 'dark'] as const) {
   test(`el buscador y los selectores de la barra de filtros de /tickets enfocan con el mismo anillo · ${scheme}`, async ({
     page,
   }) => {
     await page.emulateMedia({ colorScheme: scheme })
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('/tickets')
+    await page.goto('/tickets?ticket=1048')
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
 
     const search = page.getByRole('searchbox')
-    const select = page.getByRole('combobox').first()
+    // El selector de estado de la vista previa: el único `select` de la página junto al buscador.
+    const select = page.getByRole('combobox', { name: 'Estado' })
+    await expect(select).toBeVisible()
     const ringOf = (selector: 'search' | 'select') => async () => {
       const target = selector === 'search' ? search : select
       await target.focus()

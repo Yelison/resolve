@@ -252,30 +252,6 @@ test.describe('clientes', () => {
     })
   }
 
-  const metricColumns = [
-    { width: 390, columns: 2 },
-    { width: 767, columns: 2 },
-    { width: 1024, columns: 2 },
-    { width: 1199, columns: 2 },
-    { width: 1440, columns: 4 },
-  ]
-  for (const { width, columns } of metricColumns) {
-    for (const route of ['/tickets']) {
-      test(`${route}: ${columns} columnas de métricas · ${width}px`, async ({ page }) => {
-        await page.setViewportSize({ width, height: 900 })
-        await page.goto(route)
-        const first = page.locator('dl').first()
-        await expect(first).toBeVisible()
-        const tops = await page
-          .locator('dl')
-          .evaluateAll((items) =>
-            items.slice(0, 4).map((item) => Math.round(item.closest('div')!.getBoundingClientRect().top)),
-          )
-        expect(tops.filter((top) => top === tops[0])).toHaveLength(columns)
-      })
-    }
-  }
-
   for (const width of [390, 767]) {
     test(`el «Reintentar» de empresas es una zona táctil de 44 px · ${width}px`, async ({ page }) => {
       // La ruta registrada después prevalece sobre la del mock.

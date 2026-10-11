@@ -24,8 +24,8 @@ class TicketMetricsQuery {
 
 	private static final String COUNTS = """
 			SELECT
-			  count(*) FILTER (WHERE status = 'open') AS open,
-			  count(*) FILTER (WHERE status = 'open' AND created_at >= :today) AS opened_today,
+			  count(*) FILTER (WHERE status <> 'resolved') AS open,
+			  count(*) FILTER (WHERE status <> 'resolved' AND created_at >= :today) AS opened_today,
 			  count(*) FILTER (WHERE status = 'in_progress') AS in_progress,
 			  count(*) FILTER (WHERE status = 'in_progress' AND assignee_id = :viewer) AS in_progress_mine,
 			  count(*) AS view_all,

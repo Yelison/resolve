@@ -1,45 +1,31 @@
-import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import {
   Alert,
   Button,
   buttonClassName,
-  Editor,
   EmptyState,
-  Message,
   Select,
   Skeleton,
   Tabs,
   ticketPriority,
   ticketStatus,
   Timeline,
-  useToast,
-  type EditorMode,
-  type EditorStatus,
 } from '../../components/ui'
 import { isApiError } from '../../api/client'
 import type { Ticket, TicketChannel } from '../../domain/ticket'
 import { ticketPriorityValues, ticketStatusValues } from '../../domain/ticket'
 import { formatDateTime } from '../../lib/format'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
-import { demoErrorMessage, isLockTimeout } from '../../lib/mutationError'
-import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
 import { useTimeZone } from '../session/useTimeZone'
 import { useAssignees } from '../team/queries'
 import { toTimelineEvent } from './activityText'
-import {
-  useAddMessage,
-  useTicket,
-  useTicketActivity,
-  useTicketMessages,
-  useUpdateTicket,
-  type TicketChanges,
-} from './queries'
+import { Conversation } from './Conversation'
+import { useTicketChange } from './useTicketChange'
+import { useTicket, useTicketActivity, type TicketChanges } from './queries'
 import styles from './TicketDetailPage.module.css'
-import { useDraft } from '../../lib/useDraft'
 
 const channelLabels: Record<TicketChannel, string> = {
   email: 'correo electrónico',
@@ -94,31 +80,7 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
   const me = useMe()
   const isStaff = me.data ? me.data.role !== 'customer' : false
   const timeZone = useTimeZone()
-  const toast = useToast()
-  const update = useUpdateTicket(ticket.number)
-  const conflict = update.error && isApiError(update.error, 412)
-  const submission = useRepeatableSubmission()
-
-  function change(changes: TicketChanges, success: string) {
-    // El reintento de un 503 repite esta llamada con su versión: si otra persona guardó entretanto, responde el 412.
-    const variables = { version: ticket.version, changes }
-    submission.send(() =>
-      update.mutate(variables, {
-        onSuccess: () => toast.show({ title: success }),
-        onError: (error) => {
-          // Un 412 lo explica el aviso de conflicto, un 503 de bloqueo el suyo con «Reintentar» y un 401, el aviso global
-          // «Tu sesión caducó»: otro toast sería ruido.
-          if (!isApiError(error, 412) && !isApiError(error, 401) && !isLockTimeout(error)) {
-            toast.show({
-              tone: 'error',
-              title: 'No se pudo guardar el cambio',
-              description: demoErrorMessage(error) ?? 'Inténtalo de nuevo.',
-            })
-          }
-        },
-      }),
-    )
-  }
+  const { change, update, submission, conflict } = useTicketChange(ticket)
 
   const resolved = ticket.status === 'resolved'
   const created = formatDateTime(new Date(ticket.createdAt), undefined, timeZone).replace(/^(Hoy|Ayer)/, (day) =>
@@ -169,12 +131,16 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
             <Tabs
               label="Vista del ticket"
               items={[
-                { id: 'conversation', label: 'Conversación', content: <Conversation ticket={ticket} isStaff /> },
+                {
+                  id: 'conversation',
+                  label: 'Conversación',
+                  content: <Conversation ticket={ticket} isStaff className={styles.spaced} />,
+                },
                 { id: 'history', label: 'Historial', content: <History number={ticket.number} /> },
               ]}
             />
           ) : (
-            <Conversation ticket={ticket} isStaff={false} />
+            <Conversation ticket={ticket} isStaff={false} className={styles.spaced} />
           )}
         </div>
 
@@ -183,7 +149,7 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
             Información del ticket
           </h2>
           {isStaff ? (
-            <TicketFields ticket={ticket} disabled={update.isPending} onChange={change} />
+            <TicketFields ticket={ticket} saving={update.isPending} onChange={change} />
           ) : (
             <ReadOnlyFields ticket={ticket} />
           )}
@@ -195,11 +161,12 @@ function TicketDetail({ ticket }: { ticket: Ticket }) {
 
 function TicketFields({
   ticket,
-  disabled,
+  saving,
   onChange,
 }: {
   ticket: Ticket
-  disabled: boolean
+  /** Se está guardando un cambio: los campos siguen en su sitio (con el foco) pero no aceptan otro. */
+  saving: boolean
   onChange: (changes: TicketChanges, success: string) => void
 }) {
   const assignees = useAssignees()
@@ -208,7 +175,7 @@ function TicketFields({
       <Select
         label="Estado"
         value={ticket.status}
-        disabled={disabled}
+        aria-disabled={saving || undefined}
         onChange={(event) => {
           const status = event.target.value as Ticket['status']
           onChange({ status }, `Estado: ${ticketStatus[status].label}`)
@@ -223,7 +190,7 @@ function TicketFields({
       <Select
         label="Prioridad"
         value={ticket.priority}
-        disabled={disabled}
+        aria-disabled={saving || undefined}
         onChange={(event) => {
           const priority = event.target.value as Ticket['priority']
           onChange({ priority }, `Prioridad: ${ticketPriority[priority].label}`)
@@ -238,7 +205,8 @@ function TicketFields({
       <Select
         label="Responsable"
         value={ticket.assignee?.id ?? ''}
-        disabled={disabled || assignees.isPending}
+        disabled={assignees.isPending}
+        aria-disabled={saving || undefined}
         onChange={(event) => {
           const assigneeId = event.target.value || null
           const name = assignees.data?.find((member) => member.id === assigneeId)?.name
@@ -285,101 +253,6 @@ function CustomerSummary({ ticket }: { ticket: Ticket }) {
         {[ticket.customer.email, ticket.customer.company].filter(Boolean).join(' · ')}
       </span>
     </div>
-  )
-}
-
-function Conversation({ ticket, isStaff }: { ticket: Ticket; isStaff: boolean }) {
-  const timeZone = useTimeZone()
-  const messages = useTicketMessages(ticket.number)
-  return (
-    <div className={styles.conversation}>
-      <section className={styles.description} aria-label="Descripción">
-        <p className={styles.descriptionLabel}>Descripción</p>
-        <p className={styles.descriptionBody}>{ticket.description}</p>
-      </section>
-      {messages.isPending && <Skeleton lines={3} label="Cargando conversación…" />}
-      {messages.isError && (
-        <EmptyState
-          kind="error"
-          headingLevel={3}
-          title="No pudimos cargar la conversación"
-          action={
-            <Button variant="secondary" onClick={() => void messages.refetch()}>
-              Reintentar
-            </Button>
-          }
-        />
-      )}
-      {messages.data?.map((message) => (
-        <Message
-          key={message.id}
-          kind={message.visibility === 'internal' ? 'note' : message.author.kind}
-          author={message.author.name}
-          sentAt={new Date(message.createdAt)}
-          timeZone={timeZone}
-        >
-          {message.body}
-        </Message>
-      ))}
-      {isStaff && <Composer number={ticket.number} />}
-    </div>
-  )
-}
-
-function Composer({ number }: { number: number }) {
-  const [draft, setDraft] = useDraft(`resolve-draft-${number}`)
-  const [mode, setMode] = useState<EditorMode>('reply')
-  const addMessage = useAddMessage(number)
-  const submission = useRepeatableSubmission()
-  const toast = useToast()
-  // Un 503 de bloqueo lo explica su aviso con «Reintentar», no el error genérico del editor.
-  const status: EditorStatus = addMessage.isPending
-    ? 'sending'
-    : addMessage.isError && !isLockTimeout(addMessage.error)
-      ? 'error'
-      : 'idle'
-
-  function submit() {
-    const sent = draft
-    const message = { body: sent, visibility: mode === 'reply' ? ('public' as const) : ('internal' as const) }
-    const success = mode === 'reply' ? 'Respuesta enviada' : 'Nota guardada'
-    submission.send(() =>
-      addMessage.mutate(message, {
-        onSuccess: () => {
-          // Solo se vacía si no se escribió nada nuevo mientras se enviaba.
-          setDraft((current) => (current === sent ? '' : current))
-          toast.show({ title: success })
-        },
-      }),
-    )
-  }
-
-  return (
-    <>
-      <LockTimeoutAlert
-        error={addMessage.error}
-        pending={addMessage.isPending}
-        onRetry={submission.retry}
-        what="enviar el mensaje"
-      />
-      <Editor
-        value={draft}
-        onChange={(value) => {
-          setDraft(value)
-          if (addMessage.isError) addMessage.reset()
-        }}
-        mode={mode}
-        onModeChange={(next) => {
-          setMode(next)
-          // El reintento repetiría el modo anterior (una nota como respuesta al cliente o al revés): se retira el aviso y
-          // el envío normal usa lo que muestra la pantalla.
-          if (isLockTimeout(addMessage.error)) addMessage.reset()
-        }}
-        onSubmit={submit}
-        status={status}
-        error={demoErrorMessage(addMessage.error)}
-      />
-    </>
   )
 }
 

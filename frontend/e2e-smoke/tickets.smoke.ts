@@ -44,10 +44,15 @@ test('un agente atiende un ticket y la clienta solo ve lo público', async ({ pa
   await test.step('el ticket aparece en la bandeja al buscarlo', async () => {
     await page.goto('/tickets')
     await page.getByRole('searchbox', { name: 'Buscar tickets' }).fill(subject)
-    const rows = page.getByRole('table', { name: 'Tickets' }).getByRole('row')
-    await expect(rows).toHaveCount(2) // cabecera y el ticket
+    await expect(page.locator('a[data-inbox-item]')).toHaveCount(1)
     await expect(page.getByRole('link', { name: new RegExp(subject) })).toBeVisible()
+    // Desde 1200 px elegir el ticket abre su vista previa; «Abrir completo» lleva al detalle.
     await page.getByRole('link', { name: new RegExp(subject) }).click()
+    await expect(page).toHaveURL(new RegExp(`ticket=${number}$`))
+    await expect(
+      page.getByRole('region', { name: 'Vista previa del ticket' }).getByRole('heading', { level: 2 }),
+    ).toHaveText(subject)
+    await page.getByRole('link', { name: 'Abrir completo' }).click()
     await expect(page).toHaveURL(new RegExp(`/tickets/${number}$`))
   })
 

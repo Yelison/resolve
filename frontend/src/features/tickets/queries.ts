@@ -1,7 +1,21 @@
 import { useRef } from 'react'
-import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { api, toApiPage, unwrap } from '../../api/client'
-import type { MessageVisibility, Ticket, TicketPriority, TicketStatus, TicketView } from '../../domain/ticket'
+import type {
+  MessageVisibility,
+  Ticket,
+  TicketPriority,
+  TicketStatus,
+  TicketSummary,
+  TicketView,
+} from '../../domain/ticket'
 import { reportKeys } from '../reports/queries'
 
 export interface TicketListParams {
@@ -19,10 +33,21 @@ export interface TicketListParams {
   sort: string
 }
 
+/** Lo que filtra la bandeja; la página no forma parte de la clave: las páginas se acumulan. */
+export type InboxFilterParams = Omit<TicketListParams, 'page' | 'pageSize' | 'sort'>
+
+/** Los filtros y el orden de la bandeja. */
+export type InboxListParams = InboxFilterParams & { sort: string }
+
+export const INBOX_PAGE_SIZE = 25
+
 export const ticketKeys = {
   all: ['tickets'] as const,
   lists: () => [...ticketKeys.all, 'list'] as const,
   list: (params: TicketListParams) => [...ticketKeys.lists(), params] as const,
+  /** La bandeja carga por páginas acumuladas: una forma de datos distinta de `list`, pero con su mismo prefijo. */
+  inbox: (params: InboxListParams) => [...ticketKeys.lists(), 'inbox', params] as const,
+  count: (params: InboxFilterParams) => [...ticketKeys.lists(), 'count', params] as const,
   metrics: () => [...ticketKeys.all, 'metrics'] as const,
   /** Actividad reciente de toda la organización (no la de un ticket: esa es `activity(number)`). */
   feed: () => [...ticketKeys.all, 'feed'] as const,
@@ -60,6 +85,47 @@ export function useTicketList(params: TicketListParams) {
     queryFn: ({ signal }) => fetchTicketList(params, signal),
     // Mantiene la página anterior mientras llega la siguiente, sin parpadeos al filtrar o paginar.
     placeholderData: keepPreviousData,
+  })
+}
+
+export interface InboxTickets {
+  /** Los tickets cargados hasta ahora, sin repetidos, del más reciente al más antiguo. */
+  items: TicketSummary[]
+  /** Cuántos hay en total según la última página pedida, nunca menos que los cargados que siguen existiendo. */
+  totalItems: number
+}
+
+/**
+ * La bandeja: páginas de 25 que se acumulan con «Cargar 25 más». Una respuesta mueve el ticket al principio y
+ * desplaza las páginas siguientes, así que al unirlas se descartan los repetidos por id.
+ */
+export function useInboxTickets(params: InboxListParams) {
+  return useInfiniteQuery({
+    queryKey: ticketKeys.inbox(params),
+    queryFn: ({ pageParam, signal }) =>
+      fetchTicketList({ ...params, page: pageParam, pageSize: INBOX_PAGE_SIZE }, signal),
+    initialPageParam: 1,
+    // Una página vacía o la última según el servidor cierra la lista, aunque el total haya cambiado entretanto.
+    getNextPageParam: (last) => (last.items.length > 0 && last.page + 1 < last.totalPages ? last.page + 2 : undefined),
+    placeholderData: keepPreviousData,
+    select: (data): InboxTickets => {
+      const seen = new Set<string>()
+      const items = data.pages
+        .flatMap((page) => page.items)
+        .filter((ticket) => !seen.has(ticket.id) && seen.add(ticket.id))
+      const totalItems = data.pages.at(-1)?.totalItems ?? 0
+      return { items, totalItems: Math.max(totalItems, 0) }
+    },
+  })
+}
+
+/** Cuántos tickets cumplen un filtro, sin traerlos: para los contadores de las vistas de quien no tiene métricas. */
+export function useTicketCount(params: InboxFilterParams, enabled = true) {
+  return useQuery({
+    queryKey: ticketKeys.count(params),
+    queryFn: async ({ signal }) =>
+      (await fetchTicketList({ ...params, page: 1, pageSize: 1, sort: 'updatedAt,desc' }, signal)).totalItems,
+    enabled,
   })
 }
 
@@ -173,9 +239,11 @@ export function useAddMessage(number: number) {
     mutationFn: (message: { body: string; visibility: MessageVisibility }) =>
       unwrap(api.POST('/tickets/{number}/messages', { params: { path: { number } }, body: message })),
     onSuccess: (_message, { visibility }) => {
-      // Una nota interna no cambia nada visible fuera de la conversación.
+      // Una nota interna no mueve el ticket (ni la fecha de actualización ni las métricas), pero sí es el último mensaje
+      // que el personal ve en su fila de la bandeja: se vuelven a pedir los mensajes y las listas.
       if (visibility === 'internal') {
         void queryClient.invalidateQueries({ queryKey: ticketKeys.messages(number) })
+        void queryClient.invalidateQueries({ queryKey: ticketKeys.lists() })
         return
       }
       // Una respuesta pública mueve la fecha de actualización y puede fijar la primera respuesta. El detalle es

@@ -7,11 +7,21 @@
   background: var(--color-surface);
 }
 
-.line {
-  height: 12px;
+/* La barra fantasma: la misma en las líneas del esqueleto y en los esqueletos que reservan las cajas de un componente real. */
+.bar {
   border-radius: var(--radius-small);
   background: var(--color-disabled);
   animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* Una barra sobre un texto de relleno: ocupa su alto y su ancho, y el texto no se ve. */
+.barOverText {
+  color: transparent;
+  white-space: pre;
+}
+
+.line {
+  height: 12px;
 }
 
 .line:nth-child(even) {
