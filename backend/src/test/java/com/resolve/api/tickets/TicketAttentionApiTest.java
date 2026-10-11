@@ -132,6 +132,20 @@ class TicketAttentionApiTest extends TicketsFixture {
 		assertThat(numbers(result)).doesNotContain(shortly.number());
 	}
 
+	/** Cambiar la prioridad o el responsable mueve `updated_at`, pero no responde al cliente: el plazo sigue contando desde la creación. */
+	@Test
+	void aChangeOfPriorityDoesNotRestartTheUnansweredClock() throws Exception {
+		Seed ticket = ticket("Sin respuesta con cambios", "low", this.laura, hours(5));
+		this.clock.set(NOW.minus(minutes(30)));
+		patchTicket(LAURA, ticket.number(), 0, "{\"priority\": \"medium\"}");
+
+		JsonNode result = attention(LAURA, "team", null);
+
+		assertThat(numbers(result)).containsExactly(ticket.number());
+		assertThat(kinds(result)).containsExactly("unanswered");
+		assertThat(since(result, 0)).isEqualTo(NOW.minus(hours(5)));
+	}
+
 	@Test
 	void aTicketWhoseLastPublicMessageIsTheCustomersIsUnansweredFromThatMessage() throws Exception {
 		Seed ticket = ticket("El cliente insiste", "medium", this.laura, hours(9));
@@ -277,6 +291,10 @@ class TicketAttentionApiTest extends TicketsFixture {
 
 		assertThat(numbers(result)).containsExactly(oldest.number(), tieSecond.number(), tieFirst.number(),
 				recent.number());
+		// El mismo orden decide qué entra cuando `size` corta: el que más espera y, entre empatados, el de número mayor.
+		assertThat(numbers(attention(LAURA, "team", "2"))).containsExactly(oldest.number(), tieSecond.number());
+		assertThat(numbers(attention(LAURA, "team", "3"))).containsExactly(oldest.number(), tieSecond.number(),
+				tieFirst.number());
 	}
 
 	/** El límite que tenía el cliente: sobre 100 candidatos por prioridad se escapaba lo de prioridad media. */
