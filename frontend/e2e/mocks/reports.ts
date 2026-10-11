@@ -29,8 +29,6 @@ const reportAgents: ReportAgent[] = [
     resolved: 9,
     firstResponseMinutes: 45,
   }),
-  // Un nombre que empieza como una fórmula: el CSV debe neutralizarlo.
-  reportAgent({ member: { id: 'u-formula', name: '=Carlos, "Fórmula"' }, resolved: 1 }),
 ]
 /**
  * Reparte `total` en partes enteras proporcionales a `weights`; la suma es exactamente `total` (el resto va a la
@@ -133,6 +131,9 @@ const reportSummaries: Record<'7d' | '30d' | '90d', ReportSummary> = {
     createdByWeekdayHour: weekdayHoursFor(3900),
   },
 }
+
+/** El informe simulado de un periodo, para que un test lo adapte sin que la demo lo vea. */
+export const reportSummaryFor = (period: keyof typeof reportSummaries): ReportSummary => reportSummaries[period]
 
 /** Informes simulados por periodo (`7d`, `30d`, `90d`). */
 export function reportsMock(): MockFeature {
