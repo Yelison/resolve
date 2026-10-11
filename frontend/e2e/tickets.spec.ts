@@ -359,7 +359,14 @@ test.describe('tickets · volumen (132 tickets)', () => {
     expect(headerAfter.height).toBe(headerBefore.height)
     expect((await row(page).first().boundingBox())!.y).toBeLessThan(firstBefore.y)
 
-    // La cabecera del grupo visible queda pegada al borde superior de la lista.
+    // La cabecera del grupo visible queda pegada al borde superior de la lista. Los grupos dependen de la hora del día (los
+    // tickets se fechan desde ahora), así que no basta un desplazamiento fijo: en el paso de un grupo al siguiente ninguna
+    // cabecera está arriba. Se desplaza hasta justo después del inicio del último grupo, que siempre tiene filas debajo.
+    await scroller.evaluate((node) => {
+      const headings = [...node.querySelectorAll('h2')]
+      const last = headings[headings.length - 1]!
+      node.scrollTop += last.getBoundingClientRect().top - node.getBoundingClientRect().top + 8
+    })
     const top = (await scroller.boundingBox())!.y
     const stuck = await page
       .getByRole('heading', { level: 2 })
