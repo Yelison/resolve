@@ -6,7 +6,7 @@ import { Topbar } from '../Topbar/Topbar'
 import { Sidebar, type SidebarNavItem } from './Sidebar'
 
 const items: SidebarNavItem[] = [
-  { to: '/', label: 'Resumen', icon: 'home', end: true },
+  { to: '/', label: 'Inicio', icon: 'home', end: true },
   { to: '/tickets', label: 'Tickets', icon: 'ticket' },
 ]
 

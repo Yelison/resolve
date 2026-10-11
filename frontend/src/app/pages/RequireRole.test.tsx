@@ -55,7 +55,7 @@ describe('IndexRedirect', () => {
   function renderIndex() {
     const router = createMemoryRouter(
       [
-        { path: '/', element: <IndexRedirect fallback={<h1>Resumen</h1>} /> },
+        { path: '/', element: <IndexRedirect fallback={<h1>Inicio</h1>} /> },
         { path: '/tickets', element: <h1>Tickets</h1> },
       ],
       { initialEntries: ['/'] },
@@ -74,7 +74,7 @@ describe('IndexRedirect', () => {
   it('deja al personal en el resumen', async () => {
     mockApi({ 'GET /api/me': { body: adminMe } })
     const router = renderIndex()
-    expect(await screen.findByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 })
