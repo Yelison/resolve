@@ -14,7 +14,7 @@ function unsavedMessage(changed: readonly string[]) {
  * Barra de guardar del formulario: dice qué cambió y ofrece «Descartar» y «Guardar cambios». Va pegada al borde inferior
  * de la ventana mientras el formulario es más largo, y al terminar él se queda en su sitio (nunca flota sobre lo que
  * va después). Su altura se reserva en el formulario (`--save-bar-height`) para que el foco por teclado deje cada campo
- * por encima de ella, y se sube lo que mida el aviso de la demostración, que está pegado al mismo borde.
+ * por encima de ella, y se sube lo que mida el aviso de la demostración (`--demo-banner-height`), que está pegado al mismo borde.
  */
 export function SaveBar({
   changed,
@@ -33,20 +33,11 @@ export function SaveBar({
     const element = bar.current
     if (!element) return undefined
     const form = element.closest('form')
-    const root = document.documentElement
-    // El aviso de la demostración publica su altura en `scroll-padding-bottom` del documento: se sube sobre ella.
-    const syncInset = () => {
-      element.style.bottom = `${Number.parseFloat(root.style.scrollPaddingBottom) || 0}px`
-    }
-    syncInset()
-    const mutations = new MutationObserver(syncInset)
-    mutations.observe(root, { attributes: true, attributeFilter: ['style'] })
     const reserve = () => form?.style.setProperty('--save-bar-height', `${element.offsetHeight}px`)
     reserve()
     const sizes = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reserve)
     sizes?.observe(element)
     return () => {
-      mutations.disconnect()
       sizes?.disconnect()
       form?.style.removeProperty('--save-bar-height')
     }
