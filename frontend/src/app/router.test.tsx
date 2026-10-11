@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, customerMe, mockApi } from '../test/api'
 import { metrics, page } from '../test/ticketFixtures'
+import { reportSummary } from '../features/reports/reportFixtures'
 import { mainNavigation } from './navigation'
 import { renderApp } from '../test/renderApp'
 
@@ -19,13 +20,19 @@ describe('rutas de la aplicación', () => {
   it('no redirige al personal desde /', async () => {
     mockApi({
       'GET /api/me': { body: adminMe },
-      'GET /api/tickets/metrics': { body: metrics },
-      'GET /api/reports/summary': { body: { byDay: [] } },
+      'GET /api/tickets/metrics': { body: { ...metrics, views: { ...metrics.views, mine: 0 } } },
+      'GET /api/reports/summary': { body: reportSummary({ byDay: [] }) },
       'GET /api/tickets/activity': { body: [] },
+      'GET /api/knowledge/articles': { body: { items: [], page: 0, size: 3, totalItems: 0, totalPages: 0 } },
       'GET /api/tickets': { body: page([]) },
     })
     const router = renderApp('/')
-    expect(await screen.findByRole('heading', { level: 1, name: 'Resumen' })).toBeInTheDocument()
+    // El título de la página de inicio es el saludo con el nombre; «Inicio» queda en el menú y en las migas.
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /^Buen(os días|as tardes|as noches), Yelisson$/ }),
+    ).toBeInTheDocument()
+    // «Inicio» es el nombre de la sección en el menú y las migas, y el título de la pestaña.
+    await vi.waitFor(() => expect(document.title).toBe('Inicio · Resolve'))
     expect(await screen.findByText('Nada pendiente')).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })

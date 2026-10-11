@@ -1,20 +1,56 @@
-import { expect, test } from './fixtures'
+import { expect, mockApi, test, tickets } from './fixtures'
 
-test.describe('resumen', () => {
-  test('muestra las métricas, el gráfico, la actividad y los tickets que necesitan atención', async ({ page }) => {
+const greeting = /^Buen(os días|as tardes|as noches), Yelisson$/
+
+test.describe('inicio', () => {
+  test('muestra el saludo, el pulso del día, lo que necesita atención y la columna derecha', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/')
-    await expect(page.getByRole('heading', { level: 1, name: 'Resumen' })).toBeVisible()
-    await expect(page.getByText('Tickets abiertos')).toBeVisible()
-    await expect(page.getByText('Mediana de 7 días · Objetivo: 30 min')).toBeVisible()
-    await expect(page.getByRole('img', { name: 'Solicitudes por día' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: greeting })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Inicio', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(page.getByRole('link', { name: 'Ver reportes' })).toBeVisible()
+    await expect(page.getByRole('link', { name: '+ Nuevo ticket' })).toBeVisible()
 
-    const table = page.getByRole('table', { name: 'Tickets que necesitan atención' })
-    await expect(table.getByRole('row')).toHaveCount(3) // encabezado + 2 abiertos o en progreso
-    await expect(table.getByText('Cambiar correo de facturación')).toHaveCount(0)
+    const pulse = page.getByRole('group', { name: 'Así va el soporte hoy' })
+    for (const label of ['Tickets abiertos', 'Sin responsable', 'Primera respuesta', 'Resueltos hoy']) {
+      await expect(pulse.getByText(label)).toBeVisible()
+    }
+    // El aviso de lo que va mal está escrito: el ticket #1046 lleva más de 4 h sin responsable.
+    await expect(pulse.getByText('1 lleva más de 4 h')).toBeVisible()
+
+    // Nadie tiene tickets asignados: empieza por todo el equipo y lo explica.
+    await expect(page.getByRole('button', { name: /^Todo el equipo/ })).toHaveAttribute('aria-pressed', 'true')
+    await expect(
+      page.getByText('No tienes tickets asignados. Te mostramos lo que el equipo tiene pendiente.'),
+    ).toBeVisible()
+    const list = page.getByRole('list', { name: 'Tickets que necesitan atención' })
+    await expect(list.getByRole('listitem')).toHaveCount(3)
+    await expect(list.getByText('Urgente', { exact: true })).toBeVisible()
+    await expect(list.getByText('Sin asignar', { exact: true })).toBeVisible()
+    await expect(page.getByRole('img', { name: 'Solicitudes por día' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Borradores sin publicar' })).toBeVisible()
 
     await page.getByRole('link', { name: /creó el ticket · #1048/ }).click()
     await expect(page).toHaveURL(/\/tickets\/1048$/)
+  })
+
+  test('el saludo y el día son los de la zona de la organización', async ({ page }) => {
+    // 17:00 UTC: mediodía en Bogotá, de modo que «Buenas tardes» no depende de la zona del navegador.
+    await page.clock.setFixedTime(new Date('2026-10-10T17:00:00Z'))
+    await page.goto('/')
+    await expect(page.getByRole('heading', { level: 1, name: 'Buenas tardes, Yelisson' })).toBeVisible()
+    await expect(page.getByText('Sábado, 10 de octubre')).toBeVisible()
+  })
+
+  test('cada dato del pulso lleva a su vista de la bandeja', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/')
+    const pulse = page.getByRole('group', { name: 'Así va el soporte hoy' })
+    await pulse.getByRole('link', { name: /Sin responsable/ }).click()
+    await expect(page).toHaveURL(/\/tickets\?view=unassigned$/)
+    await page.goBack()
+    await pulse.getByRole('link', { name: /Resueltos hoy/ }).click()
+    await expect(page).toHaveURL(/\/tickets\?view=resolved$/)
   })
 
   test('la tabla alternativa del gráfico se alcanza con el teclado', async ({ page }) => {
@@ -26,7 +62,7 @@ test.describe('resumen', () => {
     // Solo con Tab: enfocar el botón por programa no demostraría que está en el orden de tabulación.
     let presses = 0
     while (!(await toggle.evaluate((element) => element === document.activeElement))) {
-      expect(++presses, 'el botón no recibe el foco con Tab').toBeLessThanOrEqual(40)
+      expect(++presses, 'el botón no recibe el foco con Tab').toBeLessThanOrEqual(60)
       await page.keyboard.press('Tab')
     }
     // La tabla siempre está en el DOM (los lectores de pantalla la leen); «Ver como tabla» la muestra a todos.
@@ -46,43 +82,89 @@ test.describe('resumen', () => {
     expect((await wrap.boundingBox())!.height).toBeLessThanOrEqual(1)
   })
 
-  test('en móvil la tabla usa tarjetas', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
+  test('el selector de alcance se maneja con el teclado y cambia la lista que se pide', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/')
-    const firstRow = page.getByRole('table', { name: 'Tickets que necesitan atención' }).getByRole('row').nth(1)
-    await expect(firstRow).toContainText('Laura Méndez')
-    // En modo tarjeta la fila apila sus datos: la prioridad queda debajo del asunto, no a su lado.
-    const [subject, priority] = await Promise.all([
-      firstRow.getByRole('link').boundingBox(),
-      firstRow.getByText('Urgente').boundingBox(),
-    ])
-    expect(priority!.y).toBeGreaterThan(subject!.y + subject!.height - 1)
+    const mine = page.getByRole('button', { name: /^Para mí/ })
+    await expect(mine).toHaveAttribute('aria-pressed', 'false')
+    const request = page.waitForRequest((req) => req.url().includes('/api/tickets?') && req.url().includes('view=mine'))
+    await mine.focus()
+    await page.keyboard.press('Enter')
+    await request
+    await expect(mine).toHaveAttribute('aria-pressed', 'true')
+    await expect(mine).toBeFocused()
+    await expect(page.getByText('Cuando te asignen uno, aparecerá aquí.')).toBeVisible()
+  })
+
+  test('«Asignármelo» asigna el ticket, lo anuncia y no pierde el foco', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const assigned = {
+      ...tickets.find((ticket) => ticket.number === 1046)!,
+      assignee: { id: 'u-admin', name: 'Yelisson Ortiz' },
+    }
+    let body: unknown
+    await page.route('**/api/tickets/1046', async (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback()
+      body = route.request().postDataJSON()
+      const { lastMessage: _lastMessage, ...detail } = assigned
+      await route.fulfill({ json: { ...detail, description: 'Detalle', version: 3 } })
+    })
+    await page.goto('/')
+    const row = page.getByRole('listitem').filter({ hasText: 'Cambiar correo de facturación' })
+    await row.getByRole('button', { name: /Asignármelo/ }).click()
+    await expect(page.getByText('Te asignaste el ticket #1046')).toBeVisible()
+    expect(body).toEqual({ assigneeId: expect.any(String) })
+    await expect(row.getByRole('button', { name: /Asignármelo/ })).toHaveCount(0)
+    await expect(row.getByRole('link', { name: /#1046/ })).toBeFocused()
   })
 
   for (const [width, columns] of [
+    [320, 1],
     [390, 2],
+    [767, 2],
     [768, 2],
     [1199, 2],
     [1200, 4],
   ] as const) {
-    test(`las métricas van en ${columns} columnas · ${width}px`, async ({ page }) => {
+    test(`el pulso va en ${columns} ${columns === 1 ? 'columna' : 'columnas'} · ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('/')
-      await expect(page.getByText('Tickets abiertos')).toBeVisible()
+      const pulse = page.getByRole('group', { name: 'Así va el soporte hoy' })
+      await expect(pulse.getByText('Tickets abiertos')).toBeVisible()
       const tops = await Promise.all(
-        ['Tickets abiertos', 'Resueltos hoy', 'Primera respuesta', 'Sin responsable'].map(async (label) =>
-          Math.round((await page.getByText(label).boundingBox())!.y),
+        ['Tickets abiertos', 'Sin responsable', 'Primera respuesta', 'Resueltos hoy'].map(async (label) =>
+          Math.round((await pulse.getByText(label).boundingBox())!.y),
         ),
       )
       expect(tops.filter((top) => top === tops[0])).toHaveLength(columns)
     })
   }
+
+  test('en móvil cada fila de «Necesitan atención» cabe y sus controles miden 44 px', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/')
+    const row = page.getByRole('listitem').filter({ hasText: 'Cambiar correo de facturación' })
+    await expect(row).toBeVisible()
+    for (const control of [
+      page.getByRole('button', { name: /^Para mí/ }),
+      page.getByRole('button', { name: /^Todo el equipo/ }),
+      row.getByRole('button', { name: /Asignármelo/ }),
+      page.getByRole('link', { name: 'Ver reportes' }),
+      page.getByRole('link', { name: '+ Nuevo ticket' }),
+    ]) {
+      expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(43.5)
+    }
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    )
+    expect(overflow).toBeLessThanOrEqual(0)
+  })
 })
 
-test.describe('resumen · sin saltos de layout', () => {
-  // 1200 y 1280 px con el menú expandido: las tarjetas son estrechas y el detalle puede ocupar dos líneas.
+test.describe('inicio · sin saltos de layout', () => {
+  // 1200 y 1280 px con el menú expandido: las celdas son estrechas y el detalle puede ocupar dos líneas.
   for (const width of [320, 390, 768, 1200, 1280, 1440]) {
-    test(`el panel siguiente a las métricas empieza a la misma altura cargando y con datos · ${width}px`, async ({
+    test(`el panel siguiente al pulso empieza a la misma altura cargando y con datos · ${width}px`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 900 })
@@ -93,10 +175,10 @@ test.describe('resumen · sin saltos de layout', () => {
         await route.fallback()
       })
       await page.goto('/')
-      const panel = page.getByRole('region', { name: /Solicitudes/ })
-      await expect(page.getByText('Cargando métricas…')).toBeAttached()
-      // Las tarjetas ocultas que fijan la altura no se leen ni se pueden enfocar.
-      await expect(page.getByRole('link', { name: 'Ver sin asignar' })).toHaveCount(0)
+      const panel = page.getByRole('region', { name: 'Necesitan atención' })
+      await expect(page.getByText('Cargando las métricas…')).toBeAttached()
+      // Las celdas ocultas que fijan la altura no se leen ni se pueden enfocar.
+      await expect(page.getByRole('link', { name: /Sin responsable/ })).toHaveCount(0)
       const loading = (await panel.boundingBox())!.y
       release()
       await expect(page.getByText('Tickets abiertos')).toBeVisible()
@@ -104,9 +186,56 @@ test.describe('resumen · sin saltos de layout', () => {
       expect(Math.abs(loaded - loading), `cargando ${loading}, con datos ${loaded}`).toBeLessThanOrEqual(4)
     })
   }
+
+  for (const width of [390, 1024]) {
+    test(`al cambiar de alcance la lista anterior se queda hasta que llega la nueva · ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/')
+      const list = page.getByRole('list', { name: 'Tickets que necesitan atención' })
+      await expect(list.getByRole('listitem')).toHaveCount(3)
+      const below = page.getByRole('region', { name: 'Solicitudes esta semana' })
+      const before = (await below.boundingBox())!.y
+      let release!: () => void
+      const held = new Promise<void>((resolve) => (release = resolve))
+      await page.route('**/api/tickets?*view=mine*', async (route) => {
+        await held
+        await route.fallback()
+      })
+      await page.getByRole('button', { name: /^Para mí/ }).click()
+      await expect(list).toHaveAttribute('aria-busy', 'true')
+      expect(Math.abs((await below.boundingBox())!.y - before)).toBeLessThanOrEqual(1)
+      release()
+    })
+  }
 })
 
-test.describe('resumen · gráfico de solicitudes por día', () => {
+test.describe('inicio · rol cliente y nombres del menú', () => {
+  test('un cliente aterriza en su bandeja y ve «Mis solicitudes» y «Ayuda»', async ({ page }) => {
+    await mockApi(page, 'customer')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/')
+    await expect(page).toHaveURL(/\/tickets$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Mis solicitudes' })).toBeVisible()
+    const nav = page.getByRole('navigation')
+    await expect(nav.getByRole('link', { name: 'Mis solicitudes' })).toHaveAttribute('href', '/tickets')
+    await expect(nav.getByRole('link', { name: 'Ayuda' })).toHaveAttribute('href', '/conocimiento')
+    await expect(nav.getByRole('link', { name: 'Inicio' })).toHaveCount(0)
+    await expect(nav.getByRole('link', { name: 'Tickets', exact: true })).toHaveCount(0)
+  })
+
+  test('el personal ve «Inicio», «Tickets» y «Conocimiento»', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/')
+    const nav = page.getByRole('navigation')
+    for (const name of ['Inicio', 'Tickets', 'Conocimiento']) {
+      await expect(nav.getByRole('link', { name, exact: true })).toBeVisible()
+    }
+    await expect(nav.getByRole('link', { name: 'Resumen' })).toHaveCount(0)
+    await expect(page.getByRole('navigation', { name: /Ruta|Migas/ })).toContainText('Inicio')
+  })
+})
+
+test.describe('inicio · gráfico de solicitudes por día', () => {
   // Medidas de las barras (px de pantalla) y de la separación entre barras vecinas.
   async function measureBars(page: import('@playwright/test').Page) {
     const chart = page.getByRole('img', { name: 'Solicitudes por día' })

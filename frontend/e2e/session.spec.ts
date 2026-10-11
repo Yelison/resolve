@@ -21,7 +21,9 @@ test.describe('sin sesión', () => {
     await page.getByRole('button', { name: 'Entrar con tu cuenta' }).click()
     // El proveedor simulado devuelve a la aplicación con sesión y /entrar nunca queda como destino.
     await expect(page).toHaveURL(/\/$/)
-    await expect(page.getByRole('heading', { level: 1, name: 'Resumen' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { level: 1, name: /^Buen(os días|as tardes|as noches), Yelisson$/ }),
+    ).toBeVisible()
     await expect(account(page)).toBeVisible()
   })
 
