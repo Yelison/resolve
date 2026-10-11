@@ -29,11 +29,6 @@ export function compareResolved(today: number, yesterday: number): ResolvedCompa
     : { text: `${amount} menos que ayer${percent}`, arrow: '↓', trend: 'negative' }
 }
 
-/** «1 nuevo hoy», «8 nuevos hoy». */
-export function newToday(count: number): string {
-  return count === 1 ? '1 nuevo hoy' : `${count} nuevos hoy`
-}
-
 const dayLabel = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
 /**

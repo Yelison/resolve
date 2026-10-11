@@ -12,13 +12,14 @@ import {
   TicketTable,
 } from '../../components/ui'
 import type { TicketMetrics } from '../../domain/ticket'
+import { newToday } from '../../lib/format'
 import { PageHeader } from '../../app/pages/PageHeader'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useReportSummary } from '../reports/queries'
 import { useTimeZone } from '../session/useTimeZone'
 import { toTimelineEvent } from '../tickets/activityText'
 import { useRecentActivity, useTicketList, useTicketMetrics } from '../tickets/queries'
-import { compareResolved, newToday, requestPoints } from './overviewData'
+import { compareResolved, requestPoints } from './overviewData'
 import { useRetryFocus } from './useRetryFocus'
 import styles from './OverviewPage.module.css'
 

@@ -7,8 +7,10 @@ import styles from './ArticlesTable.module.css'
 
 export interface ArticlesTableProps {
   articles: ArticleSummary[]
-  /** Texto visible bajo la tabla, p. ej. «Mostrando 4 resultados». */
+  /** Texto bajo la tabla que la describe, p. ej. «Mostrando 4 resultados»; con `captionHidden` solo lo oyen los lectores de pantalla. */
   caption: string
+  /** Con paginación debajo, la leyenda solo queda para los lectores de pantalla (ver `Table`). */
+  captionHidden?: boolean
   /** Los clientes solo ven artículos publicados: para ellos la columna de estado no aporta nada. */
   showStatus: boolean
   timeZone?: string
@@ -18,11 +20,12 @@ export interface ArticlesTableProps {
  * Tabla de artículos sobre `Table`: tarjetas en contenedores estrechos (< 560 px), título, estado y fecha hasta la
  * tabla completa, que añade la categoría.
  */
-export function ArticlesTable({ articles, caption, showStatus, timeZone }: ArticlesTableProps) {
+export function ArticlesTable({ articles, caption, captionHidden, showStatus, timeZone }: ArticlesTableProps) {
   return (
     <Table
       label="Artículos"
       caption={caption}
+      captionHidden={captionHidden}
       actionsLabel="Acciones"
       className={cx(styles.table, !showStatus && styles.withoutStatus)}
       header={

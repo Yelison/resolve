@@ -44,6 +44,18 @@ describe('TicketsPage para agentes', () => {
     expect(screen.getByRole('link', { name: /Nuevo ticket/ })).toHaveAttribute('href', '/tickets/nuevo')
   })
 
+  it('concuerda en singular los detalles de las métricas', async () => {
+    mockApi({
+      'GET /api/me': { body: adminMe },
+      'GET /api/tickets/metrics': { body: { ...metrics, openedToday: 1, inProgressAssignedToMe: 1 } },
+      'GET /api/tickets': { body: page([summary()]) },
+      'GET /api/assignees': { body: [] },
+    })
+    renderInbox()
+    expect(await screen.findByText('1 nuevo hoy')).toBeInTheDocument()
+    expect(screen.getByText('1 asignado a ti')).toBeInTheDocument()
+  })
+
   it('lleva la búsqueda y los filtros a la URL y a la API, volviendo a la primera página', async () => {
     const fetchSpy = mockApi({
       'GET /api/me': { body: adminMe },

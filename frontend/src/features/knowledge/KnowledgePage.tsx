@@ -284,6 +284,7 @@ function Results({ state, list, isStaff, timeZone, onClearFilters, onPageChange 
         showStatus={isStaff}
         timeZone={timeZone}
         caption={page.items.length === 1 ? 'Mostrando 1 resultado' : `Mostrando ${page.items.length} resultados`}
+        captionHidden
       />
       <Pagination page={page.page + 1} pageSize={page.size} total={page.totalItems} onPageChange={onPageChange} />
     </>

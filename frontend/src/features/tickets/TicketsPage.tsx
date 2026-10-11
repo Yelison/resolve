@@ -24,6 +24,7 @@ import { isApiError } from '../../api/client'
 import type { TicketMetrics, TicketPriority, TicketStatus, TicketSummary, TicketView } from '../../domain/ticket'
 import { ticketPriorityValues, ticketStatusValues } from '../../domain/ticket'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
+import { assignedToYou, newToday } from '../../lib/format'
 import {
   demoErrorMessage,
   isLockTimeout,
@@ -313,13 +314,13 @@ function MetricsRow({
       <Metric
         label={label('Tickets abiertos')}
         value={metrics.open}
-        detail={`${metrics.openedToday} nuevos hoy`}
+        detail={newToday(metrics.openedToday)}
         trend={metrics.openedToday > 0 ? 'positive' : 'neutral'}
       />
       <Metric
         label={label('En progreso')}
         value={metrics.inProgress}
-        detail={`${metrics.inProgressAssignedToMe} asignados a ti`}
+        detail={assignedToYou(metrics.inProgressAssignedToMe)}
         trend="positive"
       />
       <Metric

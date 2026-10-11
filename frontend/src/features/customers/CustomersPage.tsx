@@ -321,6 +321,7 @@ function Results({ state, list, filtersActive, newCustomerTo, onClearFilters, on
       <CustomersTable
         customers={page.items}
         caption={page.items.length === 1 ? 'Mostrando 1 resultado' : `Mostrando ${page.items.length} resultados`}
+        captionHidden
       />
       <Pagination page={page.page + 1} pageSize={page.size} total={page.totalItems} onPageChange={onPageChange} />
     </>

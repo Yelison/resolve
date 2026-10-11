@@ -55,6 +55,18 @@ describe('KnowledgePage', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
+  it('muestra el recuento de resultados una sola vez: el de la paginación', async () => {
+    mockApi({
+      ...staffRoutes,
+      'GET /api/knowledge/articles': { body: articlePage([articleSummary(), draft]) },
+    })
+    renderKnowledge()
+    const table = await screen.findByRole('table', { name: 'Artículos' })
+    expect(table).toHaveAccessibleDescription('Mostrando 2 resultados')
+    expect(screen.getByText('Mostrando 2 resultados')).toHaveClass('visually-hidden')
+    expect(screen.getByText(/de 2 resultados/)).not.toHaveClass('visually-hidden')
+  })
+
   it('el personal ve las categorías, la tabla con estado y «Nuevo artículo»', async () => {
     mockApi({
       ...staffRoutes,
