@@ -1,30 +1,23 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import {
-  Alert,
   Button,
   buttonClassName,
   EmptyState,
   FilterChip,
   Icon,
   Menu,
-  Metric,
-  Pagination,
   SearchField,
-  Select,
   Skeleton,
   ticketPriority,
   ticketStatus,
-  TicketRow,
-  TicketTable,
   useToast,
   type MenuItem,
 } from '../../components/ui'
 import { isApiError } from '../../api/client'
-import type { TicketMetrics, TicketPriority, TicketStatus, TicketSummary, TicketView } from '../../domain/ticket'
+import type { TicketPriority, TicketStatus, TicketSummary, TicketView } from '../../domain/ticket'
 import { ticketPriorityValues, ticketStatusValues } from '../../domain/ticket'
 import { focusPageHeadingIfFocusLost } from '../../lib/focusPageHeading'
-import { assignedToYou, newToday } from '../../lib/format'
 import {
   demoErrorMessage,
   isLockTimeout,
@@ -33,43 +26,50 @@ import {
   LOCK_TOAST_DURATION,
 } from '../../lib/mutationError'
 import { useDebouncedValue } from '../../lib/useDebouncedValue'
-import { PageHeader } from '../../app/pages/PageHeader'
+import { useMediaQuery } from '../../lib/useMediaQuery'
 import pageStyles from '../../app/pages/Page.module.css'
 import { useMe } from '../session/queries'
 import { useTimeZone } from '../session/useTimeZone'
 import { useAssignees } from '../team/queries'
+import { InboxList, InboxListSkeleton } from './InboxList'
 import {
+  effectiveInboxState,
   hasActiveFilters,
+  inboxListParams,
+  openStatusValues,
   readInboxState,
-  ticketSortValues,
   writeInboxState,
   type InboxState,
-  type TicketSort,
 } from './inboxParams'
-import { useQuickTicketUpdate, useTicketList, useTicketMetrics, type TicketChanges } from './queries'
+import { useInboxTickets, useQuickTicketUpdate, useTicketCount, useTicketMetrics, type TicketChanges } from './queries'
+import { NoTicketSelected, TicketPreview } from './TicketPreview'
+import { useBottomReserve } from './useBottomReserve'
 import styles from './TicketsPage.module.css'
 
-const PAGE_SIZE = 20
-
-const sortLabels: Record<TicketSort, string> = {
-  'updatedAt,desc': 'Actualización: más reciente',
-  'updatedAt,asc': 'Actualización: más antigua',
-  'createdAt,desc': 'Creación: más reciente',
-  'createdAt,asc': 'Creación: más antigua',
-  'number,desc': 'Número: mayor primero',
-  'number,asc': 'Número: menor primero',
-  'priority,desc': 'Prioridad: urgente primero',
-  'priority,asc': 'Prioridad: baja primero',
-  'status,asc': 'Estado: abiertos primero',
-  'status,desc': 'Estado: resueltos primero',
+interface ViewPill {
+  view: TicketView
+  label: string
 }
 
-const views: { view: TicketView; label: string; count?: keyof TicketMetrics['views'] }[] = [
-  { view: 'all', label: 'Todos los tickets', count: 'all' },
-  { view: 'mine', label: 'Asignados a mí', count: 'mine' },
-  { view: 'unassigned', label: 'Sin asignar', count: 'unassigned' },
+const staffViews: ViewPill[] = [
+  { view: 'all', label: 'Abiertos' },
+  { view: 'mine', label: 'Míos' },
+  { view: 'unassigned', label: 'Sin asignar' },
   { view: 'resolved', label: 'Resueltos' },
 ]
+
+const customerViews: ViewPill[] = [
+  { view: 'all', label: 'Abiertas' },
+  { view: 'resolved', label: 'Resueltas' },
+]
+
+/** Lo que dice una vista sin tickets, sin filtros de por medio: en voz de quien la mira. */
+const emptyViewTitles: Record<TicketView, string> = {
+  all: 'No hay tickets abiertos',
+  mine: 'No tienes tickets asignados',
+  unassigned: 'Todos los tickets tienen responsable',
+  resolved: 'Todavía no hay tickets resueltos',
+}
 
 export function TicketsPage() {
   const me = useMe()
@@ -84,17 +84,20 @@ export function TicketsPage() {
 }
 
 function Inbox({ isStaff }: { isStaff: boolean }) {
+  // Desde 1200 px la bandeja es de dos paneles; por debajo, solo la lista y cada fila abre el detalle. El panel derecho no
+  // se oculta con CSS: no existe, así que no pide la conversación ni repite ids que no se ven.
+  const twoPanes = useMediaQuery('(min-width: 1200px)')
+  const timeZone = useTimeZone()
+  const reserve = useBottomReserve()
   const [searchParams, setSearchParams] = useSearchParams()
-  const parsedState = readInboxState(searchParams)
-  // Un cliente no tiene vistas ni filtro de responsable: se ignoran si llegan en la URL para no pedir datos de equipo.
-  const state: InboxState = isStaff ? parsedState : { ...parsedState, view: 'all', assignee: undefined }
+  const state = effectiveInboxState(readInboxState(searchParams), isStaff)
   const [searchText, setSearchText] = useState(state.q)
   const debouncedSearch = useDebouncedValue(searchText)
 
   const update = (changes: Partial<InboxState>) =>
-    setSearchParams(writeInboxState({ ...state, page: 1, ...changes }), { replace: true })
+    setSearchParams(writeInboxState({ ...state, ...changes }), { replace: true })
 
-  // La búsqueda escrita pasa a la URL al dejar de teclear, y vuelve a la primera página.
+  // La búsqueda escrita pasa a la URL al dejar de teclear.
   const pushedSearch = useRef(state.q)
   useEffect(() => {
     if (debouncedSearch.trim() !== state.q.trim()) {
@@ -112,336 +115,254 @@ function Inbox({ isStaff }: { isStaff: boolean }) {
     }
   }, [state.q])
 
-  const list = useTicketList({
-    view: isStaff ? state.view : 'all',
-    status: state.status ? [state.status] : [],
-    priority: state.priority ? [state.priority] : [],
-    assigneeId: state.assignee,
-    q: state.q,
-    page: state.page,
-    pageSize: PAGE_SIZE,
-    sort: state.sort,
-  })
-  const metrics = useTicketMetrics(isStaff)
-
+  const list = useInboxTickets(inboxListParams(state))
   const filtersActive = hasActiveFilters(state)
   const clearFilters = () => {
     setSearchText('')
     update({ status: undefined, priority: undefined, assignee: undefined, q: '' })
   }
+  const actionsFor = useRowActions(isStaff && !twoPanes)
 
+  const style = { '--inbox-reserve': `${reserve}px` } as CSSProperties
   return (
-    <div className={pageStyles.page}>
-      <PageHeader
-        title="Tickets"
-        description={
-          isStaff ? 'Un lugar para resolver, colaborar y ayudar a tus clientes.' : 'Tus solicitudes de soporte.'
-        }
-        actions={
-          isStaff && (
-            <Link to="/tickets/nuevo" className={buttonClassName()}>
-              <Icon name="plus" />
-              Nuevo ticket
-            </Link>
-          )
-        }
-      />
-
-      {isStaff && <MetricsSection query={metrics} />}
-
-      <section className={styles.inbox} aria-label="Bandeja de tickets">
-        {isStaff && (
-          <nav aria-label="Vistas de la bandeja">
-            <ul className={styles.views}>
-              {views.map((item) => (
-                <li key={item.view}>
-                  <Link
-                    to={{ search: writeInboxState({ ...state, view: item.view, page: 1 }).toString() }}
-                    replace
-                    className={styles.view}
-                    aria-current={state.view === item.view ? 'true' : undefined}
-                  >
-                    {item.label}
-                    {item.count && metrics.data && (
-                      <>
-                        {' '}
-                        <span>{metrics.data.views[item.count]}</span>
-                      </>
-                    )}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        )}
-
-        <div className={styles.filters}>
+    <div className={styles.workspace} style={style}>
+      <section aria-label="Bandeja de tickets" className={styles.listPane}>
+        <div className={styles.head}>
+          <div className={styles.titleRow}>
+            <h1 className={styles.title}>{isStaff ? 'Tickets' : 'Mis solicitudes'}</h1>
+            {isStaff && (
+              <Link to="/tickets/nuevo" className={buttonClassName()}>
+                <Icon name="plus" />
+                Nuevo ticket
+              </Link>
+            )}
+          </div>
           <SearchField
             label="Buscar tickets"
-            placeholder="Buscar por asunto, cliente o número…"
+            placeholder={isStaff ? 'Buscar por asunto, cliente o número…' : 'Buscar en tus solicitudes…'}
             value={searchText}
             onValueChange={setSearchText}
             fieldClassName={styles.search}
           />
-          <FilterMenu
-            label="Estado"
-            value={state.status}
-            options={ticketStatusValues.map((status) => ({ value: status, label: ticketStatus[status].label }))}
-            onChange={(status) => update({ status: status as TicketStatus | undefined })}
-          />
-          <FilterMenu
-            label="Prioridad"
-            value={state.priority}
-            options={ticketPriorityValues.map((priority) => ({
-              value: priority,
-              label: ticketPriority[priority].label,
-            }))}
-            onChange={(priority) => update({ priority: priority as TicketPriority | undefined })}
-          />
-          {isStaff && <AssigneeFilter value={state.assignee} onChange={(assignee) => update({ assignee })} />}
-          <Select
-            label="Ordenar por"
-            value={state.sort}
-            onChange={(event) => update({ sort: event.target.value as TicketSort })}
-            fieldClassName={styles.sort}
-          >
-            {ticketSortValues.map((sort) => (
-              <option key={sort} value={sort}>
-                {sortLabels[sort]}
-              </option>
-            ))}
-          </Select>
+          <ViewPills state={state} isStaff={isStaff} />
+          {isStaff && (
+            <div className={styles.filters}>
+              {state.view !== 'resolved' && (
+                <FilterMenu
+                  label="Estado"
+                  value={state.status}
+                  options={ticketStatusValues
+                    .filter((status) => openStatusValues.includes(status))
+                    .map((status) => ({ value: status, label: ticketStatus[status].label }))}
+                  onChange={(status) => update({ status: status as TicketStatus | undefined })}
+                />
+              )}
+              <FilterMenu
+                label="Prioridad"
+                value={state.priority}
+                options={ticketPriorityValues.map((priority) => ({
+                  value: priority,
+                  label: ticketPriority[priority].label,
+                }))}
+                onChange={(priority) => update({ priority: priority as TicketPriority | undefined })}
+              />
+              <AssigneeFilter value={state.assignee} onChange={(assignee) => update({ assignee })} />
+            </div>
+          )}
         </div>
 
-        <div className={styles.results}>
-          <div className={styles.resultsInner}>
-            <Results
-              state={state}
-              list={list}
-              isStaff={isStaff}
-              filtersActive={filtersActive}
-              onClearFilters={clearFilters}
-              onPageChange={(page) => setSearchParams(writeInboxState({ ...state, page }))}
-            />
-          </div>
-        </div>
+        <ListBody
+          state={state}
+          list={list}
+          isStaff={isStaff}
+          twoPanes={twoPanes}
+          timeZone={timeZone}
+          filtersActive={filtersActive}
+          onClearFilters={clearFilters}
+          actionsFor={actionsFor}
+        />
       </section>
+
+      {twoPanes && (
+        <section aria-label="Vista previa del ticket" className={styles.previewPane}>
+          {state.ticket ? (
+            <TicketPreview number={state.ticket} isStaff={isStaff} onClear={() => update({ ticket: undefined })} />
+          ) : (
+            <NoTicketSelected />
+          )}
+        </section>
+      )}
     </div>
   )
 }
 
-/** Valores representativos para el esqueleto y el error: solo fijan la altura de las tarjetas, nunca se muestran. */
-const ghostMetrics: TicketMetrics = {
-  open: 24,
-  openedToday: 8,
-  inProgress: 12,
-  inProgressAssignedToMe: 4,
-  // «↑ 100 % vs. ayer»: la comparación más larga habitual.
-  resolvedToday: 8,
-  resolvedYesterday: 4,
-  firstResponseMinutes: 18,
-  firstResponseTargetMinutes: 30,
-  views: { all: 24, mine: 4, unassigned: 6, resolved: 10 },
-}
-
-/**
- * Las métricas ocupan siempre el mismo hueco: durante la carga o el error, las tarjetas reales van ocultas
- * (`visibility: hidden` las quita también de la lectura de pantalla) y fijan la altura; encima van el esqueleto o el
- * error, y lo de debajo no salta cuando llegan los datos.
- */
-function MetricsSection({ query }: { query: ReturnType<typeof useTicketMetrics> }) {
-  const rowRef = useRef<HTMLDivElement>(null)
-  const focusOnData = useRef(false)
-  // Tras un reintento con éxito, el botón desaparece: el foco pasa a las métricas recién cargadas, no a `body`.
-  useEffect(() => {
-    if (query.data && focusOnData.current) {
-      focusOnData.current = false
-      rowRef.current?.focus()
-    }
-  }, [query.data])
-
-  if (query.data) return <MetricsRow metrics={query.data} rowRef={rowRef} />
-  if (!query.isError && !query.isPending) return null
+/** Vistas con su número: el de las métricas para el personal; un recuento por vista para un cliente. */
+function ViewPills({ state, isStaff }: { state: InboxState; isStaff: boolean }) {
+  const metrics = useTicketMetrics(isStaff)
+  const customerOpen = useTicketCount({ view: 'all', status: [...openStatusValues], priority: [] }, !isStaff)
+  const customerResolved = useTicketCount({ view: 'resolved', status: [], priority: [] }, !isStaff)
+  const counts: Partial<Record<TicketView, number>> = isStaff
+    ? metrics.data
+      ? {
+          // La vista «all» de la API incluye los resueltos; «Abiertos» no.
+          all: Math.max(metrics.data.views.all - metrics.data.views.resolved, 0),
+          mine: metrics.data.views.mine,
+          unassigned: metrics.data.views.unassigned,
+          resolved: metrics.data.views.resolved,
+        }
+      : {}
+    : { all: customerOpen.data, resolved: customerResolved.data }
   return (
-    <div className={styles.metricsState}>
-      <div className={styles.metricsGhost}>
-        <MetricsRow metrics={ghostMetrics} ghost />
-      </div>
-      <div className={styles.metricsOverlay}>
-        {query.isError ? (
-          <Alert tone="red" title="No pudimos cargar las métricas de la bandeja">
-            <Button
-              variant="secondary"
-              aria-label="Reintentar cargar las métricas de la bandeja"
-              onClick={() => {
-                focusOnData.current = true
-                void query.refetch().then((result) => {
-                  if (result.isError) focusOnData.current = false
-                })
-              }}
+    <nav aria-label="Vistas de la bandeja">
+      <ul className={styles.views}>
+        {(isStaff ? staffViews : customerViews).map((item) => (
+          <li key={item.view}>
+            <Link
+              to={{ search: writeInboxState({ ...state, view: item.view }).toString() }}
+              replace
+              className={styles.view}
+              aria-current={state.view === item.view ? 'true' : undefined}
             >
-              Reintentar
-            </Button>
-          </Alert>
-        ) : (
-          <Skeleton lines={3} label="Cargando métricas…" className={styles.metricsSkeleton} />
-        )}
-      </div>
-    </div>
+              {item.label}
+              {counts[item.view] !== undefined && (
+                <>
+                  {' '}
+                  <span className={styles.count}>{counts[item.view]}</span>
+                </>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
   )
 }
 
-function MetricsRow({
-  metrics,
-  ghost = false,
-  rowRef,
-}: {
-  metrics: TicketMetrics
-  ghost?: boolean
-  rowRef?: RefObject<HTMLDivElement | null>
-}) {
-  const { resolvedToday, resolvedYesterday, firstResponseMinutes, firstResponseTargetMinutes } = metrics
-  const change =
-    resolvedYesterday > 0 ? Math.round(((resolvedToday - resolvedYesterday) / resolvedYesterday) * 100) : null
-  // Con `ghost` las etiquetas van vacías: el esqueleto no debe duplicar ningún texto real.
-  const label = (text: string) => (ghost ? '\u00a0' : text)
-  return (
-    <div
-      ref={rowRef}
-      className={styles.metrics}
-      {...(ghost ? {} : { role: 'group', 'aria-label': 'Métricas de la bandeja', tabIndex: -1 })}
-    >
-      <Metric
-        label={label('Tickets abiertos')}
-        value={metrics.open}
-        detail={newToday(metrics.openedToday)}
-        trend={metrics.openedToday > 0 ? 'positive' : 'neutral'}
-      />
-      <Metric
-        label={label('En progreso')}
-        value={metrics.inProgress}
-        detail={assignedToYou(metrics.inProgressAssignedToMe)}
-        trend="positive"
-      />
-      <Metric
-        label={label('Resueltos hoy')}
-        value={resolvedToday}
-        detail={
-          change === null ? `Ayer: ${resolvedYesterday}` : `${change >= 0 ? '↑' : '↓'} ${Math.abs(change)} % vs. ayer`
-        }
-        trend={change === null ? 'neutral' : change >= 0 ? 'positive' : 'negative'}
-      />
-      <Metric
-        label={label('Primera respuesta')}
-        value={firstResponseMinutes === null ? '—' : `${firstResponseMinutes} min`}
-        detail={
-          firstResponseMinutes === null
-            ? 'Sin respuestas en 7 días'
-            : firstResponseMinutes <= firstResponseTargetMinutes
-              ? 'Dentro del objetivo'
-              : `Objetivo: ${firstResponseTargetMinutes} min`
-        }
-        trend={
-          firstResponseMinutes === null
-            ? 'neutral'
-            : firstResponseMinutes <= firstResponseTargetMinutes
-              ? 'positive'
-              : 'negative'
-        }
-      />
-    </div>
-  )
-}
-
-interface ResultsProps {
+interface ListBodyProps {
   state: InboxState
-  list: ReturnType<typeof useTicketList>
+  list: ReturnType<typeof useInboxTickets>
   isStaff: boolean
+  twoPanes: boolean
+  timeZone: string
   filtersActive: boolean
   onClearFilters: () => void
-  onPageChange: (page: number) => void
+  actionsFor: (ticket: TicketSummary) => MenuItem[]
 }
 
-function Results({ state, list, isStaff, filtersActive, onClearFilters, onPageChange }: ResultsProps) {
-  if (list.isPending) {
+function ListBody({
+  state,
+  list,
+  isStaff,
+  twoPanes,
+  timeZone,
+  filtersActive,
+  onClearFilters,
+  actionsFor,
+}: ListBodyProps) {
+  if (list.isPending) return <InboxListSkeleton />
+  if (!list.data) {
+    const restricted = isApiError(list.error, 403)
     return (
-      <div className={styles.loading}>
-        <Skeleton lines={2} label="Cargando tickets…" />
-        <Skeleton lines={2} label="" />
-        <Skeleton lines={2} label="" />
-      </div>
-    )
-  }
-  if (list.isError) {
-    return (
-      <EmptyState
-        kind="error"
-        title="No pudimos cargar los tickets"
-        description="Revisa tu conexión y vuelve a intentarlo."
-        live={list.failureCount > 1}
-        action={
-          <Button variant="secondary" onClick={() => void list.refetch()}>
-            Reintentar
-          </Button>
-        }
-      />
-    )
-  }
-  const page = list.data
-  if (page.items.length === 0) {
-    if (filtersActive || state.view !== 'all') {
-      return (
+      <div className={styles.state}>
         <EmptyState
-          kind="noResults"
-          title="No encontramos tickets"
-          description={filtersActive ? 'Prueba otra búsqueda o quita los filtros.' : 'No hay tickets en esta vista.'}
+          kind={restricted ? 'restricted' : 'error'}
+          title={restricted ? 'No tienes permiso para ver los tickets' : 'No pudimos cargar los tickets'}
+          description={
+            restricted
+              ? 'Pide acceso a un administrador de tu organización.'
+              : 'Revisa tu conexión y vuelve a intentarlo.'
+          }
+          live={!restricted && list.failureCount > 1}
           action={
-            filtersActive && (
-              <Button variant="secondary" onClick={onClearFilters}>
-                Limpiar filtros
+            !restricted && (
+              <Button variant="secondary" onClick={() => void list.refetch()}>
+                Reintentar
               </Button>
             )
           }
         />
+      </div>
+    )
+  }
+  const { items, totalItems } = list.data
+  if (items.length === 0) {
+    const noun = isStaff ? 'tickets' : 'solicitudes'
+    if (filtersActive) {
+      return (
+        <div className={styles.state}>
+          <EmptyState
+            kind="noResults"
+            title={`No encontramos ${noun}`}
+            description="Prueba otra búsqueda o quita los filtros."
+            action={
+              <Button variant="secondary" onClick={onClearFilters}>
+                Limpiar filtros
+              </Button>
+            }
+          />
+        </div>
+      )
+    }
+    if (state.view !== 'all') {
+      return (
+        <div className={styles.state}>
+          <EmptyState
+            kind="noResults"
+            title={isStaff ? emptyViewTitles[state.view] : 'Todavía no tienes solicitudes resueltas'}
+            description={isStaff ? 'Cuando haya alguno, aparecerá aquí.' : 'Cuando resolvamos una, la verás aquí.'}
+          />
+        </div>
       )
     }
     return (
-      <EmptyState
-        title="Todavía no hay tickets"
-        description={isStaff ? 'Crea la primera solicitud para empezar.' : 'Cuando abras una solicitud aparecerá aquí.'}
-        action={
-          isStaff && (
-            <Link to="/tickets/nuevo" className={buttonClassName()}>
-              Crear ticket
-            </Link>
-          )
-        }
-      />
+      <div className={styles.state}>
+        <EmptyState
+          title={isStaff ? 'No hay tickets abiertos' : 'No tienes solicitudes abiertas'}
+          description={
+            isStaff ? 'Crea un ticket o revisa los resueltos.' : 'Cuando abras una solicitud aparecerá aquí.'
+          }
+          action={
+            isStaff && (
+              <Link to="/tickets/nuevo" className={buttonClassName()}>
+                Crear ticket
+              </Link>
+            )
+          }
+        />
+      </div>
     )
   }
   return (
-    <>
-      <p className="visually-hidden" role="status">
-        {page.totalItems === 1 ? '1 ticket' : `${page.totalItems} tickets`}
-      </p>
-      <TicketTable label="Tickets">
-        {page.items.map((ticket) => (
-          <InboxRow key={ticket.id} ticket={ticket} isStaff={isStaff} />
-        ))}
-      </TicketTable>
-      <Pagination page={page.page + 1} pageSize={page.size} total={page.totalItems} onPageChange={onPageChange} />
-    </>
+    <InboxList
+      items={items}
+      totalItems={totalItems}
+      selectedNumber={twoPanes ? state.ticket : undefined}
+      linkTo={(ticket) =>
+        twoPanes
+          ? { search: writeInboxState({ ...state, ticket: ticket.number }).toString() }
+          : `/tickets/${ticket.number}`
+      }
+      customerView={!isStaff}
+      actionsFor={actionsFor}
+      timeZone={timeZone}
+      hasMore={list.hasNextPage}
+      loadingMore={list.isFetchingNextPage}
+      loadMoreFailed={list.isFetchNextPageError}
+      onLoadMore={() => void list.fetchNextPage()}
+    />
   )
 }
 
-function InboxRow({ ticket, isStaff }: { ticket: TicketSummary; isStaff: boolean }) {
+/**
+ * Acciones rápidas de cada fila cuando no hay vista previa con sus propios controles (por debajo de 1200 px). Una sola
+ * llamada: el reintento de un 503 de bloqueo la repite tal cual, con la versión que leyó la primera vez.
+ */
+function useRowActions(enabled: boolean): (ticket: TicketSummary) => MenuItem[] {
   const me = useMe()
-  const timeZone = useTimeZone()
   const toast = useToast()
   const quickUpdate = useQuickTicketUpdate()
 
-  function run(changes: TicketChanges, success: string) {
-    // Una sola llamada: el reintento de un 503 de bloqueo la repite tal cual (con la versión que leyó la primera vez).
+  function run(ticket: TicketSummary, changes: TicketChanges, success: string) {
     const variables = { number: ticket.number, changes }
     const attempt = () =>
       quickUpdate.mutate(variables, {
@@ -482,23 +403,23 @@ function InboxRow({ ticket, isStaff }: { ticket: TicketSummary; isStaff: boolean
     attempt()
   }
 
-  const actions: MenuItem[] = isStaff
-    ? [
-        {
-          id: 'assign-me',
-          label: 'Asignarme',
-          disabled: !me.data || ticket.assignee?.id === me.data.user.id,
-          onSelect: () => run({ assigneeId: me.data?.user.id }, `Te asignaste el ticket #${ticket.number}`),
-        },
-        {
-          id: 'resolve',
-          label: 'Marcar como resuelto',
-          disabled: ticket.status === 'resolved',
-          onSelect: () => run({ status: 'resolved' }, `Ticket #${ticket.number} resuelto`),
-        },
-      ]
-    : []
-  return <TicketRow ticket={ticket} to={`/tickets/${ticket.number}`} actions={actions} timeZone={timeZone} />
+  return (ticket) =>
+    enabled
+      ? [
+          {
+            id: 'assign-me',
+            label: 'Asignarme',
+            disabled: !me.data || ticket.assignee?.id === me.data.user.id,
+            onSelect: () => run(ticket, { assigneeId: me.data?.user.id }, `Te asignaste el ticket #${ticket.number}`),
+          },
+          {
+            id: 'resolve',
+            label: 'Marcar como resuelto',
+            disabled: ticket.status === 'resolved',
+            onSelect: () => run(ticket, { status: 'resolved' }, `Ticket #${ticket.number} resuelto`),
+          },
+        ]
+      : []
 }
 
 interface FilterOption {

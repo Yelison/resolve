@@ -14,6 +14,7 @@ const ticket: TicketSummary = {
   priority: 'urgent',
   channel: 'email',
   assignee: { id: 'u-1', name: 'Laura Méndez' },
+  lastMessage: null,
   createdAt: '2026-10-04T10:00:00Z',
   updatedAt: '2026-10-04T10:25:00Z',
 }

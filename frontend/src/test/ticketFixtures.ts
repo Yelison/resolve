@@ -9,24 +9,28 @@ export const summary = (overrides: Partial<TicketSummary> = {}): TicketSummary =
   channel: 'email',
   customer: { id: 'c-maria', name: 'María Pérez', email: 'maria@cliente.example', company: 'Acme Studio' },
   assignee: { id: 'u-laura', name: 'Laura Méndez' },
+  lastMessage: null,
   createdAt: '2026-10-04T15:00:00Z',
   updatedAt: '2026-10-04T15:12:00Z',
   ...overrides,
 })
 
+/** El detalle no lleva `lastMessage`: el contrato no admite campos de más. */
+const withoutLastMessage = ({ lastMessage: _lastMessage, ...rest }: TicketSummary) => rest
+
 export const ticket = (overrides: Partial<Ticket> = {}): Ticket => ({
-  ...summary(),
+  ...withoutLastMessage(summary()),
   description: 'El enlace de recuperación dice que ya venció.',
   version: 3,
   ...overrides,
 })
 
-export const page = (items: TicketSummary[], totalItems = items.length) => ({
+export const page = (items: TicketSummary[], totalItems = items.length, pageIndex = 0, size = 20) => ({
   items,
-  page: 0,
-  size: 20,
+  page: pageIndex,
+  size,
   totalItems,
-  totalPages: Math.ceil(totalItems / 20),
+  totalPages: Math.ceil(totalItems / size),
 })
 
 export const metrics = {

@@ -1,0 +1,192 @@
+/*
+ * Fila de la bandeja. En móvil es una tarjeta (los textos envuelven y el enlace mide al menos la zona táctil); desde
+ * 768 px son filas de una línea por dato, con «…» y el texto entero en `title` y en la vista previa.
+ */
+.item {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  border-bottom: 1px solid var(--color-line);
+  box-shadow: inset 3px 0 0 transparent;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.item:hover {
+  background: var(--color-surface-hover);
+}
+
+.selected,
+.selected:hover {
+  background: var(--color-blue-bg);
+  box-shadow: inset 3px 0 0 var(--color-brand);
+}
+
+.link {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding: var(--space-12) var(--space-16);
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.link:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: calc(var(--space-2) * -1);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.dot {
+  flex: none;
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--radius-round);
+  background: var(--color-disabled);
+}
+
+.red {
+  background: var(--color-red-ink);
+}
+
+.blue {
+  background: var(--color-brand);
+}
+
+.amber {
+  background: var(--color-amber-ink);
+}
+
+.green {
+  background: var(--color-green-ink);
+}
+
+.who {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: var(--font-strong);
+}
+
+.time {
+  flex: none;
+  color: var(--color-muted);
+  font: var(--font-caption);
+}
+
+.subject {
+  overflow-wrap: anywhere;
+  font: var(--font-body);
+}
+
+.excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--color-muted);
+  font: var(--font-caption);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.note {
+  color: var(--color-amber-ink);
+  font: var(--font-label);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4) var(--space-8);
+  min-width: 0;
+  margin-top: var(--space-2);
+}
+
+.assignee {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-muted);
+  font: var(--font-caption);
+}
+
+.actions {
+  flex: none;
+  padding-top: var(--space-4);
+  padding-right: var(--space-8);
+}
+
+/* Carga: las mismas cajas que una fila real, pintadas como barras. */
+.ghost .who,
+.ghost .time,
+.ghost .subject,
+.ghost .excerpt,
+.ghost .assignee {
+  align-self: flex-start;
+  max-width: 100%;
+  border-radius: var(--radius-small);
+  background: var(--color-disabled);
+  color: transparent;
+  white-space: pre;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.ghost .who {
+  flex: 0 1 60%;
+}
+
+.ghost .subject {
+  min-width: 70%;
+}
+
+.ghost .excerpt {
+  min-width: 85%;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (min-width: 768px) {
+  .link {
+    min-height: 0;
+    padding: var(--space-12) var(--space-20);
+  }
+
+  .who,
+  .subject,
+  .assignee {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
+  .subject {
+    font: var(--font-strong);
+  }
+
+  .excerpt {
+    display: block;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .meta {
+    flex-wrap: nowrap;
+  }
+
+  .assignee {
+    flex: 1 1 auto;
+  }
+}

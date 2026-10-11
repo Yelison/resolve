@@ -5,12 +5,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Ticket } from '../../domain/ticket'
 import { mockApi } from '../../test/api'
 import { createTestQueryClient } from '../../test/render'
-import { ticket } from '../../test/ticketFixtures'
+import { summary, ticket } from '../../test/ticketFixtures'
 import { reportKeys } from '../reports/queries'
 import {
   ticketKeys,
   useAddMessage,
   useCreateTicket,
+  useInboxTickets,
   useQuickTicketUpdate,
   useRecentActivity,
   useTicket,
@@ -185,5 +186,78 @@ describe('useRecentActivity', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(new URL((spy.mock.calls[0]![0] as Request).url).searchParams.get('size')).toBe('10')
     expect(queryClient.getQueryState(ticketKeys.recent(10))?.status).toBe('success')
+  })
+})
+
+describe('useInboxTickets', () => {
+  const params = { view: 'all' as const, status: [], priority: [], q: '' }
+  const pageOf = (numbers: number[], total: number, index: number) => ({
+    items: numbers.map((number) => summary({ id: `t-${number}`, number })),
+    page: index,
+    // Páginas de 3 en la respuesta: lo que cuenta es la página y el total que declara el servidor.
+    size: 3,
+    totalItems: total,
+    totalPages: Math.ceil(total / 3),
+  })
+
+  function render() {
+    const queryClient = createTestQueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    return { queryClient, ...renderHook(() => useInboxTickets(params), { wrapper }) }
+  }
+
+  it('acumula páginas de 25, descarta repetidos y deja de ofrecer más en la última', async () => {
+    mockApi({
+      'GET /api/tickets': (request) =>
+        new URL(request.url).searchParams.get('page') === '0'
+          ? { body: pageOf([5, 4, 3], 6, 0) }
+          : { body: pageOf([3, 2, 1], 6, 1) },
+    })
+    const { result } = render()
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.hasNextPage).toBe(true)
+    await act(() => result.current.fetchNextPage())
+    await waitFor(() => expect(result.current.data?.items).toHaveLength(5))
+    expect(result.current.data?.items.map((item) => item.number)).toEqual([5, 4, 3, 2, 1])
+    expect(result.current.data?.totalItems).toBe(6)
+    expect(result.current.hasNextPage).toBe(false)
+  })
+
+  it('una página vacía cierra la lista aunque el total prometiera más', async () => {
+    mockApi({
+      'GET /api/tickets': (request) =>
+        new URL(request.url).searchParams.get('page') === '0'
+          ? { body: pageOf([3, 2, 1], 80, 0) }
+          : { body: { items: [], page: 1, size: 25, totalItems: 3, totalPages: 1 } },
+    })
+    const { result } = render()
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    // Leer `data` y `hasNextPage` antes de pedir más: el observador solo avisa de las propiedades que se han leído.
+    expect(result.current.hasNextPage).toBe(true)
+    expect(result.current.data?.items).toHaveLength(3)
+    await act(() => result.current.fetchNextPage())
+    await waitFor(() => expect(result.current.hasNextPage).toBe(false))
+    expect(result.current.data?.items).toHaveLength(3)
+  })
+
+  it('invalidar las listas vuelve a pedir todas las páginas cargadas', async () => {
+    let reads = 0
+    mockApi({
+      'GET /api/tickets': (request) => {
+        reads += 1
+        return new URL(request.url).searchParams.get('page') === '0'
+          ? { body: pageOf([4, 3, 9], 6, 0) }
+          : { body: pageOf([2, 1, 8], 6, 1) }
+      },
+    })
+    const { result, queryClient } = render()
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.hasNextPage).toBe(true)
+    await act(() => result.current.fetchNextPage())
+    await waitFor(() => expect(reads).toBe(2))
+    await act(() => queryClient.invalidateQueries({ queryKey: ticketKeys.lists() }))
+    await waitFor(() => expect(reads).toBe(4))
   })
 })
