@@ -37,7 +37,7 @@ export function InvitationsPanel({ invitations, onCancel, onSeeAll, headingRef }
             <li key={member.id} className={styles.item}>
               <Avatar name={member.email} decorative />
               <span className={styles.identity}>
-                <span className={styles.email}>{member.email}</span>
+                <span className={styles.email}>{breakAfterAt(member.email)}</span>
                 <span className={styles.meta}>
                   {roleLabels[member.role]}
                   {sent && ` · ${sent}`}
@@ -49,7 +49,7 @@ export function InvitationsPanel({ invitations, onCancel, onSeeAll, headingRef }
                 aria-label={`Cancelar invitación de ${member.email}`}
                 onClick={() => onCancel(member)}
               >
-                Cancelar invitación
+                Cancelar
               </Button>
             </li>
           )
@@ -66,6 +66,19 @@ export function InvitationsPanel({ invitations, onCancel, onSeeAll, headingRef }
         </Button>
       )}
     </section>
+  )
+}
+
+/** El correo con un punto de corte tras la «@»: si no cabe, se parte ahí y no en mitad de una palabra. */
+function breakAfterAt(email: string) {
+  const at = email.indexOf('@')
+  if (at < 0) return email
+  return (
+    <>
+      {email.slice(0, at + 1)}
+      <wbr />
+      {email.slice(at + 1)}
+    </>
   )
 }
 
@@ -95,11 +108,14 @@ function placeholders(now: Date): TeamMember[] {
 export function InvitationsSkeleton() {
   const [invitations] = useState(() => placeholders(new Date()))
   return (
-    <div className={styles.reserved} role="status">
-      <span className="visually-hidden">Cargando las invitaciones…</span>
-      <div aria-hidden="true">
+    <>
+      {/* El aviso va fuera del contenedor oculto: `visibility: hidden` lo sacaría del árbol de accesibilidad. */}
+      <span className="visually-hidden" role="status">
+        Cargando las invitaciones…
+      </span>
+      <div className={styles.reserved} aria-hidden="true">
         <InvitationsPanel invitations={invitations} onCancel={() => {}} onSeeAll={() => {}} />
       </div>
-    </div>
+    </>
   )
 }

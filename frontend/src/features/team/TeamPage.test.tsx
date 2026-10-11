@@ -401,6 +401,8 @@ describe('TeamPage', () => {
       mockApi({ ...baseRoutes, 'GET /api/members': () => new Promise(() => {}) as never })
       renderTeam()
       expect(await screen.findByText('Cargando las invitaciones…')).toBeInTheDocument()
+      // El aviso es accesible de verdad: no está dentro del contenedor oculto de la reserva.
+      expect(screen.getAllByRole('status').some((node) => node.textContent === 'Cargando las invitaciones…')).toBe(true)
       // La reserva ocupa lo que ocuparía el máximo visible: tres filas y «Ver las N».
       expect(screen.getAllByRole('button', { name: /Cancelar invitación de/, hidden: true })).toHaveLength(3)
     })
@@ -469,12 +471,22 @@ describe('TeamPage', () => {
       expect(within(within(table).getByRole('row', { name: /Pablo Viejo/ })).getByText('Retirado')).toBeInTheDocument()
     })
 
+    it('el correo puede cortarse tras la «@» y el botón visible dice «Cancelar» sin partirse', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [...teamWithoutInvitations, invitedMember(1)] } })
+      renderTeam()
+      const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
+      const email = within(panel).getByText('invitada1@acme.example')
+      expect(email.querySelector('wbr')).not.toBeNull()
+      expect(email.firstChild?.textContent).toBe('invitada1@')
+      expect(within(panel).getByRole('button', { name: /Cancelar invitación de/ })).toHaveTextContent(/^Cancelar$/)
+    })
+
     it('el nombre accesible de «Cancelar invitación» contiene el texto visible', async () => {
       mockApi({ ...baseRoutes, 'GET /api/members': { body: [...teamWithoutInvitations, invitedMember(1)] } })
       renderTeam()
       const panel = await screen.findByRole('region', { name: /Invitaciones pendientes/ })
       const button = within(panel).getByRole('button', { name: 'Cancelar invitación de invitada1@acme.example' })
-      expect(button.textContent).toBe('Cancelar invitación')
+      expect(button.textContent).toBe('Cancelar')
       expect(button.getAttribute('aria-label')).toContain(button.textContent)
     })
 

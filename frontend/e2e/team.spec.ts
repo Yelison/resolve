@@ -448,7 +448,7 @@ test.describe('equipo · carga, invitaciones y muchos datos', () => {
         const before = await measure()
         const reservedInvitations = (await page
           .getByText('Cargando las invitaciones…')
-          .locator('xpath=..')
+          .locator('xpath=following-sibling::div[1]')
           .boundingBox())!.height
         release()
         await expect(page.getByRole('table', { name: 'Equipo' })).toBeVisible()
