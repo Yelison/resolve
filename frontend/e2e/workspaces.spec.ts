@@ -190,6 +190,34 @@ test.describe('selector de espacios', () => {
     expect(await markOf(card(page))).toBe(violet)
   })
 
+  test('una clave de color sin mapeo vuelve al fondo neutro: el cuadro no queda transparente', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    // El servidor manda un color que este cliente aún no conoce: se cambia en la respuesta de `/me`.
+    await page.addInitScript(() => {
+      const network = window.fetch.bind(window)
+      window.fetch = async (input, init) => {
+        const response = await network(input, init)
+        const url = new URL(response.url || String(input), window.location.href)
+        if (url.pathname !== '/api/me') return response
+        const body = await response.clone().json()
+        body.organization.color = 'chartreuse'
+        body.organizations = body.organizations?.map((ref: object) => ({ ...ref, color: 'chartreuse' }))
+        return new Response(JSON.stringify(body), { status: response.status, headers: response.headers })
+      }
+    })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/')
+    const trigger = card(page)
+    await expect(trigger).toContainText('AS')
+    const mark = trigger.locator('[data-color="chartreuse"]')
+    await expect(mark).toBeVisible()
+    const background = await mark.evaluate((node) => getComputedStyle(node).backgroundColor)
+    expect(background).not.toBe('rgba(0, 0, 0, 0)')
+    await trigger.click()
+    const row = selector(page).getByRole('menuitemradio').first().locator('[data-color]')
+    expect(await row.evaluate((node) => getComputedStyle(node).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
+  })
+
   test('colapsada, el cuadro conserva el color con su nombre accesible', async ({ page }) => {
     await mockApi(page, 'admin', { organizations: spaces })
     await page.setViewportSize({ width: 1024, height: 800 })

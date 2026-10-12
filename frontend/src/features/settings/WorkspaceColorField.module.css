@@ -54,7 +54,7 @@
   width: var(--touch-target);
   height: var(--touch-target);
   border-radius: var(--radius-control);
-  background: var(--workspace-color);
+  background: var(--workspace-color, var(--color-nav-active));
   color: var(--color-workspace-ink);
   box-shadow: inset 0 0 0 1px var(--color-workspace-chip-edge);
   pointer-events: none;
