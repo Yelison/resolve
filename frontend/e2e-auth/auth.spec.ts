@@ -53,9 +53,9 @@ test('el JSESSIONID cambia tras el login (fijación de sesión)', async ({ page,
   expect((await page.request.get('/api/me')).status()).toBe(401)
 })
 
-test.describe('organizaciones', () => {
+test.describe('espacios', () => {
   // Jordi solo está en Northwind: el administrador de Acme lo invita para que tenga dos y la quita al terminar.
-  test('cambia de organización cuando pertenece a dos', async ({ browser }) => {
+  test('cambia de espacio cuando pertenece a dos', async ({ browser }) => {
     const adminContext = await browser.newContext()
     const admin = await adminContext.newPage()
     const jordiContext = await browser.newContext()
@@ -83,13 +83,11 @@ test.describe('organizaciones', () => {
       expect(jordiUserId, 'Jordi figura en el equipo de Acme').toBeTruthy()
 
       await signIn(jordi, accounts.jordi.email)
-      await account(jordi).click()
       const current = (await (await jordi.request.get('/api/me')).json()).organization.name as string
       const target = current === 'Acme Studio' ? 'Northwind Soporte' : 'Acme Studio'
-      await jordi.getByRole('menuitem', { name: new RegExp(`^Cambiar de organización · ${current}`) }).click()
-      const dialog = jordi.getByRole('dialog', { name: 'Cambiar de organización' })
-      await dialog.getByRole('radio', { name: new RegExp(target) }).check()
-      await dialog.getByRole('button', { name: 'Cambiar de organización' }).click()
+      // La tarjeta del espacio abre el selector; cada fila es una opción «{nombre}, {rol}» (como en e2e/session.spec.ts).
+      await jordi.getByRole('button', { name: `Espacio: ${current}. Cambiar de espacio` }).click()
+      await jordi.getByRole('menuitemradio', { name: new RegExp(`^${target}, `) }).click()
 
       await expect(jordi.getByText(`Ahora trabajas en ${target}`)).toBeVisible()
       await expect(account(jordi)).toHaveAccessibleName(`Cuenta: ${accounts.jordi.name}, ${target}`)
@@ -173,7 +171,7 @@ test.describe('cuenta desactivada', () => {
 
     await expect(page).toHaveURL(/\/entrar/)
     const alert = page.getByRole('alert').filter({ hasText: 'Esta cuenta no tiene acceso' })
-    await expect(alert).toContainText('Tu acceso a esta organización fue desactivado')
+    await expect(alert).toContainText('Tu acceso a este espacio fue desactivado')
 
     await page.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' }).click()
     await expect(page).toHaveURL(/\/entrar$/)
