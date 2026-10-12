@@ -90,6 +90,19 @@ class ProfileConfigurationTest {
 		assertThat(environment(allVariables(), "prod", "oidc").getProperty("resolve.demo.limits")).isEqualTo("false");
 	}
 
+	@Test
+	void theCreationModeIsOptionalEverywhereAndDefaultsToAdmins() {
+		for (String[] profiles : new String[][] { { "dev" }, { "prod" }, { "prod", "oidc" } }) {
+			// En prod hacen falta las demás variables, pero no esta: sin ella vale «admins».
+			ConfigurableEnvironment environment = environment(allVariables(), profiles);
+			assertThat(environment.getProperty("resolve.organizations.creation")).as(String.join(",", profiles))
+				.isEqualTo("admins");
+			Map<String, Object> open = allVariables();
+			open.put("RESOLVE_ORGANIZATIONS_CREATION", "open");
+			assertThat(environment(open, profiles).getProperty("resolve.organizations.creation")).isEqualTo("open");
+		}
+	}
+
 	@ParameterizedTest
 	@EnumSource(Required.class)
 	void prodAndOidcHaveNoDefaultForAnyRequiredVariable(Required missing) {

@@ -49,6 +49,13 @@ class ApiAccessMatrixTest extends ApiIntegrationTest {
 	}
 
 	@Test
+	void whileTheDoorIsClosedAnIdentityWithoutMembershipsGetsTheNoMembershipProblemOnEveryOperation() throws Exception {
+		assertThat(ApiAccess.identityWithoutMembershipViolations(this.mvc, as("nueva@gente.example"),
+				"nueva@gente.example", false))
+			.isEmpty();
+	}
+
+	@Test
 	void everyWriteOfTheContractAnswers409BeforeTheControllerWhenTheOrganizationShownIsNotTheSessionOne()
 			throws Exception {
 		UUID acme = this.data.organization("Acme");

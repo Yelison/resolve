@@ -15,7 +15,7 @@ public class OrganizationCreationPolicy {
 
 	private final OrganizationCreationMode mode;
 
-	OrganizationCreationPolicy(@Value("${resolve.organizations.creation:admins}") @Nullable String mode) {
+	public OrganizationCreationPolicy(@Value("${resolve.organizations.creation:admins}") @Nullable String mode) {
 		this.mode = OrganizationCreationMode.parse(mode);
 	}
 
