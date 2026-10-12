@@ -104,8 +104,8 @@ export interface paths {
          *     organization stored in the session stops being usable: the first usable membership by id). Nobody leaves their
          *     only organization: if the membership to leave is the only usable one of the caller (`invited` or `active`, not
          *     `removed`, and not a customer record that was archived; the same rule as the organization list), the answer is a
-         *     `409` with the Problem `type` `https://resolve.example/problems/last-organization` and nothing is changed, so a
-         *     person never ends up without any. It is exact even when the same person leaves two organizations at the same
+         *     `409` with the Problem `type` `https://resolve.example/problems/last-organization` and nothing is changed, so
+         *     leaving never leaves a person without any (an admin removing them from the last one still can). It is exact even when the same person leaves two organizations at the same
          *     time (two tabs): the checks run one at a time per person. An `invited` membership can be left too, if the
          *     caller has another usable one.
          *
@@ -114,8 +114,8 @@ export interface paths {
          *     `last-organization`. Unknown, foreign and already-left organizations answer the **same** `404`, so the existence of other
          *     organizations is not revealed. A `customer` membership answers `403`: a customer's access belongs to the company
          *     that supports them. Being the only active admin is a `409` with the Problem `type`
-         *     `https://resolve.example/problems/last-admin`; it is the person who stays without a replacement, not the
-         *     organization.
+         *     `https://resolve.example/problems/last-admin`: the organization must keep at least one active admin, so the
+         *     caller has to promote someone first.
          */
         delete: operations["leaveOrganization"];
         options?: never;
