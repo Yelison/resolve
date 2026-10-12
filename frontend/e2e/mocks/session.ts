@@ -1,4 +1,10 @@
-import type { LogoutResponse, Me, OrganizationRef, SessionOrganizationSelection } from '../../src/api/schema'
+import type {
+  LogoutResponse,
+  Me,
+  OrganizationColor,
+  OrganizationRef,
+  SessionOrganizationSelection,
+} from '../../src/api/schema'
 import { json, problem, type MockFeature, type MockRoute } from './shared'
 
 export const me: Me = {
@@ -7,7 +13,7 @@ export const me: Me = {
     id: 'org-1',
     name: 'Acme Studio',
     timeZone: 'America/Bogota',
-    color: 'green',
+    color: 'blue',
     supportEmail: null,
     demo: false,
   },
@@ -20,7 +26,7 @@ export const acme: OrganizationRef = {
   id: '0192f000-0000-7000-8000-000000000001',
   name: 'Acme Studio',
   role: 'admin',
-  color: 'green',
+  color: 'blue',
   memberCount: 4,
 }
 export const northwind: OrganizationRef = {
@@ -36,14 +42,14 @@ export const lumen: OrganizationRef = {
   id: '0192f000-0000-7000-8000-000000000003',
   name: 'Lumen Diseño',
   role: 'agent',
-  color: 'orange',
+  color: 'green',
   memberCount: 6,
 }
 export const norte: OrganizationRef = {
   id: '0192f000-0000-7000-8000-000000000004',
   name: 'Norte Viajes',
   role: 'customer',
-  color: 'violet',
+  color: 'orange',
   memberCount: null,
 }
 
@@ -86,6 +92,8 @@ export interface SessionLinks {
   lastAdmin?: (organizationId: string) => boolean
   /** Libera lo que la persona tenía asignado en el espacio (sus tickets sin resolver). */
   release?: (organizationId: string) => void
+  /** Los ajustes avisan aquí cuando un `PATCH` correcto cambia el color: la sesión lo atribuye al espacio activo de ese momento. */
+  colorSaved?: (color: OrganizationColor) => void
 }
 
 /** Token que la API simulada entrega en la cookie `XSRF-TOKEN` con cada GET /me y que exige en las escrituras. */
@@ -126,7 +134,12 @@ export function sessionMock(
   const left = new Set<string>()
   const usable = () => organizations.filter((org) => !left.has(org.id))
   let active = organizations[0]!
+  // Los ajustes simulados son los de un solo espacio: el color que guardan se atribuye, en el momento de guardar, al espacio
+  // activo (`links.colorSaved`), y cada espacio conserva el suyo al cambiar.
+  const colors = new Map<string, OrganizationColor>()
+  const colorOf = (org: OrganizationRef) => colors.get(org.id) ?? org.color
   links.current.role = options.organizations ? active.role : role
+  links.colorSaved = (color) => colors.set(active.id, color)
 
   const session = (): Me => {
     const current = base ? base() : roleMe
@@ -141,9 +154,14 @@ export function sessionMock(
         ...(options.demo !== undefined ? { demo: options.demo } : {}),
         // La organización de la fixture por defecto sigue siendo `org-1`: solo cambia al elegir otra de la lista.
         ...(options.organizations ? { id: active.id, name: active.name } : {}),
+        color: colorOf(active),
         ...(options.longNames ? { name: long(active.name) } : {}),
       },
-      organizations: usable().map((org) => (options.longNames ? { ...org, name: long(org.name) } : org)),
+      organizations: usable().map((org) => ({
+        ...org,
+        color: colorOf(org),
+        ...(options.longNames ? { name: long(org.name) } : {}),
+      })),
     }
   }
 

@@ -163,3 +163,10 @@
   font: var(--font-body);
   color: var(--color-muted);
 }
+
+/* En lectura, el color va con su cuadro de iniciales y su nombre. */
+.readFact dd.colorFact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}

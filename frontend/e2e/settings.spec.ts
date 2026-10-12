@@ -111,6 +111,100 @@ test.describe('configuración: Empresa', () => {
     await expect(page.getByRole('textbox', { name: 'Objetivo de primera respuesta' })).toHaveValue('45')
   })
 
+  test('el color: se elige con teclado, la vista previa y la barra lateral siguen, y se guarda con «Guardar cambios»', async ({
+    page,
+  }) => {
+    await page.setViewportSize(desktop)
+    await page.goto('/configuracion/empresa')
+    const group = page.getByRole('group', { name: 'Color del espacio' })
+    await expect(group.getByRole('radio')).toHaveCount(8)
+    await expect(group.getByRole('radio', { name: 'Azul' })).toBeChecked()
+    await group.getByRole('radio', { name: 'Azul' }).focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(group.getByRole('radio', { name: 'Verde' })).toBeChecked()
+    await expect(page.getByText('Color: Verde')).toBeVisible()
+    await expect(page.getByText('Tienes cambios sin guardar en «Color».')).toBeVisible()
+    // El anillo y el check marcan la elegida, no solo el tono.
+    const checkOf = (name: string) => group.locator('label', { has: page.getByRole('radio', { name }) }).locator('svg')
+    await expect(checkOf('Verde')).toHaveCSS('opacity', '1')
+    await expect(checkOf('Azul')).toHaveCSS('opacity', '0')
+    const mark = sidebarOf(page).getByText('AS').first()
+    const before = await mark.evaluate((node) => getComputedStyle(node).backgroundColor)
+    await page.getByRole('button', { name: 'Guardar cambios' }).click()
+    await expect(page.getByText('Cambios guardados')).toBeVisible()
+    // Sin recargar, la barra lateral toma el color nuevo.
+    await expect.poll(() => mark.evaluate((node) => getComputedStyle(node).backgroundColor)).not.toBe(before)
+    await page.reload()
+    await expect(page.getByRole('radio', { name: 'Verde' })).toBeChecked()
+  })
+
+  test('el color: cada muestra mide 44 px, tiene foco visible y «Descartar» deja el foco en la marcada', async ({
+    page,
+  }) => {
+    await page.setViewportSize(phone)
+    await page.goto('/configuracion/empresa')
+    const group = page.getByRole('group', { name: 'Color del espacio' })
+    for (const radio of await group.getByRole('radio').all()) {
+      const box = (await radio.boundingBox())!
+      expect(box.width).toBeGreaterThanOrEqual(44)
+      expect(box.height).toBeGreaterThanOrEqual(44)
+    }
+    await group.getByRole('radio', { name: 'Azul' }).focus()
+    await page.keyboard.press('ArrowRight')
+    const chip = group
+      .locator('label', { has: page.getByRole('radio', { name: 'Verde' }) })
+      .locator('span')
+      .first()
+    expect(await chip.evaluate((node) => getComputedStyle(node).outlineStyle)).not.toBe('none')
+    await page.getByRole('button', { name: 'Descartar' }).click()
+    await expect(group.getByRole('radio', { name: 'Azul' })).toBeChecked()
+    await expect(group.getByRole('radio', { name: 'Azul' })).toBeFocused()
+  })
+
+  for (const theme of ['light', 'dark'] as const) {
+    for (const width of [320, 390, 767, 768, 1024, 1199, 1200, 1440]) {
+      test(`el color: sin scroll horizontal ni recortes con un nombre de 120 caracteres · ${theme} · ${width}px`, async ({
+        page,
+      }) => {
+        await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto('/configuracion/empresa')
+        await page.getByRole('textbox', { name: 'Nombre del espacio' }).fill('N'.repeat(120))
+        const group = page.getByRole('group', { name: 'Color del espacio' })
+        await expect(group).toBeVisible()
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        )
+        expect(overflow).toBeLessThanOrEqual(0)
+        for (const radio of await group.getByRole('radio').all()) {
+          const box = (await radio.boundingBox())!
+          expect(box.x).toBeGreaterThanOrEqual(0)
+          expect(box.x + box.width).toBeLessThanOrEqual(width)
+        }
+      })
+    }
+  }
+
+  test('la API simulada rechaza con un 400 una clave de color desconocida y acepta las del contrato', async ({
+    page,
+  }) => {
+    await page.goto('/configuracion/empresa')
+    const patch = (color: string) =>
+      page.evaluate(async (value) => {
+        const current = await fetch('/api/organization')
+        const response = await fetch('/api/organization', {
+          method: 'PATCH',
+          headers: { 'If-Match': current.headers.get('ETag')!, 'Content-Type': 'application/merge-patch+json' },
+          body: JSON.stringify({ color: value }),
+        })
+        return { status: response.status, body: await response.json() }
+      }, color)
+    const rejected = await patch('fucsia')
+    expect(rejected.status).toBe(400)
+    expect(rejected.body.errors).toEqual([expect.objectContaining({ field: 'color' })])
+    expect((await patch('slate')).status).toBe(200)
+  })
+
   test('la zona se lee con el nombre de la ciudad y su desfase', async ({ page }) => {
     await page.setViewportSize(desktop)
     await page.goto('/configuracion/empresa')
@@ -273,7 +367,10 @@ test.describe('configuración: Empresa', () => {
     await page.goto('/configuracion/empresa')
     await expect(page.getByRole('textbox', { name: 'Nombre del espacio' })).toBeVisible()
     await page.getByRole('textbox', { name: 'Nombre del espacio' }).focus()
-    // Tab recorre los campos hacia abajo: cada uno, al recibir el foco, queda por encima de la barra.
+    // Tab recorre los campos hacia abajo: tras el nombre viene el grupo de color (su muestra marcada) y cada uno, al
+    // recibir el foco, queda por encima de la barra.
+    await page.keyboard.press('Tab')
+    await expect(page.getByRole('radio', { name: 'Azul' })).toBeFocused()
     for (const field of ['Correo de soporte', 'Zona horaria', 'Objetivo de primera respuesta']) {
       await page.keyboard.press('Tab')
       const control = page.getByRole(field === 'Zona horaria' ? 'combobox' : 'textbox', { name: field })

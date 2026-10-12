@@ -1,8 +1,18 @@
-import type { Me, OrganizationPatch, OrganizationSettings } from '../../src/api/schema'
+import type { Me, OrganizationColor, OrganizationPatch, OrganizationSettings } from '../../src/api/schema'
 import { me } from './session'
 import { json, problem, type MockFeature } from './shared'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const ORGANIZATION_COLORS: readonly string[] = [
+  'blue',
+  'green',
+  'magenta',
+  'orange',
+  'violet',
+  'teal',
+  'brick',
+  'slate',
+] satisfies OrganizationColor[]
 
 /**
  * Sesión y ajustes simulados con las reglas del servidor: `PATCH /organization` es del administrador, exige `If-Match`
@@ -10,7 +20,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * `sessionMock`, para que un cambio de nombre del espacio o del perfil llegue al sidebar al releer la sesión: va antes
  * que `sessionMock` en `mockApi`, porque gana el primer manejador.
  */
-export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): MockFeature & { session: () => Me } {
+export function settingsMock(
+  roleOrGetter: Me['role'] | (() => Me['role']),
+  /** Se llama tras un `PATCH` correcto que cambia el color, para que la sesión lo atribuya al espacio activo. */
+  onColorSaved?: (color: OrganizationColor) => void,
+): MockFeature & { session: () => Me } {
   // El rol cambia al cambiar de espacio (agente en uno, cliente en otro): se lee en cada petición.
   const roleNow = () => (typeof roleOrGetter === 'function' ? roleOrGetter() : roleOrGetter)
   let stored: Me = { ...me }
@@ -30,6 +44,7 @@ export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): Moc
       name: settings.name,
       timeZone: settings.timeZone,
       supportEmail: settings.supportEmail,
+      color: settings.color,
     },
   })
   stored = withOrganization(organization)
@@ -77,6 +92,9 @@ export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): Moc
       if (patch.timeZone !== undefined && patch.timeZone === 'Pacific/Honolulu') {
         errors.push({ field: 'timeZone', message: 'Zona horaria no reconocida por el servidor.' })
       }
+      if (patch.color !== undefined && !ORGANIZATION_COLORS.includes(patch.color)) {
+        errors.push({ field: 'color', message: 'Elige uno de los colores de la lista.' })
+      }
       if (errors.length > 0) return problem(route, 400, 'Datos no válidos', errors)
       if (ifMatch !== `"${organization.version}"`) return problem(route, 412, 'La versión cambió')
       const next: OrganizationSettings = { ...organization, ...patch }
@@ -85,6 +103,7 @@ export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): Moc
       )
       organization = changed ? { ...next, version: organization.version + 1 } : organization
       stored = withOrganization(organization)
+      if (changed && patch.color !== undefined) onColorSaved?.(patch.color)
       return route.fulfill({
         status: 200,
         contentType: 'application/json',

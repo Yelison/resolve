@@ -33,7 +33,7 @@ function writeSettingsIfNewer(queryClient: QueryClient, settings: OrganizationSe
 /**
  * Edita la organización (admin) con `If-Match` y merge-patch: solo viajan los campos cambiados, así repetir el envío
  * tras un 412 no pisa lo que cambió otra persona. Al guardar se actualizan los ajustes y `/me` (el sidebar muestra el
- * nombre del espacio) y se leen de nuevo lo que depende de la zona y del objetivo: los informes (`byDay`, `period`) y
+ * nombre y el color del espacio) y se leen de nuevo lo que depende de la zona y del objetivo: los informes (`byDay`, `period`) y
  * las métricas de tickets y de equipo (llevan el objetivo de primera respuesta) y las de clientes (el mes se cuenta en la zona).
  */
 export function useUpdateOrganization() {
@@ -62,7 +62,12 @@ export function useUpdateOrganization() {
               name: settings.name,
               timeZone: settings.timeZone,
               supportEmail: settings.supportEmail,
+              color: settings.color,
             },
+            // El selector y «Tus espacios» leen el color de la lista: la fila del espacio actual cambia sin recargar.
+            organizations: me.organizations?.map((ref) =>
+              ref.id === me.organization.id ? { ...ref, color: settings.color } : ref,
+            ),
           },
       )
       void queryClient.invalidateQueries({ queryKey: reportKeys.all })

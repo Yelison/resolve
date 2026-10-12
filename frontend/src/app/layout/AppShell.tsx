@@ -140,6 +140,7 @@ function AppFrame() {
           ? 'Soporte'
           : 'Gestión',
     workspace: workspaceName,
+    workspaceColor: me.data?.organization.color,
     // Tu rol en el espacio (a un cliente, «Soporte»); sin sesión, la línea queda en blanco y conserva su altura.
     workspaceRole: me.data ? workspaceCardRole(me.data.role) : '',
     user: { name: userName, role: me.data ? roleLabels[me.data.role] : '' },

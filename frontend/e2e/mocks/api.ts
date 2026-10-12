@@ -2,7 +2,7 @@ import type { Me } from '../../src/api/schema'
 import { customersMock } from './customers'
 import { knowledgeMock, type ArticleStore } from './knowledge'
 import { reportsMock } from './reports'
-import { me, sessionMock, type SessionOptions } from './session'
+import { me, sessionMock, type SessionLinks, type SessionOptions } from './session'
 import { settingsMock } from './settings'
 import { json, type MockFeature, type MockRequest } from './shared'
 import { teamMock } from './team'
@@ -31,21 +31,22 @@ export function createMockFeatures(
   const roleNow = () => current.role
   // Los recuentos y el último ticket de cada cliente salen de los tickets simulados, no de una copia.
   const customers = customersMock(() => tickets)
-  const settings = settingsMock(roleNow)
   const team = teamMock()
   const ticketsFeature = ticketsMock(customers.customerRef, roleNow)
+  const links: SessionLinks = {
+    current,
+    lastAdmin: () => team.onlyAdmin(),
+    release: () => {
+      team.release(me.user.id)
+      ticketsFeature.release(me.user.id)
+    },
+  }
+  const settings = settingsMock(roleNow, (color) => links.colorSaved?.(color))
   return [
     // La sesión va primero (gana el primer manejador): sirve `/me`, el cierre de sesión, la elección de espacio y salir
     // de uno, a partir del `Me` que cambian los ajustes, que van justo después con el resto de `/me` (PATCH) y
     // `/organization`. Salir de un espacio es una regla del equipo (último administrador) y de los tickets (se liberan).
-    sessionMock(role, options, settings.session, {
-      current,
-      lastAdmin: () => team.onlyAdmin(),
-      release: () => {
-        team.release(me.user.id)
-        ticketsFeature.release(me.user.id)
-      },
-    }),
+    sessionMock(role, options, settings.session, links),
     settings,
     knowledgeMock(roleNow, options.articleStore),
     reportsMock(),

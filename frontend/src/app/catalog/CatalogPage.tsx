@@ -505,6 +505,7 @@ export default function CatalogPage() {
             items={navItems}
             sectionLabel="Soporte"
             workspace="Acme Studio"
+            workspaceColor="blue"
             workspaceRole="Administradora"
             workspaceMenu={(workspace) => (
               <Menu
@@ -516,7 +517,7 @@ export default function CatalogPage() {
                     id: 'acme',
                     label: 'Acme Studio',
                     description: 'Administradora',
-                    leading: <WorkspaceMark name="Acme Studio" size="small" />,
+                    leading: <WorkspaceMark name="Acme Studio" color="blue" size="small" />,
                     checked: true,
                     onSelect: () => {},
                   },
@@ -524,7 +525,7 @@ export default function CatalogPage() {
                     id: 'lumen',
                     label: 'Lumen Diseño',
                     description: 'Agente',
-                    leading: <WorkspaceMark name="Lumen Diseño" size="small" />,
+                    leading: <WorkspaceMark name="Lumen Diseño" color="green" size="small" />,
                     checked: false,
                     onSelect: () => {},
                   },

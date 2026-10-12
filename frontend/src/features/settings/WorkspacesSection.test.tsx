@@ -88,6 +88,10 @@ describe('Configuración › Tus espacios · escritorio', () => {
       expect.stringContaining('Norte Viajes'),
       expect.stringContaining('Kora Fitness'),
     ])
+    // El cuadro de cada fila lleva el color de su espacio; el nombre y las iniciales van al lado.
+    expect(rows.map((row) => row.querySelector('[data-color]')?.getAttribute('data-color'))).toEqual(
+      acmeMe.organizations?.map((org) => org.color),
+    )
     expect(rows[0]).toHaveTextContent('Administrador · 4 personas')
     expect(rows[1]).toHaveTextContent('Agente · 6 personas')
     expect(rows[2]).toHaveTextContent('Soporte de Norte Viajes')

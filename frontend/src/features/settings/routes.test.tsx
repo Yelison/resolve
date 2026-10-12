@@ -40,7 +40,7 @@ describe('rutas de configuración (desde 768 px)', () => {
       expect(screen.getByRole('link', { name: /^General/ })).not.toHaveAttribute('aria-current')
       const groups = screen.getAllByRole('list', { name: /Espacio|Tu cuenta/ })
       expect(groups.map((group) => within(group).getAllByRole('link').length)).toEqual([2, 2])
-      expect(screen.getByRole('link', { name: /Nombre, soporte y objetivos/ })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /Nombre, color, soporte y objetivos/ })).toBeInTheDocument()
       expect(screen.queryAllByRole('tab')).toHaveLength(0)
     },
   )

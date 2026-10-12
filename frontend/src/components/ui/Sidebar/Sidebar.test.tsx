@@ -162,6 +162,21 @@ describe('Sidebar · tarjeta del espacio', () => {
     expect(screen.queryByRole('button', { name: /espacio/i })).not.toBeInTheDocument()
   })
 
+  it('`workspaceColor` pinta el cuadro de iniciales del espacio; sin él, el cuadro es neutro', () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <Sidebar {...base} workspace="Acme Studio" workspaceColor="teal" />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('AS')).toHaveAttribute('data-color', 'teal')
+    rerender(
+      <MemoryRouter>
+        <Sidebar {...base} workspace="Acme Studio" />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('AS')).not.toHaveAttribute('data-color')
+  })
+
   it('`workspaceRole` sustituye el subtítulo y, sin rol, conserva la línea', () => {
     const { rerender } = render(
       <MemoryRouter>
