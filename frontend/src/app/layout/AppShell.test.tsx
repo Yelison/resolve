@@ -634,3 +634,44 @@ describe('AppShell en la demostración pública', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 })
+
+describe('AppShell · pantalla por espacio', () => {
+  function renderCounting() {
+    let mounts = 0
+    function Page() {
+      useEffect(() => {
+        mounts += 1
+      }, [])
+      return <h1>Inicio</h1>
+    }
+    mockApi({ 'GET /api/me': { body: adminMe } })
+    const router = createMemoryRouter(
+      [{ path: '/', element: <AppShell />, children: [{ index: true, element: <Page /> }] }],
+      { initialEntries: ['/'] },
+    )
+    const { queryClient } = renderWithProviders(<RouterProvider router={router} />)
+    return { queryClient, mounts: () => mounts }
+  }
+
+  it('cargar la sesión no monta la pantalla dos veces', async () => {
+    const { queryClient, mounts } = renderCounting()
+    await screen.findByRole('heading', { name: 'Inicio' })
+    await waitFor(() => expect(queryClient.getQueryData(['session', 'me'])).toBeDefined())
+    await act(async () => {})
+    expect(mounts()).toBe(1)
+  })
+
+  it('al pasar a otro espacio sin cambiar de ruta (Inicio) monta una pantalla nueva, que pide sus datos', async () => {
+    const { queryClient, mounts } = renderCounting()
+    await waitFor(() => expect(queryClient.getQueryData(['session', 'me'])).toBeDefined())
+    // Como al cambiar o crear un espacio: la caché se vacía y llega el `Me` del espacio nuevo.
+    act(() => {
+      queryClient.clear()
+      queryClient.setQueryData(['session', 'me'], {
+        ...adminMe,
+        organization: { ...adminMe.organization, id: 'org-2', name: 'Lumen Taller' },
+      })
+    })
+    await waitFor(() => expect(mounts()).toBe(2))
+  })
+})

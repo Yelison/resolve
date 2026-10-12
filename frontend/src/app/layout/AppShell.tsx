@@ -67,6 +67,17 @@ function AppFrame() {
   const [requestedAt, setRequestedAt] = useState<number | null>(null)
   const workspaceName = me.data?.organization.name ?? 'Resolve'
   const userName = me.data?.user.name ?? '…'
+  // Cambiar de espacio, o crear uno, estando ya en la ruta de destino (Inicio) no cambia de pantalla: la que está montada
+  // sigue atada a las consultas del espacio anterior, que `clear()` retiró, y enseñaría sus datos. Una pantalla nueva por
+  // espacio (no al cargar la sesión: ahí no había otro espacio) pide los suyos.
+  const organizationId = me.data?.organization.id
+  const [screen, setScreen] = useState({ organizationId, generation: 0 })
+  if (organizationId && organizationId !== screen.organizationId) {
+    setScreen({
+      organizationId,
+      generation: screen.organizationId === undefined ? screen.generation : screen.generation + 1,
+    })
+  }
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   // El drawer solo existe en móvil; al ensanchar la ventana se cierra sin tocar la preferencia de escritorio.
@@ -231,7 +242,7 @@ function AppFrame() {
               retryFailed={me.fetchStatus === 'idle' && requestedAt !== null && me.errorUpdateCount === requestedAt + 1}
             />
           ) : (
-            <Outlet />
+            <Outlet key={screen.generation} />
           )}
         </main>
         {import.meta.env.MODE === 'showcase' ? <ShowcaseBanner /> : me.data?.organization.demo && <DemoBanner />}

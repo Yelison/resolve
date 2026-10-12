@@ -42,12 +42,16 @@ export function useModalDialog(open: boolean, onClose: () => void) {
 
   return {
     ref,
+    // `cancel` y `close` de un diálogo que está dentro de este (la hoja de «Crear espacio» sobre el drawer) suben por el
+    // árbol de React hasta aquí: solo cuentan los de este diálogo, o Escape en la hoja cerraría también el drawer.
     onCancel(event: SyntheticEvent<HTMLDialogElement>) {
+      if (event.target !== event.currentTarget) return
       event.preventDefault()
       onCloseRef.current()
     },
     /** Cierres nativos que no pasan por cancel, como un formulario con method="dialog". */
-    onClose() {
+    onClose(event: SyntheticEvent<HTMLDialogElement>) {
+      if (event.target !== event.currentTarget) return
       if (closingRef.current) {
         closingRef.current = false
         return
