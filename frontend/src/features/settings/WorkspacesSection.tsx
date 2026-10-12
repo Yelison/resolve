@@ -189,7 +189,7 @@ function WorkspaceRows({ workspaces, wide, onOpen, onLeave, onActions, opening =
 function Identity({ workspace, mobile = false }: { workspace: Workspace; mobile?: boolean }) {
   return (
     <>
-      <WorkspaceMark name={workspace.name} size="large" />
+      <WorkspaceMark name={workspace.name} color={workspace.color} size="large" />
       <span className={styles.identity}>
         <span className={styles.name}>{workspace.name}</span>
         <span className={styles.meta}>

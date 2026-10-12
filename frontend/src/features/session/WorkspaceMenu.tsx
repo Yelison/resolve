@@ -36,7 +36,7 @@ export function WorkspaceMenu({ me, card }: { me: Me; card: SidebarWorkspace }) 
     label: workspace.name,
     title: workspace.name,
     description: workspaceRoleLabel(workspace),
-    leading: <WorkspaceMark name={workspace.name} size="small" />,
+    leading: <WorkspaceMark name={workspace.name} color={workspace.color} size="small" />,
     checked: workspace.current,
     searchable: true,
     // Mientras se cambia, las demás filas no se pueden elegir: una segunda petición cruzaría la primera.
@@ -152,7 +152,7 @@ export function WorkspaceDisclosure({ me, card }: { me: Me; card: SidebarWorkspa
                   disabled={switchOrganization.isPending && !workspace.current}
                   onClick={() => choose(workspace)}
                 >
-                  <WorkspaceMark name={workspace.name} size="small" />
+                  <WorkspaceMark name={workspace.name} color={workspace.color} size="small" />
                   <span className={styles.text}>
                     <span className={styles.name}>{workspace.name}</span>
                     <span className={styles.role}>{workspaceRoleLabel(workspace)}</span>

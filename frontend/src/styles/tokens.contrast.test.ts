@@ -40,11 +40,15 @@ import { describe, expect, it } from 'vitest'
  *
  * Los valores de `brand`, `brand-hover` y `link` se ajustaron en el código (#65), no en Figma: este test los protege.
  *
+ * Colores de los espacios (`workspace-tokens.css`): las iniciales (`workspace-ink`, blanco) sobre cada uno de los 8 colores
+ * del espacio, ≥ 4,5:1 en los dos temas (1.4.3, son texto).
+ *
  * Los colores de la interfaz salen de `tokens.css` (generado desde `@yelison/forma-ui`); los de los gráficos, de
- * `chart-tokens.css`, capa propia de Resolve. */
+ * `chart-tokens.css`, y los de los espacios, de `workspace-tokens.css`, capas propias de Resolve. */
 
 type Theme = Readonly<Record<string, string>>
 
+const WORKSPACE_COLORS = ['blue', 'green', 'magenta', 'orange', 'violet', 'teal', 'brick', 'slate'] as const
 const GENERAL_BACKGROUNDS = ['bg', 'surface', 'surface-hover', 'blue-bg'] as const
 const SEMANTIC_PAIRS = [
   ['blue-ink', 'blue-bg'],
@@ -82,6 +86,8 @@ const PAIRS: readonly Pair[] = [
     background,
     min: 3 as const,
   })),
+  // Iniciales del cuadro de cada espacio (1.4.3): blanco sobre su color.
+  ...WORKSPACE_COLORS.map((color) => ({ text: 'workspace-ink', background: `workspace-${color}` })),
   // Series de los gráficos (1.4.11): cada color frente a la superficie del panel que los pinta.
   ...(['chart-1', 'chart-2', 'chart-3', 'chart-4'] as const).map((text) => ({
     text,
@@ -132,9 +138,12 @@ const rawTokens = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'ut
 // `tokens.css`. Cada tema es la unión de los dos bloques homólogos.
 const rawChartTokens = readFileSync(join(process.cwd(), 'src/styles/chart-tokens.css'), 'utf8')
 
+const rawWorkspaceTokens = readFileSync(join(process.cwd(), 'src/styles/workspace-tokens.css'), 'utf8')
+
 const themeBlock = (selector: string): Theme => ({
   ...parseBlock(blockAfter(rawTokens, selector)),
   ...parseBlock(blockAfter(rawChartTokens, selector)),
+  ...parseBlock(blockAfter(rawWorkspaceTokens, selector)),
 })
 
 const light = themeBlock(':root {')
@@ -164,6 +173,13 @@ function ratio(theme: Theme, pair: Pair): number {
 describe('tokens.css · contraste AA del texto', () => {
   it('el tema oscuro por preferencia del sistema y [data-theme="dark"] declaran los mismos valores', () => {
     expect(darkBySystemPreference).toEqual(dark)
+  })
+
+  it('cada clave de color de espacio declara su valor en los dos temas', () => {
+    for (const color of WORKSPACE_COLORS) {
+      expect(light[`workspace-${color}`], `claro ${color}`).toMatch(/^#[0-9a-f]{6}$/i)
+      expect(dark[`workspace-${color}`], `oscuro ${color}`).toMatch(/^#[0-9a-f]{6}$/i)
+    }
   })
 
   it('el tema claro y el oscuro declaran los mismos tokens', () => {

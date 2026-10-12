@@ -10,6 +10,7 @@
 @import './tokens.css';
 @import '@yelison/forma-ui/base.css';
 @import './chart-tokens.css';
+@import './workspace-tokens.css';
 
 /* Capa propia de Resolve: el diseño de la aplicación. Los tokens de la biblioteca (radios, alturas de control, objetivo
  * táctil, foco, movimiento, sombras, escala z…) vienen de `tokens.css`, generado desde el paquete: aquí no se redefine

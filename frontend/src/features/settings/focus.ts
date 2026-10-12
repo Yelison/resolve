@@ -13,5 +13,8 @@ export function focusSectionHeading(from: Element | null) {
 
 /** Lleva el foco al campo `name` del formulario, p. ej. al primero que se descartó, para que no caiga en `body`. */
 export function focusField(form: HTMLFormElement | null, name: string) {
-  form?.querySelector<HTMLElement>(`[name="${name}"]`)?.focus()
+  // En un grupo de radios (el color) el foco va a la opción marcada, que es la que recibe el tabulador.
+  const fields = form?.querySelectorAll<HTMLElement>(`[name="${name}"]`)
+  const target = [...(fields ?? [])].find((field) => (field as HTMLInputElement).checked) ?? fields?.[0]
+  target?.focus()
 }

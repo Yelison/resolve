@@ -459,3 +459,84 @@ describe('OrganizationTab con un 503 de bloqueo', () => {
     expect(seen.map((request) => request.ifMatch)).toEqual(['"3"', '"3"'])
   })
 })
+
+describe('OrganizationTab · color del espacio', () => {
+  const swatch = (name: string) => screen.findByRole('radio', { name })
+
+  it('ofrece un grupo «Color del espacio» de 8 muestras con su nombre, y la actual marcada', async () => {
+    render()
+    const group = await screen.findByRole('group', { name: 'Color del espacio' })
+    const names = within(group)
+      .getAllByRole('radio')
+      .map((radio) => radio.getAttribute('aria-label') ?? radio.closest('label')?.textContent)
+    expect(names).toEqual(['Azul', 'Verde', 'Magenta', 'Naranja', 'Violeta', 'Turquesa', 'Teja', 'Pizarra'])
+    expect(await swatch('Verde')).toBeChecked()
+    expect(screen.queryByText(/green|#[0-9a-f]{6}/i)).not.toBeInTheDocument()
+  })
+
+  it('se maneja con el teclado: las flechas mueven la elección y «Guardar cambios» se habilita', async () => {
+    render()
+    const green = await swatch('Verde')
+    green.focus()
+    await userEvent.keyboard('{ArrowRight}')
+    expect(await swatch('Magenta')).toBeChecked()
+    expect(save()).toBeEnabled()
+    expect(screen.getByText(/Tienes cambios sin guardar en «Color»/)).toBeInTheDocument()
+  })
+
+  it('la vista previa sigue al color elegido y a nombre que se está escribiendo', async () => {
+    render()
+    await userEvent.click(await swatch('Naranja'))
+    const preview = screen.getByText('Así se verá').parentElement!
+    expect(within(preview).getByText('Color: Naranja')).toBeInTheDocument()
+    expect(within(preview).getByText('AS')).toHaveAttribute('data-color', 'orange')
+  })
+
+  it('envía solo `color`, con If-Match, y al guardar cambia el color de la sesión y de la lista de espacios', async () => {
+    const withList = {
+      ...adminMe,
+      organizations: [
+        { id: organizationSettings().id, name: 'Acme Studio', role: 'admin', color: 'green', memberCount: 3 },
+      ],
+    }
+    const { fetchSpy, queryClient } = render({
+      'GET /api/me': { body: withList },
+      'PATCH /api/organization': { body: organizationSettings({ color: 'violet', version: 4 }), headers: etag(4) },
+    })
+    await userEvent.click(await swatch('Violeta'))
+    await userEvent.click(save())
+    await waitFor(() => expect(requests(fetchSpy, 'PATCH')).toHaveLength(1))
+    const patch = requests(fetchSpy, 'PATCH')[0]!
+    expect(patch.headers.get('If-Match')).toBe('"3"')
+    expect(await patch.clone().json()).toEqual({ color: 'violet' })
+    expect(await screen.findByText('Cambios guardados')).toBeInTheDocument()
+    const cached = queryClient.getQueryData<typeof withList>(sessionKeys.me)!
+    expect(cached.organization.color).toBe('violet')
+    expect(cached.organizations[0]?.color).toBe('violet')
+    expect(await swatch('Violeta')).toBeChecked()
+  })
+
+  it('«Descartar» devuelve el color del servidor y deja el foco en la muestra marcada', async () => {
+    render()
+    await userEvent.click(await swatch('Teja'))
+    await userEvent.click(screen.getByRole('button', { name: 'Descartar' }))
+    expect(await swatch('Verde')).toBeChecked()
+    expect(await swatch('Verde')).toHaveFocus()
+  })
+
+  it('muestra junto al grupo el error del servidor para una clave desconocida', async () => {
+    render({ 'PATCH /api/organization': fieldProblem('color', 'Elige uno de los colores de la lista.') })
+    await userEvent.click(await swatch('Azul'))
+    await userEvent.click(save())
+    expect(await screen.findByText('Elige uno de los colores de la lista.')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Color del espacio' })).toHaveAccessibleDescription(
+      'Elige uno de los colores de la lista.',
+    )
+  })
+
+  it('un agente ve el color en lectura, con su nombre, sin muestras', async () => {
+    render({ 'GET /api/me': { body: agentMe } })
+    expect(await screen.findByText('Verde')).toBeInTheDocument()
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+  })
+})

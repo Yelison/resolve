@@ -14,11 +14,12 @@ describe('global.css · hojas del paquete', () => {
   const globalCss = read('src/styles/global.css')
   const imports = [...withoutComments(globalCss).matchAll(/@import\s+'([^']+)'/g)].map(([, path]) => path)
 
-  it('importa tokens, base.css y los tokens de los gráficos, en ese orden, y no styles.css', () => {
+  it('importa tokens, base.css y los tokens de los gráficos y de los espacios, en ese orden, y no styles.css', () => {
     expect(imports.slice(imports.indexOf('./tokens.css'))).toEqual([
       './tokens.css',
       '@yelison/forma-ui/base.css',
       './chart-tokens.css',
+      './workspace-tokens.css',
     ])
     expect(imports).not.toContain('@yelison/forma-ui/styles.css')
   })

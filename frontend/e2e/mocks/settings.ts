@@ -1,8 +1,18 @@
-import type { Me, OrganizationPatch, OrganizationSettings } from '../../src/api/schema'
+import type { Me, OrganizationColor, OrganizationPatch, OrganizationSettings } from '../../src/api/schema'
 import { me } from './session'
 import { json, problem, type MockFeature } from './shared'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const ORGANIZATION_COLORS: readonly string[] = [
+  'blue',
+  'green',
+  'magenta',
+  'orange',
+  'violet',
+  'teal',
+  'brick',
+  'slate',
+] satisfies OrganizationColor[]
 
 /**
  * Sesión y ajustes simulados con las reglas del servidor: `PATCH /organization` es del administrador, exige `If-Match`
@@ -76,6 +86,9 @@ export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): Moc
       // El servidor real rechaza las zonas que PostgreSQL no conoce; aquí una zona del selector hace de ejemplo.
       if (patch.timeZone !== undefined && patch.timeZone === 'Pacific/Honolulu') {
         errors.push({ field: 'timeZone', message: 'Zona horaria no reconocida por el servidor.' })
+      }
+      if (patch.color !== undefined && !ORGANIZATION_COLORS.includes(patch.color)) {
+        errors.push({ field: 'color', message: 'Elige uno de los colores de la lista.' })
       }
       if (errors.length > 0) return problem(route, 400, 'Datos no válidos', errors)
       if (ifMatch !== `"${organization.version}"`) return problem(route, 412, 'La versión cambió')

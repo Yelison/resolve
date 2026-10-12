@@ -9,7 +9,7 @@ import { NavItem } from '../NavItem/NavItem'
 import { Tooltip } from '../Tooltip/Tooltip'
 import { Brand } from './Brand'
 import styles from './Sidebar.module.css'
-import { WorkspaceMark } from './WorkspaceMark'
+import { WorkspaceMark, type WorkspaceColor } from './WorkspaceMark'
 
 export interface SidebarNavItem {
   /** Ruta a la que navega el elemento. */
@@ -59,6 +59,8 @@ export interface SidebarProps {
   sectionLabel: string
   /** Nombre del espacio de trabajo; colapsado se muestra solo con sus iniciales. */
   workspace: string
+  /** Color del espacio, que pinta su cuadro de iniciales. Sin él (sesión cargando) el cuadro es neutro. */
+  workspaceColor?: WorkspaceColor
   /** Tu rol en el espacio, bajo su nombre. Por defecto, «Espacio de trabajo». Sin rol (sesión cargando) conserva la línea. */
   workspaceRole?: string
   /**
@@ -110,6 +112,7 @@ export function Sidebar({
   items,
   sectionLabel,
   workspace,
+  workspaceColor,
   workspaceRole = 'Espacio de trabajo',
   workspaceMenu,
   user,
@@ -137,6 +140,7 @@ export function Sidebar({
     <>
       <WorkspaceMark
         name={workspace}
+        color={workspaceColor}
         size={collapsed ? 'touch' : 'medium'}
         className={cx(!collapsed && styles.cardMark)}
       />

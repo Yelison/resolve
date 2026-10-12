@@ -49,6 +49,7 @@ describe('la capa de Resolve no redeclara ningún token del paquete', () => {
   const LAYERS = {
     'global.css': { names: ['--header-height', '--page-gutter', '--sidebar-expanded'] },
     'chart-tokens.css': { names: ['--color-chart-1', '--color-chart-seq-4'] },
+    'workspace-tokens.css': { names: ['--color-workspace-blue', '--color-workspace-slate'] },
   }
 
   for (const [file, { names }] of Object.entries(LAYERS)) {

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { Alert, Input, Select, useToast } from '../../components/ui'
+import { WorkspaceMark } from '../../components/ui/Sidebar/WorkspaceMark'
 import { isApiError } from '../../api/client'
-import type { OrganizationPatch, OrganizationSettings } from '../../api/schema'
+import type { OrganizationColor, OrganizationPatch, OrganizationSettings } from '../../api/schema'
 import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
 import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
@@ -11,6 +12,10 @@ import { SaveBar } from './SaveBar'
 import { SettingsBlock } from './SettingsBlock'
 import { timeZoneGroups, timeZoneLabel } from './timeZones'
 import { useUpdateOrganization } from './queries'
+import { WorkspaceColorField } from './WorkspaceColorField'
+import { workspaceColorLabel } from './workspaceColors'
+import { useMe } from '../session/queries'
+import { workspaceCardRole } from '../session/workspaces'
 import styles from './forms.module.css'
 
 const MAX_NAME = 120
@@ -19,16 +24,17 @@ const MIN_TARGET = 1
 const MAX_TARGET = 1440
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-type FieldName = 'name' | 'supportEmail' | 'timeZone' | 'firstResponseTargetMinutes'
+type FieldName = 'name' | 'supportEmail' | 'timeZone' | 'firstResponseTargetMinutes' | 'color'
 type Values = Record<FieldName, string>
 type Errors = Partial<Record<FieldName, string>>
 
-const fieldNames: readonly FieldName[] = ['name', 'supportEmail', 'timeZone', 'firstResponseTargetMinutes']
+const fieldNames: readonly FieldName[] = ['name', 'supportEmail', 'timeZone', 'firstResponseTargetMinutes', 'color']
 const fieldLabels: Record<FieldName, string> = {
   name: 'Nombre del espacio',
   supportEmail: 'Correo de soporte',
   timeZone: 'Zona horaria',
   firstResponseTargetMinutes: 'Objetivo de primera respuesta',
+  color: 'Color',
 }
 
 const toValues = (settings: OrganizationSettings): Values => ({
@@ -36,6 +42,7 @@ const toValues = (settings: OrganizationSettings): Values => ({
   supportEmail: settings.supportEmail ?? '',
   timeZone: settings.timeZone,
   firstResponseTargetMinutes: String(settings.firstResponseTargetMinutes),
+  color: settings.color,
 })
 
 /** Cómo ve la persona el valor de un campo (la zona con su ciudad y su desfase). */
@@ -44,7 +51,9 @@ const display = (field: FieldName, value: string) =>
     ? timeZoneLabel(value)
     : field === 'firstResponseTargetMinutes'
       ? `${value} min`
-      : value || 'vacío'
+      : field === 'color'
+        ? workspaceColorLabel(value)
+        : value || 'vacío'
 
 /** Un número escrito como «030» es el mismo que 30: no cuenta como cambio. */
 const sameValue = (field: FieldName, a: string, b: string) =>
@@ -83,6 +92,8 @@ export function OrganizationForm({
   responseMinutes?: number | null
 }) {
   const update = useUpdateOrganization()
+  const me = useMe()
+  const role = me.data ? workspaceCardRole(me.data.role) : ''
   const toast = useToast()
   const source = toValues(settings)
   const [values, setValues] = useState<Values>(source)
@@ -134,12 +145,15 @@ export function OrganizationForm({
 
   function discard() {
     const first = changed[0]
-    setValues(source)
-    setBase(source)
-    setServerChanged([])
-    setErrors({})
-    setFailure(null)
-    setLockError(null)
+    // flushSync: en un grupo de radios (el color) el foco va a la opción que queda marcada, que solo existe tras pintar.
+    flushSync(() => {
+      setValues(source)
+      setBase(source)
+      setServerChanged([])
+      setErrors({})
+      setFailure(null)
+      setLockError(null)
+    })
     // «Descartar» queda deshabilitado al no haber cambios: el foco va al primer campo que se descartó.
     if (first) focusField(formRef.current, first)
   }
@@ -154,6 +168,7 @@ export function OrganizationForm({
       supportEmail: values.supportEmail.trim(),
       timeZone: values.timeZone,
       firstResponseTargetMinutes: values.firstResponseTargetMinutes.trim(),
+      color: values.color,
     }
     const found = validate(trimmed)
     // flushSync pinta los errores antes de mover el foco al primer campo inválido.
@@ -172,6 +187,7 @@ export function OrganizationForm({
     if (changed.includes('firstResponseTargetMinutes')) {
       changes.firstResponseTargetMinutes = Number(trimmed.firstResponseTargetMinutes)
     }
+    if (changed.includes('color')) changes.color = trimmed.color as OrganizationColor
     // El reintento de un 503 repite este envío con su versión: si otra persona guardó entretanto, responde el 412.
     setLockError(null)
     submission.send(() => void attempt(form, { version: settings.version, changes }))
@@ -307,6 +323,19 @@ export function OrganizationForm({
           />
         </div>
       </SettingsBlock>
+      <SettingsBlock
+        title="Color"
+        description="Con las iniciales, distingue tu espacio de los demás en la barra lateral y en el selector de espacios."
+      >
+        <WorkspaceColorField
+          value={values.color as OrganizationColor}
+          name={values.name.trim()}
+          role={role}
+          onChange={(color) => change('color', color)}
+          hint={serverNote('color')}
+          error={errors.color}
+        />
+      </SettingsBlock>
       <SaveBar changed={changed.map((field) => fieldLabels[field])} pending={update.isPending} onDiscard={discard} />
     </form>
   )
@@ -352,6 +381,17 @@ export function OrganizationFacts({
         <dl className={styles.factList}>
           {fact(fieldLabels.name, settings.name)}
           {fact(fieldLabels.supportEmail, settings.supportEmail ?? 'Sin configurar')}
+        </dl>
+      </SettingsBlock>
+      <SettingsBlock title="Color" description="Con las iniciales, distingue tu espacio de los demás.">
+        <dl className={styles.factList}>
+          <div className={styles.readFact}>
+            <dt>{fieldLabels.color}</dt>
+            <dd className={styles.colorFact}>
+              <WorkspaceMark name={settings.name} color={settings.color} size="small" />
+              {workspaceColorLabel(settings.color)}
+            </dd>
+          </div>
         </dl>
       </SettingsBlock>
       <SettingsBlock

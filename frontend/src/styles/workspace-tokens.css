@@ -1,0 +1,43 @@
+/* Colores de los espacios: capa propia de Resolve, fuera del `tokens.css` generado desde `@yelison/forma-ui`. Cada clave
+ * de `OrganizationColor` (blue, green, magenta, orange, violet, teal, brick, slate) tiene un valor en claro y otro en
+ * oscuro; las iniciales van en blanco sobre los dos, y `tokens.contrast.test.ts` exige 4,5:1. Misma estructura de
+ * bloques que `tokens.css` y `chart-tokens.css`. Ningún nombre de este archivo existe en el paquete. El login de
+ * Keycloak no pinta espacios, así que no se copia a su tema. */
+
+:root {
+  --color-workspace-blue: #3569f6; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-green: #0c7a5e; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-magenta: #b4489a; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-orange: #b4530f; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-violet: #6a52d9; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-teal: #0e7490; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-brick: #a1452a; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-slate: #4b5563; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-ink: #ffffff; /* iniciales sobre el color del espacio, en los dos temas */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-workspace-blue: #3366ee; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+    --color-workspace-green: #12856a; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+    --color-workspace-magenta: #ba4d9f; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+    --color-workspace-orange: #bc5711; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+    --color-workspace-violet: #7459e6; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+    --color-workspace-teal: #12809e; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+    --color-workspace-brick: #b24c2f; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+    --color-workspace-slate: #5e6a7d; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+    --color-workspace-ink: #ffffff; /* iniciales sobre el color del espacio, en los dos temas */
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-workspace-blue: #3366ee; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-green: #12856a; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-magenta: #ba4d9f; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-orange: #bc5711; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-violet: #7459e6; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-teal: #12809e; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-brick: #b24c2f; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-slate: #5e6a7d; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-ink: #ffffff; /* iniciales sobre el color del espacio, en los dos temas */
+}
