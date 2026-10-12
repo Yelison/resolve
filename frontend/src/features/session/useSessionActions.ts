@@ -31,8 +31,21 @@ export function leaveFailure(error: unknown): LeaveFailure {
   return 'other'
 }
 
-/** Cuánto se espera a las métricas del espacio nuevo antes de entrar en él. */
-const METRICS_WAIT_MS = 1500
+/** Cuánto se espera, como máximo, a las métricas del espacio nuevo antes de entrar en él (menos que la guardia de escrituras). */
+const METRICS_WAIT_MS = 4000
+
+/** Las métricas de tickets del espacio de la sesión, o `null` si fallan o no llegan a tiempo (la petición se aborta). */
+async function fetchMetricsWithin(ms: number) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    return await unwrap(api.GET('/tickets/metrics', { signal: controller.signal }))
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 /** Por qué no se pudo crear un espacio, según el estado y el `type` del Problem (nunca por su texto). */
 export type CreateFailure = 'limit' | 'forbidden' | 'invalid' | 'other'
@@ -147,10 +160,7 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
       // «Primeros pasos» sale de las métricas: se piden antes de cambiar de pantalla (el servidor ya responde en el espacio
       // nuevo) y se dejan en la caché, así Inicio pinta el panel de una vez y no empuja la página al llegar. Con tope de
       // espera; si falla o tarda, Inicio las pide como siempre.
-      const metrics = await Promise.race([
-        unwrap(api.GET('/tickets/metrics')).catch(() => null),
-        new Promise<null>((resolve) => setTimeout(resolve, METRICS_WAIT_MS, null)),
-      ])
+      const metrics = await fetchMetricsWithin(METRICS_WAIT_MS)
       await enterOrganization(me, '/', () => {
         if (metrics) queryClient.setQueryData(ticketKeys.metrics(), metrics)
       })

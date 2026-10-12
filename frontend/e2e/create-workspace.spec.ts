@@ -118,6 +118,20 @@ test.describe('Crear espacio · escritorio', () => {
     expect(after).toEqual([])
   })
 
+  test('si las métricas del espacio nuevo no llegan nunca, entra igualmente al pasar el tope', async ({ page }) => {
+    await mockApi(page, 'admin', demoAdmin)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/')
+    await page.route('**/api/tickets/metrics', () => new Promise(() => {}))
+    const dialog = await openFromSelector(page)
+    await dialog.getByRole('textbox', { name: 'Nombre del espacio' }).fill('Lumen Taller')
+    const started = Date.now()
+    await dialog.getByRole('button', { name: 'Crear espacio' }).click()
+    await expect(toasts(page)).toContainText('Ya estás en Lumen Taller', { timeout: 10_000 })
+    expect(Date.now() - started).toBeLessThan(8000)
+    await expect(card(page)).toContainText('Lumen Taller')
+  })
+
   test('«Primeros pasos» no empuja la página: nada se mueve al llegar y la franja de métricas queda donde estaba', async ({
     page,
   }) => {
