@@ -11,11 +11,13 @@ import styles from './TeamDialogs.module.css'
 export interface ChangeRoleDialogProps {
   /** Miembro cuyo rol se cambia; `null` cierra el diálogo. */
   member: TeamMember | null
+  /** Por qué el rol del miembro no puede bajar (es el único administrador): deshabilita «Agente» y lo explica. */
+  note?: string
   onClose: () => void
 }
 
 /** Cambia el rol de un administrador o agente. El servidor decide si se puede (p. ej. el último administrador). */
-export function ChangeRoleDialog({ member, onClose }: ChangeRoleDialogProps) {
+export function ChangeRoleDialog({ member, note, onClose }: ChangeRoleDialogProps) {
   return (
     <Modal
       open={member !== null}
@@ -29,12 +31,12 @@ export function ChangeRoleDialog({ member, onClose }: ChangeRoleDialogProps) {
         ) : undefined
       }
     >
-      {member && <RoleForm key={member.id} member={member} onClose={onClose} />}
+      {member && <RoleForm key={member.id} member={member} note={note} onClose={onClose} />}
     </Modal>
   )
 }
 
-function RoleForm({ member, onClose }: { member: TeamMember; onClose: () => void }) {
+function RoleForm({ member, note, onClose }: { member: TeamMember; note?: string; onClose: () => void }) {
   const change = useChangeRole()
   const submission = useRepeatableSubmission()
   const toast = useToast()
@@ -75,6 +77,7 @@ function RoleForm({ member, onClose }: { member: TeamMember; onClose: () => void
       )}
       <Select
         label="Rol"
+        hint={note}
         value={role}
         onChange={(event) => {
           setRole(event.target.value as TeamRole)
@@ -82,7 +85,7 @@ function RoleForm({ member, onClose }: { member: TeamMember; onClose: () => void
         }}
       >
         {teamRoles.map((value) => (
-          <option key={value} value={value}>
+          <option key={value} value={value} disabled={note !== undefined && value !== member.role}>
             {roleLabels[value]}
           </option>
         ))}

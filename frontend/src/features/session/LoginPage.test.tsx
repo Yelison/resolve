@@ -120,7 +120,7 @@ describe('cuenta que el proveedor autentica pero la aplicación no admite', () =
   // El texto de una cuenta desactivada en un problema que no lo es: no puede producir el aviso.
   const genericWithDeactivatedText = {
     status: 401,
-    body: { status: 401, title: 'No autenticado', detail: 'Tu acceso a esta organización fue desactivado' },
+    body: { status: 401, title: 'No autenticado', detail: 'Tu acceso a este espacio fue desactivado' },
   }
 
   afterEach(() => setCsrfCookie(null))
@@ -135,7 +135,7 @@ describe('cuenta que el proveedor autentica pero la aplicación no admite', () =
     renderRoutes('/entrar')
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Esta cuenta no tiene acceso')
-    expect(alert).toHaveTextContent('Tu acceso a esta organización fue desactivado')
+    expect(alert).toHaveTextContent('Tu acceso a este espacio fue desactivado')
     expect(alert).not.toHaveTextContent('Otro texto A.')
 
     await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' }))
@@ -152,7 +152,7 @@ describe('cuenta que el proveedor autentica pero la aplicación no admite', () =
     renderRoutes('/entrar')
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Esta cuenta no tiene acceso')
-    expect(alert).toHaveTextContent('no pertenece a ninguna organización de Resolve')
+    expect(alert).toHaveTextContent('no pertenece a ningún espacio de Resolve')
     expect(alert).not.toHaveTextContent('desactivado')
     expect(alert).not.toHaveTextContent('Otro texto B.')
     expect(screen.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' })).toBeInTheDocument()

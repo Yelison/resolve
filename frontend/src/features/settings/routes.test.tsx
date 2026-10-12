@@ -27,20 +27,23 @@ describe('rutas de configuración (desde 768 px)', () => {
     mockViewport(1440)
   })
 
-  it.each(staffMes)('%s: /configuracion abre Empresa y ofrece sus tres secciones en dos grupos', async (_role, me) => {
-    mockApi(settingsApi(me))
-    const router = renderApp('/configuracion')
-    expect(await screen.findByRole('heading', { level: 1, name: 'Configuración' })).toBeInTheDocument()
-    await vi.waitFor(() => expect(router.state.location.pathname).toBe('/configuracion/empresa'))
-    expect(await screen.findByRole('heading', { level: 2, name: 'Identidad' })).toBeInTheDocument()
-    expect(linkNames()).toEqual(['Empresa', 'Permisos', 'General'])
-    expect(screen.getByRole('link', { name: /^Empresa/ })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: /^General/ })).not.toHaveAttribute('aria-current')
-    const groups = screen.getAllByRole('list', { name: /Espacio|Tu cuenta/ })
-    expect(groups.map((group) => within(group).getAllByRole('link').length)).toEqual([2, 1])
-    expect(screen.getByRole('link', { name: /Nombre, soporte y objetivos/ })).toBeInTheDocument()
-    expect(screen.queryAllByRole('tab')).toHaveLength(0)
-  })
+  it.each(staffMes)(
+    '%s: /configuracion abre Empresa y ofrece sus cuatro secciones en dos grupos',
+    async (_role, me) => {
+      mockApi(settingsApi(me))
+      const router = renderApp('/configuracion')
+      expect(await screen.findByRole('heading', { level: 1, name: 'Configuración' })).toBeInTheDocument()
+      await vi.waitFor(() => expect(router.state.location.pathname).toBe('/configuracion/empresa'))
+      expect(await screen.findByRole('heading', { level: 2, name: 'Identidad' })).toBeInTheDocument()
+      expect(linkNames()).toEqual(['Empresa', 'Permisos', 'General', 'Tus espacios'])
+      expect(screen.getByRole('link', { name: /^Empresa/ })).toHaveAttribute('aria-current', 'page')
+      expect(screen.getByRole('link', { name: /^General/ })).not.toHaveAttribute('aria-current')
+      const groups = screen.getAllByRole('list', { name: /Espacio|Tu cuenta/ })
+      expect(groups.map((group) => within(group).getAllByRole('link').length)).toEqual([2, 2])
+      expect(screen.getByRole('link', { name: /Nombre, soporte y objetivos/ })).toBeInTheDocument()
+      expect(screen.queryAllByRole('tab')).toHaveLength(0)
+    },
+  )
 
   it('mientras /me carga en General solo se ofrece la sección del rol con menos permisos', async () => {
     mockApi({ 'GET /api/me': () => new Promise(() => {}) as never })
@@ -226,7 +229,11 @@ describe('rutas de configuración: datos', () => {
     const workspaceName = async () => {
       await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
       const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
-      const text = within(drawer).getByText('Espacio de trabajo').previousElementSibling?.textContent
+      const card = within(drawer).getByRole('button', { name: /^Espacio: .*\. Cambiar de espacio$/ })
+      const text = card
+        .getAttribute('aria-label')
+        ?.replace(/^Espacio: /, '')
+        .replace(/\. Cambiar de espacio$/, '')
       await userEvent.keyboard('{Escape}')
       return text
     }

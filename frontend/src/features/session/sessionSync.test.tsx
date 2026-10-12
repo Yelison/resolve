@@ -3,6 +3,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, PROBLEM_TYPES, SESSION_CHANGED_DETAIL } from '../../api/client'
+import type { OrganizationRef } from '../../api/schema'
 import { shouldRetry } from '../../lib/queryClient'
 import { adminMe, mockApi } from '../../test/api'
 import { sessionKeys } from './queries'
@@ -10,11 +11,11 @@ import { SESSION_TAB_ID } from './sessionChannel'
 import { focusContentWhenReady, holdWrites, navigation, releaseWrites, sessionState } from './sessionLifecycle'
 import { fromAnotherTab, renderShell, setCsrfCookie, FakeChannel } from './shellHarness'
 
-const acme = { id: 'org-1', name: 'Acme Studio' }
-const northwind = { id: 'org-2', name: 'Northwind' }
-const inOrganization = (organization: typeof acme) => ({
+const acme: OrganizationRef = { id: 'org-1', name: 'Acme Studio', role: 'admin', memberCount: 4 }
+const northwind: OrganizationRef = { id: 'org-2', name: 'Northwind', role: 'agent', memberCount: 6 }
+const inOrganization = (organization: OrganizationRef) => ({
   ...adminMe,
-  organization: { ...adminMe.organization, ...organization },
+  organization: { ...adminMe.organization, id: organization.id, name: organization.name },
   organizations: [acme, northwind],
 })
 const personB = { ...inOrganization(acme), user: { id: 'u-jordi', name: 'Jordi Puig', email: 'jordi@acme.example' } }
@@ -492,18 +493,15 @@ describe('publicar a las demás pestañas', () => {
     expect(events.filter((event) => event !== 'msg:signed-in')).toEqual(['msg:logout', 'assign'])
   })
 
-  it('al cambiar de organización anuncia «organization-changed» con el Me nuevo ya guardado', async () => {
+  it('al cambiar de espacio anuncia «organization-changed» con el Me nuevo ya guardado', async () => {
     const received = listen()
     mockApi({
       'GET /api/me': { body: inOrganization(acme) },
       'POST /api/session/organization': { body: inOrganization(northwind) },
     })
     renderShell()
-    await userEvent.click(await screen.findByRole('button', { name: /^Cuenta/ }))
-    await userEvent.click(screen.getByRole('menuitem', { name: /Cambiar de organización/ }))
-    const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
-    await userEvent.click(within(dialog).getByRole('radio', { name: 'Northwind' }))
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de organización' }))
+    await userEvent.click(await screen.findByRole('button', { name: /^Espacio: Acme Studio/ }))
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /^Northwind/ }))
     await waitFor(() => expect(received).toContain(`organization-changed:${SESSION_TAB_ID}`))
   })
 })

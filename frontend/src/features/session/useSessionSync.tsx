@@ -46,7 +46,7 @@ function changedNotice(source: Source, previous: Me, current: Me) {
     : {
         tone: 'info' as const,
         title: `Cambiaste a ${current.organization.name} en otra pestaña`,
-        description: 'Lo que tenías abierto se descartó para no mezclar datos de la otra organización.',
+        description: 'Lo que tenías abierto se descartó para no mezclar datos del otro espacio.',
       }
 }
 

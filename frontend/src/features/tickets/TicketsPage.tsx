@@ -289,7 +289,7 @@ function ListBody({
           title={restricted ? 'No tienes permiso para ver los tickets' : 'No pudimos cargar los tickets'}
           description={
             restricted
-              ? 'Pide acceso a un administrador de tu organización.'
+              ? 'Pide acceso a un administrador de tu espacio.'
               : 'Revisa tu conexión y vuelve a intentarlo.'
           }
           live={!restricted && list.failureCount > 1}

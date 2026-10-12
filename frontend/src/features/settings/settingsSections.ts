@@ -1,13 +1,13 @@
 import type { Role } from '../../api/schema'
 
-export type SettingsSectionId = 'empresa' | 'permisos' | 'general'
+export type SettingsSectionId = 'empresa' | 'permisos' | 'general' | 'espacios'
 
 export interface SettingsSectionInfo {
   id: SettingsSectionId
   label: string
   /** Una línea que dice para qué sirve la sección; la lista móvil la sustituye por el estado de «General». */
   description: string
-  /** Solo la ve el personal (Empresa y Permisos). */
+  /** Solo la ve el personal (Empresa, Permisos y Tus espacios). */
   staff: boolean
 }
 
@@ -30,7 +30,11 @@ export const settingsGroups: readonly SettingsGroup[] = [
   {
     id: 'account',
     label: 'Tu cuenta',
-    sections: [{ id: 'general', label: 'General', description: 'Tu nombre, tu correo y el tema', staff: false }],
+    sections: [
+      { id: 'general', label: 'General', description: 'Tu nombre, tu correo y el tema', staff: false },
+      // Los clientes no la tienen: su acceso a un espacio lo gestiona la empresa que les da soporte.
+      { id: 'espacios', label: 'Tus espacios', description: 'Dónde trabajas y tu rol en cada uno', staff: true },
+    ],
   },
 ]
 

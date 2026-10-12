@@ -451,7 +451,9 @@ describe('AppShell sin sesión', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
     const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
     expect(within(within(drawer).getByRole('navigation', { name: 'Principal' })).queryAllByRole('link')).toHaveLength(0)
-    expect(within(drawer).getByText('Espacio de trabajo')).toBeInTheDocument()
+    // Sin sesión no hay selector de espacios ni rol: la tarjeta solo ocupa su sitio.
+    expect(within(drawer).getByText('Resolve')).toBeInTheDocument()
+    expect(within(drawer).queryByRole('button', { name: /Cambiar de espacio/ })).not.toBeInTheDocument()
     expect(within(drawer).getByText('Sesión no disponible')).toBeInTheDocument()
     expect(within(drawer).queryByText('Gestión')).not.toBeInTheDocument()
   })

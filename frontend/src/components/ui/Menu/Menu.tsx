@@ -105,9 +105,7 @@ export function Menu({ label, items, placement = 'bottom-end', search, note, wid
 
   // El filtro solo toca los elementos `searchable`: las acciones del pie (p. ej. «Tus espacios») siguen a la vista.
   const needle = search ? normalize(query.trim()) : ''
-  const visible = needle
-    ? items.filter((item) => !item.searchable || normalize(item.label).includes(needle))
-    : items
+  const visible = needle ? items.filter((item) => !item.searchable || normalize(item.label).includes(needle)) : items
   const noMatches = search !== undefined && needle !== '' && !visible.some((item) => item.searchable)
 
   const enabledIndexes = visible.flatMap((item, index) => (item.disabled ? [] : [index]))
@@ -124,7 +122,8 @@ export function Menu({ label, items, placement = 'bottom-end', search, note, wid
   function openAt(edge: 'first' | 'last') {
     // Con una opción elegida (el espacio actual) se abre sobre ella, como un grupo de opciones nativo.
     const checked = edge === 'first' ? visible.findIndex((item) => item.checked && !item.disabled) : -1
-    const index = checked >= 0 ? checked : edge === 'first' ? enabledIndexes[0] : enabledIndexes[enabledIndexes.length - 1]
+    const index =
+      checked >= 0 ? checked : edge === 'first' ? enabledIndexes[0] : enabledIndexes[enabledIndexes.length - 1]
     setActiveIndex(index ?? 0)
     setOpen(true)
   }
@@ -270,11 +269,7 @@ export function Menu({ label, items, placement = 'bottom-end', search, note, wid
                     aria-disabled={item.disabled || undefined}
                     aria-label={item.description ? `${item.label}, ${item.description}` : undefined}
                     title={item.title}
-                    className={cx(
-                      styles.item,
-                      item.tone === 'danger' && styles.danger,
-                      item.checked && styles.checked,
-                    )}
+                    className={cx(styles.item, item.tone === 'danger' && styles.danger, item.checked && styles.checked)}
                     onClick={() => select(item)}
                   >
                     {item.leading}

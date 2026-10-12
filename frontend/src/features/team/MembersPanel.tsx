@@ -30,6 +30,8 @@ export interface MembersPanelProps {
   onFocusMembers: () => void
   isAdmin: boolean
   actions: (member: TeamMember) => MenuItem[]
+  /** Explicación bajo las acciones de un miembro, si hace falta. */
+  actionsNote?: (member: TeamMember) => string | undefined
   onInvite: () => void
 }
 
@@ -52,6 +54,7 @@ export function MembersPanel({
   onFocusMembers,
   isAdmin,
   actions,
+  actionsNote,
   onInvite,
 }: MembersPanelProps) {
   const [searchText, setSearchText] = useState(state.q)
@@ -145,6 +148,7 @@ export function MembersPanel({
             filtersActive={filtersActive}
             isAdmin={isAdmin}
             actions={actions}
+            actionsNote={actionsNote}
             onInvite={onInvite}
             onClearFilters={clearFilters}
             onPageChange={onPageChange}
@@ -210,6 +214,7 @@ interface ResultsProps {
   filtersActive: boolean
   isAdmin: boolean
   actions: (member: TeamMember) => MenuItem[]
+  actionsNote?: (member: TeamMember) => string | undefined
   onInvite: () => void
   onClearFilters: () => void
   onPageChange: (page: number) => void
@@ -222,6 +227,7 @@ function Results({
   filtersActive,
   isAdmin,
   actions,
+  actionsNote,
   onInvite,
   onClearFilters,
   onPageChange,
@@ -322,6 +328,7 @@ function Results({
         caption={`Mostrando ${plural(visible.length, 'miembro', 'miembros')}`}
         captionHidden
         actions={actions}
+        actionsNote={actionsNote}
       />
       <Pagination page={state.page} pageSize={TEAM_PAGE_SIZE} total={matching.length} onPageChange={onPageChange} />
     </>

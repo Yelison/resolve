@@ -17,6 +17,7 @@ import { RolesPanel } from './RolesPanel'
 import { pendingInvitations } from './teamInvitations'
 import { readTeamState, writeTeamState, type TeamPageState } from './teamParams'
 import { useTeam, useTeamMetrics } from './queries'
+import { isOnlyActiveAdmin, onlyAdminNote } from './teamAdmins'
 import styles from './TeamPage.module.css'
 
 /**
@@ -88,6 +89,12 @@ export function TeamPage() {
   function actionsFor(member: TeamMember): MenuItem[] {
     if (!isAdmin || member.status === 'removed') return []
     const items: MenuItem[] = [{ id: 'role', label: 'Cambiar rol', onSelect: () => setChangingRole(member) }]
+    // El único administrador activo no puede dejar de serlo ni retirarse: el servidor responde 409, y la interfaz lo dice
+    // antes de intentarlo (la nota bajo el menú explica por qué).
+    if (isOnlyActiveAdmin(team.data, member)) {
+      items.push({ id: 'remove', label: 'Retirar del equipo', tone: 'danger', disabled: true, onSelect: () => {} })
+      return items
+    }
     // Una invitación no se «retira»: se cancela, con sus propios textos.
     if (member.status === 'invited') {
       items.push({ id: 'cancel', label: 'Cancelar invitación', tone: 'danger', onSelect: () => setCancelling(member) })
@@ -102,6 +109,10 @@ export function TeamPage() {
     }
     return items
   }
+
+  const workspaceName = me.data?.organization.name ?? ''
+  const noteFor = (member: TeamMember) =>
+    isAdmin && isOnlyActiveAdmin(team.data, member) ? onlyAdminNote(workspaceName) : undefined
 
   // Mientras el filtro «invitación pendiente» está activo la lista ya dice lo mismo: el panel se oculta.
   const showInvitations = isAdmin && invitations.length > 0 && state.status !== 'invited'
@@ -151,11 +162,16 @@ export function TeamPage() {
         onFocusMembers={focusMembers}
         isAdmin={isAdmin}
         actions={actionsFor}
+        actionsNote={noteFor}
         onInvite={() => setInviting(true)}
       />
 
       <InviteMemberDialog open={inviting} onClose={() => closeDialog(() => setInviting(false))} />
-      <ChangeRoleDialog member={changingRole} onClose={() => closeDialog(() => setChangingRole(null))} />
+      <ChangeRoleDialog
+        member={changingRole}
+        note={changingRole ? noteFor(changingRole) : undefined}
+        onClose={() => closeDialog(() => setChangingRole(null))}
+      />
       <RemoveMemberDialog
         member={removing}
         onClose={() => closeDialog(() => setRemoving(null))}

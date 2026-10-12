@@ -23,6 +23,8 @@ export interface TeamTableProps {
   captionHidden?: boolean
   /** Acciones de cada fila; el menú solo se dibuja si el arreglo no está vacío. */
   actions?: (member: TeamMember) => MenuItem[]
+  /** Explicación bajo las acciones de un miembro (p. ej. por qué hay acciones deshabilitadas). */
+  actionsNote?: (member: TeamMember) => string | undefined
 }
 
 const statusTones: Record<MemberStatus, BadgeTone> = { invited: 'amber', active: 'green', removed: 'neutral' }
@@ -31,7 +33,7 @@ const statusTones: Record<MemberStatus, BadgeTone> = { invited: 'amber', active:
  * Tabla del equipo sobre `Table`: tarjetas en contenedores estrechos (< 560 px), agente, estado y carga hasta la tabla
  * completa (el rol bajo el nombre hasta entonces).
  */
-export function TeamTable({ members, caption, captionHidden, actions }: TeamTableProps) {
+export function TeamTable({ members, caption, captionHidden, actions, actionsNote }: TeamTableProps) {
   return (
     <Table
       label="Equipo"
@@ -51,13 +53,13 @@ export function TeamTable({ members, caption, captionHidden, actions }: TeamTabl
       }
     >
       {members.map((member) => (
-        <MemberRow key={member.id} member={member} actions={actions?.(member) ?? []} />
+        <MemberRow key={member.id} member={member} actions={actions?.(member) ?? []} note={actionsNote?.(member)} />
       ))}
     </Table>
   )
 }
 
-function MemberRow({ member, actions }: { member: TeamMember; actions: MenuItem[] }) {
+function MemberRow({ member, actions, note }: { member: TeamMember; actions: MenuItem[]; note?: string }) {
   return (
     <TableRow>
       <TableCell kind="name" className={styles.name}>
@@ -87,7 +89,7 @@ function MemberRow({ member, actions }: { member: TeamMember; actions: MenuItem[
       </span>
       <TableCell kind="actions">
         {actions.length > 0 && (
-          <Menu label={`Acciones de ${member.name}`} items={actions}>
+          <Menu label={`Acciones de ${member.name}`} items={actions} note={note}>
             {(trigger) => <IconButton icon="more" label={`Acciones de ${member.name}`} {...trigger} />}
           </Menu>
         )}

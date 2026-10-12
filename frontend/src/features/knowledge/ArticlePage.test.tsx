@@ -199,7 +199,7 @@ describe('ArticlePage', () => {
   it('un cliente sin correo de soporte ve un texto genérico', async () => {
     api({ 'GET /api/me': { body: customerMe } })
     renderArticle()
-    expect(await screen.findByText('Contacta con el equipo de soporte de tu organización.')).toBeInTheDocument()
+    expect(await screen.findByText('Contacta con el equipo de soporte de tu espacio.')).toBeInTheDocument()
   })
 
   it('un fallo al refrescar un artículo ya leído no lo sustituye por un error', async () => {
