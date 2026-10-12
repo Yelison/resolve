@@ -242,3 +242,37 @@ test.describe('las dos pantallas caben en todos los anchos y temas', () => {
     }
   }
 })
+
+test.describe('sin saltos de layout mientras la pantalla de entrada relee /me', () => {
+  for (const { name, options, heading } of [
+    { name: 'abierta', options: open, heading: createHeading },
+    { name: 'cerrada', options: closed, heading: closedHeading },
+  ]) {
+    for (const width of [320, 390, 768, 1440]) {
+      test(`la tarjeta ${name} no se mueve ni se desmonta durante la relectura · ${width}px`, async ({ page }) => {
+        await mockApi(page, 'admin', options)
+        await page.setViewportSize({ width, height: 800 })
+        // La shell lee /me y, con el 401, lleva a /entrar; la pantalla de entrada lo relee: esa segunda lectura se retiene.
+        let reads = 0
+        let release!: () => void
+        const gate = new Promise<void>((resolve) => (release = resolve))
+        await page.route('**/api/me', async (route) => {
+          if (++reads > 1) await gate
+          await route.fallback()
+        })
+        await page.goto('/tickets')
+        await expect(heading(page)).toBeVisible()
+        await expect.poll(() => reads).toBe(2)
+        // Con la relectura en vuelo la pantalla sigue ahí, sin el esqueleto de la comprobación.
+        await expect(page.getByText('Comprobando tu sesión…')).toHaveCount(0)
+        const card = page.locator('main > div')
+        const before = await card.boundingBox()
+        const reread = page.waitForResponse('**/api/me')
+        release()
+        await reread
+        await expect(heading(page)).toBeVisible()
+        expect(await card.boundingBox()).toEqual(before)
+      })
+    }
+  }
+})

@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router'
 import { isApiError, PROBLEM_TYPES, readCsrfToken } from '../../api/client'
@@ -8,7 +9,7 @@ import { DemoUserPicker } from './DemoUserPicker'
 import { noMembershipNewcomer } from './newcomer'
 import { NewcomerCard } from './NoWorkspaceCards'
 import { ShowcaseLoginFrame } from './ShowcaseLoginFrame'
-import { useMe } from './queries'
+import { sessionKeys, useMe } from './queries'
 import styles from './session.module.css'
 import { subscribeSessionMessages } from './sessionChannel'
 import { LOGIN_PATH, navigation } from './sessionLifecycle'
@@ -42,10 +43,12 @@ export function LoginPage() {
   const demoLogin = import.meta.env.DEV || import.meta.env.MODE === 'smoke' || import.meta.env.MODE === 'showcase'
   // En la demostración estática no hay proveedor de identidad al que salir: solo se ofrece el selector de usuarios.
   const providerLogin = import.meta.env.MODE !== 'showcase'
-  // Releer una sesión que nunca cargó devuelve la consulta a «pending» y pierde el error: sin esto, el esqueleto sustituye a
-  // la pantalla (y borra lo escrito en ella) cada vez que una relectura —p. ej. tras un 409— sigue en vuelo. Se conserva el
-  // último hasta que llega otro.
-  const [lastError, setLastError] = useState<unknown>(null)
+  // Releer una sesión que nunca cargó devuelve la consulta a «pending» y pierde el error, ya en el primer render (al llegar
+  // desde la shell, que acaba de recibir el 401, `useMe` empieza a releerlo): sin esto el esqueleto sustituye a la pantalla, y
+  // borra lo escrito en ella, cada vez que una relectura —p. ej. tras un 409— sigue en vuelo. Se parte del error que la
+  // shell dejó en la caché y se conserva el último hasta que llega otro.
+  const queryClient = useQueryClient()
+  const [lastError, setLastError] = useState<unknown>(() => queryClient.getQueryState(sessionKeys.me)?.error ?? null)
   if (me.error && me.error !== lastError) setLastError(me.error)
   const error = me.error ?? lastError
   const unauthenticated = !me.data && isApiError(error, 401)

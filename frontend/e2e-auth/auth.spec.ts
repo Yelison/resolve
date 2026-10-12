@@ -181,3 +181,28 @@ test.describe('cuenta desactivada', () => {
     await expect(page.locator('#password')).toBeVisible()
   })
 })
+
+test.describe('identidad sin ningún espacio', () => {
+  // Una cuenta del realm con el correo verificado y sin membresía alguna: el servidor, en el modo `admins` (el de este
+  // entorno), responde el 401 `no-membership` con su correo, y la pantalla le pide una invitación.
+  const ana = 'ana.sinespacio@demo.example'
+  test.beforeAll(() => ensureRealmUser(ana, 'Ana', 'Sin Espacio'))
+  test.afterAll(() => deleteRealmUser(ana))
+
+  test('ve «Aún no estás en ningún espacio» con su correo y puede entrar con otra cuenta', async ({ page }) => {
+    await openKeycloakLogin(page)
+    await submitKeycloakLogin(page, ana)
+
+    await expect(page).toHaveURL(/\/entrar/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Aún no estás en ningún espacio' })).toBeVisible()
+    await expect(page.getByText(ana, { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Crear espacio' })).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Entrar con otra cuenta' }).click()
+    await expect(page).toHaveURL(/\/entrar$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Entra a Resolve' })).toBeVisible()
+    // La sesión terminó también en Keycloak.
+    await page.getByRole('button', { name: 'Entrar con tu cuenta' }).click()
+    await expect(page.locator('#password')).toBeVisible()
+  })
+})

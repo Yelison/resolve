@@ -26,6 +26,7 @@ const HOME = /^Buen(os días|as tardes|as noches), /
 const picker = (page: Page) => page.getByRole('combobox', { name: 'Usuario de demostración' })
 const ADMIN = 'Administración'
 const CUSTOMER = 'Cliente'
+const NEWCOMER = 'Persona nueva (sin espacio)'
 
 /** Elige un usuario en el selector de /entrar y entra con él. */
 async function enterAs(page: Page, label: string) {
@@ -55,7 +56,7 @@ test('la raíz empieza en /entrar con el selector de usuarios y sin proveedor de
   await expect(page.getByText('Usa tu cuenta')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Entrar con tu cuenta' })).toHaveCount(0)
   await expect(page.getByRole('region', { name: NOTICE })).toContainText('los cambios no se guardan')
-  expect((await picker(page).locator('option').allTextContents()).length).toBe(3)
+  expect((await picker(page).locator('option').allTextContents()).length).toBe(4)
   expect(leaked).toEqual([])
 })
 
@@ -66,7 +67,12 @@ for (const theme of themes) {
     await page.goto('')
     const select = picker(page)
     await expect(select).toBeVisible()
-    expect(await select.locator('option').allTextContents()).toEqual(['Administración', 'Agente', 'Cliente'])
+    expect(await select.locator('option').allTextContents()).toEqual([
+      'Administración',
+      'Agente',
+      'Cliente',
+      'Persona nueva (sin espacio)',
+    ])
     await expect(page.getByText(/Administración ve y gestiona todo; Agente atiende tickets/)).toBeVisible()
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -302,7 +308,7 @@ test('la administración ha creado 2 de 3 espacios: crea el tercero, en memoria,
   await expect(page.getByText('Has creado 2 de 3 espacios.')).toBeVisible()
 })
 
-test('el agente y el cliente de la demostración tienen un solo espacio: sin salida y sin selector', async ({
+test('el agente y el cliente de la demostración tienen un solo espacio: sin salida; el agente puede crear (modo abierto) y el cliente no ve ni el selector', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -311,10 +317,52 @@ test('el agente y el cliente de la demostración tienen un solo espacio: sin sal
   await page.goto('configuracion/espacios')
   await expect(page.getByRole('button', { name: 'Salir de Acme Studio' })).toBeDisabled()
   await expect(page.getByText('Es tu único espacio')).toBeVisible()
+  // La demostración corre en el modo abierto: quien atiende tickets, aunque no administre, puede crear su espacio.
+  await expect(page.getByRole('button', { name: 'Crear espacio' })).toBeVisible()
   await signOut(page)
   await enterAs(page, CUSTOMER)
   await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
   await expect(page.getByRole('button', { name: /Cambiar de espacio/ })).toHaveCount(0)
+})
+
+test('«Persona nueva (sin espacio)» entra a «Crea tu espacio», crea el suyo en memoria y recargar vuelve al inicio', async ({
+  page,
+}) => {
+  const leaked = watchNetwork(page)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('')
+  await enterAs(page, NEWCOMER)
+  await expect(heading(page, 'Crea tu espacio')).toBeFocused()
+  await expect(page).toHaveURL(/\/resolve\/entrar$/)
+  await expect(page.getByText('Hola, Nueva Persona.')).toBeVisible()
+  await expect(page.getByText('nueva.persona@demo.example')).toBeVisible()
+  // La demostración avisa también aquí, fuera de la shell.
+  await expect(page.getByRole('region', { name: NOTICE })).toBeVisible()
+
+  await page.getByRole('textbox', { name: 'Nombre del espacio' }).fill('Taller Sur')
+  await page.getByRole('button', { name: 'Crear espacio' }).click()
+  await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Ya estás en Taller Sur')
+  await expect(page).toHaveURL(/\/resolve\/?$/)
+  await expect(page.getByRole('region', { name: 'Primeros pasos' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Espacio: Taller Sur\./ })).toContainText('Administrador')
+  await expect(page.locator('#contenido')).toBeFocused()
+
+  // Recargar reinicia la demostración: el espacio creado desaparece y la persona sigue sin espacio.
+  await page.reload()
+  await expect(heading(page, 'Crea tu espacio')).toBeVisible()
+  expect(leaked).toEqual([])
+})
+
+test('«Persona nueva (sin espacio)» puede entrar con otra cuenta desde «Crea tu espacio»', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('')
+  await enterAs(page, NEWCOMER)
+  await expect(heading(page, 'Crea tu espacio')).toBeVisible()
+  await page.getByRole('button', { name: 'Entrar con otra cuenta' }).click()
+  await expect(page.getByRole('heading', { name: 'Entra a Resolve' })).toBeVisible()
+  await expect(picker(page)).toBeVisible()
+  await enterAs(page, ADMIN)
+  await expect(heading(page, HOME)).toBeVisible()
 })
 
 for (const width of [390, 1440]) {

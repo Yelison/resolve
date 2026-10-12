@@ -68,7 +68,7 @@ export function DemoUserPicker({ onSwitched, submitLabel = 'Usar este usuario' }
         label="Usuario de demostración"
         hint={
           import.meta.env.MODE === 'showcase'
-            ? 'Administración ve y gestiona todo; Agente atiende tickets sin administrar; Cliente ve el portal de una clienta. No es un inicio de sesión real.'
+            ? 'Administración ve y gestiona todo; Agente atiende tickets sin administrar; Cliente ve el portal de una clienta; Persona nueva entra sin espacio y crea el suyo. No es un inicio de sesión real.'
             : 'Solo desarrollo: no es un inicio de sesión real.'
         }
         value={email}

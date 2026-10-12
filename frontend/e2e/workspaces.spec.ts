@@ -620,3 +620,48 @@ test.describe('Configuración › Tus espacios', () => {
     }
   }
 })
+
+test.describe('modo abierto (`resolve.organizations.creation: open`): quién ve «Crear espacio»', () => {
+  const customerSpaces = [{ ...lumen, role: 'customer' as const, memberCount: null }, norte]
+
+  test('un agente lo ve en el selector y en «Tus espacios»; con la instalación cerrada, no', async ({ page }) => {
+    await mockApi(page, 'agent', { creation: 'open' })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    await card(page).click()
+    await expect(selector(page).getByRole('menuitem', { name: 'Crear espacio' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await page.goto('/configuracion/espacios')
+    await expect(page.getByRole('button', { name: 'Crear espacio' })).toBeVisible()
+
+    await mockApi(page, 'agent', { creation: 'admins' })
+    await page.reload()
+    await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Crear espacio' })).toHaveCount(0)
+  })
+
+  test('un cliente no lo ve, aunque la sesión diga que puede crear: ni en el selector ni en el drawer', async ({
+    page,
+  }) => {
+    await mockApi(page, 'customer', { creation: 'open', organizations: customerSpaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    const allowed = await page.evaluate(
+      async () =>
+        ((await (await fetch('/api/me')).json()) as { organizationCreation: { allowed: boolean } })
+          .organizationCreation,
+    )
+    expect(allowed.allowed, 'el servidor dice que puede crear: es la interfaz la que no lo ofrece').toBe(true)
+    await card(page).click()
+    await expect(selector(page).getByRole('menuitemradio')).toHaveCount(2)
+    await expect(selector(page).getByRole('menuitem')).toHaveCount(0)
+    await page.keyboard.press('Escape')
+
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
+    await card(page).click()
+    const group = page.getByRole('group', { name: 'Cambiar de espacio' })
+    await expect(group.getByRole('button')).toHaveCount(2)
+    await expect(group.getByRole('button', { name: 'Crear espacio' })).toHaveCount(0)
+  })
+})

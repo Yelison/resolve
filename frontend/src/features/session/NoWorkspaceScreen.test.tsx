@@ -200,6 +200,17 @@ describe('«Aún no estás en ningún espacio» (la instalación no deja crear)'
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('al llegar desde la shell, la relectura de /me que hace la pantalla no la sustituye por el esqueleto', async () => {
+    let reads = 0
+    mockApi({ 'GET /api/me': () => (reads++ === 0 ? closed : (new Promise(() => {}) as never)) })
+    renderApp('/')
+    await screen.findByRole('heading', { level: 1, name: 'Aún no estás en ningún espacio' })
+    // La pantalla de entrada relee la sesión (segunda lectura, en vuelo) y la tarjeta sigue ahí, sin «Comprobando…».
+    await waitFor(() => expect(reads).toBe(2))
+    expect(screen.getByRole('heading', { level: 1, name: 'Aún no estás en ningún espacio' })).toBeVisible()
+    expect(screen.queryByText('Comprobando tu sesión…')).not.toBeInTheDocument()
+  })
+
   it('sin cookie de CSRF no ofrece cerrar sesión (no habría con qué)', async () => {
     setCsrfCookie(null)
     mockApi({ 'GET /api/me': closed })
