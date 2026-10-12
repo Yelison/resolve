@@ -188,7 +188,7 @@ docker build -t resolve-idp:local -f deploy/keycloak/Dockerfile .   # from the r
 deployment**. The public demo uses its own, `RESOLVE_DEMO_USER_PASSWORD`, which **the owner chooses** and sets as a Fly secret
 on `resolve-demo-idp` **before the first deployment of the identity provider**. It is **public on purpose**: the accounts have
 fictitious addresses, their data is reset every night and a password that a visitor must ask for would defeat the purpose of
-a public demo, so the [README](../../README.md#live-demo) publishes it once the deployment exists. The `release_command`
+a public demo, so the [README](../../README.md) publishes it once the deployment exists. The `release_command`
 substitutes it when it imports the realm, so a change takes effect with the next deployment of the identity provider, and
 it is not read at any other time. The variable has no default in the realm file and the entrypoint (which the
 `release_command` also goes through) refuses to start or import when it is empty or equals `demo`. The image has no administrator at all (see below), so there is no administrator
@@ -302,7 +302,7 @@ without cancellation, so a deployment is never cut in half.
 | Neon | a database for Keycloak | database | A **second database** in the same project (for example `resolve_idp`) and its own role. Not the demo database: the reset empties that one |
 | Fly (`fly secrets set -a resolve-demo-idp`) | `KC_DB_URL`, `KC_DB_USERNAME`, `KC_DB_PASSWORD` | secrets | The Keycloak database: `jdbc:postgresql://<direct-endpoint>/<database>?sslmode=require`, and its role |
 | Fly (`-a resolve-demo-idp`) | `RESOLVE_OIDC_CLIENT_SECRET` | secret | A long random value, **the same** as the API's secret of the same name. Read by the realm import, which runs on **every** deployment of the identity provider (the `release_command`); the entrypoint also requires it on every start |
-| Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret, **required** | **Set it before the first deployment; the identity provider does not start or import without it, nor with `demo`.** The password of the four demo users, chosen by the owner and public on purpose (the README «Live demo» shows it). Takes effect with the next deployment of the identity provider (the realm import) |
+| Fly (`-a resolve-demo-idp`) | `RESOLVE_DEMO_USER_PASSWORD` | secret, **required** | **Set it before the first deployment; the identity provider does not start or import without it, nor with `demo`.** The password of the four demo users, chosen by the owner and public on purpose (the README would show it). Takes effect with the next deployment of the identity provider (the realm import) |
 | Fly (`-a resolve-demo`) | `RESOLVE_OIDC_ISSUER` | secret | **`https://resolve-demo-idp.fly.dev/realms/resolve`** (the existing row lists it with the other `RESOLVE_OIDC_*`) |
 | GitHub environment `demo` | `FLY_API_TOKEN_IDP` | secret | `fly tokens create deploy -a resolve-demo-idp` (a token per app) |
 | GitHub environment `demo` | `IDP_URL` | variable | `https://resolve-demo-idp.fly.dev` (no trailing slash) |
@@ -333,6 +333,27 @@ role, owner of the demo database and of `resolve_ops` (nothing to `GRANT`). As a
 deployment (and `RESOLVE_PUBLIC_URL`, which must match the app's URL and be one of the realm client's redirect URIs).
 The same goes for `deploy/keycloak/fly.toml` (`app`, `KC_HOSTNAME`, `RESOLVE_PUBLIC_URL`) and the API's `RESOLVE_OIDC_ISSUER`.
 Create the Neon project in the region closest to `primary_region`.
+
+## The public demo (prepared, not published)
+
+**Not published, by the owner's decision.** Everything is prepared and documented, but nothing is online: the owner chose not to host the application (no Fly.io or Neon accounts), and the static demo plus [Run it yourself](../../README.md#run-it-yourself) take its place. What follows describes the deployment as it would run, and is kept for whoever wants to publish it. The pipeline ([`deploy.yml`](../../.github/workflows/deploy.yml)) and the nightly reset ([`demo-reset.yml`](../../.github/workflows/demo-reset.yml)) skip every job until the owner sets the repository variable `DEPLOY_ENABLED=true`. The address it would use is `https://resolve-demo.fly.dev` (a decision to confirm); it would be added to the [README](../../README.md) after a first successful deployment, with the password below.
+
+The public demo is a shared installation with fictional data. Every page shows a permanent notice, «Demostración pública · los datos se reinician cada noche», and the API marks the installation with `organization.demo` in `/me`. **Do not enter real data**: anyone with the accounts below can read what you write, and it is erased at the next reset.
+
+Accounts of the demo realm ([`deploy/keycloak/resolve-realm.prod.json`](../../deploy/keycloak/resolve-realm.prod.json)). All four share one password, `RESOLVE_DEMO_USER_PASSWORD`, which the owner chooses and which is public on purpose (a demo that asks for a password defeats its purpose). It will be published here when the deployment exists; the `demo` password of the local realm is not accepted by the deployment: the identity provider refuses to start without `RESOLVE_DEMO_USER_PASSWORD` or with `demo`.
+
+| Email | Role | Organization |
+| --- | --- | --- |
+| `yelisson.ortiz@acme.example` | Administrator | Acme Studio |
+| `laura.mendez@acme.example` | Agent | Acme Studio |
+| `maria.perez@cliente.example` | Customer | Acme Studio |
+| `jordi.puig@northwind.example` | Agent | Northwind |
+
+- **Reset.** Every night at 03:00 (America/Bogota) the database is emptied and reloaded with the demo data. During the reset (a few minutes) the API answers `503` and the interface shows «Estamos reiniciando la demostración; vuelve en un minuto», with a «Reintentar» button.
+- **Limits.** At most 500 tickets, 200 customers, 50 team members and 100 articles per organization (one more gets a `409` «Límite de la demostración», shown in the form that tried it), and 60 writes per minute per address (`429`: the interface asks you to wait and keeps what you typed).
+- **Not indexed.** The demo sends `X-Robots-Tag: noindex`.
+
+**Operations, once deployed.** Every job is skipped until `DEPLOY_ENABLED` is set; after that, the demo runs as two Fly.io apps (the API with the web app, and its own Keycloak) on a Neon PostgreSQL. Every merge to `main` whose CI passes builds the image and deploys it, the identity provider first when `deploy/keycloak/**` changed; a rollback is the same deploy with a previous image tag. The database is reset every night at 03:00 (America/Bogota) by `demo-reset.yml`, which puts the API in maintenance mode, runs `flyway clean migrate` behind a sentinel guard and checks the result. Backups are provider snapshots plus a weekly `pg_dump -Fc`.
 
 ## The nightly reset
 
