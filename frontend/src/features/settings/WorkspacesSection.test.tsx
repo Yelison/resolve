@@ -428,6 +428,18 @@ describe('Configuración › Tus espacios · móvil', () => {
     expect(leave).toHaveAccessibleDescription('Es tu único espacio')
   })
 
+  it('cancelar la confirmación abierta desde la hoja devuelve el foco a «⋯», no a body ni al título', async () => {
+    mockApi({ 'GET /api/me': { body: acmeMe } })
+    renderSpaces()
+    const more = await screen.findByRole('button', { name: 'Más acciones para Lumen Diseño' })
+    await userEvent.click(more)
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Salir del espacio' }))
+    const confirm = await screen.findByRole('dialog', { name: '¿Salir de Lumen Diseño?' })
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(more).toHaveFocus())
+  })
+
   it('cancelar la hoja devuelve el foco a «⋯»', async () => {
     mockApi({ 'GET /api/me': { body: acmeMe } })
     renderSpaces()
