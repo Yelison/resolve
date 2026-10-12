@@ -65,6 +65,59 @@ class OrganizationApiTest extends ApiIntegrationTest {
 		this.data.staff(this.northwind, "admin", "Jordi Puig", NORTHWIND_ADMIN);
 	}
 
+	// --- Color ----------------------------------------------------------------------------------------------------
+
+	@Test
+	void theColorComesFromTheIdByDefaultAndAnAdminChangesItWithIfMatch() throws Exception {
+		this.mvc.perform(get(API + "/organization").with(as(LAURA)))
+			.andExpect(matchesContract("getOrganization"))
+			.andExpect(jsonPath("$.color").value(OrganizationColors.forId(this.acme)));
+
+		String other = OrganizationColors.forId(this.acme).equals("teal") ? "brick" : "teal";
+		this.mvc.perform(patchOrganization(ADMIN, "\"0\"", "{\"color\": \"" + other + "\"}"))
+			.andExpect(status().isOk())
+			.andExpect(matchesContract("updateOrganization"))
+			.andExpect(header().string("ETag", "\"1\""))
+			.andExpect(jsonPath("$.color").value(other))
+			.andExpect(jsonPath("$.name").value("Acme Studio"));
+
+		// Se lee igual en los ajustes, en /me y en la lista de espacios; la otra organización conserva el suyo.
+		this.mvc.perform(get(API + "/me").with(as(MARIA)))
+			.andExpect(matchesContract("getMe"))
+			.andExpect(jsonPath("$.organization.color").value(other))
+			.andExpect(jsonPath("$.organizations[0].color").value(other));
+		this.mvc.perform(get(API + "/organization").with(as(NORTHWIND_ADMIN)))
+			.andExpect(jsonPath("$.color").value(OrganizationColors.forId(this.northwind)))
+			.andExpect(jsonPath("$.version").value(0));
+	}
+
+	@Test
+	void anUnknownColorIsA400OnTheColorFieldAndNothingChanges() throws Exception {
+		for (String value : List.of("\"pink\"", "\"Blue\"", "\"\"", "\"#2563eb\"", "4", "null", "[]")) {
+			MvcResult result = this.mvc.perform(patchOrganization(ADMIN, "\"0\"", "{\"color\": " + value + "}")).andReturn();
+			assertThat(result.getResponse().getStatus()).as(value).isEqualTo(400);
+			matchesContract("updateOrganization").match(result);
+			assertThat(JSON.readTree(result.getResponse().getContentAsString()).path("errors").toString())
+				.as(value)
+				.contains("\"field\":\"color\"");
+		}
+		this.mvc.perform(get(API + "/organization").with(as(ADMIN)))
+			.andExpect(jsonPath("$.color").value(OrganizationColors.forId(this.acme)))
+			.andExpect(jsonPath("$.version").value(0));
+	}
+
+	@Test
+	void onlyAnAdminChangesTheColorAndTheSameColorIsNotANewVersion() throws Exception {
+		this.mvc.perform(patchOrganization(LAURA, "\"0\"", "{\"color\": \"slate\"}")).andExpect(status().isForbidden());
+		this.mvc.perform(patchOrganization(MARIA, "\"0\"", "{\"color\": \"slate\"}")).andExpect(status().isForbidden());
+		this.mvc.perform(patch(API + "/organization").with(as(ADMIN)).contentType(MERGE_PATCH).content("{\"color\": \"slate\"}"))
+			.andExpect(status().isPreconditionRequired());
+
+		this.mvc.perform(patchOrganization(ADMIN, "\"0\"", "{\"color\": \"" + OrganizationColors.forId(this.acme) + "\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.version").value(0));
+	}
+
 	// --- Lectura y edición ---------------------------------------------------------------------------------------
 
 	@Test

@@ -49,7 +49,8 @@ class OrganizationService {
 				changes.supportEmailChanged() ? changes.supportEmail() : organization.getSupportEmail(),
 				(changes.timeZone() != null) ? changes.timeZone() : organization.getTimeZone(),
 				(changes.firstResponseTargetMinutes() != null) ? changes.firstResponseTargetMinutes()
-						: organization.getFirstResponseTargetMinutes());
+						: organization.getFirstResponseTargetMinutes(),
+				(changes.color() != null) ? changes.color() : organization.getColor());
 		// El flush dentro de la transacción deja la nueva versión en la entidad antes de construir la respuesta.
 		this.organizations.flush();
 		return OrganizationSettingsDto.from(organization);
@@ -57,10 +58,7 @@ class OrganizationService {
 
 	/** Si PostgreSQL conoce el nombre de zona tal cual, que es como lo usan las consultas de métricas e informes. */
 	boolean databaseKnowsZone(String name) {
-		return this.jdbc.sql("SELECT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = :name)")
-			.param("name", name)
-			.query(Boolean.class)
-			.single();
+		return TimeZones.databaseKnows(this.jdbc, name);
 	}
 
 }

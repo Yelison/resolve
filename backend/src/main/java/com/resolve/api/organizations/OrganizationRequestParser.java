@@ -5,6 +5,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -15,8 +16,11 @@ import com.resolve.api.common.web.ControlCharacters;
 import org.jspecify.annotations.Nullable;
 import tools.jackson.databind.JsonNode;
 
-/** Valida el cuerpo del PATCH de los ajustes acumulando todos los errores en una sola respuesta 400. */
-final class OrganizationRequestParser {
+/**
+ * Valida el cuerpo del PATCH de los ajustes y el de la creación de una organización, acumulando todos los errores en una
+ * sola respuesta 400.
+ */
+public final class OrganizationRequestParser {
 
 	static final int MAX_NAME_LENGTH = 120;
 
@@ -31,7 +35,9 @@ final class OrganizationRequestParser {
 	private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
 	private static final Set<String> PATCHABLE = Set.of("name", "supportEmail", "timeZone",
-			"firstResponseTargetMinutes");
+			"firstResponseTargetMinutes", "color");
+
+	private static final Set<String> CREATABLE = Set.of("name", "timeZone");
 
 	private final List<FieldErrorDetail> errors = new ArrayList<>();
 
@@ -43,7 +49,33 @@ final class OrganizationRequestParser {
 	 * borra. Los demás campos no admiten {@code null}.
 	 */
 	record OrganizationChanges(@Nullable String name, boolean supportEmailChanged, @Nullable String supportEmail,
-			@Nullable String timeZone, @Nullable Integer firstResponseTargetMinutes) {
+			@Nullable String timeZone, @Nullable Integer firstResponseTargetMinutes, @Nullable String color) {
+	}
+
+	/** Lo que pide quien crea un espacio; los demás valores son los de la base de datos. */
+	public record NewOrganization(String name, String timeZone) {
+	}
+
+	/**
+	 * Cuerpo de {@code POST /organizations}: {@code name} y {@code timeZone}, con las mismas reglas que el PATCH de los
+	 * ajustes, y nada más.
+	 * @param databaseKnowsZone ver {@link #changes}
+	 */
+	public static NewOrganization creation(@Nullable JsonNode body, Predicate<String> databaseKnowsZone) {
+		OrganizationRequestParser parser = new OrganizationRequestParser();
+		if (body == null || !body.isObject()) {
+			throw new ApiValidationException("body", "Envía name y timeZone.");
+		}
+		for (String field : body.propertyNames()) {
+			if (!CREATABLE.contains(field)) {
+				parser.error(field, "Campo no permitido.");
+			}
+		}
+		String name = body.has("name") ? parser.name(body.get("name")) : parser.invalid("name", "Es obligatorio.");
+		String timeZone = body.has("timeZone") ? parser.timeZone(body.get("timeZone"), databaseKnowsZone)
+				: parser.invalid("timeZone", "Es obligatoria.");
+		parser.throwIfInvalid();
+		return new NewOrganization(Objects.requireNonNull(name), Objects.requireNonNull(timeZone));
 	}
 
 	/**
@@ -55,7 +87,7 @@ final class OrganizationRequestParser {
 		OrganizationRequestParser parser = new OrganizationRequestParser();
 		if (body == null || !body.isObject() || body.isEmpty()) {
 			throw new ApiValidationException("body",
-					"Envía al menos uno de estos campos: name, supportEmail, timeZone, firstResponseTargetMinutes.");
+					"Envía al menos uno de estos campos: name, supportEmail, timeZone, firstResponseTargetMinutes, color.");
 		}
 		for (String field : body.propertyNames()) {
 			if (!PATCHABLE.contains(field)) {
@@ -68,8 +100,9 @@ final class OrganizationRequestParser {
 		String timeZone = body.has("timeZone") ? parser.timeZone(body.get("timeZone"), databaseKnowsZone) : null;
 		Integer target = body.has("firstResponseTargetMinutes") ? parser.target(body.get("firstResponseTargetMinutes"))
 				: null;
+		String color = body.has("color") ? parser.color(body.get("color")) : null;
 		parser.throwIfInvalid();
-		return new OrganizationChanges(name, supportEmailChanged, supportEmail, timeZone, target);
+		return new OrganizationChanges(name, supportEmailChanged, supportEmail, timeZone, target, color);
 	}
 
 	private @Nullable String name(JsonNode node) {
@@ -144,6 +177,17 @@ final class OrganizationRequestParser {
 			return invalid("firstResponseTargetMinutes", message);
 		}
 		return minutes;
+	}
+
+	private @Nullable String color(JsonNode node) {
+		if (!node.isString()) {
+			return invalid("color", node.isNull() ? "No admite null." : "Debe ser un texto.");
+		}
+		String value = node.asString();
+		if (!OrganizationColors.isKey(value)) {
+			return invalid("color", "Elige uno de estos colores: " + String.join(", ", OrganizationColors.KEYS) + ".");
+		}
+		return value;
 	}
 
 	private <T> @Nullable T invalid(String field, String message) {

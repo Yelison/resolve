@@ -32,6 +32,9 @@ public class Organization {
 	@Column(name = "support_email")
 	private @Nullable String supportEmail;
 
+	@Column(nullable = false)
+	private String color;
+
 	@Version
 	private long version;
 
@@ -58,12 +61,19 @@ public class Organization {
 		return this.firstResponseTargetMinutes;
 	}
 
+	/** Una de las claves de {@link OrganizationColors#KEYS}; la base de datos lo exige con un {@code CHECK}. */
+	public String getColor() {
+		return this.color;
+	}
+
 	/** Aplica los ajustes ya validados; Hibernate solo escribe (y sube la versión) si algún valor cambió. */
-	void edit(String name, @Nullable String supportEmail, String timeZone, int firstResponseTargetMinutes) {
+	void edit(String name, @Nullable String supportEmail, String timeZone, int firstResponseTargetMinutes,
+			String color) {
 		this.name = name;
 		this.supportEmail = supportEmail;
 		this.timeZone = timeZone;
 		this.firstResponseTargetMinutes = firstResponseTargetMinutes;
+		this.color = color;
 	}
 
 	public @Nullable String getSupportEmail() {
