@@ -332,6 +332,8 @@ function WorkspaceActionsSheet({
                 aria-describedby={only ? hintId : undefined}
                 onClick={() => onLeave(workspace)}
               >
+                {/* Mismo hueco que el icono de «Abrir»: los dos textos empiezan en la misma columna. */}
+                <span className={styles.sheetIconSlot} aria-hidden="true" />
                 Salir del espacio
               </button>
               {only && (

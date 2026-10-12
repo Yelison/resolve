@@ -179,6 +179,12 @@
   color: var(--color-red-ink);
 }
 
+.sheetIconSlot {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
 .sheetIcon {
   transform: rotate(180deg);
 }

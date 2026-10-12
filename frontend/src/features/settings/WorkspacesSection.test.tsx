@@ -391,6 +391,17 @@ describe('Configuración › Tus espacios · móvil', () => {
     expect(within(sheet).getByRole('button', { name: 'Cancelar' })).toBeInTheDocument()
   })
 
+  it('en la hoja, «Salir del espacio» y «Abrir» reservan el mismo hueco de icono: sus textos empiezan en la misma columna', async () => {
+    mockApi({ 'GET /api/me': { body: acmeMe } })
+    renderSpaces()
+    await userEvent.click(await screen.findByRole('button', { name: 'Más acciones para Lumen Diseño' }))
+    const sheet = await screen.findByRole('dialog', { name: 'Lumen Diseño' })
+    for (const name of ['Abrir Lumen Diseño', 'Salir del espacio']) {
+      const first = within(sheet).getByRole('button', { name }).firstElementChild
+      expect(first, name).toHaveAttribute('aria-hidden', 'true')
+    }
+  })
+
   it('el espacio de cliente no tiene «⋯», y la hoja del actual no ofrece «Abrir»', async () => {
     mockApi({ 'GET /api/me': { body: acmeMe } })
     renderSpaces()
