@@ -171,7 +171,8 @@ export function sessionMock(
       (options.lastAdminIn?.includes(target.id) ||
         (target === organizations[0] && links.lastAdmin?.(target.id) === true))
     if (soleAdmin) return conflict(route, 'last-admin', 'El último administrador')
-    links.release?.(target.id)
+    // Los datos simulados son los del espacio de la fixture (el primero): solo salir de él libera lo asignado.
+    if (target === organizations[0]) links.release?.(target.id)
     left.add(target.id)
     if (active === target) {
       active = usable()[0]!
