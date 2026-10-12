@@ -97,7 +97,8 @@ class TicketMetricsQuery {
 						(firstResponse != null) ? firstResponse.intValue() : null,
 						organization.getFirstResponseTargetMinutes(),
 						new TicketMetrics.ViewCounts(row.getInt("view_all"), row.getInt("view_mine"),
-								row.getInt("view_unassigned"), row.getInt("view_resolved")));
+								row.getInt("view_unassigned"), row.getInt("view_resolved")),
+						null);
 			})
 			.single();
 	}

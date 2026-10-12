@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
 import com.resolve.api.common.security.CurrentMember;
+import com.resolve.api.organizations.GettingStarted;
 import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.SortDirection;
@@ -53,7 +54,10 @@ class TicketsController {
 
 	private final ActivityFeedQuery feed;
 
-	TicketsController(TicketService service, ActivityFeedQuery feed) {
+	private final GettingStarted gettingStarted;
+
+	TicketsController(TicketService service, ActivityFeedQuery feed, GettingStarted gettingStarted) {
+		this.gettingStarted = gettingStarted;
 		this.service = service;
 		this.feed = feed;
 	}
@@ -105,7 +109,9 @@ class TicketsController {
 
 	@GetMapping("/metrics")
 	TicketMetrics metrics(@AuthenticationPrincipal CurrentMember member) {
-		return this.service.metrics(member);
+		// Después de la lectura, no dentro de su transacción: «Primeros pasos» puede escribir (ver GettingStarted).
+		TicketMetrics metrics = this.service.metrics(member);
+		return metrics.withGettingStarted(this.gettingStarted.read(member));
 	}
 
 	/** El tamaño llega como texto para que un valor inválido sea un 400 sobre el campo {@code size}. */
