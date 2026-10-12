@@ -145,3 +145,87 @@ describe('Sidebar · botón de colapsar', () => {
     expect(screen.getByRole('button', { name: 'Cerrar menú' })).not.toHaveAttribute('aria-expanded')
   })
 })
+
+describe('Sidebar · tarjeta del espacio', () => {
+  const user = { name: 'Yelisson Ortiz', role: 'Administrador' }
+  const base = { items, sectionLabel: 'Gestión', user }
+
+  it('sin `workspaceMenu` es un texto con el cuadro de iniciales y «Espacio de trabajo» de subtítulo', () => {
+    render(
+      <MemoryRouter>
+        <Sidebar {...base} workspace="Acme Studio" />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('Acme Studio')).toBeInTheDocument()
+    expect(screen.getByText('Espacio de trabajo')).toBeInTheDocument()
+    expect(screen.getByText('AS')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /espacio/i })).not.toBeInTheDocument()
+  })
+
+  it('`workspaceRole` sustituye el subtítulo y, sin rol, conserva la línea', () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <Sidebar {...base} workspace="Acme Studio" workspaceRole="Administrador" />
+      </MemoryRouter>,
+    )
+    expect(screen.getAllByText('Administrador')).toHaveLength(2)
+    expect(screen.queryByText('Espacio de trabajo')).not.toBeInTheDocument()
+    rerender(
+      <MemoryRouter>
+        <Sidebar {...base} workspace="Acme Studio" workspaceRole="" />
+      </MemoryRouter>,
+    )
+    expect(screen.getByText('Acme Studio').nextElementSibling?.textContent).toBe('\u00a0')
+  })
+
+  it('`workspaceMenu` recibe el contenido, la clase y si está colapsado, y devuelve el disparador', async () => {
+    const received: boolean[] = []
+    render(
+      <MemoryRouter>
+        <Sidebar
+          {...base}
+          workspace="Acme Studio"
+          workspaceRole="Administrador"
+          workspaceMenu={(workspace) => {
+            received.push(workspace.collapsed)
+            return (
+              <button
+                type="button"
+                className={workspace.className}
+                aria-label="Espacio: Acme Studio. Cambiar de espacio"
+              >
+                {workspace.content}
+              </button>
+            )
+          }}
+        />
+      </MemoryRouter>,
+    )
+    const trigger = screen.getByRole('button', { name: 'Espacio: Acme Studio. Cambiar de espacio' })
+    expect(trigger).toHaveTextContent('AS')
+    expect(trigger).toHaveTextContent('Acme Studio')
+    expect(trigger).toHaveTextContent('Administrador')
+    expect(trigger.querySelector('svg')).not.toBeNull()
+    expect(received).toEqual([false])
+  })
+
+  it('colapsado, el disparador es solo el cuadro de iniciales', () => {
+    render(
+      <MemoryRouter>
+        <Sidebar
+          {...base}
+          collapsed
+          workspace="Acme Studio"
+          workspaceMenu={(workspace) => (
+            <button type="button" className={workspace.className} aria-label="Espacio: Acme Studio. Cambiar de espacio">
+              {workspace.content}
+            </button>
+          )}
+        />
+      </MemoryRouter>,
+    )
+    const trigger = screen.getByRole('button', { name: 'Espacio: Acme Studio. Cambiar de espacio' })
+    expect(trigger).toHaveTextContent(/^AS$/)
+    expect(trigger.querySelector('svg')).toBeNull()
+  })
+})

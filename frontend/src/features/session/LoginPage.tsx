@@ -20,11 +20,11 @@ import { useSessionActions } from './useSessionActions'
 const REFUSALS = new Map<string, string>([
   [
     PROBLEM_TYPES.accessDeactivated,
-    'Tu acceso a esta organización fue desactivado. Pide a un administrador que lo restablezca o entra con otra cuenta.',
+    'Tu acceso a este espacio fue desactivado. Pide a un administrador que lo restablezca o entra con otra cuenta.',
   ],
   [
     PROBLEM_TYPES.noMembership,
-    'Esta cuenta no pertenece a ninguna organización de Resolve. Pide a un administrador que te invite o entra con otra cuenta.',
+    'Esta cuenta no pertenece a ningún espacio de Resolve. Pide a un administrador que te invite o entra con otra cuenta.',
   ],
 ])
 
@@ -93,8 +93,8 @@ export function LoginPage() {
               </h1>
               <p className={styles.lead}>
                 {providerLogin
-                  ? 'Usa tu cuenta para ver los tickets, clientes y reportes de tu organización.'
-                  : 'Elige un usuario de demostración para ver los tickets, clientes y reportes de una organización de ejemplo.'}
+                  ? 'Usa tu cuenta para ver los tickets, clientes y reportes de tu espacio.'
+                  : 'Elige un usuario de demostración para ver los tickets, clientes y reportes de un espacio de ejemplo.'}
               </p>
               {params.get('error') === 'oidc' && (
                 // La clave remonta el aviso al terminar la comprobación para que el rol `alert` se anuncie entonces.

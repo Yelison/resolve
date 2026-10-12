@@ -4,12 +4,12 @@ import { expect, mockApi, test } from './fixtures'
 /**
  * Un solo bloqueo de scroll (ADR 0002): el drawer móvil y los diálogos del paquete comparten el contador de
  * `useScrollLock`. Con barras de scroll clásicas (Chromium headless las oculta por defecto), el bloqueo compensa el ancho
- * de la barra con `padding-right` en `<html>`; cerrar un diálogo abierto sobre el drawer no debe soltar esa compensación
- * mientras el drawer sigue abierto, o el contenido de detrás se ensancha.
+ * de la barra con `padding-right` en `<html>`; ningún cambio dentro del drawer (el selector de espacios se despliega en
+ * él, sin diálogo encima) debe soltar esa compensación mientras siga abierto, o el contenido de detrás se ensancha.
  */
 test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } })
 
-test('cerrar un diálogo abierto sobre el drawer mantiene el bloqueo y la compensación de la barra hasta cerrar el drawer', async ({
+test('el drawer con el selector de espacios desplegado mantiene el bloqueo y la compensación de la barra hasta cerrarlo', async ({
   page,
 }) => {
   await mockApi(page, 'admin', { organizations: [acme, northwind] })
@@ -37,14 +37,9 @@ test('cerrar un diálogo abierto sobre el drawer mantiene el bloqueo y la compen
   await page.getByRole('dialog', { name: 'Menú principal' }).waitFor()
   expect(await html()).toMatchObject({ paddingRight: `${scrollbar}px`, locked: true, titleRight: before.titleRight })
 
-  await page.getByRole('button', { name: /^Cuenta:/ }).click()
-  await page.getByRole('menuitem', { name: /Cambiar de organización/ }).click()
-  const dialog = page.getByRole('dialog', { name: 'Cambiar de organización' })
-  await expect(dialog).toBeVisible()
-  await dialog.getByRole('button', { name: 'Cancelar' }).click()
-  await expect(dialog).toBeHidden()
-
-  // El drawer sigue abierto: el bloqueo y la compensación siguen donde estaban.
+  // Desplegar el selector de espacios dentro del drawer no cambia el bloqueo ni la compensación: no abre otra capa.
+  await page.getByRole('button', { name: /^Espacio: .*\. Cambiar de espacio$/ }).click()
+  await expect(page.getByRole('group', { name: 'Cambiar de espacio' })).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Menú principal' })).toBeVisible()
   expect(await html()).toMatchObject({ paddingRight: `${scrollbar}px`, locked: true, titleRight: before.titleRight })
 

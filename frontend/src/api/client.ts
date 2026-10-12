@@ -82,6 +82,10 @@ export const PROBLEM_TYPES = {
   noMembership: 'https://resolve.example/problems/no-membership',
   /** 409: la organización que la pantalla mostraba al componer la escritura ya no es la de la sesión; nada se escribió. */
   organizationMismatch: 'https://resolve.example/problems/organization-mismatch',
+  /** 409: la organización se quedaría sin administrador activo (cambiar su rol, retirarlo o salir). */
+  lastAdmin: 'https://resolve.example/problems/last-admin',
+  /** 409: se intentó salir del único espacio usable de la persona; no se cambió nada. */
+  lastOrganization: 'https://resolve.example/problems/last-organization',
 } as const
 
 /** Cabecera con la organización que muestra la pantalla que compone la escritura (opcional en el contrato). */
@@ -134,7 +138,7 @@ const csrf: Middleware = {
 
 /** Explica por qué una escritura no salió: la sesión cambió en otra pestaña mientras se comprobaba. */
 export const SESSION_CHANGED_DETAIL =
-  'Tu sesión cambió en otra pestaña (otra persona u otra organización). Lo que ibas a enviar no se envió: revisa lo que ves y repítelo.'
+  'Tu sesión cambió en otra pestaña (otra persona u otro espacio). Lo que ibas a enviar no se envió: revisa lo que ves y repítelo.'
 
 /**
  * Comprobación de la sesión que la aplicación puede tener en vuelo: resuelve a `true` si la persona o la organización

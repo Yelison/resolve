@@ -51,7 +51,7 @@ export function SessionErrorPage({
 function describe(error: unknown) {
   // Hasta que exista el inicio de sesión real (Fase 8), un 401 no mejora con el tiempo: no se sugiere esperar.
   // La Fase 8 sustituirá este texto y el reintento por «Volver a entrar».
-  if (isApiError(error, 401)) return 'No hay una sesión activa para esta organización.'
+  if (isApiError(error, 401)) return 'No hay una sesión activa para este espacio.'
   if (isApiError(error)) return 'El servidor no respondió como esperábamos. Vuelve a intentarlo en unos segundos.'
   return 'Revisa tu conexión y vuelve a intentarlo.'
 }

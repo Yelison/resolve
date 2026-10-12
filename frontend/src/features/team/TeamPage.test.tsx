@@ -47,6 +47,10 @@ const baseRoutes = {
   'GET /api/members/metrics': { body: teamMetrics },
 }
 
+/** Con otro administrador activo, el de la sesión sí puede cambiar su rol: la regla del último administrador no le toca. */
+const otherAdmin = teamMember({ id: 'u-diego', name: 'Diego Rojas', email: 'diego@acme.example', role: 'admin' })
+const twoAdminsRoutes = { ...baseRoutes, 'GET /api/members': { body: [...team, otherAdmin] } }
+
 function renderTeam(path = '/equipo') {
   const router = createMemoryRouter(
     [
@@ -561,11 +565,42 @@ describe('TeamPage', () => {
     })
 
     it('un administrador no puede retirarse a sí mismo desde su fila, pero sí cambiar su rol', async () => {
-      mockApi(baseRoutes)
+      mockApi(twoAdminsRoutes)
       renderTeam()
       await userEvent.click(await screen.findByRole('button', { name: 'Acciones de Yelisson Ortiz' }))
       expect(screen.getByRole('menuitem', { name: 'Cambiar rol' })).toBeInTheDocument()
       expect(screen.queryByRole('menuitem', { name: 'Retirar del equipo' })).not.toBeInTheDocument()
+      expect(screen.getByRole('menu')).not.toHaveAccessibleDescription(/necesita al menos un administrador/)
+    })
+
+    it('el único administrador activo ve «Retirar del equipo» deshabilitado y el porqué, antes de intentarlo', async () => {
+      mockApi(baseRoutes)
+      renderTeam()
+      await userEvent.click(await screen.findByRole('button', { name: 'Acciones de Yelisson Ortiz' }))
+      const menu = screen.getByRole('menu')
+      expect(within(menu).getByRole('menuitem', { name: 'Cambiar rol' })).not.toHaveAttribute('aria-disabled')
+      expect(within(menu).getByRole('menuitem', { name: 'Retirar del equipo' })).toHaveAttribute(
+        'aria-disabled',
+        'true',
+      )
+      expect(menu).toHaveAccessibleDescription(
+        'Acme Studio necesita al menos un administrador. Da el rol a otra persona antes de cambiar el tuyo.',
+      )
+    })
+
+    it('un administrador invitado o retirado no cuenta: con otro solo invitado sigue siendo el único', async () => {
+      const invitedAdmin = { ...otherAdmin, status: 'invited' as const }
+      mockApi({ ...baseRoutes, 'GET /api/members': { body: [...team, invitedAdmin] } })
+      renderTeam()
+      await userEvent.click(await screen.findByRole('button', { name: 'Acciones de Yelisson Ortiz' }))
+      expect(screen.getByRole('menuitem', { name: 'Retirar del equipo' })).toHaveAttribute('aria-disabled', 'true')
+    })
+
+    it('un agente administra a nadie: no hay menú de acciones ni nota', async () => {
+      mockApi({ ...baseRoutes, 'GET /api/me': { body: agentMe } })
+      renderTeam()
+      await screen.findByRole('table', { name: 'Equipo' })
+      expect(screen.queryByRole('button', { name: /^Acciones de/ })).not.toBeInTheDocument()
     })
   })
 
@@ -674,9 +709,22 @@ describe('TeamPage', () => {
       expect(body).toEqual({ role: 'admin' })
     })
 
+    it('el único administrador activo no puede elegir «Agente»: la opción está deshabilitada y la nota dice por qué', async () => {
+      mockApi(baseRoutes)
+      renderTeam()
+      const dialog = await openRoleDialog('Yelisson Ortiz')
+      const role = within(dialog).getByRole('combobox', { name: 'Rol' })
+      expect(within(role).getByRole('option', { name: 'Agente' })).toBeDisabled()
+      expect(within(role).getByRole('option', { name: 'Administrador' })).toBeEnabled()
+      expect(role).toHaveAccessibleDescription(
+        'Acme Studio necesita al menos un administrador. Da el rol a otra persona antes de cambiar el tuyo.',
+      )
+      expect(within(dialog).getByRole('button', { name: 'Guardar rol' })).toBeDisabled()
+    })
+
     it('invalida la sesión: un administrador puede cambiar su propio rol', async () => {
       mockApi({
-        ...baseRoutes,
+        ...twoAdminsRoutes,
         'POST /api/members/u-admin/role': { body: teamMember({ id: 'u-admin', role: 'agent' }) },
       })
       const { queryClient } = renderTeam()
@@ -689,7 +737,7 @@ describe('TeamPage', () => {
 
     it('un 409 (último administrador) muestra el detalle del servidor y no avisa de éxito', async () => {
       mockApi({
-        ...baseRoutes,
+        ...twoAdminsRoutes,
         'POST /api/members/u-admin/role': problem(409, 'Debe quedar al menos un administrador activo.'),
       })
       renderTeam()

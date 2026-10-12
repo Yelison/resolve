@@ -103,3 +103,108 @@ describe('installShowcase · sesión de la pestaña', () => {
     expect((await api('/me')).status).toBe(200)
   })
 })
+
+describe('installShowcase · espacios de la demostración', () => {
+  const ADMIN = 'yelisson.ortiz@acme.example'
+  const AGENT = 'laura.mendez@acme.example'
+  const LAST_ADMIN = 'https://resolve.example/problems/last-admin'
+  const LAST_ORGANIZATION = 'https://resolve.example/problems/last-organization'
+
+  async function signIn(email: string) {
+    sessionStorage.setItem(DEMO_USER_STORAGE_KEY, email)
+    load()
+    return csrfToken()
+  }
+  const me = async () => (await api('/me')).json()
+  const leave = (id: string, token: string) =>
+    api(`/me/organizations/${id}`, { method: 'DELETE', headers: { 'X-XSRF-TOKEN': token } })
+  const choose = (organizationId: string, token: string) =>
+    api('/session/organization', {
+      method: 'POST',
+      headers: { 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId }),
+    })
+
+  it('la administración es administradora en Acme, agente en Lumen Diseño y cliente en Norte Viajes', async () => {
+    await signIn(ADMIN)
+    const session = await me()
+    expect(session.organizations.map((org: { name: string; role: string }) => [org.name, org.role])).toEqual([
+      ['Acme Studio', 'admin'],
+      ['Lumen Diseño', 'agent'],
+      ['Norte Viajes', 'customer'],
+    ])
+    expect(session.organizations[2].memberCount).toBeNull()
+  })
+
+  it('el rol de la sesión sigue al espacio activo: en Norte Viajes es cliente, y las demás features lo respetan', async () => {
+    const token = await signIn(ADMIN)
+    const [, lumen, norte] = (await me()).organizations
+    expect((await choose(norte.id, token)).status).toBe(200)
+    expect(await me()).toMatchObject({
+      role: 'customer',
+      customerId: 'c-maria',
+      organization: { name: 'Norte Viajes' },
+    })
+    expect((await api('/tickets/attention?scope=mine')).status).toBe(403)
+    expect((await choose(lumen.id, token)).status).toBe(200)
+    expect(await me()).toMatchObject({ role: 'agent', customerId: null })
+    expect((await api('/tickets/attention?scope=mine')).status).toBe(200)
+  })
+
+  it('salir de un espacio lo quita de la lista; salir otra vez es el mismo 404', async () => {
+    const token = await signIn(ADMIN)
+    const [, lumen] = (await me()).organizations
+    expect((await leave(lumen.id, token)).status).toBe(204)
+    expect((await me()).organizations.map((org: { name: string }) => org.name)).toEqual(['Acme Studio', 'Norte Viajes'])
+    expect((await leave(lumen.id, token)).status).toBe(404)
+    expect((await leave('desconocido', token)).status).toBe(404)
+  })
+
+  it('salir del espacio actual pasa al siguiente utilizable, con su rol', async () => {
+    const token = await signIn(ADMIN)
+    const [, lumen] = (await me()).organizations
+    await choose(lumen.id, token)
+    expect((await leave(lumen.id, token)).status).toBe(204)
+    expect(await me()).toMatchObject({ role: 'admin', organization: { name: 'Acme Studio' } })
+  })
+
+  it('un cliente no sale (403) y el último administrador tampoco (409 last-admin)', async () => {
+    const token = await signIn(ADMIN)
+    const [acme, , norte] = (await me()).organizations
+    expect((await leave(norte.id, token)).status).toBe(403)
+    const refused = await leave(acme.id, token)
+    expect(refused.status).toBe(409)
+    expect(await refused.json()).toMatchObject({ type: LAST_ADMIN })
+    expect((await me()).organizations).toHaveLength(3)
+  })
+
+  it('con otra persona que también administra, el último administrador sale: cambia el rol y puede salir', async () => {
+    const token = await signIn(ADMIN)
+    const [acme] = (await me()).organizations
+    const members = await (await api('/members')).json()
+    const laura = members.find((member: { name: string }) => member.name === 'Laura Méndez')
+    const promoted = await api(`/members/${laura.id}/role`, {
+      method: 'POST',
+      headers: { 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'admin' }),
+    })
+    expect(promoted.status).toBe(200)
+    expect((await leave(acme.id, token)).status).toBe(204)
+    expect((await me()).organization.name).toBe('Lumen Diseño')
+  })
+
+  it('quien tiene un solo espacio no puede salir (409 last-organization)', async () => {
+    const token = await signIn(AGENT)
+    const session = await me()
+    expect(session.organizations).toHaveLength(1)
+    const refused = await leave(session.organization.id, token)
+    expect(refused.status).toBe(409)
+    expect(await refused.json()).toMatchObject({ type: LAST_ORGANIZATION })
+  })
+
+  it('salir sin token CSRF se rechaza como cualquier escritura', async () => {
+    await signIn(ADMIN)
+    const [, lumen] = (await me()).organizations
+    expect((await api(`/me/organizations/${lumen.id}`, { method: 'DELETE' })).status).toBe(403)
+  })
+})

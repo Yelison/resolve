@@ -145,7 +145,7 @@ function ArticleView({ article, isStaff, supportEmail }: ArticleViewProps) {
                 Contacta con soporte: <a href={`mailto:${supportEmail}`}>{supportEmail}</a>
               </p>
             ) : (
-              <p className={styles.helpText}>Contacta con el equipo de soporte de tu organización.</p>
+              <p className={styles.helpText}>Contacta con el equipo de soporte de tu espacio.</p>
             )}
           </section>
         </aside>

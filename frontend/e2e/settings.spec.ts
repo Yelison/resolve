@@ -14,7 +14,7 @@ test.describe('configuración: navegación', () => {
     await page.setViewportSize(desktop)
     await page.goto('/configuracion')
     await expect(page).toHaveURL(/\/configuracion\/empresa$/)
-    await expect(sections(page).getByRole('link')).toHaveText([/Empresa/, /Permisos/, /General/])
+    await expect(sections(page).getByRole('link')).toHaveText([/Empresa/, /Permisos/, /General/, /Tus espacios/])
     await expect(sections(page).getByRole('link', { name: /Empresa/ })).toHaveAttribute('aria-current', 'page')
     await expect(page.getByRole('tab')).toHaveCount(0)
 
@@ -308,7 +308,7 @@ test.describe('configuración: Empresa', () => {
     await mockApi(page, 'agent')
     await page.setViewportSize(desktop)
     await page.goto('/configuracion/empresa')
-    await expect(sections(page).getByRole('link')).toHaveText([/Empresa/, /Permisos/, /General/])
+    await expect(sections(page).getByRole('link')).toHaveText([/Empresa/, /Permisos/, /General/, /Tus espacios/])
     await expect(page.getByText('Solo un administrador puede cambiar los datos de la empresa.')).toBeVisible()
     await expect(page.getByText('Acme Studio', { exact: true }).last()).toBeVisible()
     await expect(page.getByText('Ahora respondes en 18 min.')).toBeVisible()

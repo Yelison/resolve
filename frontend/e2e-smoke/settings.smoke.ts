@@ -2,8 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 import { demoUsers, loginAs } from './fixtures'
 
 /**
- * Contra el backend real: el objetivo de primera respuesta de Configuración llega a Inicio. Es estado de la
- * organización, compartido con las demás pruebas del smoke, así que se lee el valor actual, se guarda uno distinto
+ * Contra el backend real: el objetivo de primera respuesta de Configuración llega a Inicio. Es estado del
+ * espacio, compartido con las demás pruebas del smoke, así que se lee el valor actual, se guarda uno distinto
  * (si no, «Guardar cambios» queda deshabilitado) y se restaura al terminar aunque algo falle.
  */
 /**

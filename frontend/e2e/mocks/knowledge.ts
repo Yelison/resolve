@@ -142,9 +142,14 @@ export function createArticleStore(): ArticleStore {
  * `role` es el de la sesión simulada. Para un cliente, `/knowledge/*` hace lo que el servidor: solo artículos
  * publicados y públicos, y sin las categorías que se quedan vacías.
  */
-export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = createArticleStore()): MockFeature {
+export function knowledgeMock(
+  roleOrGetter: Me['role'] | (() => Me['role']),
+  articleStore: ArticleStore = createArticleStore(),
+): MockFeature {
+  // El rol cambia al cambiar de espacio (agente en uno, cliente en otro): se lee en cada petición.
+  const role = () => (typeof roleOrGetter === 'function' ? roleOrGetter() : roleOrGetter)
   const readable = (article: Pick<ArticleSummary, 'status' | 'visibility'>) =>
-    role !== 'customer' || (article.status === 'published' && article.visibility === 'public')
+    role() !== 'customer' || (article.status === 'published' && article.visibility === 'public')
   const articleJson = (route: MockRoute, article: Article, status = 200) =>
     route.fulfill({
       status,
@@ -165,7 +170,7 @@ export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = cre
         description: categoryDescriptions[ref.id] ?? null,
         articles: currentArticles().filter((article) => readable(article) && article.category.id === ref.id).length,
       }))
-      .filter((entry) => role !== 'customer' || entry.articles > 0)
+      .filter((entry) => role() !== 'customer' || entry.articles > 0)
   const categoryByIdFor = (id: string) => [acceso, facturacion, primerosPasos].find((ref) => ref.id === id)
   const handle: MockHandler = ({ route, request, url, path, method }) => {
     const articleMatch = path.match(/^\/knowledge\/articles\/([^/]+?)(\/publish|\/unpublish)?$/)
@@ -193,7 +198,7 @@ export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = cre
       })
     }
     if (method === 'POST' && path === '/knowledge/articles') {
-      if (role === 'customer') return problem(route, 403, 'Prohibido')
+      if (role() === 'customer') return problem(route, 403, 'Prohibido')
       const body = request.postDataJSON() as {
         title: string
         body: string
@@ -233,7 +238,7 @@ export function knowledgeMock(role: Me['role'], articleStore: ArticleStore = cre
       // Un cliente no distingue un artículo que no existe de uno que no puede leer.
       if (!article || !readable(article)) return problem(route, 404, 'No encontrado')
       if (method === 'GET') return articleJson(route, article)
-      if (role === 'customer') return problem(route, 403, 'Prohibido')
+      if (role() === 'customer') return problem(route, 403, 'Prohibido')
       if (method === 'PATCH') {
         const ifMatch = request.headers()['if-match']
         if (!ifMatch) return problem(route, 428, 'Se requiere If-Match')

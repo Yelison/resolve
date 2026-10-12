@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import type { TeamMember } from '../src/api/schema'
 import { expect, me, test } from './fixtures'
+import { CSRF_TOKEN } from './mocks/session'
 import { teamMember } from './mocks/shared'
 
 /** Equipo grande para las pruebas de muchos datos: `active` agentes activos (el 8.º con un nombre de 120 caracteres) y `invited` invitaciones. */
@@ -90,11 +91,38 @@ test.describe('equipo', () => {
     await dialog.getByRole('button', { name: 'Guardar rol' }).click()
     await expect(page.getByRole('row', { name: /Laura Méndez/ })).toContainText('Agente')
 
+    // El que queda es el único administrador: la interfaz lo dice antes de intentarlo (la nota bajo el menú y bajo el
+    // selector de rol), con «Agente» y «Retirar del equipo» deshabilitados.
+    const note = 'Acme Studio necesita al menos un administrador. Da el rol a otra persona antes de cambiar el tuyo.'
     await page.getByRole('button', { name: `Acciones de ${me.user.name}` }).click()
+    const menu = page.getByRole('menu')
+    await expect(menu.getByRole('menuitem', { name: 'Retirar del equipo' })).toHaveAttribute('aria-disabled', 'true')
+    await expect(menu).toHaveAccessibleDescription(note)
     await page.getByRole('menuitem', { name: 'Cambiar rol' }).click()
-    await dialog.getByRole('combobox', { name: 'Rol' }).selectOption('agent')
-    await dialog.getByRole('button', { name: 'Guardar rol' }).click()
-    await expect(dialog.getByRole('alert')).toContainText('Debe quedar al menos un administrador activo.')
+    await expect(dialog.getByRole('option', { name: 'Agente' })).toBeDisabled()
+    await expect(dialog.getByRole('combobox', { name: 'Rol' })).toHaveAccessibleDescription(note)
+    await expect(dialog.getByRole('button', { name: 'Guardar rol' })).toBeDisabled()
+  })
+
+  test('el servidor sigue siendo la defensa real: el 409 del último administrador lleva su tipo', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/equipo')
+    await expect(page.getByRole('table', { name: 'Equipo' })).toBeVisible()
+    const attempt = (path: string) =>
+      page.evaluate(
+        async ([url, token]) => {
+          const response = await fetch(url!, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': token!, 'X-Organization-Id': 'org-1' },
+            body: JSON.stringify({ role: 'agent' }),
+          })
+          return { status: response.status, type: ((await response.json()) as { type?: string }).type }
+        },
+        [path, CSRF_TOKEN],
+      )
+    const lastAdmin = { status: 409, type: 'https://resolve.example/problems/last-admin' }
+    expect(await attempt(`/api/members/${me.user.id}/role`)).toEqual(lastAdmin)
+    expect(await attempt(`/api/members/${me.user.id}/remove`)).toEqual({ status: 409, type: undefined })
   })
 
   test('retira a un miembro tras confirmar y pasa al filtro de retirados', async ({ page }) => {

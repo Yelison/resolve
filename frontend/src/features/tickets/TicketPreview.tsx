@@ -64,7 +64,7 @@ export function TicketPreview({ number, isStaff, onClear }: TicketPreviewProps) 
             kind="restricted"
             headingLevel={2}
             title="No tienes permiso para ver este ticket"
-            description="Pide acceso a un administrador de tu organización."
+            description="Pide acceso a un administrador de tu espacio."
           />
         </div>
       )

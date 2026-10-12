@@ -434,7 +434,7 @@ test.describe('lectura de un artículo', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Cómo recuperar el acceso a tu cuenta' })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Editar artículo' })).toHaveCount(0)
     await expect(page.getByText('Publicado', { exact: true })).toHaveCount(0)
-    await expect(page.getByText('Contacta con el equipo de soporte de tu organización.')).toBeVisible()
+    await expect(page.getByText('Contacta con el equipo de soporte de tu espacio.')).toBeVisible()
     await page.goto('/conocimiento/configurar-notificaciones')
     await expect(page.getByRole('heading', { level: 1, name: 'Artículo no encontrado' })).toBeVisible()
   })

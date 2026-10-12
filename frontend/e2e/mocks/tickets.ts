@@ -265,18 +265,29 @@ const activity: Activity[] = [
 ]
 
 /** Tickets simulados; `customerOf` da el cliente actual para que la bandeja refleje un renombrado. */
-export function ticketsMock(customerOf: (id: string) => Customer, role: Me['role'] = 'admin'): MockFeature {
+export function ticketsMock(
+  customerOf: (id: string) => Customer,
+  roleOrGetter: Me['role'] | (() => Me['role']) = 'admin',
+): MockFeature & {
+  /** Salir de un espacio: los tickets sin resolver que tenía la persona quedan sin asignar. */
+  release: (userId: string) => void
+} {
+  // El rol de la sesión cambia al cambiar de espacio (agente en uno, cliente en otro): se lee en cada petición.
+  const roleNow = typeof roleOrGetter === 'function' ? roleOrGetter : () => roleOrGetter
+  const released = new Set<string>()
+  // El estado de la llamada: lo que se libera no vuelve a asignarse en la siguiente petición.
+  const live = () => bareTickets.map((ticket) => (released.has(ticket.id) ? { ...ticket, assignee: null } : ticket))
   // Los tickets embeben el cliente tal como está ahora, así la bandeja refleja un renombrado.
   const currentTickets = () =>
-    bareTickets.map((ticket) => ({ ...withLastMessage(ticket, role), customer: customerOf(ticket.customer.id) }))
+    live().map((ticket) => ({ ...withLastMessage(ticket, roleNow()), customer: customerOf(ticket.customer.id) }))
   const handle: MockHandler = ({ route, url, path, method }) => {
     const ticketMatch = path.match(/^\/tickets\/(\d+)(\/messages|\/activity)?$/)
 
-    if (method === 'GET' && path === '/tickets/metrics') return json(route, metricsOf(bareTickets))
+    if (method === 'GET' && path === '/tickets/metrics') return json(route, metricsOf(live()))
     if (method === 'GET' && path === '/tickets/activity') return json(route, recentActivity)
     if (method === 'GET' && path === '/tickets/attention') {
       // Como el servidor: solo el personal, y el alcance es obligatorio.
-      if (role === 'customer') return problem(route, 403, 'Sin permiso')
+      if (roleNow() === 'customer') return problem(route, 403, 'Sin permiso')
       const scope = url.searchParams.get('scope')
       if (scope !== 'mine' && scope !== 'team') {
         return problem(route, 400, 'Petición no válida', [
@@ -284,7 +295,7 @@ export function ticketsMock(customerOf: (id: string) => Customer, role: Me['role
         ])
       }
       const size = Number(url.searchParams.get('size') ?? 6)
-      return json(route, attentionOf(bareTickets, customerOf, scope, size))
+      return json(route, attentionOf(live(), customerOf, scope, size))
     }
     if (method === 'GET' && path === '/assignees') return json(route, [daniel, laura])
     if (method === 'GET' && path === '/tickets') {
@@ -332,7 +343,7 @@ export function ticketsMock(customerOf: (id: string) => Customer, role: Me['role
         const conversation = conversations[summary.number] ?? []
         return json(
           route,
-          role === 'customer' ? conversation.filter((message) => message.visibility === 'public') : conversation,
+          roleNow() === 'customer' ? conversation.filter((message) => message.visibility === 'public') : conversation,
         )
       }
       if (ticketMatch[2] === '/activity') return json(route, activity)
@@ -340,5 +351,10 @@ export function ticketsMock(customerOf: (id: string) => Customer, role: Me['role
     }
     return undefined
   }
-  return { handle }
+  const release = (userId: string) => {
+    for (const ticket of bareTickets) {
+      if (ticket.assignee?.id === userId && ticket.status !== 'resolved') released.add(ticket.id)
+    }
+  }
+  return { handle, release }
 }

@@ -23,8 +23,21 @@ export const team: TeamMember[] = [
   teamMember({ ...me.user, role: 'admin' }),
 ]
 
+/** El 409 del servidor al dejar sin administrador activo al espacio; lleva el `type` con el que la interfaz lo reconoce. */
+const lastAdminProblem = {
+  type: 'https://resolve.example/problems/last-admin',
+  status: 409,
+  title: 'Conflicto',
+  detail: 'Debe quedar al menos un administrador activo.',
+}
+
 /** Equipo simulado: altas, cambios de rol y retiradas con las reglas del servidor (último administrador, uno mismo). */
-export function teamMock(): MockFeature {
+export function teamMock(): MockFeature & {
+  /** Si la persona de la sesión es el único administrador activo: la regla de salir del espacio. */
+  onlyAdmin: () => boolean
+  /** Libera lo que la persona tenía asignado: su carga en el equipo pasa a cero. */
+  release: (userId: string) => void
+} {
   const members = new Map(team.map((member) => [member.id, member]))
   let nextMember = 1
   const teamMetrics = (): TeamMetrics => {
@@ -73,11 +86,7 @@ export function teamMock(): MockFeature {
       if (memberMatch[2] === 'role') {
         const { role } = request.postDataJSON() as { role: 'admin' | 'agent' }
         if (role !== target.role && lastAdmin) {
-          return json(
-            route,
-            { status: 409, title: 'Conflicto', detail: 'Debe quedar al menos un administrador activo.' },
-            409,
-          )
+          return json(route, lastAdminProblem, 409)
         }
         const updated = { ...target, role }
         members.set(updated.id, updated)
@@ -90,18 +99,20 @@ export function teamMock(): MockFeature {
           409,
         )
       }
-      if (lastAdmin) {
-        return json(
-          route,
-          { status: 409, title: 'Conflicto', detail: 'Debe quedar al menos un administrador activo.' },
-          409,
-        )
-      }
+      if (lastAdmin) return json(route, lastAdminProblem, 409)
       const removed: TeamMember = { ...target, status: 'removed', openTickets: 0, urgentOpenTickets: 0 }
       members.set(removed.id, removed)
       return json(route, removed)
     }
     return undefined
   }
-  return { handle }
+  const onlyAdmin = () => {
+    const admins = activeAdmins()
+    return admins.length === 1 && admins[0]!.id === me.user.id
+  }
+  const release = (userId: string) => {
+    const member = members.get(userId)
+    if (member) members.set(userId, { ...member, openTickets: 0, urgentOpenTickets: 0 })
+  }
+  return { handle, onlyAdmin, release }
 }

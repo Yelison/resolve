@@ -50,6 +50,7 @@ import {
   type EditorMode,
   type IconName,
 } from '../../components/ui'
+import { WorkspaceMark } from '../../components/ui/Sidebar/WorkspaceMark'
 import { cx } from '../../lib/cx'
 import { useTheme } from '../theme/useTheme'
 import {
@@ -504,6 +505,44 @@ export default function CatalogPage() {
             items={navItems}
             sectionLabel="Soporte"
             workspace="Acme Studio"
+            workspaceRole="Administradora"
+            workspaceMenu={(workspace) => (
+              <Menu
+                label="Cambiar de espacio de ejemplo"
+                placement="bottom-start"
+                wide
+                items={[
+                  {
+                    id: 'acme',
+                    label: 'Acme Studio',
+                    description: 'Administradora',
+                    leading: <WorkspaceMark name="Acme Studio" size="small" />,
+                    checked: true,
+                    onSelect: () => {},
+                  },
+                  {
+                    id: 'lumen',
+                    label: 'Lumen Diseño',
+                    description: 'Agente',
+                    leading: <WorkspaceMark name="Lumen Diseño" size="small" />,
+                    checked: false,
+                    onSelect: () => {},
+                  },
+                  { id: 'spaces', label: 'Tus espacios', icon: 'settings', separatorBefore: true, onSelect: () => {} },
+                ]}
+              >
+                {(trigger) => (
+                  <button
+                    type="button"
+                    className={workspace.className}
+                    aria-label="Espacio: Acme Studio. Cambiar de espacio"
+                    {...trigger}
+                  >
+                    {workspace.content}
+                  </button>
+                )}
+              </Menu>
+            )}
             user={{ name: 'Laura Méndez', role: 'Administradora' }}
             collapsed={sidebarCollapsed}
             profileMenu={(profile) => (

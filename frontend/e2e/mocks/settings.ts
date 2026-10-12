@@ -10,12 +10,10 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * `sessionMock`, para que un cambio de nombre del espacio o del perfil llegue al sidebar al releer la sesión: va antes
  * que `sessionMock` en `mockApi`, porque gana el primer manejador.
  */
-export function settingsMock(role: Me['role']): MockFeature & { session: () => Me } {
-  let session: Me = {
-    ...me,
-    role,
-    customerId: role === 'customer' ? 'c-maria' : null,
-  }
+export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): MockFeature & { session: () => Me } {
+  // El rol cambia al cambiar de espacio (agente en uno, cliente en otro): se lee en cada petición.
+  const roleNow = () => (typeof roleOrGetter === 'function' ? roleOrGetter() : roleOrGetter)
+  let stored: Me = { ...me }
   let organization: OrganizationSettings = {
     id: me.organization.id,
     name: me.organization.name,
@@ -25,31 +23,37 @@ export function settingsMock(role: Me['role']): MockFeature & { session: () => M
     version: 3,
   }
   const withOrganization = (settings: OrganizationSettings): Me => ({
-    ...session,
+    ...stored,
     organization: {
-      ...session.organization,
+      ...stored.organization,
       name: settings.name,
       timeZone: settings.timeZone,
       supportEmail: settings.supportEmail,
     },
   })
-  session = withOrganization(organization)
+  stored = withOrganization(organization)
+  const withRole = (value: Me): Me => ({
+    ...value,
+    role: roleNow(),
+    customerId: roleNow() === 'customer' ? 'c-maria' : null,
+  })
+  const session = () => withRole(stored)
 
   return {
     /** El `Me` actual, con los cambios de nombre del espacio y del perfil: lo lee `sessionMock` para servir `/me`. */
-    session: () => session,
+    session,
     handle: ({ route, request, path, method }) => {
-      if (path === '/me' && method === 'GET') return json(route, session)
+      if (path === '/me' && method === 'GET') return json(route, session())
       if (path === '/me' && method === 'PATCH') {
         const { name } = request.postDataJSON() as { name: string }
         if (!name?.trim()) {
           return problem(route, 400, 'Datos no válidos', [{ field: 'name', message: 'Escribe tu nombre.' }])
         }
-        session = { ...session, user: { ...session.user, name: name.trim() } }
-        return json(route, session)
+        stored = { ...stored, user: { ...stored.user, name: name.trim() } }
+        return json(route, session())
       }
       if (path !== '/organization') return undefined
-      if (role === 'customer') return problem(route, 403, 'Prohibido')
+      if (roleNow() === 'customer') return problem(route, 403, 'Prohibido')
       if (method === 'GET') {
         return route.fulfill({
           status: 200,
@@ -59,7 +63,7 @@ export function settingsMock(role: Me['role']): MockFeature & { session: () => M
         })
       }
       if (method !== 'PATCH') return undefined
-      if (role !== 'admin') return problem(route, 403, 'Prohibido')
+      if (roleNow() !== 'admin') return problem(route, 403, 'Prohibido')
       const ifMatch = request.headers()['if-match']
       if (!ifMatch) return problem(route, 428, 'Falta If-Match')
       const patch = request.postDataJSON() as OrganizationPatch
@@ -79,7 +83,7 @@ export function settingsMock(role: Me['role']): MockFeature & { session: () => M
         (key) => (patch[key] ?? null) !== (organization[key] ?? null),
       )
       organization = changed ? { ...next, version: organization.version + 1 } : organization
-      session = withOrganization(organization)
+      stored = withOrganization(organization)
       return route.fulfill({
         status: 200,
         contentType: 'application/json',

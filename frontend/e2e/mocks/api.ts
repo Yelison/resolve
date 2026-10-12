@@ -2,7 +2,7 @@ import type { Me } from '../../src/api/schema'
 import { customersMock } from './customers'
 import { knowledgeMock, type ArticleStore } from './knowledge'
 import { reportsMock } from './reports'
-import { sessionMock, type SessionOptions } from './session'
+import { me, sessionMock, type SessionOptions } from './session'
 import { settingsMock } from './settings'
 import { json, type MockFeature, type MockRequest } from './shared'
 import { teamMock } from './team'
@@ -25,18 +25,32 @@ export function createMockFeatures(
   role: Me['role'] = 'admin',
   options: { articleStore?: ArticleStore } & SessionOptions = {},
 ): MockFeature[] {
+  // El rol de la sesión es el del espacio activo y cambia al cambiar de espacio o al salir del actual: la sesión lo
+  // escribe aquí y las demás features lo leen en cada petición.
+  const current = { role }
+  const roleNow = () => current.role
   // Los recuentos y el último ticket de cada cliente salen de los tickets simulados, no de una copia.
   const customers = customersMock(() => tickets)
-  const settings = settingsMock(role)
+  const settings = settingsMock(roleNow)
+  const team = teamMock()
+  const ticketsFeature = ticketsMock(customers.customerRef, roleNow)
   return [
-    // La sesión va primero (gana el primer manejador): sirve `/me`, el cierre de sesión y la elección de organización
-    // a partir del `Me` que cambian los ajustes, que van justo después con el resto de `/me` (PATCH) y `/organization`.
-    sessionMock(role, options, settings.session),
+    // La sesión va primero (gana el primer manejador): sirve `/me`, el cierre de sesión, la elección de espacio y salir
+    // de uno, a partir del `Me` que cambian los ajustes, que van justo después con el resto de `/me` (PATCH) y
+    // `/organization`. Salir de un espacio es una regla del equipo (último administrador) y de los tickets (se liberan).
+    sessionMock(role, options, settings.session, {
+      current,
+      lastAdmin: () => team.onlyAdmin(),
+      release: () => {
+        team.release(me.user.id)
+        ticketsFeature.release(me.user.id)
+      },
+    }),
     settings,
-    knowledgeMock(role, options.articleStore),
+    knowledgeMock(roleNow, options.articleStore),
     reportsMock(),
-    ticketsMock(customers.customerRef, role),
-    teamMock(),
+    ticketsFeature,
+    team,
     customers,
   ]
 }

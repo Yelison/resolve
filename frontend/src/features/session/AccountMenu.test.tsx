@@ -2,16 +2,14 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { adminMe, mockApi } from '../../test/api'
-import { api, SESSION_CHANGED_DETAIL } from '../../api/client'
 import { clearSessionData, navigation, releaseWrites } from './sessionLifecycle'
 import { sessionKeys } from './queries'
 import { renderShell, setCsrfCookie, stubProductionBuild } from './shellHarness'
+import { orgA, orgB } from './workspaceFixtures'
 
-const orgA = { id: '0192f000-0000-7000-8000-000000000001', name: 'Acme Studio' }
-const orgB = { id: '0192f000-0000-7000-8000-000000000002', name: 'Northwind' }
 const meWithOrganizations = {
   ...adminMe,
-  organization: { ...adminMe.organization, ...orgA },
+  organization: { ...adminMe.organization, id: orgA.id, name: orgA.name },
   organizations: [orgA, orgB],
 }
 const meInNorthwind = {
@@ -117,8 +115,8 @@ describe('menú de la cuenta', () => {
     })
   })
 
-  describe('cambiar de organización', () => {
-    it('solo se ofrece con más de una organización', async () => {
+  describe('cambiar de espacio', () => {
+    it('con varios espacios el menú de la cuenta sigue ofreciendo solo cerrar sesión: cambiar de espacio es de su tarjeta', async () => {
       mockApi({ 'GET /api/me': { body: meWithOrganizations } })
       renderShell()
       const menu = await openAccountMenu()
@@ -126,75 +124,7 @@ describe('menú de la cuenta', () => {
         within(menu)
           .getAllByRole('menuitem')
           .map((item) => item.textContent),
-      ).toEqual(['Cambiar de organización · Acme Studio', 'Cerrar sesión'])
-    })
-
-    it('envía la elección, vacía la caché y los borradores, muestra el Me nuevo y vuelve al resumen', async () => {
-      const spy = mockApi({
-        'GET /api/me': { body: meWithOrganizations },
-        'POST /api/session/organization': { body: meInNorthwind },
-      })
-      sessionStorage.setItem('resolve-draft-1046', 'Borrador de la otra organización')
-      const { queryClient, router } = renderShell('/tickets/1046')
-      queryClient.setQueryData(['tickets', 'detail', 1046], { subject: 'Ticket de Acme' })
-      await userEvent.click(within(await openAccountMenu()).getByRole('menuitem', { name: /Cambiar de organización/ }))
-
-      const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
-      expect(within(dialog).getByRole('radio', { name: 'Acme Studio (actual)' })).toBeChecked()
-      expect(within(dialog).getByRole('button', { name: 'Cambiar de organización' })).toBeDisabled()
-      await userEvent.click(within(dialog).getByRole('radio', { name: 'Northwind' }))
-      await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de organización' }))
-
-      await waitFor(() => expect(router.state.location.pathname).toBe('/'))
-      const post = requests(spy).find((request) => request.url.endsWith('/api/session/organization'))!
-      expect(post.headers.get('X-XSRF-TOKEN')).toBe('token-1')
-      await expect(post.clone().json()).resolves.toEqual({ organizationId: orgB.id })
-      expect(queryClient.getQueryData(['tickets', 'detail', 1046])).toBeUndefined()
-      expect(sessionStorage.getItem('resolve-draft-1046')).toBeNull()
-      expect(await screen.findByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })).toBeInTheDocument()
-      const region = screen.getByRole('region', { name: 'Notificaciones' })
-      expect(await within(region).findByText('Ahora trabajas en Northwind')).toBeInTheDocument()
-      expect(screen.queryByRole('dialog', { name: 'Cambiar de organización' })).not.toBeInTheDocument()
-      expect(document.body).not.toHaveFocus()
-    })
-
-    it('en la misma pestaña, la escritura que sale entre la elección y la llegada de la pantalla nueva recibe el 409', async () => {
-      let loadHome!: () => void
-      const home = new Promise<void>((resolve) => (loadHome = resolve))
-      let writes = 0
-      mockApi({
-        'GET /api/me': { body: meWithOrganizations },
-        'POST /api/session/organization': { body: meInNorthwind },
-        'PATCH /api/me': () => {
-          writes += 1
-          return { body: adminMe }
-        },
-      })
-      const { router } = renderShell('/tickets/1046', home)
-      await userEvent.click(within(await openAccountMenu()).getByRole('menuitem', { name: /Cambiar de organización/ }))
-      const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
-      await userEvent.click(within(dialog).getByRole('radio', { name: 'Northwind' }))
-      await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de organización' }))
-
-      // El `Me` nuevo ya está guardado y la caché vacía, pero el ticket anterior sigue en pantalla.
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: /Cuenta: Yelisson Ortiz, Northwind/ })).toBeInTheDocument(),
-      )
-      expect(router.state.location.pathname).toBe('/tickets/1046')
-      const blocked = await api.PATCH('/me', { body: { name: 'Yelisson' } })
-      expect(blocked.response.status).toBe(409)
-      expect(blocked.error).toMatchObject({ detail: SESSION_CHANGED_DETAIL })
-      expect(writes).toBe(0)
-
-      loadHome()
-      // La ubicación del router cambia antes de que React confirme la pantalla y corra el efecto que libera las escrituras:
-      // se espera a la condición, no a un instante. Las escrituras que salen antes siguen recibiendo el 409 sin llegar a la API.
-      await waitFor(() => expect(router.state.location.pathname).toBe('/'))
-      expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument()
-      await waitFor(async () => {
-        expect((await api.PATCH('/me', { body: { name: 'Yelisson' } })).response.status).toBe(200)
-      })
-      expect(writes).toBe(1)
+      ).toEqual(['Cerrar sesión'])
     })
 
     it('la shell recoge el `Me` que se escribe tras vaciar la caché aunque no haya navegación', async () => {
@@ -202,7 +132,7 @@ describe('menú de la cuenta', () => {
       const { router, queryClient } = renderShell('/tickets/1046')
       await accountButton()
 
-      // Lo mismo que hace el cambio de organización, sin el `navigate('/')`: nada en el router vuelve a renderizar la shell.
+      // Lo mismo que hace el cambio de espacio, sin el `navigate('/')`: nada en el router vuelve a renderizar la shell.
       await act(async () => {
         await clearSessionData(queryClient)
         queryClient.setQueryData(sessionKeys.me, meInNorthwind)
@@ -226,52 +156,6 @@ describe('menú de la cuenta', () => {
 
       await waitFor(() => expect(router.state.location.pathname).toBe('/tickets'))
       expect(error.mock.calls.filter(([message]) => String(message).includes('Cannot update a component'))).toEqual([])
-    })
-
-    it('un 403 muestra el error en el diálogo, que sigue abierto, y relee la sesión', async () => {
-      let meReads = 0
-      mockApi({
-        'GET /api/me': () => {
-          meReads += 1
-          return { body: meWithOrganizations }
-        },
-        'POST /api/session/organization': {
-          status: 403,
-          body: { status: 403, title: 'Sin permiso', detail: 'Tu rol no permite esta acción.' },
-        },
-      })
-      renderShell()
-      await userEvent.click(within(await openAccountMenu()).getByRole('menuitem', { name: /Cambiar de organización/ }))
-      const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
-      await userEvent.click(within(dialog).getByRole('radio', { name: 'Northwind' }))
-      await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de organización' }))
-      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Ya no tienes acceso a esa organización.')
-      expect(within(dialog).getByRole('radio', { name: 'Northwind' })).toBeChecked()
-      await waitFor(() => expect(meReads).toBe(2))
-    })
-
-    it('un 401 dice que la sesión caducó en lugar de culpar a la conexión', async () => {
-      mockApi({
-        'GET /api/me': { body: meWithOrganizations },
-        'POST /api/session/organization': { status: 401, body: { status: 401, title: 'No autenticado' } },
-      })
-      renderShell()
-      await userEvent.click(within(await openAccountMenu()).getByRole('menuitem', { name: /Cambiar de organización/ }))
-      const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
-      await userEvent.click(within(dialog).getByRole('radio', { name: 'Northwind' }))
-      await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de organización' }))
-      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Tu sesión caducó. Vuelve a entrar')
-      const region = screen.getByRole('region', { name: 'Notificaciones' })
-      expect(within(region).getByText('Tu sesión caducó')).toBeInTheDocument()
-    })
-
-    it('cancelar devuelve el foco al botón de la cuenta', async () => {
-      mockApi({ 'GET /api/me': { body: meWithOrganizations } })
-      renderShell()
-      await userEvent.click(within(await openAccountMenu()).getByRole('menuitem', { name: /Cambiar de organización/ }))
-      await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-      expect(await accountButton()).toHaveFocus()
     })
   })
 
@@ -425,39 +309,5 @@ describe('menú de la cuenta · en el perfil del sidebar', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(screen.getByRole('dialog', { name: 'Menú principal' })).toBeInTheDocument()
     expect(account).toHaveFocus()
-  })
-
-  it('desde el drawer, cambiar de organización abre su diálogo sin cerrar ni desmontar el drawer', async () => {
-    mockApi({ 'GET /api/me': { body: meWithOrganizations } })
-    renderShell('/tickets', undefined, undefined, 390)
-    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
-    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
-    const account = await within(drawer).findByRole('button', { name: /^Cuenta/ })
-    await userEvent.click(account)
-    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: /Cambiar de organización/ }))
-    const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
-    expect(drawer).toContainElement(dialog)
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Cambiar de organización' })).toBeNull())
-    expect(screen.getByRole('dialog', { name: 'Menú principal' })).toBeInTheDocument()
-    expect(account).toHaveFocus()
-  })
-
-  it('al terminar el cambio de organización desde el drawer, este se cierra para dejar ver la pantalla nueva', async () => {
-    mockApi({
-      'GET /api/me': { body: meWithOrganizations },
-      'POST /api/session/organization': { body: meInNorthwind },
-    })
-    renderShell('/tickets', undefined, undefined, 390)
-    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
-    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
-    await userEvent.click(await within(drawer).findByRole('button', { name: /^Cuenta/ }))
-    await userEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: /Cambiar de organización/ }))
-    const dialog = screen.getByRole('dialog', { name: 'Cambiar de organización' })
-    await userEvent.click(within(dialog).getByRole('radio', { name: 'Northwind' }))
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Cambiar de organización' }))
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(await screen.findByRole('heading', { name: 'Inicio' })).toBeInTheDocument()
-    expect(document.body).not.toHaveFocus()
   })
 })
