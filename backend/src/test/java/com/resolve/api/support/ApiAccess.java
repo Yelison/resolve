@@ -51,8 +51,10 @@ public final class ApiAccess {
 			Map.entry("getMe", ANYONE), Map.entry("updateMe", ANYONE), Map.entry("listSessionOrganizations", ANYONE),
 			Map.entry("selectSessionOrganization", ANYONE), Map.entry("leaveOrganization", ANYONE),
 			Map.entry(LOGOUT, ANYONE),
-			// Organización.
-			Map.entry("getOrganization", STAFF), Map.entry("updateOrganization", ADMIN),
+			// Organización. Crear un espacio lo puede intentar cualquier persona: que administre alguno lo decide el servicio
+			// con sus membresías (403), no la seguridad con el rol de la sesión, que puede ser el de cliente en otro.
+			Map.entry("createOrganization", ANYONE), Map.entry("getOrganization", STAFF),
+			Map.entry("updateOrganization", ADMIN),
 			// Tickets: los clientes leen los suyos; el resto es del personal.
 			Map.entry("listTickets", ANYONE), Map.entry("getTicket", ANYONE), Map.entry("listMessages", ANYONE),
 			Map.entry("createTicket", STAFF), Map.entry("getTicketMetrics", STAFF),
@@ -78,10 +80,11 @@ public final class ApiAccess {
 	public static final String ORGANIZATION_HEADER = "X-Organization-Id";
 
 	/**
-	 * Las escrituras que no llevan {@link #ORGANIZATION_HEADER}: la que elige la organización de la sesión y la que la
-	 * cierra. Todas las demás escrituras del contrato la declaran y la comprueban.
+	 * Las escrituras que no llevan {@link #ORGANIZATION_HEADER}: las que cambian la organización de la sesión (elegirla y
+	 * crear una) y la que la cierra. Todas las demás escrituras del contrato la declaran y la comprueban.
 	 */
-	public static final Set<String> WITHOUT_ORGANIZATION_HEADER = Set.of(LOGOUT, "selectSessionOrganization");
+	public static final Set<String> WITHOUT_ORGANIZATION_HEADER = Set.of(LOGOUT, "selectSessionOrganization",
+			"createOrganization");
 
 	private ApiAccess() {
 	}

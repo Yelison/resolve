@@ -6,11 +6,8 @@ import java.util.UUID;
 
 import com.resolve.api.common.security.CurrentMember;
 import com.resolve.api.common.security.SessionOrganization;
-import com.resolve.api.organizations.Organization;
-import com.resolve.api.organizations.OrganizationRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -31,15 +28,11 @@ class SessionController {
 
 	private final MemberPrincipals principals;
 
-	private final OrganizationRepository organizations;
+	private final MeAssembler me;
 
-	private final boolean demo;
-
-	SessionController(MemberPrincipals principals, OrganizationRepository organizations,
-			@Value("${resolve.demo.enabled}") boolean demo) {
-		this.demo = demo;
+	SessionController(MemberPrincipals principals, MeAssembler me) {
 		this.principals = principals;
-		this.organizations = organizations;
+		this.me = me;
 	}
 
 	@GetMapping("/session/organizations")
@@ -63,14 +56,7 @@ class SessionController {
 			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
 		}
 		SessionOrganization.write(request, organizationId);
-		return ResponseEntity.ok(me(chosen.get()));
-	}
-
-	private MeController.MeResponse me(CurrentMember member) {
-		Organization organization = this.organizations.findById(member.organizationId()).orElseThrow();
-		return new MeController.MeResponse(new MemberDto(member.userId(), member.name(), member.email()),
-				MeController.organizationDto(organization, this.demo), this.principals.organizationsOf(member.email()),
-				member.role(), member.customerId());
+		return ResponseEntity.ok(this.me.assemble(chosen.get()));
 	}
 
 }

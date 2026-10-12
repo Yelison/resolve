@@ -33,7 +33,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * La cabecera es opcional: sin ella no se comprueba nada. Hacerla obligatoria obligaría a cada llamada del cliente a
  * pasarla y rompería a quien no muestra ninguna organización; a cambio, un cliente que no la envía no tiene esta garantía.
  * Solo las escrituras: las lecturas ya están limitadas a la organización de la sesión y no dejan nada que deshacer.
- * {@code POST /session/organization} la ignora porque es lo que elige la organización; {@code POST /logout} la gestiona
+ * {@code POST /session/organization} y {@code POST /organizations} la ignoran porque son lo que cambia la organización; {@code POST /logout} la gestiona
  * el filtro de cierre de sesión, que va antes.
  */
 final class OrganizationHeaderFilter extends OncePerRequestFilter {
@@ -43,6 +43,8 @@ final class OrganizationHeaderFilter extends OncePerRequestFilter {
 	private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
 
 	private static final String SELECT_ORGANIZATION = ApiPathPrefix.of("/session/organization");
+
+	private static final String CREATE_ORGANIZATION = ApiPathPrefix.of("/organizations");
 
 	private final ProblemResponses problems;
 
@@ -55,7 +57,7 @@ final class OrganizationHeaderFilter extends OncePerRequestFilter {
 		String path = request.getRequestURI();
 		boolean api = path.equals(ApiPathPrefix.PATH) || path.startsWith(ApiPathPrefix.PATH + "/");
 		return !api || SAFE_METHODS.contains(request.getMethod()) || path.equals(SELECT_ORGANIZATION)
-				|| request.getHeader(HEADER) == null;
+				|| path.equals(CREATE_ORGANIZATION) || request.getHeader(HEADER) == null;
 	}
 
 	@Override

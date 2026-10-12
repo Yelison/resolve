@@ -5,10 +5,7 @@ import java.util.UUID;
 
 import com.resolve.api.common.persistence.LockTimeouts;
 import com.resolve.api.common.security.CurrentMember;
-import com.resolve.api.organizations.Organization;
-import com.resolve.api.organizations.OrganizationRepository;
 import org.jspecify.annotations.Nullable;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,32 +18,22 @@ import tools.jackson.databind.JsonNode;
 @RestController
 class MeController {
 
-	private final OrganizationRepository organizations;
-
 	private final UserAccountRepository users;
 
-	private final MemberPrincipals principals;
+	private final MeAssembler me;
 
 	private final JdbcClient jdbc;
 
-	private final boolean demo;
-
-	MeController(OrganizationRepository organizations, UserAccountRepository users, MemberPrincipals principals,
-			JdbcClient jdbc, @Value("${resolve.demo.enabled}") boolean demo) {
-		this.demo = demo;
-		this.organizations = organizations;
+	MeController(UserAccountRepository users, MeAssembler me, JdbcClient jdbc) {
 		this.users = users;
-		this.principals = principals;
+		this.me = me;
 		this.jdbc = jdbc;
 	}
 
 	@GetMapping("/me")
 	@Transactional(readOnly = true)
 	MeResponse me(@AuthenticationPrincipal CurrentMember member) {
-		Organization organization = this.organizations.getReferenceById(member.organizationId());
-		return new MeResponse(new MemberDto(member.userId(), member.name(), member.email()),
-				organizationDto(organization, this.demo), this.principals.organizationsOf(member.email()), member.role(),
-				member.customerId());
+		return this.me.assemble(member);
 	}
 
 	/**
@@ -61,23 +48,23 @@ class MeController {
 		user.rename(name);
 		LockTimeouts.limitWait(this.jdbc);
 		this.users.flush();
-		Organization organization = this.organizations.getReferenceById(member.organizationId());
-		return new MeResponse(MemberDto.from(user), organizationDto(organization, this.demo),
-				this.principals.organizationsOf(member.email()), member.role(), member.customerId());
+		return this.me.assemble(member, MemberDto.from(user));
 	}
 
-	/** {@code demo} sale de {@code resolve.demo.enabled}: es de la instalación, no de la organización. */
-	static OrganizationDto organizationDto(Organization organization, boolean demo) {
-		return new OrganizationDto(organization.getId(), organization.getName(), organization.getTimeZone(),
-				organization.getSupportEmail(), demo);
+	/**
+	 * {@code organizations} lista dónde puede trabajar quien llama; el contrato lo declara opcional. {@code demo} sale de
+	 * {@code resolve.demo.enabled}: es de la instalación, no de la organización.
+	 */
+	record MeResponse(MemberDto user, OrganizationDto organization, List<OrganizationRefDto> organizations,
+			OrganizationCreationDto organizationCreation, Role role, @Nullable UUID customerId) {
 	}
 
-	/** {@code organizations} lista dónde puede trabajar quien llama; el contrato lo declara opcional. */
-	record MeResponse(MemberDto user, OrganizationDto organization, List<OrganizationRefDto> organizations, Role role,
-			@Nullable UUID customerId) {
+	record OrganizationDto(UUID id, String name, String timeZone, @Nullable String supportEmail, String color,
+			boolean demo) {
 	}
 
-	record OrganizationDto(UUID id, String name, String timeZone, @Nullable String supportEmail, boolean demo) {
+	/** Si puede crear otro espacio (con el rol y el límite ya dentro) y cuántos lleva de cuántos. */
+	record OrganizationCreationDto(boolean allowed, int created, int limit) {
 	}
 
 }

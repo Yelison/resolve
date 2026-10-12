@@ -96,7 +96,7 @@ public class MemberPrincipals {
 		return usable.stream()
 			.map((membership) -> new OrganizationRefDto(membership.getOrganization().getId(),
 					membership.getOrganization().getName(), membership.getRole(),
-					membership.getRole().isStaff()
+					membership.getOrganization().getColor(), membership.getRole().isStaff()
 							? Math.toIntExact(staff.getOrDefault(membership.getOrganization().getId(), 0L)) : null))
 			.sorted(Comparator.comparing(OrganizationRefDto::name, String.CASE_INSENSITIVE_ORDER)
 				.thenComparing(OrganizationRefDto::id))
