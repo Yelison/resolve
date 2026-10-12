@@ -16,12 +16,12 @@ import org.springframework.stereotype.Component;
  * publicar un artículo. Se muestra a los administradores hasta que las tres están hechas y, después, nunca vuelve.
  *
  * <p>
- * <b>Qué cuenta.</b> Se prefieren condiciones que solo pasan de falso a verdadero, para que un paso hecho no se
- * deshaga: una membresía de personal de <i>otra</i> persona alguna vez (las retiradas no se borran; son al menos dos
- * personas distintas, y no depende de quién creó el espacio), un cliente alguna vez (se archivan, no se borran) y un
- * artículo publicado. Este último <b>no</b> es monótono: despublicar borra {@code published_at} y el artículo vuelve a
- * ser un borrador, sin rastro de que estuvo publicado, así que el paso depende del estado actual hasta que se
- * completan los tres. No importa para la regla de «nunca vuelve», que la garantiza {@code getting_started_done_at}.
+ * <b>Qué cuenta.</b> Solo condiciones que pasan de falso a verdadero y no vuelven, para que un paso hecho no se deshaga:
+ * una membresía de personal de <i>otra</i> persona alguna vez (las retiradas no se borran; son al menos dos personas
+ * distintas, y no depende de quién creó el espacio), un cliente alguna vez (se archivan, no se borran) y un artículo
+ * publicado alguna vez ({@code articles.first_published_at}: despublicar borra {@code published_at}, pero no ésta). Así
+ * una lectura que se salta la marca (ver abajo) la escribe después con los mismos tres pasos, y «nunca vuelve» no
+ * depende de que la marca se escriba a tiempo.
  *
  * <p>
  * <b>Dónde se escribe {@code getting_started_done_at}.</b> En la lectura que lo descubre, no en las escrituras que
@@ -37,13 +37,20 @@ import org.springframework.stereotype.Component;
 @Component
 public class GettingStarted {
 
+	/**
+	 * Los pasos solo se calculan mientras falta la marca: con ella ya escrita (todas las organizaciones anteriores a V10 y
+	 * las de la demostración) la lectura es una por clave primaria y las tres subconsultas no se ejecutan.
+	 */
 	private static final String STATE = """
 			SELECT o.getting_started_done_at IS NOT NULL AS done,
-				(SELECT count(DISTINCT m.user_id) FROM memberships m
-					WHERE m.organization_id = o.id AND m.role <> 'customer') >= 2 AS invited_team,
-				EXISTS (SELECT 1 FROM customers c WHERE c.organization_id = o.id) AS added_customer,
-				EXISTS (SELECT 1 FROM articles a WHERE a.organization_id = o.id AND a.status = 'published')
-					AS published_article
+				CASE WHEN o.getting_started_done_at IS NULL THEN
+					(SELECT count(DISTINCT m.user_id) FROM memberships m
+						WHERE m.organization_id = o.id AND m.role <> 'customer') >= 2 END AS invited_team,
+				CASE WHEN o.getting_started_done_at IS NULL THEN
+					EXISTS (SELECT 1 FROM customers c WHERE c.organization_id = o.id) END AS added_customer,
+				CASE WHEN o.getting_started_done_at IS NULL THEN
+					EXISTS (SELECT 1 FROM articles a
+						WHERE a.organization_id = o.id AND a.first_published_at IS NOT NULL) END AS published_article
 			FROM organizations o WHERE o.id = :organizationId
 			""";
 

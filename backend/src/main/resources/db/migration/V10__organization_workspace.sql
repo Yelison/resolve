@@ -16,6 +16,12 @@ ALTER TABLE organizations
     ADD COLUMN created_by              uuid REFERENCES users (id),
     ADD COLUMN getting_started_done_at timestamptz;
 
+-- «Se publicó alguna vez»: despublicar borra `articles.published_at` (el artículo vuelve a ser un borrador), así que el
+-- paso «publicar un artículo» de «Primeros pasos» no puede leerlo de ahí y dejaría de ser monótono. `first_published_at` se
+-- escribe una sola vez, en la primera publicación, y no se borra al despublicar.
+ALTER TABLE articles ADD COLUMN first_published_at timestamptz;
+UPDATE articles SET first_published_at = published_at WHERE published_at IS NOT NULL;
+
 -- Las organizaciones que ya existen reciben el color de su id y no muestran «Primeros pasos»; `created_by` queda
 -- `NULL`: no cuentan para el límite de nadie.
 UPDATE organizations SET color = organization_color(id), getting_started_done_at = now();

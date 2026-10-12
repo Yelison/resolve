@@ -69,6 +69,10 @@ public class Article extends AssignedIdEntity {
 	@Column(name = "published_at")
 	private @Nullable Instant publishedAt;
 
+	/** La primera vez que se publicó; no se borra al despublicar (lo lee «Primeros pasos»). */
+	@Column(name = "first_published_at")
+	private @Nullable Instant firstPublishedAt;
+
 	protected Article() {
 	}
 
@@ -186,6 +190,9 @@ public class Article extends AssignedIdEntity {
 		}
 		this.status = ArticleStatus.PUBLISHED;
 		this.publishedAt = now;
+		if (this.firstPublishedAt == null) {
+			this.firstPublishedAt = now;
+		}
 		touch(editor, now);
 		return true;
 	}

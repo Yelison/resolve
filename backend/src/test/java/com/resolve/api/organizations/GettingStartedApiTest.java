@@ -87,6 +87,14 @@ class GettingStartedApiTest extends ApiIntegrationTest {
 		return (done != null) ? done.toInstant() : null;
 	}
 
+	private Instant firstPublishedAt(UUID organization, String slug) {
+		return this.jdbc.sql("select first_published_at from articles where organization_id = ? and slug = ?")
+			.params(organization, slug)
+			.query(Timestamp.class)
+			.single()
+			.toInstant();
+	}
+
 	private UUID publishedArticle(UUID organization, UUID author, String slug) {
 		UUID category = this.data.category(organization, "General " + slug, "general-" + slug);
 		return this.data.article(organization, category, slug, "Título " + slug, "Texto", "published", "public", author,
@@ -168,7 +176,7 @@ class GettingStartedApiTest extends ApiIntegrationTest {
 	}
 
 	@Test
-	void thePublishedArticleStepFollowsThePublishedStateUntilTheChecklistIsDone() throws Exception {
+	void thePublishedArticleStepIsRememberedWhenTheArticleIsUnpublishedAndKeepsTheFirstDate() throws Exception {
 		UUID solo = this.data.organization("Solo");
 		UUID author = this.data.staff(solo, "admin", "Sola Admin", "sola@solo.example");
 		UUID category = this.data.category(solo, "General", "general");
@@ -181,11 +189,58 @@ class GettingStartedApiTest extends ApiIntegrationTest {
 
 		this.mvc.perform(post(API + "/knowledge/articles/borrador/publish").with(as("sola@solo.example")))
 			.andExpect(status().isOk());
+		Instant first = firstPublishedAt(solo, "borrador");
+		assertThat(first).isEqualTo(TestClockConfiguration.START.plus(Duration.ofHours(1)));
 		assertThat(steps("sola@solo.example").path("publishedArticle").asBoolean()).isTrue();
-		// Despublicar borra published_at: la API no sabe que estuvo publicado. Limitación documentada del paso.
+		// Despublicar borra published_at pero no la primera fecha: el paso sigue hecho.
 		this.mvc.perform(post(API + "/knowledge/articles/borrador/unpublish").with(as("sola@solo.example")))
 			.andExpect(status().isOk());
+		assertThat(steps("sola@solo.example").path("publishedArticle").asBoolean()).isTrue();
+		// Volver a publicar no mueve la primera fecha.
+		this.clock.set(TestClockConfiguration.START.plus(Duration.ofDays(2)));
+		this.mvc.perform(post(API + "/knowledge/articles/borrador/publish").with(as("sola@solo.example")))
+			.andExpect(status().isOk());
+		assertThat(firstPublishedAt(solo, "borrador")).isEqualTo(first);
+	}
+
+	/** El caso de la revisión: la lectura que ve los tres pasos se salta la marca (fila retenida) y se despublica antes de la siguiente. */
+	@Test
+	@Timeout(30)
+	void aSkippedMarkFollowedByUnpublishingStillCompletesOnTheNextRead() throws Exception {
+		UUID solo = this.data.organization("Solo");
+		UUID author = this.data.staff(solo, "admin", "Sola Admin", "sola@solo.example");
+		this.data.staff(solo, "agent", "Otra", "otra@solo.example");
+		this.data.customer(solo, "Cliente", "cliente@solo.example", "Cliente");
+		UUID article = publishedArticle(solo, author, "primero");
+
+		try (RowLock lock = RowLock.hold(this.dataSource, "select id from organizations where id = ? for no key update", solo)) {
+			assertThat(steps("sola@solo.example").isNull()).isTrue();
+			assertThat(doneAt(solo)).isNull();
+			this.jdbc.sql("update articles set status = 'draft', published_at = null where id = ?").param(article).update();
+		}
+
+		assertThat(steps("sola@solo.example").isNull()).as("«Primeros pasos» no vuelve").isTrue();
+		assertThat(doneAt(solo)).isEqualTo(TestClockConfiguration.START.plus(Duration.ofHours(1)));
+	}
+
+	@Test
+	void publishingAndUnpublishingBetweenReadsStillCompletesTheChecklist() throws Exception {
+		UUID solo = this.data.organization("Solo");
+		UUID author = this.data.staff(solo, "admin", "Sola Admin", "sola@solo.example");
+		this.data.staff(solo, "agent", "Otra", "otra@solo.example");
+		this.data.customer(solo, "Cliente", "cliente@solo.example", "Cliente");
+		UUID category = this.data.category(solo, "General", "general");
+		this.data.article(solo, category, "borrador", "Borrador", "Texto", "draft", "internal", author,
+				Instant.parse("2026-10-01T10:00:00Z"));
 		assertThat(steps("sola@solo.example").path("publishedArticle").asBoolean()).isFalse();
+
+		this.mvc.perform(post(API + "/knowledge/articles/borrador/publish").with(as("sola@solo.example")))
+			.andExpect(status().isOk());
+		this.mvc.perform(post(API + "/knowledge/articles/borrador/unpublish").with(as("sola@solo.example")))
+			.andExpect(status().isOk());
+
+		assertThat(steps("sola@solo.example").isNull()).isTrue();
+		assertThat(doneAt(solo)).isNotNull();
 	}
 
 	@Test

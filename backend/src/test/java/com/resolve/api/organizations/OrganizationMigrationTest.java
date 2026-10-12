@@ -78,6 +78,11 @@ class OrganizationMigrationTest {
 						.isEqualTo("t");
 				}
 				assertThat(scalar(connection, "select count(*) from organizations where created_by is not null")).isEqualTo("0");
+				// «Se publicó alguna vez»: los artículos publicados que ya existían tienen su primera fecha.
+				assertThat(scalar(connection, "select count(*) from articles where published_at is not null")).isNotEqualTo("0");
+				assertThat(scalar(connection,
+						"select count(*) from articles where published_at is not null and first_published_at is distinct from published_at"))
+					.isEqualTo("0");
 				assertThat(scalar(connection, "select count(*) from organizations")).isEqualTo("3");
 				// Una organización nueva tras la migración empieza sin completar y con su color por el disparador.
 				try (Statement statement = connection.createStatement()) {
@@ -111,6 +116,11 @@ class OrganizationMigrationTest {
 				}
 				assertThat(scalar(connection, "select count(*) from organizations where getting_started_done_at is null"))
 					.as("organizaciones de demostración sin marcar")
+					.isEqualTo("0");
+				// «Se publicó alguna vez»: los artículos publicados que ya existían tienen su primera fecha.
+				assertThat(scalar(connection, "select count(*) from articles where published_at is not null")).isNotEqualTo("0");
+				assertThat(scalar(connection,
+						"select count(*) from articles where published_at is not null and first_published_at is distinct from published_at"))
 					.isEqualTo("0");
 			}
 		}
