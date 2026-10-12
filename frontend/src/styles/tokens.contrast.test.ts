@@ -201,3 +201,98 @@ describe('tokens.css · contraste AA del texto', () => {
     })
   }
 })
+
+/* Los 8 colores de los espacios también se distinguen entre sí: el color nunca va solo (hay iniciales y nombre), pero en
+ * el selector y en «Tus espacios» es la pista rápida entre dos espacios. Diferencia CIEDE2000 mínima entre cada par, con
+ * la visión normal y simulando protanopia, deuteranopia y tritanopia (Machado et al. 2009, severidad 1). Los mínimos se
+ * eligen para que la paleta actual pase y el violeta oscuro anterior (#7459e6, 2,0 con el azul en protanopia y 2,3 en
+ * deuteranopia) falle. Los pares más cercanos hoy: azul/violeta en deuteranopia y verde/turquesa o naranja/teja en
+ * tritanopia (3,5 a 3,9): quedan a tres unidades, no a ninguna, y ninguno es la única pista de un espacio. */
+const MIN_DELTA_E = { normal: 9, protan: 6, deutan: 3.5, tritan: 3 } as const
+const MACHADO = {
+  normal: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+  protan: [0.152286, 1.052583, -0.204868, 0.114503, 0.786281, 0.099216, -0.003882, -0.048116, 1.051998],
+  deutan: [0.367322, 0.860646, -0.227968, 0.280085, 0.672501, 0.047413, -0.01182, 0.04294, 0.968881],
+  tritan: [1.255528, -0.076749, -0.178779, -0.078411, 0.930809, 0.147602, 0.004733, 0.691367, 0.3039],
+} as const
+
+function toLab(hex: string, condition: keyof typeof MACHADO): [number, number, number] {
+  const linear = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  }) as [number, number, number]
+  const m = MACHADO[condition]
+  const [r, g, b] = [0, 3, 6].map(
+    (k) => (m[k] ?? 0) * linear[0] + (m[k + 1] ?? 0) * linear[1] + (m[k + 2] ?? 0) * linear[2],
+  ) as [number, number, number]
+  const x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047
+  const y = 0.2126729 * r + 0.7151522 * g + 0.072175 * b
+  const z = (0.0193339 * r + 0.119192 * g + 0.9503041 * b) / 1.08883
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : ((24389 / 27) * t + 16) / 116)
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))]
+}
+
+function deltaE2000(
+  [L1, a1, b1]: number[] & [number, number, number],
+  [L2, a2, b2]: number[] & [number, number, number],
+) {
+  const rad = (d: number) => (d * Math.PI) / 180
+  const hue = (b: number, a: number) => (b === 0 && a === 0 ? 0 : ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360)
+  const cBar = (Math.hypot(a1, b1) + Math.hypot(a2, b2)) / 2
+  const g = 0.5 * (1 - Math.sqrt(cBar ** 7 / (cBar ** 7 + 25 ** 7)))
+  const ap1 = (1 + g) * a1
+  const ap2 = (1 + g) * a2
+  const cp1 = Math.hypot(ap1, b1)
+  const cp2 = Math.hypot(ap2, b2)
+  const h1 = hue(b1, ap1)
+  const h2 = hue(b2, ap2)
+  let dh = 0
+  if (cp1 * cp2 !== 0) {
+    dh = h2 - h1
+    if (dh > 180) dh -= 360
+    if (dh < -180) dh += 360
+  }
+  const dL = L2 - L1
+  const dC = cp2 - cp1
+  const dH = 2 * Math.sqrt(cp1 * cp2) * Math.sin(rad(dh / 2))
+  const lBar = (L1 + L2) / 2
+  const cpBar = (cp1 + cp2) / 2
+  let hBar = h1 + h2
+  if (cp1 * cp2 !== 0) {
+    if (Math.abs(h1 - h2) > 180) hBar += h1 + h2 < 360 ? 360 : -360
+    hBar /= 2
+  }
+  const t =
+    1 -
+    0.17 * Math.cos(rad(hBar - 30)) +
+    0.24 * Math.cos(rad(2 * hBar)) +
+    0.32 * Math.cos(rad(3 * hBar + 6)) -
+    0.2 * Math.cos(rad(4 * hBar - 63))
+  const rc = 2 * Math.sqrt(cpBar ** 7 / (cpBar ** 7 + 25 ** 7))
+  const rt = -Math.sin(rad(2 * 30 * Math.exp(-(((hBar - 275) / 25) ** 2)))) * rc
+  const sl = 1 + (0.015 * (lBar - 50) ** 2) / Math.sqrt(20 + (lBar - 50) ** 2)
+  const sc = 1 + 0.045 * cpBar
+  const sh = 1 + 0.015 * cpBar * t
+  return Math.sqrt((dL / sl) ** 2 + (dC / sc) ** 2 + (dH / sh) ** 2 + rt * (dC / sc) * (dH / sh))
+}
+
+describe('workspace-tokens.css · los 8 colores se distinguen entre sí', () => {
+  for (const [themeName, theme] of [
+    ['claro', light],
+    ['oscuro', dark],
+  ] as const) {
+    for (const condition of ['normal', 'protan', 'deutan', 'tritan'] as const) {
+      it(`tema ${themeName}, ${condition}: ΔE2000 ≥ ${MIN_DELTA_E[condition]} en los 28 pares`, () => {
+        for (const [i, a] of WORKSPACE_COLORS.entries()) {
+          for (const b of WORKSPACE_COLORS.slice(i + 1)) {
+            const distance = deltaE2000(
+              toLab(theme[`workspace-${a}`]!, condition),
+              toLab(theme[`workspace-${b}`]!, condition),
+            )
+            expect(distance, `${a}/${b}`).toBeGreaterThanOrEqual(MIN_DELTA_E[condition])
+          }
+        }
+      })
+    }
+  }
+})

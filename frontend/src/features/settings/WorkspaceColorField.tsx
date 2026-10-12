@@ -2,7 +2,6 @@ import { useId } from 'react'
 import type { OrganizationColor } from '../../api/schema'
 import { Icon } from '../../components/ui'
 import { WorkspaceMark } from '../../components/ui/Sidebar/WorkspaceMark'
-import { cx } from '../../lib/cx'
 import { workspaceColorLabel, workspaceColors } from './workspaceColors'
 import styles from './WorkspaceColorField.module.css'
 
@@ -46,7 +45,7 @@ export function WorkspaceColorField({
                 className={styles.input}
                 onChange={() => onChange(color.key)}
               />
-              <span aria-hidden="true" className={cx(styles.chip, styles[color.key])}>
+              <span aria-hidden="true" data-color={color.key} className={styles.chip}>
                 <Icon name="check" size={20} className={styles.check} />
               </span>
               <span className={styles.label}>{color.label}</span>

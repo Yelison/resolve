@@ -14,6 +14,10 @@
   --color-workspace-brick: #a1452a; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
   --color-workspace-slate: #4b5563; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
   --color-workspace-ink: #ffffff; /* iniciales sobre el color del espacio, en los dos temas */
+  --color-workspace-edge: rgb(
+    255 255 255 / 0.18
+  ); /* filo claro del cuadro de iniciales: separa los tonos oscuros del sidebar */
+  --color-workspace-chip-edge: rgb(0 0 0 / 0.12); /* filo de la muestra del selector de color sobre la superficie */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,11 +26,15 @@
     --color-workspace-green: #12856a; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
     --color-workspace-magenta: #ba4d9f; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
     --color-workspace-orange: #bc5711; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
-    --color-workspace-violet: #7459e6; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+    --color-workspace-violet: #7d4cc4; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
     --color-workspace-teal: #12809e; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
     --color-workspace-brick: #b24c2f; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
     --color-workspace-slate: #5e6a7d; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
     --color-workspace-ink: #ffffff; /* iniciales sobre el color del espacio, en los dos temas */
+    --color-workspace-edge: rgb(
+      255 255 255 / 0.18
+    ); /* filo claro del cuadro de iniciales: separa los tonos oscuros del sidebar */
+    --color-workspace-chip-edge: rgb(0 0 0 / 0.12); /* filo de la muestra del selector de color sobre la superficie */
   }
 }
 
@@ -35,9 +43,47 @@
   --color-workspace-green: #12856a; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
   --color-workspace-magenta: #ba4d9f; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
   --color-workspace-orange: #bc5711; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
-  --color-workspace-violet: #7459e6; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
+  --color-workspace-violet: #7d4cc4; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
   --color-workspace-teal: #12809e; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
   --color-workspace-brick: #b24c2f; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
   --color-workspace-slate: #5e6a7d; /* color de un espacio: código, no está en Figma; `tokens.contrast.test.ts` exige 4,5:1 con las iniciales */
   --color-workspace-ink: #ffffff; /* iniciales sobre el color del espacio, en los dos temas */
+  --color-workspace-edge: rgb(
+    255 255 255 / 0.18
+  ); /* filo claro del cuadro de iniciales: separa los tonos oscuros del sidebar */
+  --color-workspace-chip-edge: rgb(0 0 0 / 0.12); /* filo de la muestra del selector de color sobre la superficie */
+}
+
+/* Único sitio donde cada clave de color se enlaza con su token: quien pinta un espacio (`WorkspaceMark`, las muestras de
+ * Empresa) lleva `data-color` y toma `--workspace-color`. */
+[data-color='blue'] {
+  --workspace-color: var(--color-workspace-blue);
+}
+
+[data-color='green'] {
+  --workspace-color: var(--color-workspace-green);
+}
+
+[data-color='magenta'] {
+  --workspace-color: var(--color-workspace-magenta);
+}
+
+[data-color='orange'] {
+  --workspace-color: var(--color-workspace-orange);
+}
+
+[data-color='violet'] {
+  --workspace-color: var(--color-workspace-violet);
+}
+
+[data-color='teal'] {
+  --workspace-color: var(--color-workspace-teal);
+}
+
+[data-color='brick'] {
+  --workspace-color: var(--color-workspace-brick);
+}
+
+[data-color='slate'] {
+  --workspace-color: var(--color-workspace-slate);
 }

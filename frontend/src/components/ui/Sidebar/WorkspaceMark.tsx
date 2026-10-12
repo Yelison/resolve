@@ -23,11 +23,7 @@ export interface WorkspaceMarkProps {
  */
 export function WorkspaceMark({ name, color, size = 'medium', className }: WorkspaceMarkProps) {
   return (
-    <span
-      aria-hidden="true"
-      data-color={color}
-      className={cx(styles.mark, color && styles[color], styles[size], className)}
-    >
+    <span aria-hidden="true" data-color={color} className={cx(styles.mark, styles[size], className)}>
       {initialsOf(name)}
     </span>
   )

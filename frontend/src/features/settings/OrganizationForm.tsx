@@ -28,7 +28,7 @@ type FieldName = 'name' | 'supportEmail' | 'timeZone' | 'firstResponseTargetMinu
 type Values = Record<FieldName, string>
 type Errors = Partial<Record<FieldName, string>>
 
-const fieldNames: readonly FieldName[] = ['name', 'supportEmail', 'timeZone', 'firstResponseTargetMinutes', 'color']
+const fieldNames: readonly FieldName[] = ['name', 'color', 'supportEmail', 'timeZone', 'firstResponseTargetMinutes']
 const fieldLabels: Record<FieldName, string> = {
   name: 'Nombre del espacio',
   supportEmail: 'Correo de soporte',
@@ -224,7 +224,9 @@ export function OrganizationForm({
             Object.keys(serverErrors).length > 0 ? null : { kind: 'error', detail: mutationErrorDetail(error) },
           )
         })
-        form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+        // El primer campo con error, en el orden del formulario; el grupo de color lleva el foco a su muestra marcada.
+        const invalid = fieldNames.find((field) => serverErrors[field])
+        if (invalid) focusField(form, invalid)
       } else {
         setLockError(null)
         setFailure({ kind: 'error', detail: mutationErrorDetail(error) })
@@ -270,6 +272,14 @@ export function OrganizationForm({
           onChange={(event) => change('name', event.target.value)}
           hint={serverNote('name')}
           error={errors.name}
+        />
+        <WorkspaceColorField
+          value={values.color as OrganizationColor}
+          name={values.name.trim()}
+          role={role}
+          onChange={(color) => change('color', color)}
+          hint={serverNote('color')}
+          error={errors.color}
         />
         <Input
           label={fieldLabels.supportEmail}
@@ -323,19 +333,6 @@ export function OrganizationForm({
           />
         </div>
       </SettingsBlock>
-      <SettingsBlock
-        title="Color"
-        description="Con las iniciales, distingue tu espacio de los demás en la barra lateral y en el selector de espacios."
-      >
-        <WorkspaceColorField
-          value={values.color as OrganizationColor}
-          name={values.name.trim()}
-          role={role}
-          onChange={(color) => change('color', color)}
-          hint={serverNote('color')}
-          error={errors.color}
-        />
-      </SettingsBlock>
       <SaveBar changed={changed.map((field) => fieldLabels[field])} pending={update.isPending} onDiscard={discard} />
     </form>
   )
@@ -380,11 +377,6 @@ export function OrganizationFacts({
       <SettingsBlock title="Identidad" description="Cómo ven tu espacio tu equipo y tus clientes.">
         <dl className={styles.factList}>
           {fact(fieldLabels.name, settings.name)}
-          {fact(fieldLabels.supportEmail, settings.supportEmail ?? 'Sin configurar')}
-        </dl>
-      </SettingsBlock>
-      <SettingsBlock title="Color" description="Con las iniciales, distingue tu espacio de los demás.">
-        <dl className={styles.factList}>
           <div className={styles.readFact}>
             <dt>{fieldLabels.color}</dt>
             <dd className={styles.colorFact}>
@@ -392,6 +384,7 @@ export function OrganizationFacts({
               {workspaceColorLabel(settings.color)}
             </dd>
           </div>
+          {fact(fieldLabels.supportEmail, settings.supportEmail ?? 'Sin configurar')}
         </dl>
       </SettingsBlock>
       <SettingsBlock

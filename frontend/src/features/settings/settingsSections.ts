@@ -23,7 +23,7 @@ export const settingsGroups: readonly SettingsGroup[] = [
     id: 'space',
     label: 'Espacio',
     sections: [
-      { id: 'empresa', label: 'Empresa', description: 'Nombre, soporte y objetivos', staff: true },
+      { id: 'empresa', label: 'Empresa', description: 'Nombre, color, soporte y objetivos', staff: true },
       { id: 'permisos', label: 'Permisos', description: 'Qué puede hacer cada rol', staff: true },
     ],
   },

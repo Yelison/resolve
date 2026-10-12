@@ -367,7 +367,10 @@ test.describe('configuración: Empresa', () => {
     await page.goto('/configuracion/empresa')
     await expect(page.getByRole('textbox', { name: 'Nombre del espacio' })).toBeVisible()
     await page.getByRole('textbox', { name: 'Nombre del espacio' }).focus()
-    // Tab recorre los campos hacia abajo: cada uno, al recibir el foco, queda por encima de la barra.
+    // Tab recorre los campos hacia abajo: tras el nombre viene el grupo de color (su muestra marcada) y cada uno, al
+    // recibir el foco, queda por encima de la barra.
+    await page.keyboard.press('Tab')
+    await expect(page.getByRole('radio', { name: 'Azul' })).toBeFocused()
     for (const field of ['Correo de soporte', 'Zona horaria', 'Objetivo de primera respuesta']) {
       await page.keyboard.press('Tab')
       const control = page.getByRole(field === 'Zona horaria' ? 'combobox' : 'textbox', { name: field })
@@ -376,14 +379,6 @@ test.describe('configuración: Empresa', () => {
       const bar = (await saveBar(page).boundingBox())!
       expect(box.y + box.height, `${field} queda por encima de la barra`).toBeLessThanOrEqual(bar.y + 0.5)
     }
-    // Y la muestra de color marcada, el último campo, también.
-    await page.keyboard.press('Tab')
-    const swatch = page.getByRole('radio', { name: 'Azul' })
-    await expect(swatch).toBeFocused()
-    const box = (await swatch.boundingBox())!
-    expect(box.y + box.height, 'el color queda por encima de la barra').toBeLessThanOrEqual(
-      (await saveBar(page).boundingBox())!.y + 0.5,
-    )
   })
 
   for (const viewport of [
@@ -396,10 +391,8 @@ test.describe('configuración: Empresa', () => {
       await page.setViewportSize(viewport)
       await page.goto('/configuracion/empresa')
       await page.getByRole('textbox', { name: 'Nombre del espacio' }).fill('Otro nombre')
-      // El último campo es el grupo «Color» (la muestra marcada): de ahí a la barra de guardar no debe moverse la página.
-      const lastField = page.getByRole('radio', { name: 'Azul' })
-      await lastField.focus()
-      await expect(lastField).toBeFocused()
+      const target = page.getByRole('textbox', { name: 'Objetivo de primera respuesta' })
+      await target.focus()
       const before = await page.evaluate(() => window.scrollY)
       await page.keyboard.press('Tab')
       await expect(page.getByRole('button', { name: 'Descartar' })).toBeFocused()

@@ -32,48 +32,10 @@
   height: var(--touch-target);
 }
 
-/* Con color propio el cuadro se distingue solo: iniciales blancas sobre el token del espacio y un filo claro que lo separa
- * del sidebar, también los colores más oscuros en el tema oscuro. */
-.blue,
-.green,
-.magenta,
-.orange,
-.violet,
-.teal,
-.brick,
-.slate {
+/* Con color propio el cuadro se distingue solo: iniciales blancas sobre el token del espacio (`--workspace-color`, de
+ * `workspace-tokens.css`) y un filo claro que lo separa del sidebar, también los colores más oscuros del tema oscuro. */
+.mark[data-color] {
+  background: var(--workspace-color);
   color: var(--color-workspace-ink);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
-}
-
-.blue {
-  background: var(--color-workspace-blue);
-}
-
-.green {
-  background: var(--color-workspace-green);
-}
-
-.magenta {
-  background: var(--color-workspace-magenta);
-}
-
-.orange {
-  background: var(--color-workspace-orange);
-}
-
-.violet {
-  background: var(--color-workspace-violet);
-}
-
-.teal {
-  background: var(--color-workspace-teal);
-}
-
-.brick {
-  background: var(--color-workspace-brick);
-}
-
-.slate {
-  background: var(--color-workspace-slate);
+  box-shadow: inset 0 0 0 1px var(--color-workspace-edge);
 }

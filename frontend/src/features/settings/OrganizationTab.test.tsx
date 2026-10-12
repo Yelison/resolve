@@ -484,12 +484,16 @@ describe('OrganizationTab · color del espacio', () => {
     expect(screen.getByText(/Tienes cambios sin guardar en «Color»/)).toBeInTheDocument()
   })
 
-  it('la vista previa sigue al color elegido y a nombre que se está escribiendo', async () => {
+  it('la vista previa sigue al color elegido y al nombre que se está escribiendo', async () => {
     render()
     await userEvent.click(await swatch('Naranja'))
+    const name = await field('Nombre del espacio')
+    await userEvent.clear(name)
+    await userEvent.type(name, 'Zeta Norte')
     const preview = screen.getByText('Así se verá').parentElement!
     expect(within(preview).getByText('Color: Naranja')).toBeInTheDocument()
-    expect(within(preview).getByText('AS')).toHaveAttribute('data-color', 'orange')
+    expect(within(preview).getByText('Zeta Norte')).toBeInTheDocument()
+    expect(within(preview).getByText('ZN')).toHaveAttribute('data-color', 'orange')
   })
 
   it('envía solo `color`, con If-Match, y al guardar cambia el color de la sesión y de la lista de espacios', async () => {
@@ -532,6 +536,8 @@ describe('OrganizationTab · color del espacio', () => {
     expect(screen.getByRole('group', { name: 'Color del espacio' })).toHaveAccessibleDescription(
       'Elige uno de los colores de la lista.',
     )
+    // Como en los demás campos, el foco va al error: aquí, a la muestra marcada del grupo.
+    expect(await swatch('Azul')).toHaveFocus()
   })
 
   it('un agente ve el color en lectura, con su nombre, sin muestras', async () => {
