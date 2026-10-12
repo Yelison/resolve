@@ -33,9 +33,6 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build:showcase
-      # Las figuras del README (docs/figures) se publican junto a la demo, en /resolve/figuras/; no forman parte del
-      # bundle de la aplicación, así que tampoco entran en la imagen de producción.
-      - run: mkdir -p dist/showcase/figuras && cp ../docs/figures/*.html dist/showcase/figuras/
       # El mismo build, servido bajo /resolve/ como en Pages: no se publica nada que no abra.
       - run: npx playwright install --with-deps chromium
       - run: npm run test:showcase

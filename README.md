@@ -59,17 +59,6 @@ A customer-support platform (tickets, customers, team, reports and a knowledge b
 - **Honest UI.** No fake success states: actions without a backend say they are not connected yet, and demo data is labelled as such.
 - **Tested** (counts as of 2026-10-06). 1060 unit and component tests with coverage thresholds; 694 backend tests, most of them integration tests on PostgreSQL (Testcontainers), covering organization isolation, permissions, internal notes, filters, pagination, validation, update conflicts, metrics, transactional rollback and concurrency with real threads (ticket numbering, racing edits and replies), with a check that fails the build when an operation of the contract has no validated response; and 673 Playwright tests (mocked API) for every area, from the ticket flow to the article editor and the settings tabs, with layout checks at 320–1440 px (no layout shift when data arrives), table layouts at 390, 1024, 1200 and 1440 px, drawer focus, the persisted sidebar and horizontal overflow at 320–1440 px (including the 767/768 and 1199/1200 edges) in both themes, plus 6 full-stack smoke scenarios against the real API.
 
-### How workspaces stay apart
-
-<a href="https://yelison.github.io/resolve/figuras/espacios.html">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/figura-espacios-dark.webp">
-    <img src="docs/assets/figura-espacios-light.webp" width="100%" alt="An isometric bank of four safe-deposit drawers, one per workspace (Acme Studio, Kora Fitness, Lumen Diseño, Norte Viajes). A single carriage pushes one key at a time, so only that workspace's drawer slides out with its ticket cards; a card stamped by another tab is stuck in a closed drawer.">
-  </picture>
-</a>
-
-<sub>**Fig. 1 · Un espacio a la vez.** One person, four workspaces, one key each, cut by role. The session is a single carriage that turns one key at a time, so every query sees one drawer only; a write sealed by another tab no longer fits and gets a `409`. [Open the interactive version](https://yelison.github.io/resolve/figuras/espacios.html) · built with the [Anatomy](https://github.com/wheresryan22/anatomy) skill.</sub>
-
 ## Forma UI
 
 Forma UI is the component library of this project. Ten of its components (Button, IconButton, Icon, Badge, Field, Input, Tooltip, Modal (the package's Dialog), Tabs and Radio) are published as [`@yelison/forma-ui`](https://www.npmjs.com/package/@yelison/forma-ui) and re-exported from `frontend/src/components/ui`; the rest live there, one folder per component, with CSS Modules, design tokens, tests and JSDoc on every prop. The living catalog at `/catalogo` (development server only, not in production or the static demo) shows each one with demo data, and a test fails if an exported component is missing from it. The criteria for extracting it into its own package are in [ADR 0001](docs/decisions/0001-forma-ui-extraction.md), and the adoption of the published package in [ADR 0002](docs/decisions/0002-adopt-forma-ui.md).
