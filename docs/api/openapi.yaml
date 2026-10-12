@@ -219,9 +219,9 @@ paths:
         - `open`: any verified identity, as long as it has not reached the limit: an admin, an agent, a customer, and also
           a person **with no membership at all**, who has not entered any organization yet. There is no `403` in this mode.
           That person is not a member, so no other operation accepts them (they get the same `401` `no-membership` Problem,
-          with `canCreateOrganization: true`); this is the only one. Their user is created with this request, in the same
-          transaction as the organization, with the name their identity provider gave (or the part of the email before
-          the `@`). The CSRF rules are the same as for any write. Whoever can create in `open` mode but whose session is
+          with `canCreateOrganization: true`); this is the only one. Their user is created with this request if it does not
+          exist yet (an existing one keeps its stored name), in the same transaction as the organization; a new one gets
+          the name their identity provider gave, or the part of the email before the `@`. The CSRF rules are the same as for any write. Whoever can create in `open` mode but whose session is
           a customer one does not see the option in the web app; the server does not forbid it.
 
         **Limit.** Each person has at most 3 organizations they created and still have an `active` membership in
