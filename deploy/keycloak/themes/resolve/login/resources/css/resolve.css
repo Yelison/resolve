@@ -247,6 +247,11 @@ body#keycloak-bg {
   color: var(--color-on-brand);
 }
 
+/* El ojo de la contraseña acompaña al campo: misma altura que él, no la de un botón de acción. */
+.pf-v5-c-button.pf-m-control {
+  min-height: var(--control-height);
+}
+
 .pf-v5-c-button.pf-m-secondary,
 .pf-v5-c-button.pf-m-control {
   background: var(--color-surface);
