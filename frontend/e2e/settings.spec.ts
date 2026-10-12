@@ -185,6 +185,26 @@ test.describe('configuración: Empresa', () => {
     }
   }
 
+  test('la API simulada rechaza con un 400 una clave de color desconocida y acepta las del contrato', async ({
+    page,
+  }) => {
+    await page.goto('/configuracion/empresa')
+    const patch = (color: string) =>
+      page.evaluate(async (value) => {
+        const current = await fetch('/api/organization')
+        const response = await fetch('/api/organization', {
+          method: 'PATCH',
+          headers: { 'If-Match': current.headers.get('ETag')!, 'Content-Type': 'application/merge-patch+json' },
+          body: JSON.stringify({ color: value }),
+        })
+        return { status: response.status, body: await response.json() }
+      }, color)
+    const rejected = await patch('fucsia')
+    expect(rejected.status).toBe(400)
+    expect(rejected.body.errors).toEqual([expect.objectContaining({ field: 'color' })])
+    expect((await patch('slate')).status).toBe(200)
+  })
+
   test('la zona se lee con el nombre de la ciudad y su desfase', async ({ page }) => {
     await page.setViewportSize(desktop)
     await page.goto('/configuracion/empresa')
