@@ -7,6 +7,8 @@ const widths = [320, 390, 767, 768, 1024, 1199, 1200, 1440]
 const themes = ['light', 'dark'] as const
 
 const account = (page: Page) => page.getByRole('button', { name: /^Cuenta:/ })
+/** La tarjeta del espacio, disparador del selector (en el sidebar o dentro del drawer). */
+const workspaceCard = (page: Page) => page.getByRole('button', { name: /^Espacio: .*\. Cambiar de espacio$/ })
 const horizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 
@@ -117,7 +119,7 @@ test.describe('cuenta sin membresía', () => {
     await page.setViewportSize({ width: 1024, height: 800 })
     await page.goto('/tickets')
     await expect(page).toHaveURL(/\/entrar$/)
-    await expect(page.getByRole('alert')).toContainText('no pertenece a ninguna organización')
+    await expect(page.getByRole('alert')).toContainText('no pertenece a ningún espacio')
     await expect(page.getByRole('button', { name: 'Cerrar sesión y usar otra cuenta' })).toBeVisible()
   })
 })
@@ -128,7 +130,7 @@ test.describe('cuenta desactivada', () => {
     await page.setViewportSize({ width: 1024, height: 800 })
     await page.goto('/tickets')
     await expect(page).toHaveURL(/\/entrar$/)
-    await expect(page.getByRole('alert')).toContainText('Tu acceso a esta organización fue desactivado')
+    await expect(page.getByRole('alert')).toContainText('Tu acceso a este espacio fue desactivado')
 
     const logout = page.waitForRequest(
       (request) => request.method() === 'POST' && request.url().endsWith('/api/logout'),
@@ -297,17 +299,14 @@ test.describe('sesión caducada durante una escritura', () => {
 })
 
 test.describe('varias pestañas', () => {
-  /** Cambia de organización desde el menú de la pestaña `tab`. */
+  /** Cambia de espacio desde el selector de la pestaña `tab`. */
   async function switchToNorthwind(tab: Page) {
-    await account(tab).click()
-    await tab.getByRole('menuitem', { name: /Cambiar de organización/ }).click()
-    const dialog = tab.getByRole('dialog', { name: 'Cambiar de organización' })
-    await dialog.getByRole('radio', { name: 'Northwind' }).check()
-    await dialog.getByRole('button', { name: 'Cambiar de organización' }).click()
+    await workspaceCard(tab).click()
+    await tab.getByRole('menuitemradio', { name: /^Northwind/ }).click()
     await expect(tab.getByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })).toBeVisible()
   }
 
-  test('cambiar de organización en una pestaña actualiza la otra, sin recargar, antes de que se pueda escribir', async ({
+  test('cambiar de espacio en una pestaña actualiza la otra, sin recargar, antes de que se pueda escribir', async ({
     page,
     context,
   }) => {
@@ -349,7 +348,7 @@ test.describe('varias pestañas', () => {
     await expect(page).toHaveURL(/\/$/)
   })
 
-  test('sin canal, una escritura que sale con la comprobación en vuelo no llega a la organización nueva', async ({
+  test('sin canal, una escritura que sale con la comprobación en vuelo no llega al espacio nuevo', async ({
     page,
     context,
   }) => {
@@ -486,7 +485,9 @@ test.describe('menú de la cuenta', () => {
 
   for (const theme of themes) {
     for (const width of widths) {
-      test(`botón, menú y diálogo caben con nombres de 120 caracteres · ${theme} · ${width}px`, async ({ page }) => {
+      test(`botón, menú y selector de espacios caben con nombres de 120 caracteres · ${theme} · ${width}px`, async ({
+        page,
+      }) => {
         await mockApi(page, 'admin', { organizations: [acme, northwind], longNames: true })
         await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
         await page.setViewportSize({ width, height: 800 })
@@ -515,48 +516,61 @@ test.describe('menú de la cuenta', () => {
           expect(itemBox!.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 32)
           expect(await item.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
         }
+        await page.keyboard.press('Escape')
 
-        await menu.getByRole('menuitem', { name: /Cambiar de organización/ }).click()
-        const dialog = page.getByRole('dialog', { name: 'Cambiar de organización' })
-        await expect(dialog).toBeVisible()
-        const dialogBox = await dialog.boundingBox()
-        expect(dialogBox!.x).toBeGreaterThanOrEqual(0)
-        expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(width)
-        expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(800)
-        expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
-        for (const radio of await dialog.getByRole('radio').all()) {
-          const label = radio.locator('xpath=ancestor::label')
-          expect((await label.boundingBox())!.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 20)
-          expect(await label.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
+        // La tarjeta del espacio y su selector con el nombre de 120 caracteres: dentro del sidebar y del viewport.
+        const card = workspaceCard(page)
+        await expect(card).toBeVisible()
+        const cardBox = (await card.boundingBox())!
+        expect(cardBox.width).toBeGreaterThanOrEqual(44)
+        expect(cardBox.height).toBeGreaterThanOrEqual(44)
+        expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(sidebarBox.x + sidebarBox.width)
+        await card.click()
+        const rows =
+          width < 768
+            ? page.getByRole('group', { name: 'Cambiar de espacio' }).getByRole('button')
+            : page.getByRole('menu', { name: 'Cambiar de espacio' }).getByRole('menuitemradio')
+        await expect(rows.first()).toBeVisible()
+        for (const row of await rows.all()) {
+          const rowBox = (await row.boundingBox())!
+          expect(rowBox.x).toBeGreaterThanOrEqual(0)
+          expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(width)
+          expect(rowBox.height).toBeGreaterThanOrEqual(width < 768 ? 44 : 36)
+          expect(await row.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
         }
+        expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
       })
     }
   }
 
-  test('cambiar de organización vuelve al resumen, muestra la nueva y deja el foco en un sitio con sentido', async ({
+  test('cambiar de espacio vuelve al resumen, muestra el nuevo y deja el foco en un sitio con sentido', async ({
     page,
   }) => {
     await mockApi(page, 'admin', { organizations: [acme, northwind] })
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/tickets/1048')
     await page.getByRole('button', { name: 'Abrir menú' }).click()
-    await account(page).click()
-    await page.getByRole('menuitem', { name: /Cambiar de organización/ }).click()
-    const dialog = page.getByRole('dialog', { name: 'Cambiar de organización' })
-    await expect(dialog.getByRole('radio', { name: 'Acme Studio (actual)' })).toBeChecked()
-    await dialog.getByRole('radio', { name: 'Northwind' }).check()
-    await dialog.getByRole('button', { name: 'Cambiar de organización' }).click()
+    await workspaceCard(page).click()
+    const group = page.getByRole('group', { name: 'Cambiar de espacio' })
+    await expect(group.getByRole('button', { name: 'Acme Studio, Administrador' })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+    await group.getByRole('button', { name: 'Northwind, Agente' }).click()
 
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByRole('dialog')).toHaveCount(0)
     expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false)
     await page.getByRole('button', { name: 'Abrir menú' }).click()
     await expect(page.getByRole('button', { name: 'Cuenta: Yelisson Ortiz, Northwind' })).toBeVisible()
+    await expect(workspaceCard(page)).toContainText('Agente')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Ahora trabajas en Northwind')
   })
 
-  test('con una sola organización el menú solo ofrece cerrar sesión', async ({ page }) => {
+  test('el menú de la cuenta solo ofrece cerrar sesión: cambiar de espacio es de la tarjeta del espacio', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/')
     await account(page).click()

@@ -1,0 +1,418 @@
+import type { Locator, Page } from '@playwright/test'
+import type { OrganizationRef } from '../src/api/schema'
+import { expect, mockApi, test } from './fixtures'
+import { acme, demoWorkspaces, lumen, norte } from './mocks/session'
+
+/** Anchos de revisión y fronteras de breakpoint definidos en la guía de diseño. */
+const widths = [320, 390, 767, 768, 1024, 1199, 1200, 1440]
+const themes = ['light', 'dark'] as const
+
+/** Los tres espacios de la demostración: administrador en Acme, agente en Lumen Diseño y cliente en Norte Viajes. */
+const spaces = demoWorkspaces.admin!
+
+const card = (page: Page) => page.getByRole('button', { name: /^Espacio: .*\. Cambiar de espacio$/ })
+const selector = (page: Page) => page.getByRole('menu', { name: 'Cambiar de espacio' })
+const horizontalOverflow = (page: Page) =>
+  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+const longName = (name: string) =>
+  `${name} `
+    .repeat(Math.ceil(120 / (name.length + 1)))
+    .slice(0, 119)
+    .trimEnd() + 'x'
+
+const manySpaces = (count: number): OrganizationRef[] =>
+  Array.from({ length: count }, (_, index) => ({
+    id: `0192f000-0000-7000-8000-0000000002${String(index).padStart(2, '0')}`,
+    name: index === 0 ? 'Acme Studio' : `Espacio ${index + 1}`,
+    role: index % 2 === 0 ? 'admin' : 'agent',
+    memberCount: index + 2,
+  }))
+
+/** El cuadro cae dentro del viewport y no mide menos de 44 px en ninguna dirección. */
+async function expectTouchTarget(locator: Locator, width: number) {
+  const box = (await locator.boundingBox())!
+  expect(box.x).toBeGreaterThanOrEqual(0)
+  expect(box.x + box.width).toBeLessThanOrEqual(width)
+  expect(box.width).toBeGreaterThanOrEqual(44)
+  expect(box.height).toBeGreaterThanOrEqual(44)
+}
+
+test.describe('selector de espacios', () => {
+  test('escritorio: la tarjeta abre el selector, con teclado cambia de espacio y el foco queda con sentido', async ({
+    page,
+  }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    const trigger = card(page)
+    await expect(trigger).toContainText('Acme Studio')
+    await expect(trigger).toContainText('Administrador')
+    await trigger.focus()
+    await page.keyboard.press('Enter')
+    const menu = selector(page)
+    const rows = menu.getByRole('menuitemradio')
+    await expect(rows).toHaveCount(3)
+    await expect(rows.nth(0)).toHaveAttribute('aria-checked', 'true')
+    await expect(rows.nth(0)).toBeFocused()
+    await expect(menu.getByRole('menuitem', { name: 'Tus espacios' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: /Crear espacio/ })).toHaveCount(0)
+
+    // Escape cierra y devuelve el foco a la tarjeta.
+    await page.keyboard.press('Escape')
+    await expect(menu).toBeHidden()
+    await expect(trigger).toBeFocused()
+
+    await page.keyboard.press('Enter')
+    await page.keyboard.press('ArrowDown')
+    await expect(rows.nth(1)).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/\/$/)
+    await expect(card(page)).toContainText('Lumen Diseño')
+    await expect(card(page)).toContainText('Agente')
+    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Ahora trabajas en Lumen Diseño')
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false)
+  })
+
+  test('colapsada: el cuadro es el disparador, con nombre accesible y tooltip también con foco', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1024, height: 800 })
+    await page.goto('/tickets')
+    const trigger = card(page)
+    await expect(trigger).toHaveAccessibleName('Espacio: Acme Studio. Cambiar de espacio')
+    await expect(trigger).not.toContainText('Administrador')
+    await expectTouchTarget(trigger, 1024)
+    await trigger.focus()
+    const tooltip = page.getByRole('tooltip')
+    await expect(tooltip).toHaveText('Acme Studio')
+    const [tip, anchor] = await Promise.all([tooltip.boundingBox(), trigger.boundingBox()])
+    // Junto al cuadro, dentro del viewport.
+    expect(tip!.x + tip!.width).toBeLessThanOrEqual(1024)
+    expect(Math.abs(tip!.y + tip!.height / 2 - (anchor!.y + anchor!.height / 2))).toBeLessThan(40)
+    await page.keyboard.press('Enter')
+    await expect(selector(page)).toBeVisible()
+    const box = (await selector(page).boundingBox())!
+    expect(box.x + box.width).toBeLessThanOrEqual(1024)
+    expect(box.y + box.height).toBeLessThanOrEqual(800)
+  })
+
+  test('móvil: dentro del drawer se despliega la lista; elegir otro espacio cierra el drawer', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/tickets')
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
+    const trigger = card(page)
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await trigger.click()
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    const group = page.getByRole('group', { name: 'Cambiar de espacio' })
+    for (const row of await group.getByRole('button').all()) await expectTouchTarget(row, 390)
+    await expect(group.getByRole('link', { name: 'Tus espacios' })).toBeVisible()
+    await group.getByRole('button', { name: 'Lumen Diseño, Agente' }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('dialog', { name: 'Menú principal' })).toBeHidden()
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
+    await expect(card(page)).toContainText('Lumen Diseño')
+  })
+
+  test('desde 8 espacios hay «Buscar espacio» y filtra; con 7 no', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: manySpaces(9) })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    await card(page).click()
+    const search = page.getByRole('searchbox', { name: 'Buscar espacio' })
+    await expect(search).toBeFocused()
+    await page.keyboard.type('Espacio 7')
+    await expect(selector(page).getByRole('menuitemradio')).toHaveCount(1)
+    await expect(selector(page).getByRole('menuitem', { name: 'Tus espacios' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(search).toHaveValue('')
+    await page.keyboard.press('Escape')
+    await expect(selector(page)).toBeHidden()
+
+    await mockApi(page, 'admin', { organizations: manySpaces(7) })
+    await page.reload()
+    await card(page).click()
+    await expect(selector(page).getByRole('menuitemradio')).toHaveCount(7)
+    await expect(page.getByRole('searchbox', { name: 'Buscar espacio' })).toHaveCount(0)
+  })
+
+  test('un cliente con un solo espacio no tiene selector; con dos, solo cambia', async ({ page }) => {
+    await mockApi(page, 'customer')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    await expect(page.getByText('Soporte', { exact: true }).first()).toBeVisible()
+    await expect(card(page)).toHaveCount(0)
+
+    const twoSpaces = [{ ...lumen, role: 'customer' as const, memberCount: null }, norte]
+    await mockApi(page, 'customer', { organizations: twoSpaces })
+    await page.reload()
+    await card(page).click()
+    await expect(selector(page).getByRole('menuitemradio')).toHaveCount(2)
+    await expect(selector(page).getByRole('menuitem')).toHaveCount(0)
+  })
+
+  test('sin saltos de layout: la tarjeta del espacio ocupa su sitio mientras /me carga y la navegación no se mueve al llegar', async ({
+    page,
+  }) => {
+    for (const width of [768, 1440]) {
+      await page.setViewportSize({ width, height: 800 })
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      await page.route('**/api/me', async (route) => {
+        await gate
+        await route.fallback()
+      })
+      await page.goto('/tickets')
+      // La tarjeta es el elemento justo antes de la navegación; la navegación solo se mide arriba y de ancho: sus enlaces
+      // llegan con el rol (a propósito), pero no mueven nada de lo que tiene encima.
+      const nav = page.getByRole('navigation', { name: 'Principal' })
+      const workspace = nav.locator('xpath=preceding-sibling::*[1]')
+      await expect(workspace).toBeVisible()
+      const measure = async () => {
+        const [cardBox, navBox] = await Promise.all([workspace.boundingBox(), nav.boundingBox()])
+        return { card: cardBox, nav: { x: navBox!.x, y: navBox!.y, width: navBox!.width } }
+      }
+      const before = await measure()
+      const loaded = page.waitForResponse('**/api/me')
+      release()
+      await loaded
+      await expect(card(page)).toBeVisible()
+      expect(await measure()).toEqual(before)
+      await page.unroute('**/api/me')
+    }
+  })
+})
+
+test.describe('Configuración › Tus espacios', () => {
+  for (const theme of themes) {
+    test(`escritorio: lista los espacios con tu rol; el cliente no tiene «Salir» · ${theme}`, async ({ page }) => {
+      await mockApi(page, 'admin', { organizations: spaces })
+      await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.goto('/configuracion/general')
+      await page.getByRole('link', { name: /^Tus espacios/ }).click()
+      await expect(page).toHaveURL(/\/configuracion\/espacios$/)
+      await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
+      const rows = page.locator('section[aria-labelledby="workspaces-heading"] li')
+      await expect(rows).toHaveCount(3)
+      await expect(rows.nth(0)).toContainText('Administrador · 4 personas')
+      await expect(rows.nth(0)).toContainText('Estás aquí')
+      await expect(rows.nth(1)).toContainText('Agente · 6 personas')
+      await expect(rows.nth(2)).toContainText('Soporte de Norte Viajes')
+      await expect(page.getByRole('button', { name: 'Salir de Norte Viajes' })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Salir de Lumen Diseño' })).toBeEnabled()
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+    })
+  }
+
+  test('salir de otro espacio: confirma, avisa, actualiza la lista y deja el foco en el título', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/configuracion/espacios')
+    await page.getByRole('button', { name: 'Salir de Lumen Diseño' }).click()
+    const dialog = page.getByRole('dialog', { name: '¿Salir de Lumen Diseño?' })
+    await expect(dialog).toContainText('Para volver, un administrador tendrá que invitarte.')
+    await expect(dialog).toContainText('Los tickets que tengas asignados quedarán sin asignar.')
+    // El foco queda atrapado en el diálogo.
+    for (let press = 0; press < 6; press += 1) {
+      await page.keyboard.press('Tab')
+      // Dentro del diálogo, o en ninguna parte de la página (el resto está inerte): nunca en el contenido de detrás.
+      expect(
+        await dialog.evaluate(
+          (node) => node.contains(document.activeElement) || document.activeElement === document.body,
+        ),
+      ).toBe(true)
+    }
+    const request = page.waitForRequest((r) => r.method() === 'DELETE' && r.url().includes('/api/me/organizations/'))
+    await dialog.getByRole('button', { name: 'Salir del espacio' }).click()
+    expect((await request).headers()['x-organization-id']).toBe(acme.id)
+    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Saliste de Lumen Diseño')
+    await expect(dialog).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Salir de Lumen Diseño' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { level: 1, name: 'Configuración' })).toBeFocused()
+    // El selector ya no lo ofrece.
+    await card(page).click()
+    await expect(selector(page).getByRole('menuitemradio')).toHaveCount(2)
+  })
+
+  test('cancelar no sale y devuelve el foco al botón «Salir»; Escape también', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/configuracion/espacios')
+    const leave = page.getByRole('button', { name: 'Salir de Lumen Diseño' })
+    await leave.click()
+    await page.getByRole('button', { name: 'Cancelar' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
+    await expect(leave).toBeFocused()
+    await leave.click()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toBeHidden()
+    await expect(leave).toBeFocused()
+  })
+
+  test('el último administrador ve «No puedes salir de …» y «Ir a Equipo» lo lleva allí', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/configuracion/espacios')
+    await page.getByRole('button', { name: 'Salir de Acme Studio' }).click()
+    await page
+      .getByRole('dialog', { name: '¿Salir de Acme Studio?' })
+      .getByRole('button', { name: 'Salir del espacio' })
+      .click()
+    const blocked = page.getByRole('dialog', { name: 'No puedes salir de Acme Studio' })
+    await expect(blocked.getByRole('status')).toContainText('Eres el único administrador')
+    await blocked.getByRole('button', { name: 'Ir a Equipo' }).click()
+    await expect(page).toHaveURL(/\/equipo$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Equipo' })).toBeVisible()
+  })
+
+  test('salir del espacio actual recarga la sesión en otro espacio y vuelve a Inicio', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/')
+    await card(page).click()
+    await selector(page)
+      .getByRole('menuitemradio', { name: /^Lumen Diseño/ })
+      .click()
+    await expect(card(page)).toContainText('Lumen Diseño')
+    await page.goto('/configuracion/espacios')
+    await page.getByRole('button', { name: 'Salir de Lumen Diseño' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Salir del espacio' }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(card(page)).toContainText('Acme Studio')
+    await expect(card(page)).toContainText('Administrador')
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false)
+  })
+
+  test('con un solo espacio «Salir» está deshabilitado y dice «Es tu único espacio»', async ({ page }) => {
+    await mockApi(page, 'admin')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/configuracion/espacios')
+    const leave = page.getByRole('button', { name: 'Salir de Acme Studio' })
+    await expect(leave).toBeDisabled()
+    await expect(page.getByText('Es tu único espacio')).toBeVisible()
+  })
+
+  test('el servidor, como el real, responde last-organization si se intenta igualmente', async ({ page }) => {
+    await mockApi(page, 'admin')
+    await page.goto('/configuracion/espacios')
+    await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
+    const attempt = await page.evaluate(async () => {
+      const token = document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? ''
+      const me = (await (await fetch('/api/me')).json()) as { organization: { id: string } }
+      const response = await fetch(`/api/me/organizations/${me.organization.id}`, {
+        method: 'DELETE',
+        headers: { 'X-XSRF-TOKEN': token, 'X-Organization-Id': me.organization.id },
+      })
+      return { status: response.status, type: ((await response.json()) as { type: string }).type }
+    })
+    expect(attempt).toEqual({ status: 409, type: 'https://resolve.example/problems/last-organization' })
+  })
+
+  test('un cliente no tiene la sección: su ruta da el estado sin permisos y no está en la navegación', async ({
+    page,
+  }) => {
+    await mockApi(page, 'customer')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/configuracion/espacios')
+    await expect(page.getByText('No tienes acceso a esta sección')).toBeVisible()
+    await expect(page.getByRole('link', { name: /^Tus espacios/ })).toHaveCount(0)
+  })
+
+  test('en la demostración, quien pasa a «Norte Viajes» es cliente: sin «Tus espacios» en el selector', async ({
+    page,
+  }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/')
+    await card(page).click()
+    await selector(page)
+      .getByRole('menuitemradio', { name: /^Norte Viajes/ })
+      .click()
+    await expect(card(page)).toContainText('Soporte')
+    await card(page).click()
+    await expect(selector(page).getByRole('menuitem', { name: 'Tus espacios' })).toHaveCount(0)
+    await expect(selector(page).getByRole('separator')).toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
+  })
+
+  test('móvil: toda la fila abre el espacio y «⋯» abre una hoja con las acciones', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/configuracion/espacios')
+    await expect(page.getByText('Toca un espacio para abrirlo.')).toBeVisible()
+    const more = page.getByRole('button', { name: 'Más acciones para Lumen Diseño' })
+    await expectTouchTarget(more, 390)
+    await more.click()
+    const sheet = page.getByRole('dialog', { name: 'Lumen Diseño' })
+    await expect(sheet).toBeVisible()
+    // Hoja inferior: pegada al borde de abajo y a todo el ancho.
+    await expect
+      .poll(async () => {
+        const box = (await sheet.boundingBox())!
+        return [box.x, box.width, Math.round(box.y + box.height)]
+      })
+      .toEqual([0, 390, 844])
+    for (const control of await sheet.getByRole('button').all()) {
+      expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    }
+    await expect(sheet.getByRole('button', { name: 'Abrir Lumen Diseño' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(sheet).toBeHidden()
+    await expect(more).toBeFocused()
+
+    await more.click()
+    await sheet.getByRole('button', { name: 'Salir del espacio' }).click()
+    const confirm = page.getByRole('dialog', { name: '¿Salir de Lumen Diseño?' })
+    await expect
+      .poll(async () => {
+        const box = (await confirm.boundingBox())!
+        return [box.x, box.width, Math.round(box.y + box.height)]
+      })
+      .toEqual([0, 390, 844])
+    await confirm.getByRole('button', { name: 'Salir del espacio' }).click()
+    await expect(page.getByRole('button', { name: 'Más acciones para Lumen Diseño' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { level: 1, name: 'Tus espacios' })).toBeFocused()
+
+    // En Norte Viajes eres cliente: el resumen del personal no existe y la app abre sus solicitudes.
+    await page.getByRole('button', { name: /^Norte Viajes/ }).click()
+    await expect(page).toHaveURL(/\/tickets$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Mis solicitudes' })).toBeVisible()
+  })
+
+  for (const theme of themes) {
+    for (const width of widths) {
+      test(`nombres de 120 caracteres caben, sin scroll horizontal ni textos cortados · ${theme} · ${width}px`, async ({
+        page,
+      }) => {
+        const long: OrganizationRef[] = spaces.map((space) => ({ ...space, name: longName(space.name) }))
+        await mockApi(page, 'admin', { organizations: long })
+        await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto('/configuracion/espacios')
+        await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
+        expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+        const rows = page.locator('section[aria-labelledby="workspaces-heading"] li')
+        await expect(rows).toHaveCount(3)
+        for (const row of await rows.all()) {
+          const box = (await row.boundingBox())!
+          expect(box.x + box.width).toBeLessThanOrEqual(width)
+          // El nombre se parte (`overflow-wrap`), no se corta: su alto crece en lugar de ocultar texto.
+          const name = row
+            .locator('span')
+            .filter({ hasText: /^.{100,}$/ })
+            .first()
+          expect(await name.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true)
+          if (width < 768)
+            for (const button of await row.getByRole('button').all()) await expectTouchTarget(button, width)
+          else
+            for (const button of await row.getByRole('button').all()) {
+              const buttonBox = (await button.boundingBox())!
+              expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(width)
+            }
+        }
+      })
+    }
+  }
+})
