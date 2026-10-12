@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -151,6 +151,67 @@ describe('Configuración › Tus espacios · escritorio', () => {
     renderSpaces()
     expect(await screen.findByText('Cargando tus espacios…')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Salir/ })).not.toBeInTheDocument()
+  })
+})
+
+const withCreation = (me: Me, creation: Me['organizationCreation']): Me => ({ ...me, organizationCreation: creation })
+
+describe('Configuración › Tus espacios · crear espacio', () => {
+  it('en escritorio, «Crear espacio» va en la cabecera y el pie dice cuántos creaste con el plural del límite', async () => {
+    mockViewport(1440)
+    mockApi({ 'GET /api/me': { body: withCreation(acmeMe, { allowed: true, created: 2, limit: 3 }) } })
+    renderSpaces()
+    const section = (await screen.findByRole('heading', { level: 2, name: 'Tus espacios' })).closest('section')!
+    expect(within(section).getByRole('button', { name: 'Crear espacio' })).toHaveTextContent('Crear espacio')
+    expect(within(section).getByText('Has creado 2 de 3 espacios.')).toBeInTheDocument()
+  })
+
+  it('el límite de uno va en singular: «Has creado 0 de 1 espacio.»', async () => {
+    mockViewport(1440)
+    mockApi({ 'GET /api/me': { body: withCreation(acmeMe, { allowed: true, created: 0, limit: 1 }) } })
+    renderSpaces()
+    expect(await screen.findByText('Has creado 0 de 1 espacio.')).toBeInTheDocument()
+  })
+
+  it('al límite no hay «Crear espacio» pero el pie sigue diciendo «Has creado 3 de 3 espacios.»', async () => {
+    mockViewport(1440)
+    mockApi({ 'GET /api/me': { body: withCreation(acmeMe, { allowed: false, created: 3, limit: 3 }) } })
+    renderSpaces()
+    expect(await screen.findByText('Has creado 3 de 3 espacios.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Crear espacio' })).not.toBeInTheDocument()
+  })
+
+  it('quien no puede crear ni ha creado nada no ve el botón ni un «0 de 3» que no le toca', async () => {
+    mockViewport(1440)
+    mockApi({
+      'GET /api/me': { body: withCreation(meIn(lumen, [orgA, lumen]), { allowed: false, created: 0, limit: 3 }) },
+    })
+    renderSpaces()
+    await screen.findByRole('heading', { level: 2, name: 'Tus espacios' })
+    expect(screen.queryByRole('button', { name: 'Crear espacio' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Has creado/)).not.toBeInTheDocument()
+  })
+
+  it('«Crear espacio» abre el diálogo y Escape devuelve el foco al botón', async () => {
+    mockViewport(1440)
+    mockApi({ 'GET /api/me': { body: withCreation(acmeMe, { allowed: true, created: 2, limit: 3 }) } })
+    renderSpaces()
+    const button = await screen.findByRole('button', { name: 'Crear espacio' })
+    await userEvent.click(button)
+    const dialog = await screen.findByRole('dialog', { name: 'Crear espacio' })
+    expect(within(dialog).getByRole('textbox', { name: 'Nombre del espacio' })).toBeInTheDocument()
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Crear espacio' })).not.toBeInTheDocument())
+    expect(button).toHaveFocus()
+  })
+
+  it('en móvil es un botón «Crear» junto al título, con el nombre accesible «Crear espacio»', async () => {
+    mockViewport(390)
+    mockApi({ 'GET /api/me': { body: withCreation(acmeMe, { allowed: true, created: 2, limit: 3 }) } })
+    renderSpaces()
+    const button = await screen.findByRole('button', { name: 'Crear espacio' })
+    expect(button).toHaveTextContent(/^Crear$/)
+    expect(screen.getByText('Has creado 2 de 3 espacios.')).toBeInTheDocument()
   })
 })
 

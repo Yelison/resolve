@@ -5,6 +5,7 @@ import { normalizeText } from '../../lib/normalizeText'
 import { Icon, Menu, SearchField, Tooltip, type MenuItem } from '../../components/ui'
 import type { SidebarWorkspace } from '../../components/ui/Sidebar/Sidebar'
 import { WorkspaceMark } from '../../components/ui/Sidebar/WorkspaceMark'
+import { CreateWorkspaceDialog } from './CreateWorkspaceDialog'
 import { useSessionActions } from './useSessionActions'
 import { workspaceRoleLabel, workspacesOf, type Workspace } from './workspaces'
 import styles from './WorkspaceMenu.module.css'
@@ -13,6 +14,12 @@ import styles from './WorkspaceMenu.module.css'
 export const SEARCH_FROM = 8
 
 const SPACES_PATH = '/configuracion/espacios'
+
+/**
+ * «Crear espacio» solo se ofrece si el servidor dice que esta persona puede (`allowed` ya suma sus roles y el límite) y
+ * nunca desde una sesión de cliente: quien administra otro espacio también puede crear, pero como cliente solo cambia.
+ */
+const offersCreate = (me: Me) => me.organizationCreation.allowed && me.role !== 'customer'
 
 /** Un cliente solo cambia de espacio: «Tus espacios» y salir son del personal. */
 const offersSpacesPage = (me: Me) => me.role !== 'customer'
@@ -27,6 +34,17 @@ const cardLabel = (name: string) => `Espacio: ${name}. Cambiar de espacio`
  * del menú.
  */
 export function WorkspaceMenu({ me, card }: { me: Me; card: SidebarWorkspace }) {
+  // El diálogo vive fuera del menú: el menú se desmonta al elegir una opción y el diálogo no puede irse con él.
+  const [creating, setCreating] = useState(false)
+  return (
+    <>
+      <WorkspaceSwitcher me={me} card={card} onCreate={() => setCreating(true)} />
+      <CreateWorkspaceDialog open={creating} onClose={() => setCreating(false)} />
+    </>
+  )
+}
+
+function WorkspaceSwitcher({ me, card, onCreate }: { me: Me; card: SidebarWorkspace; onCreate: () => void }) {
   const { switchOrganization } = useSessionActions()
   const navigate = useNavigate()
   const workspaces = workspacesOf(me)
@@ -45,12 +63,15 @@ export function WorkspaceMenu({ me, card }: { me: Me; card: SidebarWorkspace }) 
       if (!workspace.current) switchOrganization.mutate({ organizationId: workspace.id })
     },
   }))
+  if (offersCreate(me)) {
+    items.push({ id: 'create', label: 'Crear espacio', icon: 'plus', separatorBefore: true, onSelect: onCreate })
+  }
   if (offersSpacesPage(me)) {
     items.push({
       id: 'spaces',
       label: 'Tus espacios',
       icon: 'settings',
-      separatorBefore: true,
+      separatorBefore: !offersCreate(me),
       onSelect: () => void navigate(SPACES_PATH),
     })
   }
@@ -94,13 +115,14 @@ export function WorkspaceMenu({ me, card }: { me: Me; card: SidebarWorkspace }) 
 
 /**
  * El selector dentro del drawer móvil: la tarjeta del espacio despliega la lista debajo, en el propio menú, sin una
- * capa flotante encima de otra capa modal. Elegir un espacio lo cambia (la navegación cierra el drawer); «Tus espacios»
- * es un enlace.
+ * capa flotante encima de otra capa modal. Elegir un espacio lo cambia (la navegación cierra el drawer); «Crear espacio»
+ * abre su diálogo (una hoja inferior sobre el drawer) y «Tus espacios» es un enlace.
  */
 export function WorkspaceDisclosure({ me, card }: { me: Me; card: SidebarWorkspace }) {
   const { switchOrganization } = useSessionActions()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [creating, setCreating] = useState(false)
   const panelId = useId()
   const cardRef = useRef<HTMLButtonElement>(null)
   const workspaces = workspacesOf(me)
@@ -167,6 +189,12 @@ export function WorkspaceDisclosure({ me, card }: { me: Me; card: SidebarWorkspa
               Ningún espacio coincide con tu búsqueda.
             </p>
           )}
+          {offersCreate(me) && (
+            <button type="button" className={styles.row} onClick={() => setCreating(true)}>
+              <Icon name="plus" />
+              Crear espacio
+            </button>
+          )}
           {offersSpacesPage(me) && (
             <Link to={SPACES_PATH} className={styles.row}>
               <Icon name="settings" />
@@ -175,6 +203,7 @@ export function WorkspaceDisclosure({ me, card }: { me: Me; card: SidebarWorkspa
           )}
         </div>
       )}
+      <CreateWorkspaceDialog open={creating} onClose={() => setCreating(false)} />
     </div>
   )
 }

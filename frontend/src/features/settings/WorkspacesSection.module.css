@@ -11,9 +11,29 @@
 
 .header {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-12);
+  min-width: 0;
+}
+
+.heading {
+  display: flex;
+  flex: 1 1 10rem;
   flex-direction: column;
   gap: var(--space-4);
   min-width: 0;
+}
+
+.create {
+  flex: none;
+}
+
+.footer {
+  margin-top: var(--space-8);
+  color: var(--color-muted);
+  font: var(--font-caption);
 }
 
 .title {

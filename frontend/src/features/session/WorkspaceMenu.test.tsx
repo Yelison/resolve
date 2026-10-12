@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, SESSION_CHANGED_DETAIL } from '../../api/client'
@@ -81,7 +81,7 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     expect(rows[1]).toHaveTextContent('Agente')
   })
 
-  it('cada fila lleva su rol y marca el espacio actual; sin «Crear espacio» en esta fase', async () => {
+  it('cada fila lleva su rol y marca el espacio actual; «Crear espacio» va tras el separador y antes de «Tus espacios»', async () => {
     mockApi({ 'GET /api/me': { body: meInAcme } })
     renderShell()
     const menu = await openSwitcher()
@@ -92,11 +92,50 @@ describe('selector de espacios · tarjeta del sidebar', () => {
       'Norte Viajes, Cliente',
     ])
     expect(rows.map((row) => row.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false'])
-    expect(within(menu).getByRole('separator')).toBeInTheDocument()
-    expect(within(menu).getByRole('menuitem', { name: 'Tus espacios' })).toBeInTheDocument()
-    expect(within(menu).queryByRole('menuitem', { name: /Crear espacio/ })).not.toBeInTheDocument()
+    // Un solo separador: el de «Crear espacio», que abre el bloque de acciones.
+    expect(within(menu).getAllByRole('separator')).toHaveLength(1)
+    expect(
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((item) => item.textContent),
+    ).toEqual(['Crear espacio', 'Tus espacios'])
     // Se abre sobre la opción elegida.
     await waitFor(() => expect(rows[0]).toHaveFocus())
+  })
+
+  it('sin permiso para crear (`allowed: false`) el selector no ofrece «Crear espacio», aunque seas administrador aquí', async () => {
+    const me = {
+      ...meInAcme,
+      organizationCreation: { allowed: false, created: 3, limit: 3 },
+    } as Me
+    mockApi({ 'GET /api/me': { body: me } })
+    renderShell()
+    const menu = await openSwitcher()
+    expect(within(menu).queryByRole('menuitem', { name: /Crear espacio/ })).not.toBeInTheDocument()
+    // Sin «Crear espacio», el separador abre «Tus espacios».
+    expect(within(menu).getAllByRole('separator')).toHaveLength(1)
+    expect(within(menu).getByRole('menuitem', { name: 'Tus espacios' })).toBeInTheDocument()
+  })
+
+  it('un agente con permiso en otro espacio (`allowed: true`) ve «Crear espacio» aunque aquí no administre', async () => {
+    const me = { ...inOrg(adminMe, orgB, [orgA, orgB]), organizationCreation: { allowed: true, created: 1, limit: 3 } }
+    mockApi({ 'GET /api/me': { body: me } })
+    renderShell()
+    const menu = await openSwitcher('Northwind')
+    expect(within(menu).getByRole('menuitem', { name: 'Crear espacio' })).toBeInTheDocument()
+  })
+
+  it('en una sesión de cliente no hay «Crear espacio», aunque la persona administre otro espacio', async () => {
+    const lumen: OrganizationRef = { ...orgC, name: 'Lumen Diseño' }
+    const me = {
+      ...inOrg(customerMe, orgC, [orgC, lumen, orgA]),
+      organizationCreation: { allowed: true, created: 1, limit: 3 },
+    } as Me
+    mockApi({ 'GET /api/me': { body: me } })
+    renderShell()
+    await userEvent.click(await card('Norte Viajes'))
+    const menu = screen.getByRole('menu', { name: 'Cambiar de espacio' })
+    expect(within(menu).queryByRole('menuitem')).not.toBeInTheDocument()
   })
 
   it('un nombre de 120 caracteres se corta con «…» pero conserva el nombre completo accesible', async () => {
@@ -395,7 +434,7 @@ describe('selector de espacios · barra colapsada y drawer', () => {
     const group = within(drawer).getByRole('group', { name: 'Cambiar de espacio' })
     expect(
       within(group)
-        .getAllByRole('button')
+        .getAllByRole('button', { name: /, (Administrador|Agente|Cliente)$/ })
         .map((row) => row.getAttribute('aria-label')),
     ).toEqual(['Clínica Sonrisa, Agente'])
   })
@@ -409,6 +448,23 @@ describe('selector de espacios · barra colapsada y drawer', () => {
     await userEvent.click(await within(drawer).findByRole('button', { name: /Cambiar de espacio/ }))
     await userEvent.type(within(drawer).getByRole('searchbox', { name: 'Buscar espacio' }), 'Espacio 8')
     const group = within(drawer).getByRole('group', { name: 'Cambiar de espacio' })
-    expect(within(group).getAllByRole('button')).toHaveLength(1)
+    expect(within(group).getAllByRole('button', { name: /, (Administrador|Agente|Cliente)$/ })).toHaveLength(1)
+  })
+
+  it('en el drawer, «Crear espacio» abre el diálogo sobre el menú y Escape cierra solo el diálogo', async () => {
+    mockApi({ 'GET /api/me': { body: meInAcme } })
+    renderShell('/tickets', undefined, undefined, 390)
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    await userEvent.click(await within(drawer).findByRole('button', { name: /Cambiar de espacio/ }))
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Crear espacio' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Crear espacio' })
+    expect(within(dialog).getByRole('textbox', { name: 'Nombre del espacio' })).toBeInTheDocument()
+    // jsdom no cierra un `<dialog>` con Escape: el navegador lo hace disparando `cancel`.
+    fireEvent(dialog, new Event('cancel', { cancelable: true }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Crear espacio' })).not.toBeInTheDocument())
+    // Los eventos `cancel` y `close` de la hoja suben por el árbol hasta el drawer: no deben cerrarlo también.
+    expect(screen.getByRole('dialog', { name: 'Menú principal' })).toHaveAttribute('open')
+    expect(document.body).not.toHaveFocus()
   })
 })

@@ -1,0 +1,21 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-12);
+}
+
+@media (max-width: 767px) {
+  /* En la hoja inferior las acciones ocupan el ancho y cada una mide al menos 44 px. */
+  .actions > * {
+    flex: 1 1 auto;
+    min-height: 44px;
+  }
+}

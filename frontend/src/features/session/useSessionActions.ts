@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { api, isApiError, PROBLEM_TYPES, unwrap } from '../../api/client'
-import type { Me } from '../../api/schema'
+import type { Me, NewOrganization } from '../../api/schema'
 import { useToast } from '../../components/ui'
+import { ticketKeys } from '../tickets/queries'
 import { fetchMe, refreshSessionOnForbidden, sessionKeys } from './queries'
 import { postSessionMessage } from './sessionChannel'
 import { clearSessionData, holdWrites, navigation, sessionState } from './sessionLifecycle'
@@ -30,6 +31,16 @@ export function leaveFailure(error: unknown): LeaveFailure {
   return 'other'
 }
 
+/** Por qué no se pudo crear un espacio, según el estado y el `type` del Problem (nunca por su texto). */
+export type CreateFailure = 'limit' | 'forbidden' | 'invalid' | 'other'
+
+export function createFailure(error: unknown): CreateFailure {
+  if (isApiError(error, 409) && error.problem.type === PROBLEM_TYPES.organizationLimit) return 'limit'
+  if (isApiError(error, 403)) return 'forbidden'
+  if (isApiError(error, 400)) return 'invalid'
+  return 'other'
+}
+
 /** A qué espacio se cambia y, si no es el resumen, a dónde se va después (p. ej. `/equipo`). */
 export interface SwitchTarget {
   organizationId: string
@@ -52,7 +63,7 @@ export interface SessionActionsOptions {
   onLogoutUnavailable?: () => void
 }
 
-/** Acciones de la sesión del usuario: cerrar sesión, cambiar de espacio y salir de uno. */
+/** Acciones de la sesión del usuario: cerrar sesión, cambiar de espacio, crear uno y salir de uno. */
 export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions = {}) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -91,16 +102,23 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
    * Cambia el espacio activo. El `Me` nuevo sustituye al anterior tras vaciar la caché y los borradores, y se vuelve al
    * resumen (o a `to`): una ruta como /tickets/1046 apuntaría al ticket del mismo número en el otro espacio.
    */
+  const clearAndStore = async (me: Me) => {
+    // La guardia de escrituras se cierra antes de vaciar nada y se abre al confirmarse la navegación a `/`.
+    holdWrites()
+    await clearSessionData(queryClient)
+    queryClient.setQueryData(sessionKeys.me, me)
+    postSessionMessage('organization-changed')
+  }
+  const enterOrganization = async (me: Me, to = '/') => {
+    await clearAndStore(me)
+    void navigate(to, { replace: true })
+  }
+
   const switchOrganization = useMutation({
     mutationFn: ({ organizationId }: SwitchTarget) =>
       unwrap(api.POST('/session/organization', { body: { organizationId } })),
     onSuccess: async (me: Me, { to }) => {
-      // La guardia de escrituras se cierra antes de vaciar nada y se abre al confirmarse la navegación a `/`.
-      holdWrites()
-      await clearSessionData(queryClient)
-      queryClient.setQueryData(sessionKeys.me, me)
-      postSessionMessage('organization-changed')
-      void navigate(to ?? '/', { replace: true })
+      await enterOrganization(me, to)
       toast.show({ title: `Ahora trabajas en ${me.organization.name}` })
     },
     onError: (error) => {
@@ -110,6 +128,33 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
         title: 'No pudimos cambiar de espacio',
         description: organizationErrorText(error),
       })
+    },
+  })
+
+  /**
+   * Crea un espacio y pasa a trabajar en él: el `201` trae el `Me` de ese espacio, así que se entra como al cambiar
+   * (caché vacía, resumen del espacio nuevo) y el aviso lo dice. El diálogo que lo pidió se cierra; el foco lo lleva la
+   * shell al contenido de la pantalla nueva, como en cualquier navegación. Los fallos los muestra el diálogo, que los pone bajo su campo; aquí solo se relee la sesión si lo que se
+   * mostraba ya no es verdad (el límite o el permiso cambiaron en otra pestaña).
+   */
+  const createOrganization = useMutation({
+    mutationFn: (body: NewOrganization) => unwrap(api.POST('/organizations', { body })),
+    onSuccess: async (me: Me) => {
+      await clearAndStore(me)
+      // «Primeros pasos» sale de las métricas: con ellas ya en caché, Inicio pinta el panel de una vez y no empuja la
+      // página al llegar. Si falla, Inicio las pide como siempre.
+      await queryClient.prefetchQuery({
+        queryKey: ticketKeys.metrics(),
+        queryFn: ({ signal }) => unwrap(api.GET('/tickets/metrics', { signal })),
+        retry: false,
+      })
+      void navigate('/', { replace: true })
+      toast.show({ title: `Ya estás en ${me.organization.name}` })
+    },
+    onError: (error) => {
+      const failure = createFailure(error)
+      if (failure === 'limit' || failure === 'forbidden')
+        void queryClient.invalidateQueries({ queryKey: sessionKeys.me })
     },
   })
 
@@ -151,5 +196,5 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
     },
   })
 
-  return { signOut, switchOrganization, leaveOrganization }
+  return { signOut, switchOrganization, createOrganization, leaveOrganization }
 }

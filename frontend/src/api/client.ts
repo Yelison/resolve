@@ -86,16 +86,18 @@ export const PROBLEM_TYPES = {
   lastAdmin: 'https://resolve.example/problems/last-admin',
   /** 409: se intentó salir del único espacio usable de la persona; no se cambió nada. */
   lastOrganization: 'https://resolve.example/problems/last-organization',
+  /** 409: la persona ya creó el máximo de espacios que puede tener; no se creó nada. */
+  organizationLimit: 'https://resolve.example/problems/organization-limit',
 } as const
 
 /** Cabecera con la organización que muestra la pantalla que compone la escritura (opcional en el contrato). */
 export const ORGANIZATION_HEADER = 'X-Organization-Id'
 
 /**
- * Las dos escrituras que no la llevan: la que elige la organización de la sesión y la que cierra la sesión. El backend
- * las ignora; enviársela a la primera sería comparar con la organización que va a dejar de serlo.
+ * Las tres escrituras que no la llevan: las que eligen o crean la organización de la sesión y la que cierra la sesión.
+ * El backend las ignora; enviársela a las dos primeras sería comparar con la organización que va a dejar de serlo.
  */
-const WITHOUT_ORGANIZATION = new Set(['/session/organization', '/logout'])
+const WITHOUT_ORGANIZATION = new Set(['/session/organization', '/organizations', '/logout'])
 
 /** Ruta de la API de una petición, sin el prefijo `/api` (`/me`, `/tickets/1046/messages`…). */
 const apiPath = (request: Request) => new URL(request.url).pathname.replace(/^\/api(?=\/|$)/, '')
