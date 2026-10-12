@@ -61,6 +61,13 @@ class OrganizationMigrationTest {
 			try (Connection connection = DriverManager.getConnection(url, "test", "test");
 					Statement statement = connection.createStatement()) {
 				statement.execute("insert into organizations (id, name, time_zone) values ('" + legacy + "', 'Antigua', 'UTC')");
+				// Un artículo publicado de una organización que no es de la demostración: solo V10 puede rellenarle la fecha.
+				statement.execute("insert into users (id, name, email) values ('0192f000-0000-7000-8000-0000000000b1', 'Autora', 'autora@antigua.example')");
+				statement.execute("insert into knowledge_categories (id, organization_id, name, slug, created_at) values ('0192f000-0000-7000-8000-0000000000c1', '"
+						+ legacy + "', 'General', 'general', now())");
+				statement.execute("insert into articles (id, organization_id, category_id, slug, title, body, status, visibility, created_by, updated_by, created_at, updated_at, published_at) "
+						+ "values ('0192f000-0000-7000-8000-0000000000d1', '" + legacy + "', '0192f000-0000-7000-8000-0000000000c1', 'antiguo', 'Antiguo', 'Texto', 'published', 'public', "
+						+ "'0192f000-0000-7000-8000-0000000000b1', '0192f000-0000-7000-8000-0000000000b1', '2026-09-01T10:00:00Z', '2026-09-02T10:00:00Z', '2026-09-02T10:00:00Z')");
 			}
 			flyway(url, "1007", false, DEMO).migrate();
 
@@ -78,6 +85,9 @@ class OrganizationMigrationTest {
 						.isEqualTo("t");
 				}
 				assertThat(scalar(connection, "select count(*) from organizations where created_by is not null")).isEqualTo("0");
+				assertThat(scalar(connection, "select first_published_at = published_at from articles where slug = 'antiguo'"))
+					.as("fecha de la primera publicación del artículo antiguo")
+					.isEqualTo("t");
 				// «Se publicó alguna vez»: los artículos publicados que ya existían tienen su primera fecha.
 				assertThat(scalar(connection, "select count(*) from articles where published_at is not null")).isNotEqualTo("0");
 				assertThat(scalar(connection,

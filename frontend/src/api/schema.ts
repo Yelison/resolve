@@ -961,15 +961,15 @@ export interface components {
         };
         /**
          * @description The three first steps of an organization created by hand, for the checklist of Inicio. Each flag only turns
-         *     `true` and stays so, except `publishedArticle`, which follows the published articles until the three are done
-         *     (unpublishing clears `publishedAt`, so the API cannot tell that one was ever published).
+         *     `true` and stays so, `publishedArticle` included (it remembers the first publication, even if the article is
+         *     unpublished afterwards).
          */
         GettingStarted: {
             /** @description Somebody else has been a member of the team (admin or agent, even if they were removed since). */
             invitedTeam: boolean;
             /** @description The organization has had a customer (customers are archived, never deleted). */
             addedCustomer: boolean;
-            /** @description The organization has a published article. */
+            /** @description The organization has ever had a published article. */
             publishedArticle: boolean;
         };
         ProfilePatch: {
