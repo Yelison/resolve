@@ -135,7 +135,11 @@ export function Sidebar({
 
   const workspaceContent = (
     <>
-      <WorkspaceMark name={workspace} size={collapsed ? 'touch' : 'medium'} />
+      <WorkspaceMark
+        name={workspace}
+        size={collapsed ? 'touch' : 'medium'}
+        className={cx(!collapsed && styles.cardMark)}
+      />
       {!collapsed && (
         <>
           <span className={styles.workspaceText}>

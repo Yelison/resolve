@@ -73,6 +73,28 @@ test.describe('selector de espacios', () => {
     expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false)
   })
 
+  for (const theme of themes) {
+    test(`la tarjeta expandida distingue el cuadro de iniciales de su fondo · ${theme}`, async ({ page }) => {
+      await mockApi(page, 'admin', { organizations: spaces })
+      await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+      await page.setViewportSize({ width: 1440, height: 900 })
+      await page.goto('/')
+      const trigger = card(page)
+      await expect(trigger).toContainText('AS')
+      const [cardBackground, markBackground] = await trigger.evaluate((node) => [
+        getComputedStyle(node).backgroundColor,
+        getComputedStyle(node.firstElementChild!).backgroundColor,
+      ])
+      expect(markBackground).not.toBe(cardBackground)
+      // El cuadro toma el fondo del propio sidebar, no un color nuevo.
+      const sidebarBackground = await page
+        .getByRole('navigation', { name: 'Principal' })
+        .locator('..')
+        .evaluate((node) => getComputedStyle(node).backgroundColor)
+      expect(markBackground).toBe(sidebarBackground)
+    })
+  }
+
   test('colapsada: el cuadro es el disparador, con nombre accesible y tooltip también con foco', async ({ page }) => {
     await mockApi(page, 'admin', { organizations: spaces })
     await page.setViewportSize({ width: 1024, height: 800 })

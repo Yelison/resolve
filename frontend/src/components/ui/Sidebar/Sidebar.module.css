@@ -78,6 +78,13 @@ button.workspace:focus-visible {
   outline-offset: 2px;
 }
 
+/* La tarjeta expandida y el cuadro usarían el mismo fondo (`--color-nav-active`) y las iniciales parecerían sueltas: dentro
+ * de la tarjeta el cuadro toma el fondo del propio sidebar. Dos clases para ganar al módulo del cuadro sea cual sea el
+ * orden de las hojas. Colapsada no hace falta: el cuadro está sobre el sidebar. */
+.workspace .cardMark {
+  background: var(--color-nav);
+}
+
 .workspaceText {
   display: flex;
   flex: 1;
