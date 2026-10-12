@@ -101,9 +101,42 @@ describe('«Primeros pasos» en Inicio', () => {
     await waitFor(() => expect(within(panel).getByRole('heading', { name: 'Primeros pasos' })).toHaveFocus())
   })
 
-  it('al volver a Inicio con los pasos ya en caché (aún frescos), los relee en lugar de enseñar uno hecho como pendiente', async () => {
+  it('al volver a Inicio con datos de hace 10 s (aún frescos) los relee, en lugar de enseñar un paso hecho como pendiente', async () => {
     const queryClient = freshClient()
-    queryClient.setQueryData(ticketKeys.metrics(), withSteps(none))
+    queryClient.setQueryData(ticketKeys.metrics(), withSteps(none), { updatedAt: Date.now() - 10_000 })
+    let calls = 0
+    renderSteps(() => {
+      calls += 1
+      return { body: withSteps({ ...none, addedCustomer: true }) }
+    }, queryClient)
+    const panel = await screen.findByRole('region', { name: 'Primeros pasos' })
+    await waitFor(() => expect(within(panel).getByRole('status')).toHaveTextContent('2 de 4 hechos'))
+    expect(calls).toBe(1)
+  })
+
+  it('datos recién llegados (p. ej. al crear el espacio) no se vuelven a pedir al montar', async () => {
+    const queryClient = freshClient()
+    queryClient.setQueryData(ticketKeys.metrics(), withSteps(none), { updatedAt: Date.now() })
+    let calls = 0
+    renderSteps(() => {
+      calls += 1
+      return { body: withSteps(none) }
+    }, queryClient)
+    await screen.findByRole('region', { name: 'Primeros pasos' })
+    await act(async () => {})
+    expect(calls).toBe(0)
+  })
+
+  it('datos recientes pero con una escritura terminada después (volver de Clientes en pocos segundos) sí se releen', async () => {
+    const queryClient = freshClient()
+    queryClient.setQueryData(ticketKeys.metrics(), withSteps(none), { updatedAt: Date.now() - 1_000 })
+    // Una escritura que termina bien después de leer los datos: crear un cliente, invitar…
+    await act(async () => {
+      await queryClient
+        .getMutationCache()
+        .build(queryClient, { mutationFn: async () => 'hecho' })
+        .execute(undefined)
+    })
     let calls = 0
     renderSteps(() => {
       calls += 1

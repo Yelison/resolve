@@ -132,6 +132,28 @@ test.describe('Crear espacio · escritorio', () => {
     await expect(card(page)).toContainText('Lumen Taller')
   })
 
+  test('crear pide las métricas del espacio nuevo una sola vez: la relectura de Inicio no las repite', async ({
+    page,
+  }) => {
+    await mockApi(page, 'admin', demoAdmin)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets')
+    const dialog = await openFromSelector(page)
+    await dialog.getByRole('textbox', { name: 'Nombre del espacio' }).fill('Lumen Taller')
+    let created = false
+    const metrics: string[] = []
+    page.on('response', (response) => {
+      if (response.request().method() === 'POST' && response.url().endsWith('/api/organizations')) created = true
+    })
+    page.on('request', (request) => {
+      if (created && request.url().endsWith('/api/tickets/metrics')) metrics.push(request.url())
+    })
+    await dialog.getByRole('button', { name: 'Crear espacio' }).click()
+    await expect(page.getByRole('region', { name: 'Primeros pasos' })).toBeVisible()
+    await page.waitForTimeout(800)
+    expect(metrics).toHaveLength(1)
+  })
+
   test('«Primeros pasos» no empuja la página: nada se mueve al llegar y la franja de métricas queda donde estaba', async ({
     page,
   }) => {

@@ -9,6 +9,9 @@ import { InviteMemberDialog } from '../team/InviteMemberDialog'
 import { ticketKeys, useTicketMetrics } from '../tickets/queries'
 import styles from './GettingStarted.module.css'
 
+/** Las métricas leídas hace menos de esto, sin escrituras después, no se vuelven a pedir al montar Inicio. */
+const JUST_ARRIVED_MS = 5_000
+
 /** Cuatro pasos: «Crea tu espacio» (siempre hecho) y los tres que el servidor cuenta. */
 const TOTAL = 4
 
@@ -120,10 +123,17 @@ export function GettingStarted() {
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
 
   // Los pasos se hacen en otras páginas: al volver a Inicio se relee lo que ya estaba en caché, en lugar de enseñar hasta
-  // 30 s un paso ya hecho. Si la consulta ya se está pidiendo (estaba obsoleta o es la primera vez), no se pide otra vez.
+  // 30 s un paso ya hecho. No se relee si la consulta ya se está pidiendo (estaba obsoleta o es la primera vez) ni si los
+  // datos acaban de llegar y desde entonces no terminó bien ninguna escritura (p. ej. las métricas que trae crear el espacio).
   useEffect(() => {
     const cached = queryClient.getQueryData<{ gettingStarted: unknown }>(ticketKeys.metrics())
-    if (cached?.gettingStarted && queryClient.isFetching({ queryKey: ticketKeys.metrics() }) === 0) {
+    if (!cached?.gettingStarted || queryClient.isFetching({ queryKey: ticketKeys.metrics() }) > 0) return
+    const updatedAt = queryClient.getQueryState(ticketKeys.metrics())?.dataUpdatedAt ?? 0
+    const written = queryClient
+      .getMutationCache()
+      .getAll()
+      .some((mutation) => mutation.state.status === 'success' && mutation.state.submittedAt > updatedAt)
+    if (written || Date.now() - updatedAt > JUST_ARRIVED_MS) {
       void queryClient.invalidateQueries({ queryKey: ticketKeys.metrics() })
     }
   }, [queryClient])
