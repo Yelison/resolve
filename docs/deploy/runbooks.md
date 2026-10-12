@@ -230,7 +230,7 @@ Check in this order:
 1. **Which component?** Read the logs: `fly logs -a <api-app>`. The health detail only appears if
    `management.endpoint.health.show-details` is configured, which is not set (the endpoint is public, so it stays off);
    `health` answers just `UP` or `DOWN`, and the cause is in the logs (JSON in ECS format, see
-   [Deployment](README.md#logs)).
+   [Deployment](README.md#errors-logs-and-health)).
 2. **Database.** Is Neon reachable and not paused/over its limits (Neon console)? Wrong or rotated
    `DATABASE_PASSWORD`? Connection from the Fly region blocked? Try `psql` with the direct connection string.
 3. **Migrations.** A Flyway failure at startup (checksum mismatch, a failed migration) keeps the app down. Read the

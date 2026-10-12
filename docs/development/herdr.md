@@ -74,7 +74,7 @@ preview (4181-4189) ports of the slots, with 5173 and 4173, as return URLs after
 
 ### Authentication e2e in a slot
 
-`npm run test:auth` (see [Authentication](../../README.md#authentication)) serves the app from the jar, not from Vite, so
+`npm run test:auth` (see [Authentication](README.md#authentication)) serves the app from the jar, not from Vite, so
 it needs the slot's own API on `SERVER_PORT` with `RESOLVE_PUBLIC_URL` pointing at it (`.env.herdr` points it at Vite):
 
 ```sh
