@@ -7,6 +7,7 @@ export const organizationSettings = (overrides: Partial<OrganizationSettings> = 
   supportEmail: 'soporte@acme.example',
   timeZone: 'America/Bogota',
   firstResponseTargetMinutes: 30,
+  color: 'green',
   version: 3,
   ...overrides,
 })

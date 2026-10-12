@@ -81,6 +81,7 @@ function metricsOf(items: readonly BareTicket[]): TicketMetrics {
     ).length,
     firstResponseMinutes: 18,
     firstResponseTargetMinutes: 30,
+    gettingStarted: null,
     views: {
       all: items.length,
       mine: unresolved.filter((ticket) => ticket.assignee?.id === me.user.id).length,

@@ -18,7 +18,7 @@ tags:
   - name: Session
     description: The authenticated member, their organization, the choice of organization and sign-out.
   - name: Organization
-    description: Settings of the organization (name, support address, time zone, first-response target).
+    description: Settings of the organization (name, support address, time zone, first-response target, color) and creating a new one.
   - name: Tickets
     description: Inbox, detail, updates, metrics and activity.
   - name: Messages
@@ -195,6 +195,52 @@ paths:
         '429': { $ref: '#/components/responses/TooManyWrites' }
         '503': { $ref: '#/components/responses/ServiceUnavailable' }
 
+  /organizations:
+    post:
+      tags: [Organization]
+      operationId: createOrganization
+      summary: Create an organization (a workspace) and work in it
+      description: |
+        Creates the organization with the caller as its first member: an `active` `admin` membership (no customer record).
+        The new organization starts with the defaults of the schema (first-response target of 30 minutes, the ticket
+        counter at 1, no support address), remembers who created it, and gets its `color` from its own id
+        (`keys[hash(id) mod 8]`, so new organizations spread across the palette). The session switches to it, like
+        `POST /session/organization`, and the answer is the caller's `Me` there (`201`).
+
+        **Who can.** Only a person with an `active` `admin` membership in some organization (in any of them, not
+        necessarily the one of the session: an admin who is working as a customer elsewhere can create). A customer, or
+        an agent without an admin organization, gets `403`. `Me.organizationCreation.allowed` already folds this and the limit
+        in, so a client never recomputes it.
+
+        **Limit.** Each person has at most 3 organizations they created and still have an `active` membership in
+        (`resolve.organizations.per-person-limit`, 3 by default): leaving one they created gives the slot back, and
+        organizations they were invited to do not count. At the limit the answer is a `409` with the Problem `type`
+        `https://resolve.example/problems/organization-limit` and nothing is created. The limit is exact with two
+        simultaneous requests of the same person (they share the per-person lock of leaving an organization).
+
+        It ignores `X-Organization-Id`, like `POST /session/organization`: it is what changes the organization.
+        Errors are checked in this order: `401`, `400` (a field per entry in `errors`), `403`, `409`. The body is
+        validated before the permission: the permission does not depend on the role of the session, and a `400` reveals
+        nothing. `name` is 1 to 120 characters after trimming and `timeZone` an IANA region id that PostgreSQL also knows,
+        with the same rules as `PATCH /organization`; other fields are a `400` on that field.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewOrganization' }
+      responses:
+        '201':
+          description: The organization was created and the session now works in it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyWrites' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
   /organization:
     get:
       tags: [Organization]
@@ -220,7 +266,8 @@ paths:
         JSON Merge Patch semantics: absent fields are unchanged; `supportEmail` accepts `null` to clear it
         (the documented form; an empty or blank text is tolerated and also clears it) and no other field does. `timeZone` must be an IANA region id that PostgreSQL also
         knows, spelled exactly (`America/Bogota`); offsets, aliases such as `UTC+5` and other spellings are a
-        400 on `timeZone`. Requires `If-Match` with the current version; a patch that changes nothing returns
+        400 on `timeZone`. `color` is one of the eight keys (an unknown key is a 400 on `color`) and, like the rest, only
+        an admin can change it. Requires `If-Match` with the current version; a patch that changes nothing returns
         200 without a new version. Creating tickets does not change the version. Errors are checked in this
         order: 401, 409 (`X-Organization-Id` mismatch), 403, 428, 400, 412.
       parameters:
@@ -354,7 +401,9 @@ paths:
       tags: [Tickets]
       operationId: getTicketMetrics
       summary: Inbox metrics for the whole organization
-      description: Not affected by inbox filters. Days are computed in the organization time zone.
+      description: |
+        Not affected by inbox filters. Days are computed in the organization time zone. It is also the response that
+        feeds the Inicio page (which has none of its own), so it carries `gettingStarted`.
       responses:
         '200':
           description: Organization-wide metrics.
@@ -1353,8 +1402,8 @@ components:
         organization, or the member lost their access there), the answer is `409` with the Problem `type`
         `https://resolve.example/problems/organization-mismatch` and **nothing is changed**. The check runs right after
         authentication (a `401` still wins) and before the role check and before anything is read or written. A value
-        that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` (it is
-        what chooses the organization) nor on `POST /logout`, which ignore it.
+        that is not a canonical UUID is a `400`. Reads ignore it. Not declared on `POST /session/organization` nor on
+        `POST /organizations` (they are what changes the organization) nor on `POST /logout`, which ignore it.
       schema: { type: string, format: uuid }
     OrganizationRouteId:
       name: organizationId
@@ -1445,7 +1494,9 @@ components:
         re-read `/me` before showing anything as current), or the organization would be left without an active admin
         (`type` `https://resolve.example/problems/last-admin`: changing the role of the last admin, removing them or
         leaving as them), or the organization to leave is the only usable one of the caller
-        (`type` `https://resolve.example/problems/last-organization`). Clients tell them apart by `type`. On the public demo
+        (`type` `https://resolve.example/problems/last-organization`), or the caller already created the maximum
+        of organizations they can have (`type` `https://resolve.example/problems/organization-limit`). Clients tell them
+        apart by `type`. On the public demo
         (`resolve.demo.limits=true`) the creation of a ticket, customer, member or article also answers it, with the
         title "Límite de la demostración", when the organization already has the maximum of that resource (500
         tickets, 200 customers, 50 team members, 100 articles).
@@ -1480,11 +1531,12 @@ components:
     Organization:
       type: object
       additionalProperties: false
-      required: [id, name, timeZone, supportEmail, demo]
+      required: [id, name, timeZone, supportEmail, color, demo]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         timeZone: { type: string, examples: [America/Bogota] }
+        color: { $ref: '#/components/schemas/OrganizationColor' }
         supportEmail:
           description: Public support address shown in the knowledge base footer; null when not set.
           type: [string, 'null']
@@ -1498,7 +1550,7 @@ components:
     OrganizationSettings:
       type: object
       additionalProperties: false
-      required: [id, name, supportEmail, timeZone, firstResponseTargetMinutes, version]
+      required: [id, name, supportEmail, timeZone, firstResponseTargetMinutes, color, version]
       properties:
         id: { type: string, format: uuid }
         name: { type: string, minLength: 1, maxLength: 120 }
@@ -1509,6 +1561,7 @@ components:
           type: integer
           minimum: 1
           maximum: 1440
+        color: { $ref: '#/components/schemas/OrganizationColor' }
         version: { type: integer, minimum: 0, description: Same value as the ETag. }
 
     OrganizationPatch:
@@ -1521,6 +1574,56 @@ components:
         supportEmail: { type: [string, 'null'], format: email, maxLength: 254 }
         timeZone: { type: string, examples: [America/Bogota] }
         firstResponseTargetMinutes: { type: integer, minimum: 1, maximum: 1440 }
+        color: { $ref: '#/components/schemas/OrganizationColor' }
+
+    OrganizationColor:
+      description: |
+        How an organization is told apart from the others, together with its initials and name: a key, not a hex
+        value. Each key maps to a light and a dark token in the interface. A new organization gets `keys[hash(id) mod 8]`
+        (the order below; the hash is the last byte of its id), so colors may repeat. An admin can change it.
+      type: string
+      enum: [blue, green, magenta, orange, violet, teal, brick, slate]
+
+    NewOrganization:
+      type: object
+      additionalProperties: false
+      required: [name, timeZone]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        timeZone: { type: string, examples: [America/Bogota] }
+
+    OrganizationCreation:
+      description: |
+        Whether the caller can create another organization. `allowed` already folds in their roles (an `active` admin
+        membership in any organization) and the limit, so a client reads it and never recomputes it; `created` and
+        `limit` are for «Has creado 2 de 3 espacios». `created` counts the organizations the caller created and still
+        has an `active` membership in.
+      type: object
+      additionalProperties: false
+      required: [allowed, created, limit]
+      properties:
+        allowed: { type: boolean }
+        created: { type: integer, minimum: 0 }
+        limit: { type: integer, minimum: 1 }
+
+    GettingStarted:
+      description: |
+        The three first steps of an organization created by hand, for the checklist of Inicio. Each flag only turns
+        `true` and stays so, except `publishedArticle`, which follows the published articles until the three are done
+        (unpublishing clears `publishedAt`, so the API cannot tell that one was ever published).
+      type: object
+      additionalProperties: false
+      required: [invitedTeam, addedCustomer, publishedArticle]
+      properties:
+        invitedTeam:
+          description: Somebody else has been a member of the team (admin or agent, even if they were removed since).
+          type: boolean
+        addedCustomer:
+          description: The organization has had a customer (customers are archived, never deleted).
+          type: boolean
+        publishedArticle:
+          description: The organization has a published article.
+          type: boolean
 
     ProfilePatch:
       type: object
@@ -1534,11 +1637,12 @@ components:
         An organization as listed for the choice of the active one. `role` is the role the caller has in it.
       type: object
       additionalProperties: false
-      required: [id, name, role, memberCount]
+      required: [id, name, role, color, memberCount]
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
         role: { $ref: '#/components/schemas/Role' }
+        color: { $ref: '#/components/schemas/OrganizationColor' }
         memberCount:
           description: |
             Active people of the team there (admins and agents with an `active` membership; invited, removed and
@@ -1567,7 +1671,7 @@ components:
     Me:
       type: object
       additionalProperties: false
-      required: [user, organization, role, customerId]
+      required: [user, organization, organizationCreation, role, customerId]
       properties:
         user: { $ref: '#/components/schemas/Member' }
         organization: { $ref: '#/components/schemas/Organization' }
@@ -1577,6 +1681,7 @@ components:
             Optional: it is present in responses of the API and clients may omit it in their own fixtures.
           type: array
           items: { $ref: '#/components/schemas/OrganizationRef' }
+        organizationCreation: { $ref: '#/components/schemas/OrganizationCreation' }
         role: { $ref: '#/components/schemas/Role' }
         customerId:
           description: Customer record of a `customer` member; null for admins and agents.
@@ -2002,6 +2107,7 @@ components:
         - firstResponseMinutes
         - firstResponseTargetMinutes
         - views
+        - gettingStarted
       properties:
         open:
           description: |
@@ -2033,6 +2139,14 @@ components:
           minimum: 0
         firstResponseTargetMinutes: { type: integer, minimum: 1 }
         views: { $ref: '#/components/schemas/ViewCounts' }
+        gettingStarted:
+          description: |
+            The «Primeros pasos» checklist of Inicio. `null` when it must not show: the caller is not an admin, or the
+            organization already completed it (once the three steps hold it is written down once and never comes back;
+            the organizations that existed before the feature are already completed). Reading it may write that mark.
+          oneOf:
+            - $ref: '#/components/schemas/GettingStarted'
+            - type: 'null'
 
     MessageAuthor:
       type: object
@@ -2682,6 +2796,7 @@ components:
         | `https://resolve.example/problems/organization-mismatch` | 409 | The write's `X-Organization-Id` is not the session's organization. |
         | `https://resolve.example/problems/last-admin` | 409 | The organization would be left without an active admin (changing their role, removing them or leaving). |
         | `https://resolve.example/problems/last-organization` | 409 | The caller tried to leave their only usable organization. |
+        | `https://resolve.example/problems/organization-limit` | 409 | The caller already created the maximum of organizations they can have (3 by default). |
 
         The values are identifiers, not addresses: nothing is served at them.
       type: object

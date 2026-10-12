@@ -11,8 +11,8 @@ import { SESSION_TAB_ID } from './sessionChannel'
 import { focusContentWhenReady, holdWrites, navigation, releaseWrites, sessionState } from './sessionLifecycle'
 import { fromAnotherTab, renderShell, setCsrfCookie, FakeChannel } from './shellHarness'
 
-const acme: OrganizationRef = { id: 'org-1', name: 'Acme Studio', role: 'admin', memberCount: 4 }
-const northwind: OrganizationRef = { id: 'org-2', name: 'Northwind', role: 'agent', memberCount: 6 }
+const acme: OrganizationRef = { id: 'org-1', name: 'Acme Studio', role: 'admin', color: 'green', memberCount: 4 }
+const northwind: OrganizationRef = { id: 'org-2', name: 'Northwind', role: 'agent', color: 'magenta', memberCount: 6 }
 const inOrganization = (organization: OrganizationRef) => ({
   ...adminMe,
   organization: { ...adminMe.organization, id: organization.id, name: organization.name },
