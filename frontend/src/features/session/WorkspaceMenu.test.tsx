@@ -331,6 +331,37 @@ describe('selector de espacios · barra colapsada y drawer', () => {
     expect(document.body).not.toHaveFocus()
   })
 
+  it('en el drawer, elegir el espacio actual cierra la lista y devuelve el foco a la tarjeta', async () => {
+    mockApi({ 'GET /api/me': { body: meInAcme } })
+    renderShell('/tickets', undefined, undefined, 390)
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    const trigger = await within(drawer).findByRole('button', { name: 'Espacio: Acme Studio. Cambiar de espacio' })
+    await userEvent.click(trigger)
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Acme Studio, Administrador' }))
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(within(drawer).queryByRole('group', { name: 'Cambiar de espacio' })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(drawer).toBeInTheDocument()
+  })
+
+  it('en el drawer, «clinica» encuentra «Clínica»: el filtro no distingue acentos, como el del menú', async () => {
+    const all = manySpaces(8)
+    all[3] = { ...all[3]!, name: 'Clínica Sonrisa' }
+    mockApi({ 'GET /api/me': { body: inOrg(adminMe, all[0]!, all) } })
+    renderShell('/tickets', undefined, undefined, 390)
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    await userEvent.click(await within(drawer).findByRole('button', { name: /Cambiar de espacio/ }))
+    await userEvent.type(within(drawer).getByRole('searchbox', { name: 'Buscar espacio' }), 'clinica')
+    const group = within(drawer).getByRole('group', { name: 'Cambiar de espacio' })
+    expect(
+      within(group)
+        .getAllByRole('button')
+        .map((row) => row.getAttribute('aria-label')),
+    ).toEqual(['Clínica Sonrisa, Agente'])
+  })
+
   it('en el drawer, desde 8 espacios hay buscador que filtra la lista', async () => {
     const all = manySpaces(8)
     mockApi({ 'GET /api/me': { body: inOrg(adminMe, all[0]!, all) } })

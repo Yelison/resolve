@@ -1,6 +1,7 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import type { Me } from '../../api/schema'
+import { normalizeText } from '../../lib/normalizeText'
 import { Icon, Menu, SearchField, Tooltip, type MenuItem } from '../../components/ui'
 import type { SidebarWorkspace } from '../../components/ui/Sidebar/Sidebar'
 import { WorkspaceMark } from '../../components/ui/Sidebar/WorkspaceMark'
@@ -101,19 +102,24 @@ export function WorkspaceDisclosure({ me, card }: { me: Me; card: SidebarWorkspa
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const panelId = useId()
+  const cardRef = useRef<HTMLButtonElement>(null)
   const workspaces = workspacesOf(me)
   const searching = workspaces.length >= SEARCH_FROM
-  const needle = query.trim().toLowerCase()
-  const shown = searching && needle ? workspaces.filter((w) => w.name.toLowerCase().includes(needle)) : workspaces
+  const needle = normalizeText(query.trim())
+  const shown = searching && needle ? workspaces.filter((w) => normalizeText(w.name).includes(needle)) : workspaces
 
   function choose(workspace: Workspace) {
-    if (workspace.current) setOpen(false)
-    else switchOrganization.mutate({ organizationId: workspace.id })
+    if (workspace.current) {
+      // La fila que tenía el foco se desmonta: el foco vuelve a la tarjeta que abrió la lista, nunca a `body`.
+      setOpen(false)
+      cardRef.current?.focus()
+    } else switchOrganization.mutate({ organizationId: workspace.id })
   }
 
   return (
     <div className={styles.disclosure}>
       <button
+        ref={cardRef}
         type="button"
         className={card.className}
         aria-label={cardLabel(me.organization.name)}

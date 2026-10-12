@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { cx } from '../../../lib/cx'
+import { normalizeText } from '../../../lib/normalizeText'
 import type { Placement } from '../../../lib/position'
 import { Icon, type IconName } from '../Icon/Icon'
 import { SearchField } from '../SearchField/SearchField'
@@ -86,9 +87,6 @@ export interface MenuProps {
   children: (trigger: MenuTriggerProps) => ReactNode
 }
 
-/** Minúsculas y sin acentos: «lumen» encuentra «Lumen Diseño» y «clinica», «Clínica». */
-const normalize = (text: string) => text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
-
 /** Menú de acciones con el patrón ARIA menu button: flechas, Inicio/Fin, búsqueda por letra y Escape. */
 export function Menu({ label, items, placement = 'bottom-end', search, note, wide, children }: MenuProps) {
   const menuId = useId()
@@ -104,8 +102,10 @@ export function Menu({ label, items, placement = 'bottom-end', search, note, wid
   >(open, placement)
 
   // El filtro solo toca los elementos `searchable`: las acciones del pie (p. ej. «Tus espacios») siguen a la vista.
-  const needle = search ? normalize(query.trim()) : ''
-  const visible = needle ? items.filter((item) => !item.searchable || normalize(item.label).includes(needle)) : items
+  const needle = search ? normalizeText(query.trim()) : ''
+  const visible = needle
+    ? items.filter((item) => !item.searchable || normalizeText(item.label).includes(needle))
+    : items
   const noMatches = search !== undefined && needle !== '' && !visible.some((item) => item.searchable)
 
   const enabledIndexes = visible.flatMap((item, index) => (item.disabled ? [] : [index]))
