@@ -73,9 +73,11 @@ test.describe('selector de espacios', () => {
     await expect(menu).toBeHidden()
     await expect(trigger).toBeFocused()
 
+    // Por nombre, como el servidor: Acme Studio, Kora Fitness, Lumen Diseño, Norte Viajes.
     await page.keyboard.press('Enter')
     await page.keyboard.press('ArrowDown')
-    await expect(rows.nth(1)).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(rows.nth(2)).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/\/$/)
     await expect(card(page)).toContainText('Lumen Diseño')
@@ -155,17 +157,20 @@ test.describe('selector de espacios', () => {
       const blue = await tokenColor(page, 'blue')
       const green = await tokenColor(page, 'green')
       const orange = await tokenColor(page, 'orange')
-      expect(new Set([blue, green, orange]).size).toBe(3)
+      const teal = await tokenColor(page, 'teal')
+      // Acme Studio, Kora Fitness, Lumen Diseño y Norte Viajes, por nombre como en el servidor.
+      const colors = [blue, teal, green, orange]
+      expect(new Set(colors).size).toBe(4)
       await card(page).click()
       const rows = selector(page).getByRole('menuitemradio')
-      for (const [index, color] of [blue, green, orange].entries()) {
+      for (const [index, color] of colors.entries()) {
         const mark = rows.nth(index).locator('[aria-hidden="true"]').first()
         expect(await mark.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(color)
       }
       await page.keyboard.press('Escape')
       await page.goto('/configuracion/espacios')
       const list = page.locator('section[aria-labelledby="workspaces-heading"] li')
-      for (const [index, color] of [blue, green, orange].entries()) {
+      for (const [index, color] of colors.entries()) {
         const mark = list.nth(index).locator('[aria-hidden="true"]').first()
         expect(await mark.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(color)
       }
@@ -191,7 +196,7 @@ test.describe('selector de espacios', () => {
     const rowColors = async () => {
       await card(page).click()
       const rows = selector(page).getByRole('menuitemradio')
-      const colors = [await markOf(rows.nth(0)), await markOf(rows.nth(1))]
+      const colors = [await markOf(rows.nth(0)), await markOf(rows.nth(2))]
       await page.keyboard.press('Escape')
       return colors
     }
@@ -200,7 +205,7 @@ test.describe('selector de espacios', () => {
     expect(await rowColors()).toEqual([violet, green])
     // Ir a Lumen: su tarjeta es verde y Acme conserva el violeta; no pasa a Lumen.
     await card(page).click()
-    await selector(page).getByRole('menuitemradio').nth(1).click()
+    await selector(page).getByRole('menuitemradio').nth(2).click()
     await expect(card(page)).toContainText('Lumen Diseño')
     expect(await markOf(card(page))).toBe(green)
     expect(await rowColors()).toEqual([violet, green])
@@ -393,9 +398,9 @@ test.describe('Configuración › Tus espacios', () => {
       await expect(rows).toHaveCount(4)
       await expect(rows.nth(0)).toContainText('Administrador · 4 personas')
       await expect(rows.nth(0)).toContainText('Estás aquí')
-      await expect(rows.nth(1)).toContainText('Agente · 6 personas')
-      await expect(rows.nth(2)).toContainText('Soporte de Norte Viajes')
-      await expect(rows.nth(3)).toContainText('Administrador · 3 personas')
+      await expect(rows.nth(1)).toContainText('Administrador · 3 personas')
+      await expect(rows.nth(2)).toContainText('Agente · 6 personas')
+      await expect(rows.nth(3)).toContainText('Soporte de Norte Viajes')
       await expect(page.getByRole('button', { name: 'Crear espacio' })).toBeVisible()
       await expect(page.getByText('Has creado 2 de 3 espacios.')).toBeVisible()
       await expect(page.getByRole('button', { name: 'Salir de Norte Viajes' })).toHaveCount(0)

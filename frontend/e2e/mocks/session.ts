@@ -8,7 +8,7 @@ import type {
   SessionOrganizationSelection,
 } from '../../src/api/schema'
 import { json, problem, type MockFeature, type MockRoute } from './shared'
-import { colorOfId, newOrganizationId, organizationErrors, ORGANIZATION_LIMIT } from './workspaces'
+import { byNameThenId, colorOfId, newOrganizationId, organizationErrors, ORGANIZATION_LIMIT } from './workspaces'
 
 export const me: Me = {
   user: { id: 'u-admin', name: 'Yelisson Ortiz', email: 'yelisson@acme.example' },
@@ -205,11 +205,13 @@ export function sessionMock(
         ...(options.longNames ? { name: long(active.name) } : {}),
       },
       organizationCreation: organizationCreation(),
-      organizations: usable().map((org) => ({
-        ...org,
-        color: colorOf(org),
-        ...(options.longNames ? { name: long(org.name) } : {}),
-      })),
+      organizations: byNameThenId(
+        usable().map((org) => ({
+          ...org,
+          color: colorOf(org),
+          ...(options.longNames ? { name: long(org.name) } : {}),
+        })),
+      ),
     }
   }
 

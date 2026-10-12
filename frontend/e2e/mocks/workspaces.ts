@@ -54,3 +54,38 @@ export function organizationErrors(body: Partial<NewOrganization> | null): Field
 
 /** Un UUID con la forma del real; el servidor usa UUIDv7, pero solo importa el último byte para el color. */
 export const newOrganizationId = () => crypto.randomUUID()
+
+/** `String.CASE_INSENSITIVE_ORDER`: por unidad de código, tras pasar cada una a mayúscula y luego a minúscula. */
+function compareNames(a: string, b: string) {
+  const length = Math.min(a.length, b.length)
+  for (let index = 0; index < length; index += 1) {
+    const x = a[index]!.toUpperCase().toLowerCase()
+    const y = b[index]!.toUpperCase().toLowerCase()
+    if (x !== y) return x < y ? -1 : 1
+  }
+  return a.length - b.length
+}
+
+/** `UUID.compareTo`: los dos mitades de 64 bits comparadas con signo, la alta primero. */
+function compareIds(a: string, b: string) {
+  const halves = (id: string) => {
+    const hex = id.replaceAll('-', '').padStart(32, '0')
+    return [
+      BigInt.asIntN(64, BigInt(`0x${hex.slice(0, 16)}`)),
+      BigInt.asIntN(64, BigInt(`0x${hex.slice(16)}`)),
+    ] as const
+  }
+  const [highA, lowA] = halves(a)
+  const [highB, lowB] = halves(b)
+  if (highA !== highB) return highA < highB ? -1 : 1
+  return lowA === lowB ? 0 : lowA < lowB ? -1 : 1
+}
+
+/**
+ * El orden de `Me.organizations` del servidor (`MemberPrincipals.organizationsOf`): por nombre sin distinguir mayúsculas
+ * y después por id. Solo es el de la salida: el espacio por defecto tras salir del actual es el primero por id de
+ * membresía, es decir, el orden de alta.
+ */
+export function byNameThenId<T extends { name: string; id: string }>(workspaces: readonly T[]): T[] {
+  return [...workspaces].sort((a, b) => compareNames(a.name, b.name) || compareIds(a.id, b.id))
+}

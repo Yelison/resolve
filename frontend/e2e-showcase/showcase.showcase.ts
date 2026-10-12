@@ -236,9 +236,9 @@ test('la administración tiene cuatro espacios: cambia a uno donde es cliente y 
   const menu = page.getByRole('menu', { name: 'Cambiar de espacio' })
   await expect(menu.getByRole('menuitemradio')).toHaveText([
     /Acme Studio/,
+    /Kora Fitness/,
     /Lumen Diseño/,
     /Norte Viajes/,
-    /Kora Fitness/,
   ])
 
   // En «Norte Viajes» es cliente: sus solicitudes y sin «Tus espacios».
@@ -258,7 +258,7 @@ test('la administración tiene cuatro espacios: cambia a uno donde es cliente y 
     .click()
   await expect(card).toContainText('Acme Studio')
   await card.click()
-  await expect(menu.getByRole('menuitemradio')).toHaveText([/Acme Studio/, /Norte Viajes/, /Kora Fitness/])
+  await expect(menu.getByRole('menuitemradio')).toHaveText([/Acme Studio/, /Kora Fitness/, /Norte Viajes/])
 
   // El único administrador de Acme no puede salir: la demostración aplica la misma regla que el servidor.
   await page.keyboard.press('Escape')

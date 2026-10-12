@@ -130,16 +130,16 @@ describe('installShowcase · espacios de la demostración', () => {
     const session = await me()
     expect(session.organizations.map((org: { name: string; role: string }) => [org.name, org.role])).toEqual([
       ['Acme Studio', 'admin'],
+      ['Kora Fitness', 'admin'],
       ['Lumen Diseño', 'agent'],
       ['Norte Viajes', 'customer'],
-      ['Kora Fitness', 'admin'],
     ])
-    expect(session.organizations[2].memberCount).toBeNull()
+    expect(session.organizations[3].memberCount).toBeNull()
   })
 
   it('el rol de la sesión sigue al espacio activo: en Norte Viajes es cliente, y las demás features lo respetan', async () => {
     const token = await signIn(ADMIN)
-    const [, lumen, norte] = (await me()).organizations
+    const [, , lumen, norte] = (await me()).organizations
     expect((await choose(norte.id, token)).status).toBe(200)
     expect(await me()).toMatchObject({
       role: 'customer',
@@ -154,12 +154,12 @@ describe('installShowcase · espacios de la demostración', () => {
 
   it('salir de un espacio lo quita de la lista; salir otra vez es el mismo 404', async () => {
     const token = await signIn(ADMIN)
-    const [, lumen] = (await me()).organizations
+    const [, , lumen] = (await me()).organizations
     expect((await leave(lumen.id, token)).status).toBe(204)
     expect((await me()).organizations.map((org: { name: string }) => org.name)).toEqual([
       'Acme Studio',
-      'Norte Viajes',
       'Kora Fitness',
+      'Norte Viajes',
     ])
     expect((await leave(lumen.id, token)).status).toBe(404)
     expect((await leave('desconocido', token)).status).toBe(404)
@@ -175,7 +175,7 @@ describe('installShowcase · espacios de la demostración', () => {
 
   it('un cliente no sale (403) y el último administrador tampoco (409 last-admin)', async () => {
     const token = await signIn(ADMIN)
-    const [acme, , norte] = (await me()).organizations
+    const [acme, , , norte] = (await me()).organizations
     expect((await leave(norte.id, token)).status).toBe(403)
     const refused = await leave(acme.id, token)
     expect(refused.status).toBe(409)
@@ -264,6 +264,16 @@ describe('installShowcase · crear espacios en la demostración', () => {
     expect(created.color).toBe(COLORS[Number.parseInt(created.id.replaceAll('-', '').slice(-2), 16) % 8])
     expect(session.organizations).toHaveLength(5)
     expect(await me()).toMatchObject({ organization: { name: 'Taller Sur' } })
+  })
+
+  it('Me.organizations va por nombre sin distinguir mayúsculas, como el servidor (y no por alta)', async () => {
+    const token = await signIn(ADMIN)
+    const names = async () => (await me()).organizations.map((org: { name: string }) => org.name)
+    expect(await names()).toEqual(['Acme Studio', 'Kora Fitness', 'Lumen Diseño', 'Norte Viajes'])
+    // «acme estudio» va antes que «Acme Studio» aunque sea minúscula (una comparación por código la pondría la última) y
+    // el espacio nuevo no entra al final de la lista.
+    expect((await create(token, { name: 'acme estudio', timeZone: 'Europe/Madrid' })).status).toBe(201)
+    expect(await names()).toEqual(['acme estudio', 'Acme Studio', 'Kora Fitness', 'Lumen Diseño', 'Norte Viajes'])
   })
 
   it('al límite responde 409 con el type organization-limit y no crea nada; salir de uno creado devuelve el hueco', async () => {
