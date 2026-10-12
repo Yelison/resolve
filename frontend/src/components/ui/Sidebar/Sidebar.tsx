@@ -2,13 +2,14 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { cx } from '../../../lib/cx'
 import { Avatar } from '../Avatar/Avatar'
-import { initialsOf } from '../Avatar/initials'
+import { Icon } from '../Icon/Icon'
 import { IconButton } from '../Button/Button'
 import type { IconName } from '../Icon/Icon'
 import { NavItem } from '../NavItem/NavItem'
 import { Tooltip } from '../Tooltip/Tooltip'
 import { Brand } from './Brand'
 import styles from './Sidebar.module.css'
+import { WorkspaceMark } from './WorkspaceMark'
 
 export interface SidebarNavItem {
   /** Ruta a la que navega el elemento. */
@@ -42,6 +43,15 @@ export interface SidebarProfile {
   collapsed: boolean
 }
 
+export interface SidebarWorkspace {
+  /** Cuadro de iniciales y, si el sidebar está expandido, nombre, rol y chevron. Es decorativo: el control lleva el nombre accesible. */
+  content: ReactNode
+  /** Clase de la tarjeta del espacio (tamaño, alineación, hover y foco). Hay que aplicarla al control. */
+  className: string
+  /** Si el sidebar está colapsado y la tarjeta se reduce al cuadro de iniciales. */
+  collapsed: boolean
+}
+
 export interface SidebarProps {
   /** Secciones de la navegación principal. */
   items: SidebarNavItem[]
@@ -49,6 +59,15 @@ export interface SidebarProps {
   sectionLabel: string
   /** Nombre del espacio de trabajo; colapsado se muestra solo con sus iniciales. */
   workspace: string
+  /** Tu rol en el espacio, bajo su nombre. Por defecto, «Espacio de trabajo». Sin rol (sesión cargando) conserva la línea. */
+  workspaceRole?: string
+  /**
+   * Convierte la tarjeta del espacio en el disparador de un selector de espacios (como `profileMenu` con la cuenta). El
+   * sidebar no conoce sesiones: la función recibe el contenido y la clase y devuelve el control, que debe medir al
+   * menos 44 × 44 px y llevar el nombre accesible del espacio (y, colapsado, un tooltip). Sin esta prop (o con un solo
+   * espacio, que no hay a dónde cambiar) la tarjeta es solo texto.
+   */
+  workspaceMenu?: (workspace: SidebarWorkspace) => ReactNode
   /** Nombre y rol del perfil que se muestra al final; colapsado solo se ve el avatar. */
   user: { name: string; role: string }
   /**
@@ -91,6 +110,8 @@ export function Sidebar({
   items,
   sectionLabel,
   workspace,
+  workspaceRole = 'Espacio de trabajo',
+  workspaceMenu,
   user,
   profileMenu,
   collapsed = false,
@@ -112,6 +133,22 @@ export function Sidebar({
     </>
   )
 
+  const workspaceContent = (
+    <>
+      <WorkspaceMark name={workspace} size={collapsed ? 'touch' : 'medium'} />
+      {!collapsed && (
+        <>
+          <span className={styles.workspaceText}>
+            <span className={styles.workspaceName}>{workspace}</span>
+            {/* Sin rol (sesión cargando) la línea conserva su altura: la tarjeta no cambia de tamaño al llegar el rol. */}
+            <span className={styles.workspaceKind}>{workspaceRole || '\u00a0'}</span>
+          </span>
+          {workspaceMenu && <Icon name="chevron" size={16} className={styles.workspaceChevron} />}
+        </>
+      )}
+    </>
+  )
+
   return (
     <div className={cx(styles.sidebar, collapsed && styles.collapsed, className)}>
       <div className={styles.header}>
@@ -121,15 +158,14 @@ export function Sidebar({
         {action && <HeaderAction action={action} />}
       </div>
 
-      {collapsed ? (
-        <span className={styles.workspaceInitials} role="img" aria-label={`Espacio de trabajo: ${workspace}`}>
-          {initialsOf(workspace)}
+      {workspaceMenu ? (
+        workspaceMenu({ content: workspaceContent, className: cx(styles.workspace), collapsed })
+      ) : collapsed ? (
+        <span className={styles.workspace} role="img" aria-label={`Espacio de trabajo: ${workspace}`}>
+          {workspaceContent}
         </span>
       ) : (
-        <div className={styles.workspace}>
-          <span className={styles.workspaceName}>{workspace}</span>
-          <span className={styles.workspaceKind}>Espacio de trabajo</span>
-        </div>
+        <div className={styles.workspace}>{workspaceContent}</div>
       )}
 
       <nav aria-label="Principal" className={styles.navSection}>

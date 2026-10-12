@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Outlet, useLocation, useMatches } from 'react-router'
 import { Breadcrumb, Sidebar, Topbar } from '../../components/ui'
-import type { SidebarProfile } from '../../components/ui/Sidebar/Sidebar'
+import type { SidebarProfile, SidebarWorkspace } from '../../components/ui/Sidebar/Sidebar'
 import { useModalDialog } from '../../components/ui/shared/useModalDialog'
 import { useDemoMaintenance } from '../../lib/demoMaintenance'
 import { isDemoMaintenance } from '../../lib/mutationError'
@@ -12,6 +12,8 @@ import { AccountMenu, AccountMenuPlaceholder } from '../../features/session/Acco
 import { useMe } from '../../features/session/queries'
 import { SessionGate } from '../../features/session/SessionGate'
 import { useSessionSync } from '../../features/session/useSessionSync'
+import { WorkspaceDisclosure, WorkspaceMenu } from '../../features/session/WorkspaceMenu'
+import { isOnlyWorkspace, workspaceCardRole, workspacesOf } from '../../features/session/workspaces'
 import { navigationFor, roleLabels } from '../navigation'
 import { SessionErrorPage } from '../pages/SessionErrorPage'
 import { useTheme } from '../theme/useTheme'
@@ -92,8 +94,8 @@ function AppFrame() {
   // Tras navegar, el foco pasa al contenido para que el teclado y los lectores de pantalla empiecen por la página nueva.
   const location = useLocation()
   const { pathname } = location
-  // Cualquier navegación cierra el drawer, también las que no salen de un enlace del menú: cambiar de organización
-  // desde el perfil lleva al resumen y deja ver la pantalla nueva.
+  // Cualquier navegación cierra el drawer, también las que no salen de un enlace del menú: cambiar de espacio
+  // desde su tarjeta lleva al resumen y deja ver la pantalla nueva.
   const [drawerKey, setDrawerKey] = useState(location.key)
   if (drawerKey !== location.key) {
     setDrawerKey(location.key)
@@ -138,11 +140,23 @@ function AppFrame() {
           ? 'Soporte'
           : 'Gestión',
     workspace: workspaceName,
+    // Tu rol en el espacio (a un cliente, «Soporte»); sin sesión, la línea queda en blanco y conserva su altura.
+    workspaceRole: me.data ? workspaceCardRole(me.data.role) : '',
     user: { name: userName, role: me.data ? roleLabels[me.data.role] : '' },
     // Sin la sesión cargada no se ofrece ninguna acción de cuenta, pero el perfil ya ocupa su sitio.
     profileMenu: (profile: SidebarProfile) =>
       me.data ? <AccountMenu me={me.data} profile={profile} /> : <AccountMenuPlaceholder profile={profile} />,
   }
+
+  // La tarjeta del espacio abre el selector, salvo para un cliente con un solo espacio: no hay a dónde cambiar y «Tus
+  // espacios» no es suyo. Sin la sesión cargada tampoco hay selector, pero la tarjeta ya ocupa su sitio.
+  const switcher = me.data && !(me.data.role === 'customer' && isOnlyWorkspace(workspacesOf(me.data))) ? me.data : null
+  const desktopWorkspaceMenu = switcher
+    ? (workspace: SidebarWorkspace) => <WorkspaceMenu me={switcher} card={workspace} />
+    : undefined
+  const drawerWorkspaceMenu = switcher
+    ? (workspace: SidebarWorkspace) => <WorkspaceDisclosure me={switcher} card={workspace} />
+    : undefined
 
   return (
     <div className={styles.shell}>
@@ -154,6 +168,7 @@ function AppFrame() {
         <div className={styles.aside}>
           <Sidebar
             {...sidebarContent}
+            workspaceMenu={desktopWorkspaceMenu}
             collapsed={collapsed}
             action={
               isDesktop
@@ -171,6 +186,7 @@ function AppFrame() {
           {drawerOpen && (
             <Sidebar
               {...sidebarContent}
+              workspaceMenu={drawerWorkspaceMenu}
               className={styles.drawerSidebar}
               action={{ label: 'Cerrar menú', kind: 'close', onClick: closeDrawer }}
               onNavigate={closeDrawer}

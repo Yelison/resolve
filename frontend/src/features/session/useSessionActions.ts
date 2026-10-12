@@ -1,20 +1,47 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
-import { api, isApiError, unwrap } from '../../api/client'
+import { api, isApiError, PROBLEM_TYPES, unwrap } from '../../api/client'
 import type { Me } from '../../api/schema'
 import { useToast } from '../../components/ui'
-import { refreshSessionOnForbidden, sessionKeys } from './queries'
+import { fetchMe, refreshSessionOnForbidden, sessionKeys } from './queries'
 import { postSessionMessage } from './sessionChannel'
 import { clearSessionData, holdWrites, navigation, sessionState } from './sessionLifecycle'
 
 /**
- * Texto de un error al cambiar de organización: un 401 es la sesión caducada (el aviso «Tu sesión caducó» ofrece
- * volver a entrar), un 403 que ya no pertenece a ella y lo demás, la red o el servidor.
+ * Texto de un error al cambiar de espacio: un 401 es la sesión caducada (el aviso «Tu sesión caducó» ofrece volver a
+ * entrar), un 403 que ya no pertenece a él y lo demás, la red o el servidor.
  */
 export function organizationErrorText(error: unknown) {
   if (isApiError(error, 401)) return 'Tu sesión caducó. Vuelve a entrar y repite el cambio.'
-  if (isApiError(error, 403)) return 'Ya no tienes acceso a esa organización. Elige otra.'
+  if (isApiError(error, 403)) return 'Ya no tienes acceso a ese espacio. Elige otro.'
   return 'Revisa tu conexión e inténtalo de nuevo.'
+}
+
+/** Por qué no se pudo salir de un espacio, según el `type` del Problem (nunca por su texto). */
+export type LeaveFailure = 'last-admin' | 'last-organization' | 'customer' | 'gone' | 'other'
+
+export function leaveFailure(error: unknown): LeaveFailure {
+  if (isApiError(error, 409)) {
+    if (error.problem.type === PROBLEM_TYPES.lastAdmin) return 'last-admin'
+    if (error.problem.type === PROBLEM_TYPES.lastOrganization) return 'last-organization'
+  }
+  if (isApiError(error, 403)) return 'customer'
+  if (isApiError(error, 404)) return 'gone'
+  return 'other'
+}
+
+/** A qué espacio se cambia y, si no es el resumen, a dónde se va después (p. ej. `/equipo`). */
+export interface SwitchTarget {
+  organizationId: string
+  to?: string
+}
+
+/** El espacio que se deja: de él depende qué se vacía y a dónde se vuelve. */
+export interface LeaveTarget {
+  organizationId: string
+  name: string
+  /** Si es el espacio de la sesión: el servidor resuelve la siguiente petición en otro espacio. */
+  current: boolean
 }
 
 export interface SessionActionsOptions {
@@ -25,7 +52,7 @@ export interface SessionActionsOptions {
   onLogoutUnavailable?: () => void
 }
 
-/** Acciones de la sesión del usuario: cerrar sesión y cambiar de organización. */
+/** Acciones de la sesión del usuario: cerrar sesión, cambiar de espacio y salir de uno. */
 export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions = {}) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -61,22 +88,68 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
   })
 
   /**
-   * Cambia la organización activa. El `Me` nuevo sustituye al anterior tras vaciar la caché y los borradores, y se
-   * vuelve al resumen: una ruta como /tickets/1046 apuntaría al ticket del mismo número en la otra organización.
+   * Cambia el espacio activo. El `Me` nuevo sustituye al anterior tras vaciar la caché y los borradores, y se vuelve al
+   * resumen (o a `to`): una ruta como /tickets/1046 apuntaría al ticket del mismo número en el otro espacio.
    */
   const switchOrganization = useMutation({
-    mutationFn: (organizationId: string) => unwrap(api.POST('/session/organization', { body: { organizationId } })),
-    onSuccess: async (me: Me) => {
+    mutationFn: ({ organizationId }: SwitchTarget) =>
+      unwrap(api.POST('/session/organization', { body: { organizationId } })),
+    onSuccess: async (me: Me, { to }) => {
       // La guardia de escrituras se cierra antes de vaciar nada y se abre al confirmarse la navegación a `/`.
       holdWrites()
       await clearSessionData(queryClient)
       queryClient.setQueryData(sessionKeys.me, me)
       postSessionMessage('organization-changed')
-      void navigate('/', { replace: true })
+      void navigate(to ?? '/', { replace: true })
       toast.show({ title: `Ahora trabajas en ${me.organization.name}` })
     },
-    onError: (error) => refreshSessionOnForbidden(queryClient, error),
+    onError: (error) => {
+      refreshSessionOnForbidden(queryClient, error)
+      toast.show({
+        tone: 'error',
+        title: 'No pudimos cambiar de espacio',
+        description: organizationErrorText(error),
+      })
+    },
   })
 
-  return { signOut, switchOrganization }
+  /**
+   * Sale de un espacio. El `204` no trae `Me`. Si era el de la sesión, el servidor ya resuelve en otro: se vacía todo
+   * (como al cambiar), se avisa a las demás pestañas, se lee `/me` y se vuelve al resumen; si ese `/me` falla (p. ej. un
+   * 401 porque no queda acceso) la pantalla de entrada se encarga. Si era otro, solo se actualiza la lista de espacios.
+   * Los fallos los muestra quien abrió el diálogo, que conoce el espacio; aquí solo se relee la sesión si lo que se
+   * mostraba ya no es verdad (otra persona cambió el equipo).
+   */
+  const leaveOrganization = useMutation({
+    mutationFn: ({ organizationId }: LeaveTarget) =>
+      unwrap(api.DELETE('/me/organizations/{organizationId}', { params: { path: { organizationId } } })),
+    onSuccess: async (_, { name, current }) => {
+      if (current) {
+        holdWrites()
+        await clearSessionData(queryClient)
+        postSessionMessage('organization-changed')
+        try {
+          await queryClient.fetchQuery({
+            queryKey: sessionKeys.me,
+            queryFn: ({ signal }) => fetchMe(signal),
+            staleTime: 0,
+            retry: false,
+          })
+        } catch {
+          // Sin `/me` la puerta de sesión decide qué mostrar al volver al resumen.
+        }
+        void navigate('/', { replace: true })
+      } else {
+        await queryClient.invalidateQueries({ queryKey: sessionKeys.me })
+      }
+      toast.show({ title: `Saliste de ${name}` })
+    },
+    onError: (error) => {
+      if (isApiError(error, 403) || isApiError(error, 404) || isApiError(error, 409)) {
+        void queryClient.invalidateQueries({ queryKey: sessionKeys.me })
+      }
+    },
+  })
+
+  return { signOut, switchOrganization, leaveOrganization }
 }

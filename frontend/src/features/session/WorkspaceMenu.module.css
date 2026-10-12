@@ -1,0 +1,95 @@
+.disclosure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+/* Sobre el fondo del drawer: lleva sus colores (`--color-nav-*`), no los de una superficie. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-nav-active);
+  border-radius: var(--radius-control);
+}
+
+.search {
+  margin-bottom: var(--space-4);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: 40dvh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  min-width: 0;
+  min-height: var(--touch-target);
+  padding: var(--space-4) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--color-nav-ink);
+  font: var(--font-label);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.row:hover:not(:disabled) {
+  background: var(--color-nav-active);
+}
+
+.row:focus-visible {
+  outline-offset: -2px;
+}
+
+.row:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.row[aria-current='true'] {
+  background: var(--color-nav-active);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role {
+  color: var(--color-nav-text);
+  font: var(--font-caption);
+}
+
+.mark {
+  flex: none;
+}
+
+.empty {
+  margin: 0;
+  padding: var(--space-8);
+  color: var(--color-nav-text);
+  font: var(--font-caption);
+}

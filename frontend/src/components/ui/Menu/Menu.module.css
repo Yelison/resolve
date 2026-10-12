@@ -12,6 +12,30 @@
   box-shadow: var(--shadow-popover);
 }
 
+.wide {
+  min-width: 280px;
+}
+
+/* La lista es lo único que se desplaza: el buscador y la nota quedan a la vista. */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: min(24rem, calc(100dvh - 8rem));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.search {
+  padding-bottom: var(--space-4);
+}
+
+.separator {
+  height: 1px;
+  margin: var(--space-4) calc(-1 * var(--space-4));
+  background: var(--color-line);
+}
+
 .item {
   display: flex;
   align-items: center;
@@ -38,6 +62,48 @@
 
 .danger {
   color: var(--color-red-ink);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  padding-block: var(--space-4);
+}
+
+/* El nombre largo se corta con «…»; el nombre completo va en el nombre accesible y en `title`. */
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.description {
+  color: var(--color-muted);
+  font: var(--font-caption);
+}
+
+.checked {
+  background: var(--color-blue-bg);
+}
+
+.mark {
+  flex: none;
+  margin-left: auto;
+  color: var(--color-blue-ink);
+}
+
+.empty,
+.note {
+  margin: 0;
+  padding: var(--space-8);
+  color: var(--color-muted);
+  font: var(--font-caption);
+}
+
+.note {
+  border-top: 1px solid var(--color-line);
 }
 
 .item[aria-disabled='true'] {

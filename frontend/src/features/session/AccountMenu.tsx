@@ -4,7 +4,6 @@ import type { Me } from '../../api/schema'
 import { Menu, Tooltip, type MenuItem } from '../../components/ui'
 import type { SidebarProfile } from '../../components/ui/Sidebar/Sidebar'
 import { DemoUserSwitcher } from './DemoUserSwitcher'
-import { OrganizationSwitcher } from './OrganizationSwitcher'
 import { useSessionActions } from './useSessionActions'
 
 export interface AccountMenuProps {
@@ -14,11 +13,12 @@ export interface AccountMenuProps {
 }
 
 /**
- * Menú de la cuenta, en el perfil del `Sidebar` (expandido, colapsado o en el drawer móvil): cambiar de organización (si hay varias), cerrar sesión, o, solo en desarrollo y
- * sin sesión OIDC (no hay cookie `XSRF-TOKEN`: la operación /logout no existe), el selector de usuario de demostración.
+ * Menú de la cuenta, en el perfil del `Sidebar` (expandido, colapsado o en el drawer móvil): cerrar sesión, o, solo en
+ * desarrollo y sin sesión OIDC (no hay cookie `XSRF-TOKEN`: la operación /logout no existe), el selector de usuario de
+ * demostración. Cambiar de espacio está en la tarjeta del espacio (`WorkspaceMenu`).
  */
 export function AccountMenu({ me, profile }: AccountMenuProps) {
-  const [dialog, setDialog] = useState<'organization' | 'demo' | null>(null)
+  const [dialog, setDialog] = useState<'demo' | null>(null)
   const closeDialog = () => setDialog(null)
 
   // La condición va escrita aquí (ver `api/client.ts`): así el build de producción elimina el selector entero.
@@ -26,16 +26,8 @@ export function AccountMenu({ me, profile }: AccountMenuProps) {
   // En desarrollo, un 403 o 404 de /logout (backend sin oidc, o una cookie XSRF-TOKEN ajena en localhost) lleva al selector.
   const { signOut } = useSessionActions({ onLogoutUnavailable: demoLogin ? () => setDialog('demo') : undefined })
   const demoSession = demoLogin && readCsrfToken() === null
-  const organizations = me.organizations ?? []
 
   const items: MenuItem[] = []
-  if (organizations.length > 1) {
-    items.push({
-      id: 'organization',
-      label: `Cambiar de organización · ${me.organization.name}`,
-      onSelect: () => setDialog('organization'),
-    })
-  }
   if (demoSession) {
     items.push({ id: 'demo-user', label: 'Cambiar usuario de demostración', onSelect: () => setDialog('demo') })
   } else {
@@ -73,7 +65,6 @@ export function AccountMenu({ me, profile }: AccountMenuProps) {
           </Tooltip>
         )}
       </Menu>
-      {dialog === 'organization' && <OrganizationSwitcher me={me} onClose={closeDialog} />}
       {demoLogin && dialog === 'demo' && <DemoUserSwitcher onClose={closeDialog} />}
     </>
   )

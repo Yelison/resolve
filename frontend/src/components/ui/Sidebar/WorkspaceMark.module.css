@@ -1,0 +1,33 @@
+.mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-control);
+  background: var(--color-nav-active);
+  color: var(--color-nav-ink);
+  font: var(--font-strong);
+  letter-spacing: 0.02em;
+}
+
+.small {
+  width: var(--space-28);
+  height: var(--space-28);
+  border-radius: var(--radius-small);
+  font: var(--font-caption);
+  font-weight: 600;
+}
+
+.medium {
+  width: var(--space-32);
+  height: var(--space-32);
+}
+
+.large {
+  width: var(--space-40);
+  height: var(--space-40);
+}
+
+.touch {
+  width: var(--touch-target);
+  height: var(--touch-target);
+}
