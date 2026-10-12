@@ -334,6 +334,26 @@ describe('Configuración › Tus espacios · salir (escritorio)', () => {
     await waitFor(() => expect(meReads).toBe(2))
   })
 
+  it('si el espacio desapareció de la lista mientras el diálogo estaba abierto, al cerrarlo el foco va al título', async () => {
+    let meReads = 0
+    mockApi({
+      'GET /api/me': () => {
+        meReads += 1
+        return { body: meReads === 1 ? acmeMe : meIn(orgA, [orgA, orgC, kora]) }
+      },
+      [`DELETE /api/me/organizations/${lumen.id}`]: { status: 404, body: { status: 404, title: 'No encontrado' } },
+    })
+    renderSpaces()
+    await userEvent.click(await screen.findByRole('button', { name: 'Salir de Lumen Diseño' }))
+    const dialog = await screen.findByRole('dialog', { name: '¿Salir de Lumen Diseño?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Salir del espacio' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Ya no formas parte de este espacio.')
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Abrir Lumen Diseño' })).not.toBeInTheDocument())
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Configuración' })).toHaveFocus())
+  })
+
   it('un fallo de red deja el diálogo abierto con el aviso y permite reintentar', async () => {
     let calls = 0
     mockApi({
