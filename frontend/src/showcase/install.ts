@@ -1,6 +1,7 @@
 import { DEMO_USER_EVENT, DEMO_USER_STORAGE_KEY } from '../api/client'
 import { createArticleStore } from '../../e2e/mocks/knowledge'
 import { createMockFeatures } from '../../e2e/mocks/api'
+import { demoWorkspaces } from '../../e2e/mocks/session'
 import { isApiUrl, respondToApi } from './adapter'
 import { roleFor } from './users'
 
@@ -47,7 +48,11 @@ function writeCookie(cookie: string) {
 export function installShowcase() {
   const appUrl = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}`
   const articleStore = createArticleStore()
-  const build = (signedIn: boolean) => createMockFeatures(roleFor(readStored(picker)), { articleStore, signedIn })
+  // Solo la administración tiene varios espacios (agente en uno, cliente en otro): el selector tiene algo que mostrar.
+  const build = (signedIn: boolean) => {
+    const role = roleFor(readStored(picker))
+    return createMockFeatures(role, { articleStore, signedIn, organizations: demoWorkspaces[role] })
+  }
 
   // El selector se preselecciona con `localStorage`: se deja el usuario de la pestaña, o nada si no hay.
   const remembered = readStored(session)

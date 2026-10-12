@@ -21,12 +21,37 @@ export const northwind: OrganizationRef = {
   memberCount: 6,
 }
 
+/** Los otros dos espacios de la demostración pública: el administrador es agente en uno y cliente en el otro. */
+export const lumen: OrganizationRef = {
+  id: '0192f000-0000-7000-8000-000000000003',
+  name: 'Lumen Diseño',
+  role: 'agent',
+  memberCount: 6,
+}
+export const norte: OrganizationRef = {
+  id: '0192f000-0000-7000-8000-000000000004',
+  name: 'Norte Viajes',
+  role: 'customer',
+  memberCount: null,
+}
+
+/**
+ * Los espacios de cada usuario de la demostración pública: solo el administrador tiene tres (para que el selector tenga
+ * algo que mostrar); el agente y el cliente tienen el suyo.
+ */
+export const demoWorkspaces: Partial<Record<Me['role'], OrganizationRef[]>> = { admin: [acme, lumen, norte] }
+
 /** Cómo arranca la sesión simulada. */
 export interface SessionOptions {
   /** `false`: la API responde 401 hasta que el inicio de sesión simulado (`/api/oauth2/authorization/resolve`) lo cambia. */
   signedIn?: boolean
-  /** Organizaciones de la persona; con más de una, `Me.organizations` las lista y el menú ofrece el cambio. */
+  /**
+   * Espacios de la persona, cada uno con su rol: `Me.organizations` los lista, el rol de la sesión es el del espacio
+   * activo (el primero al arrancar) y se puede salir de ellos. Sin esta opción solo hay el de la fixture.
+   */
   organizations?: OrganizationRef[]
+  /** Espacios donde la persona es el único administrador activo y por tanto no puede salir (los demás sí), además del de la fixture si el equipo simulado tiene uno solo. */
+  lastAdminIn?: string[]
   /** Nombres de 120 caracteres para la persona y las organizaciones. */
   longNames?: boolean
   /**
@@ -36,6 +61,19 @@ export interface SessionOptions {
   refused?: 'access-deactivated' | 'no-membership'
   /** La instalación es la demostración pública (`organization.demo`): el shell muestra su aviso. */
   demo?: boolean
+}
+
+/**
+ * Lo que la sesión comparte con las demás features. `current.role` es el rol en el espacio activo: la sesión lo
+ * actualiza al cambiar de espacio o salir del actual, y las demás lo leen en cada petición. `lastAdmin` y `release` los
+ * enganchan las features del equipo y de los tickets: salir de un espacio es una regla de ambas.
+ */
+export interface SessionLinks {
+  current: { role: Me['role'] }
+  /** Si la persona es el único administrador activo del espacio; el equipo simulado lo sabe del espacio de la fixture. */
+  lastAdmin?: (organizationId: string) => boolean
+  /** Libera lo que la persona tenía asignado en el espacio (sus tickets sin resolver). */
+  release?: (organizationId: string) => void
 }
 
 /** Token que la API simulada entrega en la cookie `XSRF-TOKEN` con cada GET /me y que exige en las escrituras. */
@@ -57,17 +95,33 @@ export function sessionMock(
   options: SessionOptions = {},
   /** El `Me` base si otra feature lo cambia (los ajustes); sin él, el de la fixture. */
   base?: () => Me,
+  links: SessionLinks = { current: { role } },
 ): MockFeature {
   let signedIn = options.signedIn ?? true
   let refused = options.refused ?? null
-  const organizations = options.organizations ?? [acme]
-  let active = organizations[0] ?? acme
   const roleMe: Me = role === 'customer' ? { ...me, role, customerId: 'c-maria' } : me
+  // Sin lista explícita hay un solo espacio, el de la fixture, con el rol de la sesión.
+  const organizations: OrganizationRef[] = options.organizations ?? [
+    {
+      id: me.organization.id,
+      name: me.organization.name,
+      role,
+      memberCount: role === 'customer' ? null : acme.memberCount,
+    },
+  ]
+  // Los espacios de los que la persona ya salió dejan de ser utilizables, como en el servidor.
+  const left = new Set<string>()
+  const usable = () => organizations.filter((org) => !left.has(org.id))
+  let active = organizations[0]!
+  links.current.role = options.organizations ? active.role : role
 
   const session = (): Me => {
     const current = base ? base() : roleMe
+    const activeRole = links.current.role
     return {
       ...current,
+      role: activeRole,
+      customerId: activeRole === 'customer' ? 'c-maria' : null,
       user: options.longNames ? { ...current.user, name: long('Nombre larguísimo de una persona') } : current.user,
       organization: {
         ...current.organization,
@@ -76,9 +130,7 @@ export function sessionMock(
         ...(options.organizations ? { id: active.id, name: active.name } : {}),
         ...(options.longNames ? { name: long(active.name) } : {}),
       },
-      ...(organizations.length > 1 && {
-        organizations: organizations.map((org) => (options.longNames ? { ...org, name: long(org.name) } : org)),
-      }),
+      organizations: usable().map((org) => (options.longNames ? { ...org, name: long(org.name) } : org)),
     }
   }
 
@@ -94,6 +146,39 @@ export function sessionMock(
         detail: 'Token CSRF.',
       }),
     })
+
+  /** Un 409 con el `type` del motivo: la interfaz distingue los conflictos por él, nunca por el texto. */
+  const conflict = (route: MockRoute, type: string, title: string) =>
+    json(
+      route,
+      { type: `https://resolve.example/problems/${type}`, status: 409, title, detail: 'Texto del servidor.' },
+      409,
+    )
+
+  /**
+   * `DELETE /me/organizations/{id}` con los errores en el orden del contrato: 404 (desconocido, ajeno o ya abandonado,
+   * el mismo), 403 (cliente), 409 `last-organization` y 409 `last-admin`. Marca la membresía como abandonada y libera lo
+   * que la persona tenía asignado. Si era el espacio activo, el siguiente utilizable pasa a serlo (el servidor resuelve la
+   * petición siguiente en la primera membresía utilizable).
+   */
+  function leave(route: MockRoute, organizationId: string) {
+    const target = usable().find((org) => org.id === organizationId)
+    if (!target) return problem(route, 404, 'No encontrado')
+    if (target.role === 'customer') return problem(route, 403, 'Sin permiso')
+    if (usable().length <= 1) return conflict(route, 'last-organization', 'Tu único espacio')
+    const soleAdmin =
+      target.role === 'admin' &&
+      (options.lastAdminIn?.includes(target.id) ||
+        (target === organizations[0] && links.lastAdmin?.(target.id) === true))
+    if (soleAdmin) return conflict(route, 'last-admin', 'El último administrador')
+    links.release?.(target.id)
+    left.add(target.id)
+    if (active === target) {
+      active = usable()[0]!
+      links.current.role = active.role
+    }
+    return route.fulfill({ status: 204 })
+  }
 
   return {
     handle: ({ route, request, appUrl, path, method }) => {
@@ -143,10 +228,13 @@ export function sessionMock(
         signedIn = true
         return route.fulfill({ status: 302, headers: { location: `${appUrl}/` } })
       }
-      const isWrite = method === 'POST' && (path === '/logout' || path === '/session/organization')
+      const leaveMatch = method === 'DELETE' ? path.match(/^\/me\/organizations\/([^/]+)$/) : null
+      const isWrite =
+        leaveMatch !== null || (method === 'POST' && (path === '/logout' || path === '/session/organization'))
       if (!isWrite) return undefined
       if (!signedIn && !refused) return problem(route, 401, 'No autenticado')
       if (request.headers()['x-xsrf-token'] !== CSRF_TOKEN) return csrfRejection(route)
+      if (leaveMatch) return leave(route, leaveMatch[1]!)
       if (path === '/logout') {
         signedIn = false
         refused = null
@@ -155,9 +243,10 @@ export function sessionMock(
         return json(route, body)
       }
       const { organizationId } = request.postDataJSON() as SessionOrganizationSelection
-      const chosen = organizations.find((org) => org.id === organizationId)
+      const chosen = usable().find((org) => org.id === organizationId)
       if (!chosen) return problem(route, 403, 'Sin permiso')
       active = chosen
+      links.current.role = chosen.role
       return json(route, session())
     },
   }
