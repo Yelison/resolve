@@ -51,17 +51,37 @@ Screenshots are taken from the live demo by [`scripts/readme-screenshots`](scrip
 ## Architecture
 
 ```mermaid
-flowchart LR
-  B[Browser] -->|HTTPS| I
-  subgraph I[One Docker image, one origin]
-    S[React SPA]
-    A[Spring Boot API under /api]
+flowchart TB
+  spa["Browser<br/>React SPA · typed client"]
+  subgraph image["Docker image (same origin)"]
+    direction LR
+    chain["Security chain<br/>session · CSRF · workspace"] --> features["Feature modules<br/>tickets · customers · team<br/>knowledge · reports"]
   end
-  A --> P[(PostgreSQL)]
-  A -->|OpenID Connect| K[Keycloak]
+  idp["Keycloak<br/>OpenID Connect"]
+  db[("PostgreSQL 17<br/>Flyway")]
+  spa -- "/api · HttpOnly cookie" --> chain
+  chain -. "sign-in · code + PKCE" .-> idp
+  features -- "scoped to one workspace" --> db
 ```
 
-One image serves the single-page app and the API on the same origin, so there is no CORS and no token in the browser. The API is the OpenID Connect client: it keeps the session in an `HttpOnly` cookie and checks every request against the user's membership. Flyway owns the schema. The details are in the [development guide](docs/development/README.md#authentication).
+- **One origin.** The image serves the web app and the API from the same address, so there is no CORS, no token in the browser and the session cookie stays `HttpOnly` and `SameSite=Lax`.
+- **Sign-in.** The API is a confidential OpenID Connect client of Keycloak (authorization code with PKCE). Keycloak holds the passwords; every write carries a CSRF token.
+- **One workspace per request.** The workspace comes from the session and is checked against the person's memberships on every request. Each query is scoped to it, composite foreign keys keep references inside it, and a write from a tab that still shows another workspace gets `409` and changes nothing.
+- **Feature modules.** The backend has one package per feature (`tickets`, `customers`, `memberships`, `organizations`, `knowledge`, `reports`) on top of a small `common` package, and the frontend mirrors it in `src/features`.
+
+### Contract first
+
+```mermaid
+flowchart TB
+  spec["docs/api/openapi.yaml<br/>single source of truth"]
+  spec -- "npm run api:types" --> client["Typed frontend client"]
+  spec -- "validates every response" --> tests["Backend integration tests"]
+  client --> ci(["CI on every pull request"])
+  tests --> ci
+  ci -- "stale types or a broken response fail the build" --> main["main"]
+```
+
+The details are in the [development guide](docs/development/README.md#authentication) and the [API notes](docs/api/README.md).
 
 ## Tech stack
 
@@ -111,7 +131,7 @@ Every area of the product is done, in the views and in the Spring Boot API: home
 
 ## License
 
-The code written for this project is released under the [MIT License](LICENSE), © 2026 Yelison Ortiz.
+The code written for this project is released under the [MIT License](LICENSE), © 2026 Yelisson Ortiz.
 
 Third-party software keeps its own license and attribution:
 
@@ -121,4 +141,4 @@ Third-party software keeps its own license and attribution:
 
 ## Author
 
-Yelison Ortiz · [Portfolio](https://yelison.github.io/) · [LinkedIn](https://www.linkedin.com/in/yelisson-ortiz)
+Yelisson Ortiz · [Portfolio](https://yelison.github.io/) · [LinkedIn](https://www.linkedin.com/in/yelisson-ortiz)
