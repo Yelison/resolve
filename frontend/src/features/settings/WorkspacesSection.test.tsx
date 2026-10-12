@@ -8,7 +8,8 @@ import { PROBLEM_TYPES } from '../../api/client'
 import { adminMe, customerMe, mockApi } from '../../test/api'
 import { renderWithProviders } from '../../test/render'
 import { releaseWrites } from '../session/sessionLifecycle'
-import { setCsrfCookie } from '../session/shellHarness'
+import { SESSION_TAB_ID } from '../session/sessionChannel'
+import { FakeChannel, setCsrfCookie } from '../session/shellHarness'
 import { orgA, orgB, orgC } from '../session/workspaceFixtures'
 import { memberKeys } from '../team/queries'
 import { teamMember } from '../team/teamFixtures'
@@ -218,6 +219,32 @@ describe('Configuración › Tus espacios · salir (escritorio)', () => {
     expect(queryClient.getQueryData(['tickets', 'detail', 1046])).toBeUndefined()
     expect(requestsTo(spy, 'DELETE', `/api/me/organizations/${orgA.id}`)).toHaveLength(1)
     expect(document.body).not.toHaveFocus()
+  })
+
+  it('salir del espacio actual avisa a las demás pestañas y no se trata como un cambio hecho en otra', async () => {
+    vi.stubGlobal('BroadcastChannel', FakeChannel)
+    const received: string[] = []
+    const remote = new FakeChannel('resolve-session')
+    remote.onmessage = (event) =>
+      received.push(`${(event.data as { type: string }).type}:${(event.data as { tab: string }).tab}`)
+    let left = false
+    mockApi({
+      'GET /api/me': () => ({ body: left ? meIn(lumen, [lumen, orgC, kora]) : acmeMe }),
+      [`DELETE /api/me/organizations/${orgA.id}`]: () => {
+        left = true
+        return { status: 204 }
+      },
+    })
+    const { router } = renderSpaces()
+    await userEvent.click(await screen.findByRole('button', { name: 'Salir de Acme Studio' }))
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Salir del espacio' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+    expect(received).toContain(`organization-changed:${SESSION_TAB_ID}`)
+    const region = await screen.findByRole('region', { name: 'Notificaciones' })
+    expect(await within(region).findByText('Saliste de Acme Studio')).toBeInTheDocument()
+    expect(within(region).queryByText(/en otra pestaña/)).not.toBeInTheDocument()
+    remote.close()
+    vi.unstubAllGlobals()
   })
 
   it('con un solo ticket la frase va en singular y sin ninguno lo dice', async () => {
