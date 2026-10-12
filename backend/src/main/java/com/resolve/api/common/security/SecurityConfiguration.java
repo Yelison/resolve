@@ -9,6 +9,9 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -16,6 +19,7 @@ import org.springframework.security.config.annotation.web.configurers.HeadersCon
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -44,11 +48,30 @@ class SecurityConfiguration {
 		return prefixed;
 	}
 
+	/**
+	 * Quien llama a {@code POST /organizations}: un miembro autenticado (como cualquier {@code authenticated()}) o, solo
+	 * con {@code resolve.organizations.creation=open}, una {@link VerifiedIdentity} sin membresías que dejó el resolvedor en la
+	 * petición. Sin ninguna de las dos, y también con la identidad en el modo {@code admins}, pide la autenticación al
+	 * proveedor del contexto, que está vacío, y la cadena responde el {@code 401} de siempre (con el tipo
+	 * {@code no-membership} si el resolvedor lo marcó): denegar sin pedirla daría un 403.
+	 */
+	private static AuthorizationManager<RequestAuthorizationContext> createOrganization(
+			OrganizationCreationPolicy creation) {
+		AuthorizationManager<RequestAuthorizationContext> member = AuthenticatedAuthorizationManager.authenticated();
+		return (authentication, context) -> {
+			if (creation.isOpen()
+					&& context.getRequest().getAttribute(PrincipalResolver.IDENTITY_ATTRIBUTE) instanceof VerifiedIdentity) {
+				return new AuthorizationDecision(true);
+			}
+			return member.authorize(authentication, context);
+		};
+	}
+
 	@Bean
 	SecurityFilterChain apiSecurity(HttpSecurity http, ObjectProvider<PrincipalResolver> resolver,
 			ObjectProvider<HttpSecurityCustomizer> customizers, JsonMapper jsonMapper,
-			ContentSecurityPolicy contentSecurityPolicy) throws Exception {
-		ProblemResponses problems = new ProblemResponses(jsonMapper);
+			ContentSecurityPolicy contentSecurityPolicy, OrganizationCreationPolicy creation) throws Exception {
+		ProblemResponses problems = new ProblemResponses(jsonMapper, creation);
 		http.csrf(AbstractHttpConfigurer::disable)
 			.httpBasic(AbstractHttpConfigurer::disable)
 			.formLogin(AbstractHttpConfigurer::disable)
@@ -112,9 +135,10 @@ class SecurityConfiguration {
 				.requestMatchers(HttpMethod.POST, api("/session/organization"))
 				.authenticated()
 				// Crear un espacio lo puede intentar cualquier persona autenticada: que administre algún espacio (no el rol de
-				// la sesión, que puede ser el de cliente en otro) lo decide el servicio, que responde 403.
+				// la sesión, que puede ser el de cliente en otro) lo decide el servicio, que responde 403. Es también la
+				// única ruta que admite a una identidad verificada sin ninguna membresía, y solo con el alta abierta.
 				.requestMatchers(HttpMethod.POST, api("/organizations"))
-				.authenticated()
+				.access(createOrganization(creation))
 				// Salir de una organización lo puede intentar cualquier persona; el servicio responde 403 a un cliente.
 				.requestMatchers(HttpMethod.DELETE, api("/me/organizations/{organizationId}"))
 				.authenticated()

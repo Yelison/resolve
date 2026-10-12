@@ -43,12 +43,7 @@ class OidcPrincipalResolver implements PrincipalResolver {
 		}
 		MemberPrincipals.Resolution resolution = this.principals.resolve(email, SessionOrganization.read(request),
 				user.getFullName());
-		if (resolution.deactivated()) {
-			request.setAttribute(DEACTIVATED_ATTRIBUTE, Boolean.TRUE);
-		}
-		else if (resolution.noMembership()) {
-			request.setAttribute(NO_MEMBERSHIP_ATTRIBUTE, Boolean.TRUE);
-		}
+		resolution.describeTo(request);
 		return Optional.ofNullable(resolution.member());
 	}
 

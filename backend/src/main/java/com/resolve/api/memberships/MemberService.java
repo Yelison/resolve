@@ -125,7 +125,7 @@ class MemberService {
 		return (updated == 1) ? candidate : current;
 	}
 
-	private static @Nullable String cleanIdentityName(@Nullable String name) {
+	static @Nullable String cleanIdentityName(@Nullable String name) {
 		if (name == null) {
 			return null;
 		}

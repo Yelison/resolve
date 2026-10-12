@@ -16,11 +16,11 @@ class WorkspaceServiceTest {
 	void aLimitBelowOneStopsTheApplicationFromStarting() {
 		JdbcClient jdbc = mock(JdbcClient.class);
 		for (int limit : new int[] { 0, -1, Integer.MIN_VALUE }) {
-			assertThatThrownBy(() -> new WorkspaceService(jdbc, Clock.systemUTC(), limit))
+			assertThatThrownBy(() -> new WorkspaceService(jdbc, Clock.systemUTC(), null, null, limit))
 				.isInstanceOf(IllegalStateException.class)
 				.hasMessageContaining("resolve.organizations.per-person-limit");
 		}
-		assertThatCode(() -> new WorkspaceService(jdbc, Clock.systemUTC(), 1)).doesNotThrowAnyException();
+		assertThatCode(() -> new WorkspaceService(jdbc, Clock.systemUTC(), null, null, 1)).doesNotThrowAnyException();
 	}
 
 }

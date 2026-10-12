@@ -22,6 +22,13 @@ public interface PrincipalResolver {
 	 */
 	String NO_MEMBERSHIP_ATTRIBUTE = PrincipalResolver.class.getName() + ".NO_MEMBERSHIP";
 
+	/**
+	 * Atributo de la petición con la {@link VerifiedIdentity} de quien el proveedor autenticó y no tiene ninguna
+	 * membresía; va siempre junto a {@link #NO_MEMBERSHIP_ATTRIBUTE}. No es un principal: el contexto de seguridad sigue
+	 * vacío y solo la regla de {@code POST /organizations} (con el modo {@code open}) y el {@code 401} lo leen.
+	 */
+	String IDENTITY_ATTRIBUTE = PrincipalResolver.class.getName() + ".IDENTITY";
+
 	Optional<CurrentMember> resolve(HttpServletRequest request);
 
 }

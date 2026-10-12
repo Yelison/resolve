@@ -207,10 +207,22 @@ paths:
         (`keys[hash(id) mod 8]`, so new organizations spread across the palette). The session switches to it, like
         `POST /session/organization`, and the answer is the caller's `Me` there (`201`).
 
-        **Who can.** Only a person with an `active` `admin` membership in some organization (in any of them, not
-        necessarily the one of the session: an admin who is working as a customer elsewhere can create). A customer, or
-        an agent without an admin organization, gets `403`. `Me.organizationCreation.allowed` already folds this and the limit
-        in, so a client never recomputes it.
+        **Who can** depends on the installation's mode (`resolve.organizations.creation`, a server setting the API does not
+        publish; `Me.organizationCreation.allowed` and the `no-membership` Problem already fold it in, so a client never
+        recomputes it):
+
+        - `admins` (the default): only a person with an `active` `admin` membership in some organization (in any of them,
+          not necessarily the one of the session: an admin who is working as a customer elsewhere can create). A customer,
+          or an agent without an admin organization, gets `403`. A verified identity with **no membership at all** gets
+          the `401` `no-membership` Problem (with `canCreateOrganization: false`), before the body is read: nothing is
+          created, not even their user.
+        - `open`: any verified identity, as long as it has not reached the limit: an admin, an agent, a customer, and also
+          a person **with no membership at all**, who has not entered any organization yet. There is no `403` in this mode.
+          That person is not a member, so no other operation accepts them (they get the same `401` `no-membership` Problem,
+          with `canCreateOrganization: true`); this is the only one. Their user is created with this request, in the same
+          transaction as the organization, with the name their identity provider gave (or the part of the email before
+          the `@`). The CSRF rules are the same as for any write. Whoever can create in `open` mode but whose session is
+          a customer one does not see the option in the web app; the server does not forbid it.
 
         **Limit.** Each person has at most 3 organizations they created and still have an `active` membership in
         (`resolve.organizations.per-person-limit`, 3 by default): leaving one they created gives the slot back, and
@@ -219,7 +231,7 @@ paths:
         simultaneous requests of the same person (they share the per-person lock of leaving an organization).
 
         It ignores `X-Organization-Id`, like `POST /session/organization`: it is what changes the organization.
-        Errors are checked in this order: `401`, `400` (a field per entry in `errors`), `403`, `409`. The body is
+        Errors are checked in this order: `401`, `400` (a field per entry in `errors`), `403` (`admins` mode only), `409`. The body is
         validated before the permission: the permission does not depend on the role of the session, and a `400` reveals
         nothing. `name` is 1 to 120 characters after trimming and `timeZone` an IANA region id that PostgreSQL also knows,
         with the same rules as `PATCH /organization`; other fields are a `400` on that field.
@@ -1459,7 +1471,7 @@ components:
         `about:blank` (not signed in or session expired), `https://resolve.example/problems/access-deactivated`
         (the identity exists but its membership was removed or its customer archived) and
         `https://resolve.example/problems/no-membership` (the identity provider authenticated the person, but they
-        have no membership at all).
+        have no membership at all; this Problem also carries `canCreateOrganization`, `email` and `name`).
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -1594,8 +1606,9 @@ components:
 
     OrganizationCreation:
       description: |
-        Whether the caller can create another organization. `allowed` already folds in their roles (an `active` admin
-        membership in any organization) and the limit, so a client reads it and never recomputes it; `created` and
+        Whether the caller can create another organization. `allowed` already folds in the installation's mode, their roles
+        (in `admins` mode, an `active` admin membership in any organization; in `open` mode, nothing but being a verified
+        identity) and the limit, so a client reads it and never recomputes it; `created` and
         `limit` are for «Has creado 2 de 3 espacios». `created` counts the organizations the caller created and still
         has an `active` membership in.
       type: object
@@ -2792,7 +2805,7 @@ components:
         | --- | --- | --- |
         | `https://resolve.example/problems/csrf` | 403 | The write has no valid CSRF token. |
         | `https://resolve.example/problems/access-deactivated` | 401 | Membership removed or customer archived. |
-        | `https://resolve.example/problems/no-membership` | 401 | Authenticated identity without any membership. |
+        | `https://resolve.example/problems/no-membership` | 401 | Authenticated identity without any membership. It carries the extensions `canCreateOrganization`, `email` and `name`. |
         | `https://resolve.example/problems/organization-mismatch` | 409 | The write's `X-Organization-Id` is not the session's organization. |
         | `https://resolve.example/problems/last-admin` | 409 | The organization would be left without an active admin (changing their role, removing them or leaving). |
         | `https://resolve.example/problems/last-organization` | 409 | The caller tried to leave their only usable organization. |
@@ -2810,6 +2823,22 @@ components:
         status: { type: integer }
         detail: { type: string }
         instance: { type: string }
+        canCreateOrganization:
+          description: |
+            Only in the `no-membership` Problem. `true` when the installation lets a person without any organization create
+            their own with `POST /organizations` (`resolve.organizations.creation` set to `open`), `false` when it does not
+            (`admins`, the default): then they must be invited.
+          type: boolean
+        email:
+          description: |
+            Only in the `no-membership` Problem. The email the identity provider verified for the person who is asking, so
+            the screen can say which account they are signed in with.
+          type: string
+        name:
+          description: |
+            Only in the `no-membership` Problem. How to greet the person: the name their provider gave, else the name stored
+            for their account, else the part of the email before the `@`. Never empty.
+          type: string
         errors:
           description: Field errors of a validation failure.
           type: array
