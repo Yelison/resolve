@@ -9,6 +9,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import com.resolve.api.support.TestClockConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -97,6 +98,9 @@ class MemberConcurrencyTest extends TeamFixture {
 	@Timeout(30)
 	void twoAdminsLeavingTogetherLeaveExactlyOneActiveAdmin() throws Exception {
 		UUID second = this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example");
+		// Cada una tiene otro espacio, para que la regla que decida sea la del último administrador.
+		this.data.membership(this.northwind, this.admin, "agent", "active");
+		this.data.membership(this.northwind, second, "agent", "active");
 		MvcResult[] results = race(() -> leave(ADMIN, this.acme), () -> leave("segunda@acme.example", this.acme));
 
 		assertThat(results[0].getResponse().getStatus()).isEqualTo(204);
@@ -114,6 +118,7 @@ class MemberConcurrencyTest extends TeamFixture {
 	@Timeout(30)
 	void aLeaveAndTheOtherAdminsOwnDemotionCannotBothSucceed() throws Exception {
 		UUID second = this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example");
+		this.data.membership(this.northwind, this.admin, "agent", "active");
 		MvcResult[] results = race(() -> leave(ADMIN, this.acme),
 				() -> changeRole("segunda@acme.example", second, "agent"));
 
@@ -127,6 +132,7 @@ class MemberConcurrencyTest extends TeamFixture {
 	@Timeout(30)
 	void aLeaveAndARemovalOfTheOtherAdminCannotBothSucceed() throws Exception {
 		UUID second = this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example");
+		this.data.membership(this.northwind, second, "agent", "active");
 		// La segunda sale mientras la primera intenta retirarla: tras la salida, la retirada encuentra a la segunda ya
 		// retirada (409 de estado, no el del último administrador) y la primera sigue activa.
 		MvcResult[] results = race(() -> leave("segunda@acme.example", this.acme), () -> remove(ADMIN, second));
@@ -136,6 +142,53 @@ class MemberConcurrencyTest extends TeamFixture {
 		assertThat(body(results[1]).path("detail").asString()).isEqualTo("El miembro ya fue retirado del equipo.");
 		assertThat(activeAdmins()).isEqualTo(1);
 		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("active");
+	}
+
+	@Test
+	@Timeout(30)
+	void aRemovalWinsOverTheLeaveOfTheSamePersonWaitingForTheTeamLock() throws Exception {
+		// Daniel tiene otro espacio, para que lo que decida sea la retirada y no la regla del único espacio.
+		this.data.membership(this.northwind, this.daniel, "agent", "active");
+		UUID ticket = this.data.ticket(this.acme, this.mariaCustomer, 1, "open");
+		this.data.assignTicket(ticket, this.daniel);
+		this.clock.set(TestClockConfiguration.START.plus(Duration.ofHours(1)));
+
+		// El administrador retira a Daniel y queda aparcado con el bloqueo del equipo; Daniel sale mientras tanto.
+		MvcResult[] results = race(() -> remove(ADMIN, this.daniel), () -> leave(DANIEL, this.acme));
+
+		assertThat(results[0].getResponse().getStatus()).isEqualTo(200);
+		assertThat(results[1].getResponse().getStatus()).isEqualTo(404);
+		matchesContract("removeMember").match(results[0]);
+		matchesContract("leaveOrganization").match(results[1]);
+		// La fecha es la de la retirada y la liberación de tickets se hizo una sola vez.
+		assertThat(this.jdbc.sql("select removed_at from memberships where organization_id = ? and user_id = ?")
+			.params(this.acme, this.daniel)
+			.query(java.sql.Timestamp.class)
+			.single()
+			.toInstant()).isEqualTo(TestClockConfiguration.START.plus(Duration.ofHours(1)));
+		assertThat(this.jdbc.sql("select count(*) from ticket_activities where ticket_id = ? and type = 'assignee_changed'")
+			.param(ticket)
+			.query(Integer.class)
+			.single()).isEqualTo(1);
+	}
+
+	@Test
+	@Timeout(30)
+	void twoLeavesOfTheSamePersonFromDifferentOrganizationsLeaveExactlyOne() throws Exception {
+		this.data.membership(this.northwind, this.laura, "agent", "active");
+		MvcResult[] results = race(() -> leave(LAURA, this.acme), () -> leave(LAURA, this.northwind));
+
+		assertThat(results[0].getResponse().getStatus()).isEqualTo(204);
+		assertThat(results[1].getResponse().getStatus()).isEqualTo(409);
+		matchesContract("leaveOrganization").match(results[0]);
+		matchesContract("leaveOrganization").match(results[1]);
+		assertThat(body(results[1]).path("type").asString()).isEqualTo("https://resolve.example/problems/last-organization");
+		assertThat(this.data.membershipStatus(this.acme, this.laura)).isEqualTo("removed");
+		assertThat(this.data.membershipStatus(this.northwind, this.laura)).isEqualTo("active");
+		assertThat(this.jdbc.sql("select count(*) from memberships where user_id = ? and status <> 'removed'")
+			.param(this.laura)
+			.query(Integer.class)
+			.single()).isEqualTo(1);
 	}
 
 	private MvcResult leave(String asUser, UUID organizationId) throws Exception {

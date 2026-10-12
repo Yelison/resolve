@@ -19,7 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Salir de la organización de la propia sesión, de extremo a extremo con la sesión OIDC real: la petición siguiente
- * cae en la primera membresía utilizable y, si no queda ninguna, en el 401 de acceso desactivado.
+ * cae en la primera membresía utilizable; y no se puede salir de la última, así que nunca queda sin ninguna.
  */
 class LeaveOrganizationSessionTest extends OidcApiIntegrationTest {
 
@@ -77,18 +77,21 @@ class LeaveOrganizationSessionTest extends OidcApiIntegrationTest {
 	}
 
 	@Test
-	void leavingTheLastOrganizationEndsTheAccessWithATypedUnauthorized() throws Exception {
+	void theLastOrganizationCannotBeLeftAndTheSessionKeepsWorking() throws Exception {
 		MockHttpSession session = signedIn(EMAIL);
 		this.mvc.perform(leave(session, this.northwind)).andExpect(status().isNoContent());
-		this.mvc.perform(leave(session, this.acme)).andExpect(status().isNoContent());
 
-		// Sus membresías quedaron `removed`, no borradas: el API no distingue salir de ser retirada, así que el tipo
-		// es el de acceso desactivado y no el de «sin membresías» del ADR 0004 (que exigiría saber quién se retiró).
-		this.mvc.perform(get(API + "/me").session(session))
-			.andExpect(status().isUnauthorized())
-			.andExpect(jsonPath("$.type").value("https://resolve.example/problems/access-deactivated"));
-		assertThat(this.data.membershipStatus(this.acme, this.sofia)).isEqualTo("removed");
+		this.mvc.perform(leave(session, this.acme))
+			.andExpect(status().isConflict())
+			.andExpect(matchesContract("leaveOrganization"))
+			.andExpect(jsonPath("$.type").value("https://resolve.example/problems/last-organization"));
+
+		// Nada cambió: sigue dentro, en la única que le queda.
+		assertThat(this.data.membershipStatus(this.acme, this.sofia)).isEqualTo("active");
 		assertThat(this.data.membershipStatus(this.northwind, this.sofia)).isEqualTo("removed");
+		this.mvc.perform(get(API + "/me").session(session))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.organization.id").value(this.acme.toString()));
 	}
 
 	@Test

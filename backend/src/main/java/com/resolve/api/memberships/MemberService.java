@@ -45,6 +45,8 @@ class MemberService {
 
 	private static final String LAST_ADMIN = "La organización debe conservar al menos un administrador activo.";
 
+	private static final String LAST_ORGANIZATION = "No puedes salir de tu única organización.";
+
 	/** Desconocida, ajena o ya abandonada: el mismo texto, para no revelar cuáles existen. */
 	private static final String UNKNOWN_ORGANIZATION = "No existe la organización.";
 
@@ -224,12 +226,23 @@ class MemberService {
 	 * bloqueo del equipo, así que el último administrador activo no puede salir ni a la vez que otro. La organización
 	 * viene de la ruta y puede no ser la de la sesión: el actor de la liberación de tickets se construye en ella.
 	 * Orden de errores: 404 (desconocida, ajena o ya abandonada, todas iguales), 403 (membresía de cliente: su acceso
-	 * pertenece a la empresa que lo atiende) y 409 (último administrador). Una membresía {@code invited} también puede
-	 * abandonarse: ya aparece en la lista de organizaciones.
+	 * pertenece a la empresa que lo atiende), 409 {@code last-organization} (es la única membresía utilizable de la
+	 * persona) y 409 {@code last-admin}. Una membresía {@code invited} también puede abandonarse: ya aparece en la
+	 * lista de organizaciones.
+	 *
+	 * <p>
+	 * <b>Orden de los bloqueos.</b> Primero el de la persona ({@code user-memberships:{userId}}) y después el del equipo
+	 * de la organización ({@code lockTeam}), siempre en ese orden. La regla «nadie sale de su único espacio» mira las
+	 * membresías de la persona en <i>otras</i> organizaciones, y dos salidas simultáneas de organizaciones distintas no
+	 * comparten el bloqueo del equipo: sin uno por persona, cada una vería a la otra aún utilizable y la persona
+	 * quedaría sin ninguna. Con él se evalúan una a una, y la segunda ve ya confirmada la primera. Tiene que ir antes
+	 * que {@code lockTeam} para no crear interbloqueos: una salida que ya tiene el equipo de A y pidiera después el de la
+	 * persona esperaría a otra que tiene el de la persona y pide el de A. Cada petición toma un solo equipo, así que
+	 * con el de la persona siempre primero no hay ciclo posible.
 	 */
 	@Transactional
 	void leave(CurrentMember member, UUID organizationId) {
-		// Sin bloquear nada todavía: un id que no es de la persona no debe tomar el bloqueo del equipo de nadie.
+		// Sin bloquear nada todavía: un id que no es de la persona no debe tomar ningún bloqueo.
 		Role role = this.memberships.findStanding(organizationId, member.userId())
 			.filter((standing) -> standing.status() != MemberStatus.REMOVED)
 			.map(MembershipStanding::role)
@@ -237,12 +250,32 @@ class MemberService {
 		if (role == Role.CUSTOMER) {
 			throw new AccessDeniedException("Los clientes no abandonan una organización por su cuenta.");
 		}
+		lockUserMemberships(member.userId());
+		if (this.memberships.findLiveElsewhere(member.userId(), organizationId)
+			.stream()
+			.noneMatch((other) -> isUsable(MemberStatus.ACTIVE, other.customerId()))) {
+			throw new ConflictException(LAST_ORGANIZATION, ProblemTypes.LAST_ORGANIZATION);
+		}
 		lockTeam(organizationId);
 		Membership own = this.memberships.lockTeamMember(organizationId, member.userId())
 			.filter((membership) -> membership.getStatus() != MemberStatus.REMOVED)
 			.orElseThrow(() -> new ResourceNotFoundException(UNKNOWN_ORGANIZATION));
 		retire(new CurrentMember(member.userId(), member.name(), member.email(), organizationId, own.getRole(), null),
 				own);
+	}
+
+	/**
+	 * Una membresía resuelve principal si no está retirada y, siendo de cliente, su cliente no está archivado. Es la regla
+	 * de {@link MemberPrincipals} y de la comprobación de «único espacio»: una sola definición.
+	 */
+	boolean isUsable(MemberStatus status, @Nullable UUID customerId) {
+		return status != MemberStatus.REMOVED
+				&& !(customerId != null && this.customers.existsByIdAndArchivedAtIsNotNull(customerId));
+	}
+
+	/** Exclusión mutua por persona hasta el commit; ver el orden de bloqueos en {@link #leave}. */
+	private void lockUserMemberships(UUID userId) {
+		LockTimeouts.lockAdvisory(this.jdbc, "user-memberships:" + userId);
 	}
 
 	/**

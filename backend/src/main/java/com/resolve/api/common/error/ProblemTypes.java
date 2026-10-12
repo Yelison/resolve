@@ -25,6 +25,9 @@ public final class ProblemTypes {
 	/** 409: la organización debe conservar al menos un administrador activo (cambiar el rol, retirar o salir). */
 	public static final String LAST_ADMIN = BASE + "last-admin";
 
+	/** 409: la organización que se abandona es la única utilizable de la persona (nadie sale de su único espacio). */
+	public static final String LAST_ORGANIZATION = BASE + "last-organization";
+
 	private ProblemTypes() {
 	}
 

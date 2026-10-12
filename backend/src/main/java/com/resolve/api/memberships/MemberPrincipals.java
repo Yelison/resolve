@@ -8,7 +8,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.resolve.api.common.security.CurrentMember;
-import com.resolve.api.customers.CustomerRepository;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -44,13 +43,10 @@ public class MemberPrincipals {
 
 	private final MembershipRepository memberships;
 
-	private final CustomerRepository customers;
-
 	private final MemberService members;
 
-	MemberPrincipals(MembershipRepository memberships, CustomerRepository customers, MemberService members) {
+	MemberPrincipals(MembershipRepository memberships, MemberService members) {
 		this.memberships = memberships;
-		this.customers = customers;
 		this.members = members;
 	}
 
@@ -107,17 +103,11 @@ public class MemberPrincipals {
 			.toList();
 	}
 
-	/** Una membresía retirada o la de un cliente archivado no resuelve principal. */
+	/** Una membresía retirada o la de un cliente archivado no resuelve principal (ver {@link MemberService#isUsable}). */
 	private List<Membership> usable(List<Membership> all) {
 		return all.stream()
-			.filter((membership) -> membership.getStatus() != MemberStatus.REMOVED)
-			.filter((membership) -> !isArchivedCustomer(membership))
+			.filter((membership) -> this.members.isUsable(membership.getStatus(), membership.getCustomerId()))
 			.toList();
-	}
-
-	private boolean isArchivedCustomer(Membership membership) {
-		UUID customerId = membership.getCustomerId();
-		return customerId != null && this.customers.existsByIdAndArchivedAtIsNotNull(customerId);
 	}
 
 	/**

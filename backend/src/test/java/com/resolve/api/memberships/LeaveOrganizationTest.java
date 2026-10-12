@@ -27,6 +27,8 @@ class LeaveOrganizationTest extends TeamFixture {
 
 	private static final String LAST_ADMIN_TYPE = "https://resolve.example/problems/last-admin";
 
+	private static final String LAST_ORGANIZATION_TYPE = "https://resolve.example/problems/last-organization";
+
 	@Autowired
 	private JdbcClient jdbc;
 
@@ -164,6 +166,8 @@ class LeaveOrganizationTest extends TeamFixture {
 
 	@Test
 	void theOnlyActiveAdminCannotLeaveAndTheConflictHasItsOwnType() throws Exception {
+		// Con otro espacio donde trabajar, para que lo que lo impida sea la regla del último administrador.
+		this.data.membership(this.northwind, this.admin, "agent", "active");
 		this.mvc.perform(delete(API + "/me/organizations/" + this.acme).with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("leaveOrganization"))
@@ -179,17 +183,22 @@ class LeaveOrganizationTest extends TeamFixture {
 
 	@Test
 	void anAdminLeavesWhenAnotherActiveAdminRemains() throws Exception {
-		this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example");
+		this.data.membership(this.northwind, this.admin, "agent", "active");
+		UUID second = this.data.staff(this.acme, "admin", "Segunda Admin", "segunda@acme.example");
 
 		this.mvc.perform(delete(API + "/me/organizations/" + this.acme).with(as(ADMIN))).andExpect(status().isNoContent());
 
 		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("removed");
-		// Ahora la segunda es la última y ya no puede salir.
-		assertThat(leave("segunda@acme.example", this.acme).getResponse().getStatus()).isEqualTo(409);
+		// Ahora la segunda es la última y ya no puede salir (también con otro espacio, para aislar la regla).
+		this.data.membership(this.northwind, second, "agent", "active");
+		MvcResult last = leave("segunda@acme.example", this.acme);
+		assertThat(last.getResponse().getStatus()).isEqualTo(409);
+		assertThat(body(last).path("type").asString()).isEqualTo(LAST_ADMIN_TYPE);
 	}
 
 	@Test
 	void anAgentLeavesEvenWhenTheOnlyAdminStays() throws Exception {
+		this.data.membership(this.northwind, this.daniel, "agent", "active");
 		assertThat(leave(DANIEL, this.acme).getResponse().getStatus()).isEqualTo(204);
 		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("active");
 	}
@@ -221,6 +230,72 @@ class LeaveOrganizationTest extends TeamFixture {
 		// Con la organización de la sesión en la cabecera, se puede salir de otra.
 		this.mvc.perform(delete(API + "/me/organizations/" + this.northwind).with(as(LAURA))
 			.header("X-Organization-Id", this.acme.toString())).andExpect(status().isNoContent());
+	}
+
+	@Test
+	void nobodyLeavesTheirOnlyOrganizationAndNothingChanges() throws Exception {
+		UUID ticket = this.data.ticket(this.acme, this.mariaCustomer, 1, "open");
+		this.data.assignTicket(ticket, this.daniel);
+
+		this.mvc.perform(delete(API + "/me/organizations/" + this.acme).with(as(DANIEL)))
+			.andExpect(status().isConflict())
+			.andExpect(matchesContract("leaveOrganization"))
+			.andExpect(jsonPath("$.type").value(LAST_ORGANIZATION_TYPE));
+
+		assertThat(this.data.membershipStatus(this.acme, this.daniel)).isEqualTo("active");
+		this.mvc.perform(get(API + "/tickets/1").with(as(ADMIN))).andExpect(jsonPath("$.assignee.name").value("Daniel Santos"));
+		this.mvc.perform(get(API + "/tickets/1/activity").with(as(ADMIN))).andExpect(jsonPath("$.length()").value(0));
+		this.mvc.perform(get(API + "/me").with(as(DANIEL))).andExpect(status().isOk());
+	}
+
+	@Test
+	void withTwoOrganizationsTheFirstLeavesAndTheSecondIsTheLastOne() throws Exception {
+		this.mvc.perform(delete(API + "/me/organizations/" + this.acme).with(as(LAURA))).andExpect(status().isNoContent());
+
+		this.mvc.perform(delete(API + "/me/organizations/" + this.northwind).with(as(LAURA)))
+			.andExpect(status().isConflict())
+			.andExpect(matchesContract("leaveOrganization"))
+			.andExpect(jsonPath("$.type").value(LAST_ORGANIZATION_TYPE));
+		assertThat(this.data.membershipStatus(this.northwind, this.laura)).isEqualTo("active");
+		this.mvc.perform(get(API + "/me").with(as(LAURA)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.organization.id").value(this.northwind.toString()));
+	}
+
+	@Test
+	void theLastOrganizationRuleComesBeforeTheLastAdminOne() throws Exception {
+		// El único administrador de su único espacio: la interfaz dice «es tu único espacio», no «ve a Equipo».
+		this.mvc.perform(delete(API + "/me/organizations/" + this.acme).with(as(ADMIN)))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.type").value(LAST_ORGANIZATION_TYPE));
+	}
+
+	@Test
+	void aRemovedOrArchivedCustomerMembershipElsewhereDoesNotCountAsAnotherOrganization() throws Exception {
+		UUID other = this.data.organization("Archivada");
+		UUID customer = this.data.customer(other, "Daniel", DANIEL, "Cliente");
+		this.data.customerMembership(other, this.daniel, customer);
+		this.data.archiveCustomer(customer, TestClockConfiguration.START);
+		UUID gone = this.data.organization("Antigua");
+		this.data.membership(gone, this.daniel, "agent", "removed");
+
+		MvcResult result = leave(DANIEL, this.acme);
+
+		assertThat(result.getResponse().getStatus()).isEqualTo(409);
+		assertThat(body(result).path("type").asString()).isEqualTo(LAST_ORGANIZATION_TYPE);
+		assertThat(this.data.membershipStatus(this.acme, this.daniel)).isEqualTo("active");
+	}
+
+	@Test
+	void anActiveCustomerMembershipOrAnInvitationElsewhereIsAnotherOrganization() throws Exception {
+		UUID portal = this.data.organization("Portal");
+		UUID customer = this.data.customer(portal, "Daniel", DANIEL, "Cliente");
+		this.data.customerMembership(portal, this.daniel, customer);
+		assertThat(leave(DANIEL, this.acme).getResponse().getStatus()).isEqualTo(204);
+
+		// Una invitación pendiente también es una membresía utilizable (se lista y entra), así que cuenta.
+		this.data.membership(this.northwind, this.invited, "agent", "invited");
+		assertThat(leave(INVITED, this.acme).getResponse().getStatus()).isEqualTo(204);
 	}
 
 	@Test

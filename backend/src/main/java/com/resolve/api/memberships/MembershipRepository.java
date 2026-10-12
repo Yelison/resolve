@@ -73,6 +73,14 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 			""")
 	Optional<MembershipStanding> findStanding(UUID organizationId, UUID userId);
 
+	/** Membresías no retiradas de la persona en las demás organizaciones, sin cargarlas ni bloquearlas. */
+	@Query("""
+			select new com.resolve.api.memberships.LiveMembership(m.role, m.customerId) from Membership m
+			where m.user.id = :userId and m.organization.id <> :organizationId
+				and m.status <> com.resolve.api.memberships.MemberStatus.REMOVED
+			""")
+	List<LiveMembership> findLiveElsewhere(UUID userId, UUID organizationId);
+
 	/** Personal activo (admin o agente) de cada organización dada: los invitados, retirados y clientes no cuentan. */
 	@Query("""
 			select new com.resolve.api.memberships.StaffCount(m.organization.id, count(m))
