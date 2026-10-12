@@ -9,11 +9,11 @@ import java.util.function.Supplier;
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.FieldErrorDetail;
 import com.resolve.api.common.security.CurrentMember;
-import com.resolve.api.organizations.GettingStarted;
 import com.resolve.api.common.web.PageQuery;
 import com.resolve.api.common.web.PageResponse;
 import com.resolve.api.common.web.SortDirection;
 import com.resolve.api.common.web.SortSpec;
+import com.resolve.api.organizations.GettingStarted;
 import com.resolve.api.tickets.TicketDtos.ActivityDto;
 import com.resolve.api.tickets.TicketDtos.ActivityFeedItemDto;
 import com.resolve.api.tickets.TicketDtos.AttentionListDto;
@@ -57,9 +57,9 @@ class TicketsController {
 	private final GettingStarted gettingStarted;
 
 	TicketsController(TicketService service, ActivityFeedQuery feed, GettingStarted gettingStarted) {
-		this.gettingStarted = gettingStarted;
 		this.service = service;
 		this.feed = feed;
+		this.gettingStarted = gettingStarted;
 	}
 
 	@GetMapping

@@ -33,8 +33,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * La cabecera es opcional: sin ella no se comprueba nada. Hacerla obligatoria obligaría a cada llamada del cliente a
  * pasarla y rompería a quien no muestra ninguna organización; a cambio, un cliente que no la envía no tiene esta garantía.
  * Solo las escrituras: las lecturas ya están limitadas a la organización de la sesión y no dejan nada que deshacer.
- * {@code POST /session/organization} y {@code POST /organizations} la ignoran porque son lo que cambia la organización; {@code POST /logout} la gestiona
- * el filtro de cierre de sesión, que va antes.
+ * {@code POST /session/organization} y {@code POST /organizations} la ignoran porque son lo que cambia la organización;
+ * {@code POST /logout} la gestiona el filtro de cierre de sesión, que va antes.
  */
 final class OrganizationHeaderFilter extends OncePerRequestFilter {
 

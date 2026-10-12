@@ -163,6 +163,13 @@ class WorkspaceCreationTest extends TeamFixture {
 		// El primer ticket del espacio nuevo es el número 1 y no choca con el de Acme.
 		this.mvc.perform(get(API + "/organization").session(session).with(as(ADMIN)))
 			.andExpect(jsonPath("$.id").value(id.toString()));
+		UUID customer = this.data.customer(id, "Cliente nuevo", "nuevo@cliente.example", "Nuevo");
+		this.mvc.perform(post(API + "/tickets").session(session)
+			.with(as(ADMIN))
+			.contentType(MediaType.APPLICATION_JSON)
+			.content("{\"customerId\": \"%s\", \"subject\": \"Primero\", \"description\": \"Texto\"}".formatted(customer)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.number").value(1));
 	}
 
 	@Test
