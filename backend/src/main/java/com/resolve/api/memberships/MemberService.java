@@ -275,7 +275,7 @@ class MemberService {
 
 	/** Exclusión mutua por persona hasta el commit; ver el orden de bloqueos en {@link #leave}. */
 	private void lockUserMemberships(UUID userId) {
-		LockTimeouts.lockAdvisory(this.jdbc, "user-memberships:" + userId);
+		UserLocks.lockMemberships(this.jdbc, userId);
 	}
 
 	/**

@@ -111,6 +111,10 @@ class SecurityConfiguration {
 				.authenticated()
 				.requestMatchers(HttpMethod.POST, api("/session/organization"))
 				.authenticated()
+				// Crear un espacio lo puede intentar cualquier persona autenticada: que administre algún espacio (no el rol de
+				// la sesión, que puede ser el de cliente en otro) lo decide el servicio, que responde 403.
+				.requestMatchers(HttpMethod.POST, api("/organizations"))
+				.authenticated()
 				// Salir de una organización lo puede intentar cualquier persona; el servicio responde 403 a un cliente.
 				.requestMatchers(HttpMethod.DELETE, api("/me/organizations/{organizationId}"))
 				.authenticated()

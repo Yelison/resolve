@@ -15,7 +15,16 @@ export function workspacesOf(me: Me): Workspace[] {
   const listed = me.organizations ?? []
   const refs: OrganizationRef[] = listed.some((ref) => ref.id === me.organization.id)
     ? listed
-    : [{ id: me.organization.id, name: me.organization.name, role: me.role, memberCount: null }, ...listed]
+    : [
+        {
+          id: me.organization.id,
+          name: me.organization.name,
+          role: me.role,
+          color: me.organization.color,
+          memberCount: null,
+        },
+        ...listed,
+      ]
   return refs.map((ref) => ({ ...ref, current: ref.id === me.organization.id }))
 }
 

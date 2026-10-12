@@ -59,7 +59,14 @@ export function WorkspacesSection() {
 }
 
 const noop = () => {}
-const ghostWorkspace: Workspace = { id: 'ghost', name: ' ', role: 'agent', memberCount: 1, current: true }
+const ghostWorkspace: Workspace = {
+  id: 'ghost',
+  name: ' ',
+  role: 'agent',
+  color: 'blue',
+  memberCount: 1,
+  current: true,
+}
 
 function WorkspacesPanel({ me }: { me: NonNullable<ReturnType<typeof useMe>['data']> }) {
   const wide = useMediaQuery(WIDE)

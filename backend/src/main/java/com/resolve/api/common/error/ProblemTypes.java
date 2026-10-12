@@ -28,6 +28,9 @@ public final class ProblemTypes {
 	/** 409: la organización que se abandona es la única utilizable de la persona (nadie sale de su único espacio). */
 	public static final String LAST_ORGANIZATION = BASE + "last-organization";
 
+	/** 409: la persona ya creó el máximo de espacios en los que sigue activa (ver {@code POST /organizations}). */
+	public static final String ORGANIZATION_LIMIT = BASE + "organization-limit";
+
 	private ProblemTypes() {
 	}
 

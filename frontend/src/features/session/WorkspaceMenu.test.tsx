@@ -34,6 +34,7 @@ const manySpaces = (count: number): OrganizationRef[] =>
     id: `0192f000-0000-7000-8000-0000000001${String(index).padStart(2, '0')}`,
     name: index === 0 ? 'Acme Studio' : `Espacio ${index + 1}`,
     role: index % 2 === 0 ? 'admin' : 'agent',
+    color: 'blue',
     memberCount: index + 2,
   }))
 

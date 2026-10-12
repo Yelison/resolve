@@ -284,11 +284,11 @@ public class TestData {
 		Timestamp at = Timestamp.from(updatedAt);
 		this.jdbc.sql("""
 				INSERT INTO articles (id, organization_id, category_id, slug, title, body, status, visibility, created_by,
-				                      updated_by, created_at, updated_at, published_at)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				                      updated_by, created_at, updated_at, published_at, first_published_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				""")
 			.params(id, organizationId, categoryId, slug, title, body, status, visibility, authorUserId, authorUserId, at,
-					at, status.equals("published") ? at : null)
+					at, status.equals("published") ? at : null, status.equals("published") ? at : null)
 			.update();
 		return id;
 	}

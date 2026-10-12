@@ -36,14 +36,30 @@ export function mockApi(routes: Record<string, Handler>) {
 
 export const adminMe = {
   user: { id: 'u-admin', name: 'Yelisson Ortiz', email: 'yelisson@acme.example' },
-  organization: { id: 'org-1', name: 'Acme Studio', timeZone: 'America/Bogota', supportEmail: null, demo: false },
+  organization: {
+    id: 'org-1',
+    name: 'Acme Studio',
+    timeZone: 'America/Bogota',
+    color: 'green',
+    supportEmail: null,
+    demo: false,
+  },
+  organizationCreation: { allowed: true, created: 0, limit: 3 },
   role: 'admin',
   customerId: null,
 }
 
 export const customerMe = {
   user: { id: 'u-maria', name: 'María Pérez', email: 'maria@cliente.example' },
-  organization: { id: 'org-1', name: 'Acme Studio', timeZone: 'America/Bogota', supportEmail: null, demo: false },
+  organization: {
+    id: 'org-1',
+    name: 'Acme Studio',
+    timeZone: 'America/Bogota',
+    color: 'green',
+    supportEmail: null,
+    demo: false,
+  },
+  organizationCreation: { allowed: false, created: 0, limit: 3 },
   role: 'customer',
   customerId: 'c-maria',
 }

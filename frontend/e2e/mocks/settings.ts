@@ -20,6 +20,7 @@ export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): Moc
     supportEmail: me.organization.supportEmail,
     timeZone: me.organization.timeZone,
     firstResponseTargetMinutes: 30,
+    color: me.organization.color,
     version: 3,
   }
   const withOrganization = (settings: OrganizationSettings): Me => ({

@@ -8,7 +8,8 @@ import styles from './forms.module.css'
 
 const placeholder: Me = {
   user: { id: '', name: '', email: '' },
-  organization: { id: '', name: '', timeZone: 'UTC', supportEmail: null, demo: false },
+  organization: { id: '', name: '', timeZone: 'UTC', color: 'blue', supportEmail: null, demo: false },
+  organizationCreation: { allowed: false, created: 0, limit: 3 },
   role: 'agent',
   customerId: null,
 }

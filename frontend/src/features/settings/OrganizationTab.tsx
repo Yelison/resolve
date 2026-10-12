@@ -13,6 +13,7 @@ const placeholder = (timeZone: string): OrganizationSettings => ({
   supportEmail: null,
   timeZone,
   firstResponseTargetMinutes: 30,
+  color: 'blue',
   version: 0,
 })
 

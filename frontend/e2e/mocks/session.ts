@@ -3,7 +3,15 @@ import { json, problem, type MockFeature, type MockRoute } from './shared'
 
 export const me: Me = {
   user: { id: 'u-admin', name: 'Yelisson Ortiz', email: 'yelisson@acme.example' },
-  organization: { id: 'org-1', name: 'Acme Studio', timeZone: 'America/Bogota', supportEmail: null, demo: false },
+  organization: {
+    id: 'org-1',
+    name: 'Acme Studio',
+    timeZone: 'America/Bogota',
+    color: 'green',
+    supportEmail: null,
+    demo: false,
+  },
+  organizationCreation: { allowed: true, created: 0, limit: 3 },
   role: 'admin',
   customerId: null,
 }
@@ -12,12 +20,14 @@ export const acme: OrganizationRef = {
   id: '0192f000-0000-7000-8000-000000000001',
   name: 'Acme Studio',
   role: 'admin',
+  color: 'green',
   memberCount: 4,
 }
 export const northwind: OrganizationRef = {
   id: '0192f000-0000-7000-8000-000000000002',
   name: 'Northwind',
   role: 'agent',
+  color: 'magenta',
   memberCount: 6,
 }
 
@@ -26,12 +36,14 @@ export const lumen: OrganizationRef = {
   id: '0192f000-0000-7000-8000-000000000003',
   name: 'Lumen Diseño',
   role: 'agent',
+  color: 'orange',
   memberCount: 6,
 }
 export const norte: OrganizationRef = {
   id: '0192f000-0000-7000-8000-000000000004',
   name: 'Norte Viajes',
   role: 'customer',
+  color: 'violet',
   memberCount: null,
 }
 
@@ -106,6 +118,7 @@ export function sessionMock(
       id: me.organization.id,
       name: me.organization.name,
       role,
+      color: me.organization.color,
       memberCount: role === 'customer' ? null : acme.memberCount,
     },
   ]

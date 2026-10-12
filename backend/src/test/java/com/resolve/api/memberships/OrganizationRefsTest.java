@@ -9,7 +9,11 @@ import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
+import com.resolve.api.organizations.OrganizationColors;
 import com.resolve.api.support.ApiIntegrationTest;
 
 import static com.resolve.api.support.OpenApiContract.matchesContract;
@@ -19,15 +23,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * {@code OrganizationRef.role} y {@code memberCount}: el rol de la persona en cada organización y el personal activo
+ * {@code OrganizationRef.role}, {@code color} y {@code memberCount}: el rol de la persona en cada organización y el personal activo
  * de esa organización, calculado en una consulta para todas.
  */
 class OrganizationRefsTest extends ApiIntegrationTest {
 
 	private static final String EMAIL = "sofia@acme.example";
 
+	private static final JsonMapper JSON = JsonMapper.builder().build();
+
 	@Autowired
 	private EntityManagerFactory entityManagerFactory;
+
+	@Autowired
+	private JdbcClient jdbc;
 
 	private UUID acme;
 
@@ -119,6 +128,26 @@ class OrganizationRefsTest extends ApiIntegrationTest {
 		this.mvc.perform(get(API + "/session/organizations").with(as(EMAIL)))
 			.andExpect(jsonPath("$[0].memberCount").value(2))
 			.andExpect(jsonPath("$[1].memberCount").value(7));
+	}
+
+	@Test
+	void everyRefCarriesTheColorOfItsOrganization() throws Exception {
+		UUID beta = this.data.organization("Beta");
+		this.data.staff(beta, "admin", "Admin Beta", "admin@beta.example");
+		this.data.membership(beta, this.sofia, "agent", "active");
+		this.jdbc.sql("update organizations set color = 'brick' where id = ?").param(beta).update();
+
+		JsonNode refs = JSON.readTree(this.mvc.perform(get(API + "/session/organizations").with(as(EMAIL)))
+			.andExpect(matchesContract("listSessionOrganizations"))
+			.andReturn()
+			.getResponse()
+			.getContentAsString());
+
+		for (JsonNode ref : refs) {
+			UUID id = UUID.fromString(ref.path("id").asString());
+			assertThat(ref.path("color").asString()).isEqualTo(id.equals(beta) ? "brick" : OrganizationColors.forId(id));
+		}
+		assertThat(refs.size()).isEqualTo(3);
 	}
 
 	@Test
