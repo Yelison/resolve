@@ -164,7 +164,11 @@ describe('Configuración › Tus espacios · salir (escritorio)', () => {
         return { status: 204 }
       },
     })
-    renderSpaces()
+    const { queryClient } = renderSpaces()
+    // El equipo cargado es el del espacio actual: su cifra no es la de otro espacio.
+    queryClient.setQueryData(memberKeys.list(), [
+      teamMember({ id: adminMe.user.id, name: 'Yelisson Ortiz', role: 'admin', openTickets: 4 }),
+    ])
     await userEvent.click(await screen.findByRole('button', { name: 'Salir de Lumen Diseño' }))
     const dialog = await screen.findByRole('dialog', { name: '¿Salir de Lumen Diseño?' })
     expect(

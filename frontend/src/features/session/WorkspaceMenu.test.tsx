@@ -225,8 +225,8 @@ describe('selector de espacios · muchos espacios', () => {
     expect(screen.queryByRole('searchbox', { name: 'Buscar espacio' })).not.toBeInTheDocument()
   })
 
-  it('desde 8 aparece «Buscar espacio», recibe el foco, filtra sin acentos y deja «Tus espacios» a la vista', async () => {
-    const all = manySpaces(9)
+  it('con 8 aparece «Buscar espacio», recibe el foco, filtra sin acentos y deja «Tus espacios» a la vista', async () => {
+    const all = manySpaces(8)
     all[3] = { ...all[3]!, name: 'Clínica Sonrisa' }
     mockApi({ 'GET /api/me': { body: inOrg(adminMe, all[0]!, all) } })
     renderShell()
