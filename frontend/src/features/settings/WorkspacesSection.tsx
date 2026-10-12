@@ -105,7 +105,8 @@ function WorkspacesPanel({ me }: { me: NonNullable<ReturnType<typeof useMe>['dat
   return (
     <section className={styles.panel} aria-labelledby="workspaces-heading">
       <div className={styles.header}>
-        <h2 id="workspaces-heading" className={styles.title}>
+        {/* En móvil el título de la página ya dice «Tus espacios»: el de la lista queda para lectores de pantalla. */}
+        <h2 id="workspaces-heading" className={wide ? styles.title : 'visually-hidden'}>
           Tus espacios
         </h2>
         <p className={styles.description}>
