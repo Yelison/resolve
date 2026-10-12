@@ -43,5 +43,6 @@ export const metrics = {
   unassignedOver4Hours: 2,
   firstResponseMinutes: 18,
   firstResponseTargetMinutes: 30,
+  gettingStarted: null,
   views: { all: 34, mine: 4, unassigned: 6, resolved: 10 },
 }
