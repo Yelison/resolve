@@ -347,8 +347,9 @@ test('«Persona nueva (sin espacio)» entra a «Crea tu espacio», crea el suyo 
   await expect(page.getByRole('button', { name: /^Espacio: Taller Sur\./ })).toContainText('Administrador')
   await expect(page.locator('#contenido')).toBeFocused()
 
-  // Recargar reinicia la demostración: el espacio creado desaparece y la persona sigue sin espacio.
-  await page.reload()
+  // Cargar de nuevo reinicia la demostración (Inicio es `/resolve`, que el servidor de pruebas no recarga sin la barra
+  // final): el espacio creado desaparece y la persona, que sigue elegida en la pestaña, sigue sin espacio.
+  await page.goto('')
   await expect(heading(page, 'Crea tu espacio')).toBeVisible()
   expect(leaked).toEqual([])
 })
