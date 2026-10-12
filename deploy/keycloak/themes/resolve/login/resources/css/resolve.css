@@ -247,6 +247,11 @@ body#keycloak-bg {
   color: var(--color-on-brand);
 }
 
+/* Los botones de control de un grupo de campo (ojo de la contraseña, reiniciar el inicio de sesión, copiar el código) miden lo que el campo, no lo que un botón de acción. */
+.pf-v5-c-button.pf-m-control {
+  min-height: var(--control-height);
+}
+
 .pf-v5-c-button.pf-m-secondary,
 .pf-v5-c-button.pf-m-control {
   background: var(--color-surface);

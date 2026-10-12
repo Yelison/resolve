@@ -154,6 +154,14 @@ describe('tema de Keycloak · una sola fuente de verdad', () => {
     expect([...new Set(redeclared)]).toEqual([])
   })
 
+  it('el botón del ojo de la contraseña mide lo mismo que el campo: --control-height, no --button-height', () => {
+    const rule = /^\.pf-v5-c-button\.pf-m-control\s*\{([^}]*)\}/gm
+    const heights = [...themeStyles.matchAll(rule)].flatMap(([, body]) => [
+      ...(body ?? '').matchAll(/min-height:\s*([^;]+);/g),
+    ])
+    expect(heights.map(([, value]) => value)).toEqual(['var(--control-height)'])
+  })
+
   it('el tema usa los tokens pensados para el texto de marca y el hover: link, no brand, y brand-hover', () => {
     const css = themeStyles.replace(/\/\*[\s\S]*?\*\//g, '')
     expect(css.match(/(?:^|[^-\w])color\s*:\s*var\(--color-brand\)/g) ?? [], 'brand como color de texto').toEqual([])
