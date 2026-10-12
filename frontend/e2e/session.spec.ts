@@ -113,9 +113,9 @@ test.describe('sin saltos de layout al llegar /me', () => {
   }
 })
 
-test.describe('cuenta sin membresía', () => {
+test.describe('cuenta sin membresía en un servidor anterior (el 401 no trae el correo)', () => {
   test('/entrar la explica por el tipo del problema y deja cerrar sesión', async ({ page }) => {
-    await mockApi(page, 'admin', { refused: 'no-membership' })
+    await mockApi(page, 'admin', { refused: 'no-membership', identity: null })
     await page.setViewportSize({ width: 1024, height: 800 })
     await page.goto('/tickets')
     await expect(page).toHaveURL(/\/entrar$/)
@@ -147,7 +147,8 @@ test.describe('cuenta desactivada', () => {
     for (const theme of themes) {
       for (const width of widths) {
         test(`el motivo y el botón caben · ${refused} · ${theme} · ${width}px`, async ({ page }) => {
-          await mockApi(page, 'admin', { refused })
+          // `no-membership` sin correo en el 401 es el de un servidor anterior; con él, ver `no-workspace.spec.ts`.
+          await mockApi(page, 'admin', { refused, identity: null })
           await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
           await page.setViewportSize({ width, height: 700 })
           await page.goto('/entrar')

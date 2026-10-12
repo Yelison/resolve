@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router'
 import { isApiError, PROBLEM_TYPES, readCsrfToken } from '../../api/client'
 import { cx } from '../../lib/cx'
@@ -42,16 +42,22 @@ export function LoginPage() {
   const demoLogin = import.meta.env.DEV || import.meta.env.MODE === 'smoke' || import.meta.env.MODE === 'showcase'
   // En la demostración estática no hay proveedor de identidad al que salir: solo se ofrece el selector de usuarios.
   const providerLogin = import.meta.env.MODE !== 'showcase'
-  const unauthenticated = !me.data && isApiError(me.error, 401)
+  // Releer una sesión que nunca cargó devuelve la consulta a «pending» y pierde el error: sin esto, el esqueleto sustituye a
+  // la pantalla (y borra lo escrito en ella) cada vez que una relectura —p. ej. tras un 409— sigue en vuelo. Se conserva el
+  // último hasta que llega otro.
+  const [lastError, setLastError] = useState<unknown>(null)
+  if (me.error && me.error !== lastError) setLastError(me.error)
+  const error = me.error ?? lastError
+  const unauthenticated = !me.data && isApiError(error, 401)
   const { signOut } = useSessionActions()
   // Motivo por el que el proveedor sí autenticó a la persona pero la aplicación no la admite.
-  const type = isApiError(me.error, 401) ? me.error.problem.type : undefined
+  const type = isApiError(error, 401) ? error.problem.type : undefined
   const refusal = type ? REFUSALS.get(type) : undefined
   // Con una sesión OIDC en el servidor hay cookie de CSRF: se puede cerrar para entrar con otra cuenta.
   const canSignOut = refusal !== undefined && readCsrfToken() !== null
   // Quien no tiene ningún espacio y a quien el `401` dice quién es y si puede crear el suyo. Un servidor anterior no manda
   // el correo: ahí queda el aviso de siempre, en la pantalla de entrada.
-  const newcomer = noMembershipNewcomer(me.error)
+  const newcomer = noMembershipNewcomer(error)
   const screen = newcomer ? (newcomer.canCreate ? 'create' : 'none') : 'entry'
 
   useEffect(() => {

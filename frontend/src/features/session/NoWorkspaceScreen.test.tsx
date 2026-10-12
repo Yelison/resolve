@@ -138,9 +138,11 @@ describe('«Crea tu espacio» (la instalación deja crear)', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Crea tu espacio' })).toBeInTheDocument()
   })
 
-  it('un `409` de límite (no debería darse sin espacios) se avisa, anunciado, sin salir de la pantalla', async () => {
+  it('un `409` de límite (no debería darse sin espacios) se avisa, anunciado, sin salir de la pantalla ni borrar lo escrito', async () => {
+    let reads = 0
     mockApi({
-      'GET /api/me': open,
+      // La relectura que sigue al límite queda en vuelo: la consulta vuelve a «pending» y no por eso se desmonta la pantalla.
+      'GET /api/me': () => (reads++ === 0 ? open : (new Promise(() => {}) as never)),
       'POST /api/organizations': {
         status: 409,
         body: { type: PROBLEM_TYPES.organizationLimit, status: 409, title: 'Límite' },
@@ -152,6 +154,8 @@ describe('«Crea tu espacio» (la instalación deja crear)', () => {
     const notice = await screen.findByRole('status')
     expect(notice).toHaveTextContent('Ya creaste el máximo de espacios por persona.')
     expect(notice).toHaveTextContent('pide a alguien de tu equipo que te invite')
+    await waitFor(() => expect(reads).toBe(2))
+    expect(screen.getByRole('textbox', { name: 'Nombre del espacio' })).toHaveValue('Otro')
     expect(screen.queryByRole('button', { name: 'Ver tus espacios' })).not.toBeInTheDocument()
   })
 
