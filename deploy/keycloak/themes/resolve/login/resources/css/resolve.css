@@ -247,7 +247,7 @@ body#keycloak-bg {
   color: var(--color-on-brand);
 }
 
-/* El ojo de la contraseña acompaña al campo: misma altura que él, no la de un botón de acción. */
+/* Los botones de control de un grupo de campo (ojo de la contraseña, reiniciar el inicio de sesión, copiar el código) miden lo que el campo, no lo que un botón de acción. */
 .pf-v5-c-button.pf-m-control {
   min-height: var(--control-height);
 }
