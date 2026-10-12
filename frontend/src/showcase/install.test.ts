@@ -125,20 +125,21 @@ describe('installShowcase · espacios de la demostración', () => {
       body: JSON.stringify({ organizationId }),
     })
 
-  it('la administración es administradora en Acme, agente en Lumen Diseño y cliente en Norte Viajes', async () => {
+  it('la administración es administradora en Acme y Kora Fitness, agente en Lumen Diseño y cliente en Norte Viajes', async () => {
     await signIn(ADMIN)
     const session = await me()
     expect(session.organizations.map((org: { name: string; role: string }) => [org.name, org.role])).toEqual([
       ['Acme Studio', 'admin'],
+      ['Kora Fitness', 'admin'],
       ['Lumen Diseño', 'agent'],
       ['Norte Viajes', 'customer'],
     ])
-    expect(session.organizations[2].memberCount).toBeNull()
+    expect(session.organizations[3].memberCount).toBeNull()
   })
 
   it('el rol de la sesión sigue al espacio activo: en Norte Viajes es cliente, y las demás features lo respetan', async () => {
     const token = await signIn(ADMIN)
-    const [, lumen, norte] = (await me()).organizations
+    const [, , lumen, norte] = (await me()).organizations
     expect((await choose(norte.id, token)).status).toBe(200)
     expect(await me()).toMatchObject({
       role: 'customer',
@@ -153,9 +154,13 @@ describe('installShowcase · espacios de la demostración', () => {
 
   it('salir de un espacio lo quita de la lista; salir otra vez es el mismo 404', async () => {
     const token = await signIn(ADMIN)
-    const [, lumen] = (await me()).organizations
+    const [, , lumen] = (await me()).organizations
     expect((await leave(lumen.id, token)).status).toBe(204)
-    expect((await me()).organizations.map((org: { name: string }) => org.name)).toEqual(['Acme Studio', 'Norte Viajes'])
+    expect((await me()).organizations.map((org: { name: string }) => org.name)).toEqual([
+      'Acme Studio',
+      'Kora Fitness',
+      'Norte Viajes',
+    ])
     expect((await leave(lumen.id, token)).status).toBe(404)
     expect((await leave('desconocido', token)).status).toBe(404)
   })
@@ -170,12 +175,12 @@ describe('installShowcase · espacios de la demostración', () => {
 
   it('un cliente no sale (403) y el último administrador tampoco (409 last-admin)', async () => {
     const token = await signIn(ADMIN)
-    const [acme, , norte] = (await me()).organizations
+    const [acme, , , norte] = (await me()).organizations
     expect((await leave(norte.id, token)).status).toBe(403)
     const refused = await leave(acme.id, token)
     expect(refused.status).toBe(409)
     expect(await refused.json()).toMatchObject({ type: LAST_ADMIN })
-    expect((await me()).organizations).toHaveLength(3)
+    expect((await me()).organizations).toHaveLength(4)
   })
 
   it('con otra persona que también administra, el último administrador sale: cambia el rol y puede salir', async () => {
@@ -206,5 +211,131 @@ describe('installShowcase · espacios de la demostración', () => {
     await signIn(ADMIN)
     const [, lumen] = (await me()).organizations
     expect((await api(`/me/organizations/${lumen.id}`, { method: 'DELETE' })).status).toBe(403)
+  })
+})
+
+describe('installShowcase · crear espacios en la demostración', () => {
+  const ADMIN = 'yelisson.ortiz@acme.example'
+  const AGENT = 'laura.mendez@acme.example'
+  const LIMIT = 'https://resolve.example/problems/organization-limit'
+  const COLORS = ['blue', 'green', 'magenta', 'orange', 'violet', 'teal', 'brick', 'slate']
+
+  async function signIn(email: string) {
+    sessionStorage.setItem(DEMO_USER_STORAGE_KEY, email)
+    load()
+    return csrfToken()
+  }
+  const me = async () => (await api('/me')).json()
+  const create = (token: string | null, body: unknown) =>
+    api('/organizations', {
+      method: 'POST',
+      headers: { ...(token ? { 'X-XSRF-TOKEN': token } : {}), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  const gettingStarted = async () => (await (await api('/tickets/metrics')).json()).gettingStarted
+  const write = (token: string, path: string, body: unknown) =>
+    api(path, {
+      method: 'POST',
+      headers: { 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  it('el administrador de la demostración ha creado 2 de 3 espacios y puede crear otro; el agente no', async () => {
+    await signIn(ADMIN)
+    expect((await me()).organizationCreation).toEqual({ allowed: true, created: 2, limit: 3 })
+    await signIn(AGENT)
+    expect((await me()).organizationCreation).toEqual({ allowed: false, created: 0, limit: 3 })
+  })
+
+  it('crea el espacio: 201 con el Me nuevo, administrador, con su color calculado, y la sesión pasa a él', async () => {
+    const token = await signIn(ADMIN)
+    const response = await create(token, { name: '  Taller Sur  ', timeZone: 'Europe/Madrid' })
+    expect(response.status).toBe(201)
+    const session = await response.json()
+    expect(session).toMatchObject({
+      role: 'admin',
+      organization: { name: 'Taller Sur', timeZone: 'Europe/Madrid' },
+      organizationCreation: { allowed: false, created: 3, limit: 3 },
+    })
+    const created = session.organizations.at(-1)
+    expect(created).toMatchObject({ name: 'Taller Sur', role: 'admin', memberCount: 1 })
+    expect(created.id).toBe(session.organization.id)
+    // `keys[último byte del id mod 8]`.
+    expect(created.color).toBe(COLORS[Number.parseInt(created.id.replaceAll('-', '').slice(-2), 16) % 8])
+    expect(session.organizations).toHaveLength(5)
+    expect(await me()).toMatchObject({ organization: { name: 'Taller Sur' } })
+  })
+
+  it('Me.organizations va por nombre sin distinguir mayúsculas, como el servidor (y no por alta)', async () => {
+    const token = await signIn(ADMIN)
+    const names = async () => (await me()).organizations.map((org: { name: string }) => org.name)
+    expect(await names()).toEqual(['Acme Studio', 'Kora Fitness', 'Lumen Diseño', 'Norte Viajes'])
+    // «acme estudio» va antes que «Acme Studio» aunque sea minúscula (una comparación por código la pondría la última) y
+    // el espacio nuevo no entra al final de la lista.
+    expect((await create(token, { name: 'acme estudio', timeZone: 'Europe/Madrid' })).status).toBe(201)
+    expect(await names()).toEqual(['acme estudio', 'Acme Studio', 'Kora Fitness', 'Lumen Diseño', 'Norte Viajes'])
+  })
+
+  it('al límite responde 409 con el type organization-limit y no crea nada; salir de uno creado devuelve el hueco', async () => {
+    const token = await signIn(ADMIN)
+    expect((await create(token, { name: 'Uno', timeZone: 'America/Bogota' })).status).toBe(201)
+    const refused = await create(token, { name: 'Dos', timeZone: 'America/Bogota' })
+    expect(refused.status).toBe(409)
+    expect(await refused.json()).toMatchObject({ type: LIMIT })
+    expect((await me()).organizations).toHaveLength(5)
+    // Kora Fitness es de los que creó: salir de él libera un hueco (hay otros administradores activos de sobra: no es el actual).
+    const kora = (await me()).organizations.find((org: { name: string }) => org.name === 'Kora Fitness')
+    const left = await api(`/me/organizations/${kora.id}`, { method: 'DELETE', headers: { 'X-XSRF-TOKEN': token } })
+    expect(left.status).toBe(204)
+    expect((await me()).organizationCreation).toEqual({ allowed: true, created: 2, limit: 3 })
+    expect((await create(token, { name: 'Tres', timeZone: 'America/Bogota' })).status).toBe(201)
+  })
+
+  it('los errores van en el orden del contrato: 400 por campo antes del 403 y del 409', async () => {
+    const token = await signIn(AGENT)
+    const invalid = await create(token, { name: '   ', timeZone: 'No/Existe' })
+    expect(invalid.status).toBe(400)
+    expect((await invalid.json()).errors.map((error: { field: string }) => error.field)).toEqual(['name', 'timeZone'])
+    const tooLong = await create(token, { name: 'x'.repeat(121), timeZone: 'Europe/Madrid' })
+    expect(tooLong.status).toBe(400)
+    // Con el cuerpo válido, un agente sin espacios de administración recibe el 403.
+    expect((await create(token, { name: 'Mío', timeZone: 'Europe/Madrid' })).status).toBe(403)
+    // Sin token CSRF se rechaza como cualquier escritura, antes que el cuerpo.
+    expect((await create(null, { name: '', timeZone: '' })).status).toBe(403)
+  })
+
+  it('crear no lleva X-Organization-Id: no se compara con el espacio que va a dejar de serlo', async () => {
+    const token = await signIn(ADMIN)
+    const response = await api('/organizations', {
+      method: 'POST',
+      headers: { 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json', 'X-Organization-Id': 'otro-espacio' },
+      body: JSON.stringify({ name: 'Sin cabecera', timeZone: 'Europe/Madrid' }),
+    })
+    expect(response.status).toBe(201)
+  })
+
+  it('un espacio recién creado arranca con «Primeros pasos»; los demás, y el agente, sin ellos', async () => {
+    const token = await signIn(ADMIN)
+    expect(await gettingStarted()).toBeNull()
+    await create(token, { name: 'Taller Sur', timeZone: 'Europe/Madrid' })
+    expect(await gettingStarted()).toEqual({ invitedTeam: false, addedCustomer: false, publishedArticle: false })
+  })
+
+  it('cada paso se hace con su escritura real y, con los tres, el servidor deja de mandarlo', async () => {
+    const token = await signIn(ADMIN)
+    await create(token, { name: 'Taller Sur', timeZone: 'Europe/Madrid' })
+    // Una escritura rechazada no hace el paso.
+    expect((await write(token, '/members', { email: 'laura@acme.example', role: 'agent' })).status).toBe(400)
+    expect((await gettingStarted()).invitedTeam).toBe(false)
+    expect((await write(token, '/members', { email: 'nueva@taller.example', role: 'agent' })).status).toBe(201)
+    expect(await gettingStarted()).toEqual({ invitedTeam: true, addedCustomer: false, publishedArticle: false })
+    expect(
+      (await write(token, '/customers', { name: 'Cliente Uno', email: 'uno@cliente.example', company: null })).status,
+    ).toBe(201)
+    expect(await gettingStarted()).toEqual({ invitedTeam: true, addedCustomer: true, publishedArticle: false })
+    const drafts = await (await api('/knowledge/articles?status=draft')).json()
+    const draft = drafts.items?.[0] ?? drafts[0]
+    expect((await write(token, `/knowledge/articles/${draft.slug}/publish`, {})).status).toBe(200)
+    expect(await gettingStarted()).toBeNull()
   })
 })

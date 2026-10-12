@@ -4,7 +4,7 @@ import { knowledgeMock, type ArticleStore } from './knowledge'
 import { reportsMock } from './reports'
 import { me, sessionMock, type SessionLinks, type SessionOptions } from './session'
 import { settingsMock } from './settings'
-import { json, type MockFeature, type MockRequest } from './shared'
+import { json, type MockFeature, type MockRequest, type MockRoute } from './shared'
 import { teamMock } from './team'
 import { ticketsMock, tickets } from './tickets'
 
@@ -32,7 +32,7 @@ export function createMockFeatures(
   // Los recuentos y el último ticket de cada cliente salen de los tickets simulados, no de una copia.
   const customers = customersMock(() => tickets)
   const team = teamMock()
-  const ticketsFeature = ticketsMock(customers.customerRef, roleNow)
+  // La sesión se crea antes que los tickets: sus métricas llevan «Primeros pasos», que es del espacio activo.
   const links: SessionLinks = {
     current,
     lastAdmin: () => team.onlyAdmin(),
@@ -42,11 +42,14 @@ export function createMockFeatures(
     },
   }
   const settings = settingsMock(roleNow, (color) => links.colorSaved?.(color))
+  const session = sessionMock(role, options, settings.session, links)
+  const ticketsFeature = ticketsMock(customers.customerRef, roleNow, session.gettingStarted)
   return [
-    // La sesión va primero (gana el primer manejador): sirve `/me`, el cierre de sesión, la elección de espacio y salir
-    // de uno, a partir del `Me` que cambian los ajustes, que van justo después con el resto de `/me` (PATCH) y
-    // `/organization`. Salir de un espacio es una regla del equipo (último administrador) y de los tickets (se liberan).
-    sessionMock(role, options, settings.session, links),
+    // La sesión va primero (gana el primer manejador): sirve `/me`, el cierre de sesión, la elección y la creación de
+    // espacio y salir de uno, a partir del `Me` que cambian los ajustes, que van justo después con el resto de `/me`
+    // (PATCH) y `/organization`. Salir de un espacio es una regla del equipo (último administrador) y de los tickets (se
+    // liberan).
+    session,
     settings,
     knowledgeMock(roleNow, options.articleStore),
     reportsMock(),
@@ -58,9 +61,17 @@ export function createMockFeatures(
 
 /** Responde con el primer manejador que atiende la petición; si ninguno lo hace, 501 con la ruta que faltó. */
 export function dispatchMock(features: MockFeature[], request: MockRequest): Promise<void> {
+  // Cada feature puede observar la respuesta con su estado, sea cual sea la que la dio.
+  const route: MockRoute = {
+    fulfill: async (options) => {
+      await request.route.fulfill(options)
+      for (const feature of features) feature.observe?.(request, options?.status ?? 200)
+    },
+  }
+  const observed: MockRequest = { ...request, route }
   for (const feature of features) {
-    const handled = feature.handle(request)
+    const handled = feature.handle(observed)
     if (handled) return handled
   }
-  return json(request.route, { status: 501, title: `Sin fixture para ${request.method} ${request.path}` }, 501)
+  return json(route, { status: 501, title: `Sin fixture para ${request.method} ${request.path}` }, 501)
 }

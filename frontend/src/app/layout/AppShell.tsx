@@ -101,6 +101,21 @@ function AppFrame() {
     setDrawerKey(location.key)
     if (drawerOpen) setDrawerOpen(false)
   }
+  // Cambiar de espacio, o crear uno, termina navegando a Inicio; si ya se estaba allí no cambia de pantalla y la que está
+  // montada sigue atada a las consultas del espacio anterior, que `clear()` retiró, y enseñaría sus datos. Con cada
+  // navegación que llega con otra organización se monta una pantalla nueva, que pide los suyos. Se espera a la navegación
+  // (no al `Me`): la pantalla anterior, en su ruta, no puede pedir sus datos al espacio nuevo. Cargar la sesión no cuenta.
+  const organizationId = me.data?.organization.id
+  const [screen, setScreen] = useState({ organizationId, locationKey: location.key, generation: 0 })
+  if (organizationId && screen.organizationId === undefined) {
+    setScreen({ ...screen, organizationId })
+  } else if (organizationId && location.key !== screen.locationKey) {
+    setScreen({
+      organizationId,
+      locationKey: location.key,
+      generation: screen.generation + (organizationId === screen.organizationId ? 0 : 1),
+    })
+  }
   const mainRef = useRef<HTMLElement>(null)
   const previousPath = useRef(pathname)
   useEffect(() => {
@@ -231,7 +246,7 @@ function AppFrame() {
               retryFailed={me.fetchStatus === 'idle' && requestedAt !== null && me.errorUpdateCount === requestedAt + 1}
             />
           ) : (
-            <Outlet />
+            <Outlet key={screen.generation} />
           )}
         </main>
         {import.meta.env.MODE === 'showcase' ? <ShowcaseBanner /> : me.data?.organization.demo && <DemoBanner />}

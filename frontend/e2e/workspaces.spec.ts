@@ -1,13 +1,13 @@
 import type { Locator, Page } from '@playwright/test'
 import type { OrganizationRef } from '../src/api/schema'
 import { expect, mockApi, test } from './fixtures'
-import { acme, demoWorkspaces, lumen, norte } from './mocks/session'
+import { acme, demoCreatedIn, demoWorkspaces, lumen, norte } from './mocks/session'
 
 /** Anchos de revisión y fronteras de breakpoint definidos en la guía de diseño. */
 const widths = [320, 390, 767, 768, 1024, 1199, 1200, 1440]
 const themes = ['light', 'dark'] as const
 
-/** Los tres espacios de la demostración: administrador en Acme, agente en Lumen Diseño y cliente en Norte Viajes. */
+/** Los cuatro espacios de la demostración: administrador en Acme y en Kora Fitness, agente en Lumen Diseño y cliente en Norte Viajes. */
 const spaces = demoWorkspaces.admin!
 
 const card = (page: Page) => page.getByRole('button', { name: /^Espacio: .*\. Cambiar de espacio$/ })
@@ -62,26 +62,52 @@ test.describe('selector de espacios', () => {
     await page.keyboard.press('Enter')
     const menu = selector(page)
     const rows = menu.getByRole('menuitemradio')
-    await expect(rows).toHaveCount(3)
+    await expect(rows).toHaveCount(4)
     await expect(rows.nth(0)).toHaveAttribute('aria-checked', 'true')
     await expect(rows.nth(0)).toBeFocused()
-    await expect(menu.getByRole('menuitem', { name: 'Tus espacios' })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: /Crear espacio/ })).toHaveCount(0)
+    // Tras el separador: «Crear espacio» (el administrador ha creado 2 de 3) y «Tus espacios».
+    await expect(menu.getByRole('menuitem')).toHaveText(['Crear espacio', 'Tus espacios'])
 
     // Escape cierra y devuelve el foco a la tarjeta.
     await page.keyboard.press('Escape')
     await expect(menu).toBeHidden()
     await expect(trigger).toBeFocused()
 
+    // Por nombre, como el servidor: Acme Studio, Kora Fitness, Lumen Diseño, Norte Viajes.
     await page.keyboard.press('Enter')
     await page.keyboard.press('ArrowDown')
-    await expect(rows.nth(1)).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(rows.nth(2)).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/\/$/)
     await expect(card(page)).toContainText('Lumen Diseño')
     await expect(card(page)).toContainText('Agente')
     await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Ahora trabajas en Lumen Diseño')
     expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false)
+  })
+
+  test('cambiar de espacio desde un ticket no vuelve a pedir ese ticket en el espacio nuevo', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets/1046')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    const after: string[] = []
+    let switched = false
+    page.on('response', (response) => {
+      if (response.request().method() === 'POST' && response.url().endsWith('/api/session/organization'))
+        switched = true
+    })
+    page.on('request', (request) => {
+      if (switched && new URL(request.url()).pathname.startsWith('/api/tickets/1046')) after.push(request.url())
+    })
+    await card(page).click()
+    await selector(page)
+      .getByRole('menuitemradio', { name: /^Lumen Diseño/ })
+      .click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Ahora trabajas en Lumen Diseño')
+    await page.waitForTimeout(500)
+    expect(after).toEqual([])
   })
 
   for (const theme of themes) {
@@ -131,17 +157,20 @@ test.describe('selector de espacios', () => {
       const blue = await tokenColor(page, 'blue')
       const green = await tokenColor(page, 'green')
       const orange = await tokenColor(page, 'orange')
-      expect(new Set([blue, green, orange]).size).toBe(3)
+      const teal = await tokenColor(page, 'teal')
+      // Acme Studio, Kora Fitness, Lumen Diseño y Norte Viajes, por nombre como en el servidor.
+      const colors = [blue, teal, green, orange]
+      expect(new Set(colors).size).toBe(4)
       await card(page).click()
       const rows = selector(page).getByRole('menuitemradio')
-      for (const [index, color] of [blue, green, orange].entries()) {
+      for (const [index, color] of colors.entries()) {
         const mark = rows.nth(index).locator('[aria-hidden="true"]').first()
         expect(await mark.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(color)
       }
       await page.keyboard.press('Escape')
       await page.goto('/configuracion/espacios')
       const list = page.locator('section[aria-labelledby="workspaces-heading"] li')
-      for (const [index, color] of [blue, green, orange].entries()) {
+      for (const [index, color] of colors.entries()) {
         const mark = list.nth(index).locator('[aria-hidden="true"]').first()
         expect(await mark.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(color)
       }
@@ -167,7 +196,7 @@ test.describe('selector de espacios', () => {
     const rowColors = async () => {
       await card(page).click()
       const rows = selector(page).getByRole('menuitemradio')
-      const colors = [await markOf(rows.nth(0)), await markOf(rows.nth(1))]
+      const colors = [await markOf(rows.nth(0)), await markOf(rows.nth(2))]
       await page.keyboard.press('Escape')
       return colors
     }
@@ -176,7 +205,7 @@ test.describe('selector de espacios', () => {
     expect(await rowColors()).toEqual([violet, green])
     // Ir a Lumen: su tarjeta es verde y Acme conserva el violeta; no pasa a Lumen.
     await card(page).click()
-    await selector(page).getByRole('menuitemradio').nth(1).click()
+    await selector(page).getByRole('menuitemradio').nth(2).click()
     await expect(card(page)).toContainText('Lumen Diseño')
     expect(await markOf(card(page))).toBe(green)
     expect(await rowColors()).toEqual([violet, green])
@@ -358,7 +387,7 @@ test.describe('selector de espacios', () => {
 test.describe('Configuración › Tus espacios', () => {
   for (const theme of themes) {
     test(`escritorio: lista los espacios con tu rol; el cliente no tiene «Salir» · ${theme}`, async ({ page }) => {
-      await mockApi(page, 'admin', { organizations: spaces })
+      await mockApi(page, 'admin', { organizations: spaces, createdIn: demoCreatedIn })
       await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
       await page.setViewportSize({ width: 1440, height: 900 })
       await page.goto('/configuracion/general')
@@ -366,11 +395,14 @@ test.describe('Configuración › Tus espacios', () => {
       await expect(page).toHaveURL(/\/configuracion\/espacios$/)
       await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
       const rows = page.locator('section[aria-labelledby="workspaces-heading"] li')
-      await expect(rows).toHaveCount(3)
+      await expect(rows).toHaveCount(4)
       await expect(rows.nth(0)).toContainText('Administrador · 4 personas')
       await expect(rows.nth(0)).toContainText('Estás aquí')
-      await expect(rows.nth(1)).toContainText('Agente · 6 personas')
-      await expect(rows.nth(2)).toContainText('Soporte de Norte Viajes')
+      await expect(rows.nth(1)).toContainText('Administrador · 3 personas')
+      await expect(rows.nth(2)).toContainText('Agente · 6 personas')
+      await expect(rows.nth(3)).toContainText('Soporte de Norte Viajes')
+      await expect(page.getByRole('button', { name: 'Crear espacio' })).toBeVisible()
+      await expect(page.getByText('Has creado 2 de 3 espacios.')).toBeVisible()
       await expect(page.getByRole('button', { name: 'Salir de Norte Viajes' })).toHaveCount(0)
       await expect(page.getByRole('button', { name: 'Salir de Lumen Diseño' })).toBeEnabled()
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
@@ -404,7 +436,7 @@ test.describe('Configuración › Tus espacios', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Configuración' })).toBeFocused()
     // El selector ya no lo ofrece.
     await card(page).click()
-    await expect(selector(page).getByRole('menuitemradio')).toHaveCount(2)
+    await expect(selector(page).getByRole('menuitemradio')).toHaveCount(3)
   })
 
   test('cancelar no sale y devuelve el foco al botón «Salir»; Escape también', async ({ page }) => {
@@ -566,7 +598,7 @@ test.describe('Configuración › Tus espacios', () => {
         await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
         expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
         const rows = page.locator('section[aria-labelledby="workspaces-heading"] li')
-        await expect(rows).toHaveCount(3)
+        await expect(rows).toHaveCount(4)
         for (const row of await rows.all()) {
           const box = (await row.boundingBox())!
           expect(box.x + box.width).toBeLessThanOrEqual(width)

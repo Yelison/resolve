@@ -1,11 +1,14 @@
 import type {
+  GettingStarted,
   LogoutResponse,
   Me,
+  NewOrganization,
   OrganizationColor,
   OrganizationRef,
   SessionOrganizationSelection,
 } from '../../src/api/schema'
 import { json, problem, type MockFeature, type MockRoute } from './shared'
+import { byNameThenId, colorOfId, newOrganizationId, organizationErrors, ORGANIZATION_LIMIT } from './workspaces'
 
 export const me: Me = {
   user: { id: 'u-admin', name: 'Yelisson Ortiz', email: 'yelisson@acme.example' },
@@ -53,11 +56,23 @@ export const norte: OrganizationRef = {
   memberCount: null,
 }
 
+/** El tercer espacio donde el administrador de la demostración es administrador: lo creó él, como Acme Studio. */
+export const kora: OrganizationRef = {
+  id: '0192f000-0000-7000-8000-000000000005',
+  name: 'Kora Fitness',
+  role: 'admin',
+  color: 'teal',
+  memberCount: 3,
+}
+
 /**
- * Los espacios de cada usuario de la demostración pública: solo el administrador tiene tres (para que el selector tenga
- * algo que mostrar); el agente y el cliente tienen el suyo.
+ * Los espacios de cada usuario de la demostración pública: solo el administrador tiene varios (para que el selector
+ * tenga algo que mostrar); el agente y el cliente tienen el suyo.
  */
-export const demoWorkspaces: Partial<Record<Me['role'], OrganizationRef[]>> = { admin: [acme, lumen, norte] }
+export const demoWorkspaces: Partial<Record<Me['role'], OrganizationRef[]>> = { admin: [acme, lumen, norte, kora] }
+
+/** Los que el administrador de la demostración creó: «Has creado 2 de 3 espacios». Los otros le invitaron. */
+export const demoCreatedIn: string[] = [acme.id, kora.id]
 
 /** Cómo arranca la sesión simulada. */
 export interface SessionOptions {
@@ -68,6 +83,11 @@ export interface SessionOptions {
    * activo (el primero al arrancar) y se puede salir de ellos. Sin esta opción solo hay el de la fixture.
    */
   organizations?: OrganizationRef[]
+  /**
+   * Ids, entre los de `organizations`, de los espacios que la persona creó: cuentan para el límite de tres mientras siga
+   * en ellos. Sin esta opción no creó ninguno.
+   */
+  createdIn?: string[]
   /** Espacios donde la persona es el único administrador activo y por tanto no puede salir (los demás sí), además del de la fixture si el equipo simulado tiene uno solo. */
   lastAdminIn?: string[]
   /** Nombres de 120 caracteres para la persona y las organizaciones. */
@@ -116,20 +136,32 @@ export function sessionMock(
   /** El `Me` base si otra feature lo cambia (los ajustes); sin él, el de la fixture. */
   base?: () => Me,
   links: SessionLinks = { current: { role } },
-): MockFeature {
+): MockFeature & {
+  /** «Primeros pasos» del espacio activo, como lo da `GET /tickets/metrics`: solo a su administrador y mientras falten pasos. */
+  gettingStarted: () => GettingStarted | null
+} {
   let signedIn = options.signedIn ?? true
   let refused = options.refused ?? null
   const roleMe: Me = role === 'customer' ? { ...me, role, customerId: 'c-maria' } : me
-  // Sin lista explícita hay un solo espacio, el de la fixture, con el rol de la sesión.
-  const organizations: OrganizationRef[] = options.organizations ?? [
-    {
-      id: me.organization.id,
-      name: me.organization.name,
-      role,
-      color: me.organization.color,
-      memberCount: role === 'customer' ? null : acme.memberCount,
-    },
+  // Sin lista explícita hay un solo espacio, el de la fixture, con el rol de la sesión. Es una copia: crear espacios
+  // añade a la lista, y la de `demoWorkspaces` es del módulo.
+  const organizations: OrganizationRef[] = [
+    ...(options.organizations ?? [
+      {
+        id: me.organization.id,
+        name: me.organization.name,
+        role,
+        color: me.organization.color,
+        memberCount: role === 'customer' ? null : acme.memberCount,
+      },
+    ]),
   ]
+  // Los espacios que la persona creó (cuentan para el límite) y, de los creados aquí, la zona y los pasos que les faltan.
+  const createdIds = new Set(options.createdIn ?? [])
+  const zones = new Map<string, string>()
+  const steps = new Map<string, GettingStarted>()
+  // Tras crear un espacio, el activo ya no es el de la fixture: se sirve su id y su nombre aunque no hubiera lista.
+  let listed = options.organizations !== undefined
   // Los espacios de los que la persona ya salió dejan de ser utilizables, como en el servidor.
   const left = new Set<string>()
   const usable = () => organizations.filter((org) => !left.has(org.id))
@@ -140,6 +172,20 @@ export function sessionMock(
   const colorOf = (org: OrganizationRef) => colors.get(org.id) ?? org.color
   links.current.role = options.organizations ? active.role : role
   links.colorSaved = (color) => colors.set(active.id, color)
+
+  const created = () => [...createdIds].filter((id) => usable().some((org) => org.id === id)).length
+  /** Como el servidor: `allowed` suma el rol (administrador en alguno de los espacios) y el límite. */
+  const organizationCreation = (): Me['organizationCreation'] => ({
+    allowed: usable().some((org) => org.role === 'admin') && created() < ORGANIZATION_LIMIT,
+    created: created(),
+    limit: ORGANIZATION_LIMIT,
+  })
+  const gettingStarted = (): GettingStarted | null => {
+    const pending = steps.get(active.id)
+    if (!pending || links.current.role !== 'admin') return null
+    // El servidor deja de mandarlo en cuanto se cumplen los tres.
+    return pending.invitedTeam && pending.addedCustomer && pending.publishedArticle ? null : { ...pending }
+  }
 
   const session = (): Me => {
     const current = base ? base() : roleMe
@@ -153,15 +199,19 @@ export function sessionMock(
         ...current.organization,
         ...(options.demo !== undefined ? { demo: options.demo } : {}),
         // La organización de la fixture por defecto sigue siendo `org-1`: solo cambia al elegir otra de la lista.
-        ...(options.organizations ? { id: active.id, name: active.name } : {}),
+        ...(listed ? { id: active.id, name: active.name } : {}),
         color: colorOf(active),
+        ...(zones.has(active.id) ? { timeZone: zones.get(active.id)! } : {}),
         ...(options.longNames ? { name: long(active.name) } : {}),
       },
-      organizations: usable().map((org) => ({
-        ...org,
-        color: colorOf(org),
-        ...(options.longNames ? { name: long(org.name) } : {}),
-      })),
+      organizationCreation: organizationCreation(),
+      organizations: byNameThenId(
+        usable().map((org) => ({
+          ...org,
+          color: colorOf(org),
+          ...(options.longNames ? { name: long(org.name) } : {}),
+        })),
+      ),
     }
   }
 
@@ -212,13 +262,52 @@ export function sessionMock(
     return route.fulfill({ status: 204 })
   }
 
+  /**
+   * `POST /organizations` con los errores en el orden del contrato (el 401 y el token CSRF ya pasaron): 400 por campo,
+   * 403 si no es administrador de ningún espacio y 409 `organization-limit`. Crea el espacio con la persona de
+   * administradora, con el color de su id y los tres pasos por hacer, y pasa a trabajar en él.
+   */
+  function create(route: MockRoute, body: Partial<NewOrganization> | null) {
+    const errors = organizationErrors(body)
+    if (errors.length > 0) return problem(route, 400, 'Datos no válidos', errors)
+    if (!usable().some((org) => org.role === 'admin')) return problem(route, 403, 'Sin permiso')
+    if (created() >= ORGANIZATION_LIMIT) {
+      return conflict(route, 'organization-limit', 'Ya creaste el máximo de espacios')
+    }
+    const id = newOrganizationId()
+    const workspace: OrganizationRef = {
+      id,
+      name: body!.name!.trim(),
+      role: 'admin',
+      color: colorOfId(id),
+      memberCount: 1,
+    }
+    organizations.push(workspace)
+    createdIds.add(id)
+    zones.set(id, body!.timeZone!)
+    steps.set(id, { invitedTeam: false, addedCustomer: false, publishedArticle: false })
+    active = workspace
+    listed = true
+    links.current.role = 'admin'
+    return json(route, session(), 201)
+  }
+
   return {
+    gettingStarted,
+    // Una escritura que salió bien en el espacio recién creado hace su paso: invitar, añadir un cliente, publicar.
+    observe: ({ path, method }, status) => {
+      const pending = steps.get(active.id)
+      if (!pending || status >= 300 || method !== 'POST') return
+      if (path === '/members') pending.invitedTeam = true
+      else if (path === '/customers') pending.addedCustomer = true
+      else if (/^\/knowledge\/articles\/[^/]+\/publish$/.test(path)) pending.publishedArticle = true
+    },
     handle: ({ route, request, appUrl, path, method }) => {
       // Como el backend: una escritura cuya `X-Organization-Id` no es la organización de la sesión se rechaza antes de que
       // llegue a ninguna otra feature, así que no escribe nada. Elegir organización y cerrar sesión no la comprueban. El
       // orden es el del servidor: primero el token CSRF (403), después la organización (409).
       const shown = request.headers()['x-organization-id']
-      const exempt = path === '/logout' || path === '/session/organization'
+      const exempt = path === '/logout' || path === '/session/organization' || path === '/organizations'
       if (shown && method !== 'GET' && !exempt && signedIn && !refused && shown !== session().organization.id) {
         if (request.headers()['x-xsrf-token'] !== CSRF_TOKEN) return csrfRejection(route)
         return route.fulfill({
@@ -262,11 +351,13 @@ export function sessionMock(
       }
       const leaveMatch = method === 'DELETE' ? path.match(/^\/me\/organizations\/([^/]+)$/) : null
       const isWrite =
-        leaveMatch !== null || (method === 'POST' && (path === '/logout' || path === '/session/organization'))
+        leaveMatch !== null ||
+        (method === 'POST' && (path === '/logout' || path === '/session/organization' || path === '/organizations'))
       if (!isWrite) return undefined
       if (!signedIn && !refused) return problem(route, 401, 'No autenticado')
       if (request.headers()['x-xsrf-token'] !== CSRF_TOKEN) return csrfRejection(route)
       if (leaveMatch) return leave(route, leaveMatch[1]!)
+      if (path === '/organizations') return create(route, request.postDataJSON() as Partial<NewOrganization> | null)
       if (path === '/logout') {
         signedIn = false
         refused = null

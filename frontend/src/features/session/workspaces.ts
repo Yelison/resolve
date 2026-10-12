@@ -1,5 +1,6 @@
 import type { Me, OrganizationRef } from '../../api/schema'
 import { roleLabels } from '../../app/navigation'
+import { plural } from '../../lib/format'
 
 /** Un espacio de la persona: el de la sesión y los demás donde tiene un acceso utilizable. */
 export interface Workspace extends OrganizationRef {
@@ -45,3 +46,6 @@ export const canLeave = (workspace: Pick<OrganizationRef, 'role'>) => workspace.
 
 /** El texto de «Salir» deshabilitado cuando es el único espacio. */
 export const ONLY_WORKSPACE_TEXT = 'Es tu único espacio'
+
+/** «1 espacio», «3 espacios». */
+export const spacesCount = (count: number) => plural(count, 'espacio', 'espacios')

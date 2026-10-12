@@ -5,12 +5,14 @@ import { WorkspaceMark } from '../../components/ui/Sidebar/WorkspaceMark'
 import { focusPageHeading } from '../../lib/focusPageHeading'
 import { useMediaQuery } from '../../lib/useMediaQuery'
 import { peopleCount } from '../team/teamCopy'
+import { CreateWorkspaceDialog } from '../session/CreateWorkspaceDialog'
 import { useMe } from '../session/queries'
 import { useSessionActions } from '../session/useSessionActions'
 import {
   canLeave,
   isOnlyWorkspace,
   ONLY_WORKSPACE_TEXT,
+  spacesCount,
   workspaceRoleLabel,
   workspacesOf,
   type Workspace,
@@ -75,6 +77,8 @@ function WorkspacesPanel({ me }: { me: NonNullable<ReturnType<typeof useMe>['dat
   const workspaces = workspacesOf(me)
   const [actions, setActions] = useState<Workspace | null>(null)
   const [leaving, setLeaving] = useState<Workspace | null>(null)
+  const [creating, setCreating] = useState(false)
+  const { allowed, created, limit } = me.organizationCreation
   const returnTo = useRef<string | null>(null)
 
   function open(workspace: Workspace) {
@@ -112,15 +116,28 @@ function WorkspacesPanel({ me }: { me: NonNullable<ReturnType<typeof useMe>['dat
   return (
     <section className={styles.panel} aria-labelledby="workspaces-heading">
       <div className={styles.header}>
-        {/* En móvil el título de la página ya dice «Tus espacios»: el de la lista queda para lectores de pantalla. */}
-        <h2 id="workspaces-heading" className={wide ? styles.title : 'visually-hidden'}>
-          Tus espacios
-        </h2>
-        <p className={styles.description}>
-          {wide
-            ? 'Los espacios donde trabajas o recibes soporte, con tu rol en cada uno.'
-            : 'Toca un espacio para abrirlo.'}
-        </p>
+        <div className={styles.heading}>
+          {/* En móvil el título de la página ya dice «Tus espacios»: el de la lista queda para lectores de pantalla. */}
+          <h2 id="workspaces-heading" className={wide ? styles.title : 'visually-hidden'}>
+            Tus espacios
+          </h2>
+          <p className={styles.description}>
+            {wide
+              ? 'Los espacios donde trabajas o recibes soporte, con tu rol en cada uno.'
+              : 'Toca un espacio para abrirlo.'}
+          </p>
+        </div>
+        {allowed && (
+          <Button
+            variant={wide ? 'primary' : 'secondary'}
+            icon="plus"
+            className={styles.create}
+            aria-label="Crear espacio"
+            onClick={() => setCreating(true)}
+          >
+            {wide ? 'Crear espacio' : 'Crear'}
+          </Button>
+        )}
       </div>
       <WorkspaceRows
         workspaces={workspaces}
@@ -140,6 +157,8 @@ function WorkspacesPanel({ me }: { me: NonNullable<ReturnType<typeof useMe>['dat
         }}
         onLeave={startLeaving}
       />
+      {(allowed || created > 0) && <p className={styles.footer}>{`Has creado ${created} de ${spacesCount(limit)}.`}</p>}
+      <CreateWorkspaceDialog open={creating} onClose={() => setCreating(false)} />
       <LeaveWorkspaceDialog
         me={me}
         workspace={leaving}

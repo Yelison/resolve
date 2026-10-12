@@ -33,6 +33,7 @@ test('el build de producción no incluye la API simulada ni el modo showcase', (
     // Los espacios de la demostración pública (`e2e/mocks/session.ts`): nunca en el build de producción.
     'Lumen Diseño',
     'Norte Viajes',
+    'Kora Fitness',
     'e2e-csrf-token',
     'Sin fixture para',
     'Demostración con datos de ejemplo',

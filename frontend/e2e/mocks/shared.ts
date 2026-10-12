@@ -31,6 +31,11 @@ export type MockHandler = (req: MockRequest) => Promise<void> | undefined
 /** Una feature de la API simulada: su estado vive en la llamada a `mockApi`, nunca en el módulo. */
 export interface MockFeature {
   handle: MockHandler
+  /**
+   * Se llama con cada petición ya respondida y el estado con el que se respondió, a todas las features (no solo a la que
+   * la atendió): la sesión lo usa para saber qué escrituras salieron bien («Primeros pasos»).
+   */
+  observe?: (request: MockRequest, status: number) => void
 }
 
 const now = Date.now()

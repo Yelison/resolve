@@ -223,7 +223,7 @@ test('elegir otro usuario tras cerrar sesión sustituye la elección que sobrevi
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
 })
 
-test('la administración tiene tres espacios: cambia a uno donde es cliente y sale de otro, todo en memoria', async ({
+test('la administración tiene cuatro espacios: cambia a uno donde es cliente y sale de otro, todo en memoria', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
@@ -234,7 +234,12 @@ test('la administración tiene tres espacios: cambia a uno donde es cliente y sa
   await expect(card).toContainText('Acme Studio')
   await card.click()
   const menu = page.getByRole('menu', { name: 'Cambiar de espacio' })
-  await expect(menu.getByRole('menuitemradio')).toHaveText([/Acme Studio/, /Lumen Diseño/, /Norte Viajes/])
+  await expect(menu.getByRole('menuitemradio')).toHaveText([
+    /Acme Studio/,
+    /Kora Fitness/,
+    /Lumen Diseño/,
+    /Norte Viajes/,
+  ])
 
   // En «Norte Viajes» es cliente: sus solicitudes y sin «Tus espacios».
   await menu.getByRole('menuitemradio', { name: /^Norte Viajes/ }).click()
@@ -253,7 +258,7 @@ test('la administración tiene tres espacios: cambia a uno donde es cliente y sa
     .click()
   await expect(card).toContainText('Acme Studio')
   await card.click()
-  await expect(menu.getByRole('menuitemradio')).toHaveText([/Acme Studio/, /Norte Viajes/])
+  await expect(menu.getByRole('menuitemradio')).toHaveText([/Acme Studio/, /Kora Fitness/, /Norte Viajes/])
 
   // El único administrador de Acme no puede salir: la demostración aplica la misma regla que el servidor.
   await page.keyboard.press('Escape')
@@ -265,10 +270,36 @@ test('la administración tiene tres espacios: cambia a uno donde es cliente y sa
     .click()
   await expect(page.getByRole('dialog', { name: 'No puedes salir de Acme Studio' })).toBeVisible()
 
-  // Recargar reinicia la demostración: los tres espacios vuelven.
+  // Recargar reinicia la demostración: los cuatro espacios vuelven.
   await page.reload()
   await card.click()
-  await expect(menu.getByRole('menuitemradio')).toHaveCount(3)
+  await expect(menu.getByRole('menuitemradio')).toHaveCount(4)
+})
+
+test('la administración ha creado 2 de 3 espacios: crea el tercero, en memoria, con «Primeros pasos», y ya no puede más', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('')
+  await enterAs(page, ADMIN)
+  await expect(heading(page, HOME)).toBeVisible()
+  await page.goto('configuracion/espacios')
+  await expect(page.getByText('Has creado 2 de 3 espacios.')).toBeVisible()
+  await page.getByRole('button', { name: 'Crear espacio' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Crear espacio' })
+  await dialog.getByRole('textbox', { name: 'Nombre del espacio' }).fill('Taller Sur')
+  await dialog.getByRole('button', { name: 'Crear espacio' }).click()
+  await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Ya estás en Taller Sur')
+  await expect(page.getByRole('region', { name: 'Primeros pasos' })).toBeVisible()
+  // Sin recargar: recargar reinicia la demostración. «Tus espacios» está en el selector.
+  await page.getByRole('button', { name: /^Espacio: .*\. Cambiar de espacio$/ }).click()
+  await page.getByRole('menuitem', { name: 'Tus espacios' }).click()
+  await expect(page.getByText('Has creado 3 de 3 espacios.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Crear espacio' })).toHaveCount(0)
+
+  // Recargar reinicia la demostración: el espacio creado desaparece y el administrador vuelve a 2 de 3.
+  await page.reload()
+  await expect(page.getByText('Has creado 2 de 3 espacios.')).toBeVisible()
 })
 
 test('el agente y el cliente de la demostración tienen un solo espacio: sin salida y sin selector', async ({
