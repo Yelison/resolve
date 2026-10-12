@@ -4,6 +4,10 @@ import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import javax.sql.DataSource;
 
 import com.resolve.api.support.ApiIntegrationTest;
@@ -238,12 +242,15 @@ class GettingStartedApiTest extends ApiIntegrationTest {
 		this.data.customer(solo, "Cliente", "cliente@solo.example", "Cliente");
 		publishedArticle(solo, author, "primero");
 
+		ExecutorService executor = Executors.newSingleThreadExecutor();
 		try (RowLock lock = RowLock.hold(this.dataSource, "select id from organizations where id = ? for no key update", solo)) {
-			long start = System.nanoTime();
-			assertThat(steps("sola@solo.example").isNull()).isTrue();
-			assertThat(Duration.ofNanos(System.nanoTime() - start)).as("la lectura no espera el bloqueo")
-				.isLessThan(Duration.ofSeconds(2));
+			// En otro hilo y con espera acotada: una lectura que esperara la fila no colgaría el test, lo haría fallar.
+			Future<JsonNode> read = executor.submit(() -> steps("sola@solo.example"));
+			assertThat(read.get(5, TimeUnit.SECONDS).isNull()).as("la lectura no espera el bloqueo").isTrue();
 			assertThat(doneAt(solo)).as("la marca no se escribió con la fila retenida").isNull();
+		}
+		finally {
+			executor.shutdownNow();
 		}
 
 		assertThat(steps("sola@solo.example").isNull()).isTrue();
