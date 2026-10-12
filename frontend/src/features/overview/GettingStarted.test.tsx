@@ -147,6 +147,31 @@ describe('«Primeros pasos» en Inicio', () => {
     expect(calls).toBe(1)
   })
 
+  it('datos recientes y una escritura que falló después: no hay nada nuevo que leer, no se relee', async () => {
+    const queryClient = freshClient()
+    queryClient.setQueryData(ticketKeys.metrics(), withSteps(none), { updatedAt: Date.now() - 1_000 })
+    // Una escritura rechazada (p. ej. un 400 al crear el cliente) no hace ningún paso.
+    await act(async () => {
+      await queryClient
+        .getMutationCache()
+        .build(queryClient, {
+          mutationFn: async () => {
+            throw new Error('400')
+          },
+        })
+        .execute(undefined)
+        .catch(() => {})
+    })
+    let calls = 0
+    renderSteps(() => {
+      calls += 1
+      return { body: withSteps(none) }
+    }, queryClient)
+    await screen.findByRole('region', { name: 'Primeros pasos' })
+    await act(async () => {})
+    expect(calls).toBe(0)
+  })
+
   it('con la caché obsoleta la consulta ya se pide sola: no se pide dos veces', async () => {
     const queryClient = freshClient()
     queryClient.setQueryData(ticketKeys.metrics(), withSteps(none), { updatedAt: Date.now() - 60_000 })

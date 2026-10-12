@@ -55,7 +55,11 @@ export function organizationErrors(body: Partial<NewOrganization> | null): Field
 /** Un UUID con la forma del real; el servidor usa UUIDv7, pero solo importa el último byte para el color. */
 export const newOrganizationId = () => crypto.randomUUID()
 
-/** `String.CASE_INSENSITIVE_ORDER`: por unidad de código, tras pasar cada una a mayúscula y luego a minúscula. */
+/**
+ * Aproximación de `String.CASE_INSENSITIVE_ORDER`: por unidad de código, tras pasar cada una a mayúscula y luego a
+ * minúscula. Vale para nombres sin ligaduras ni letras cuya mayúscula o minúscula tiene varias unidades en JavaScript
+ * (`ß` → `SS`, `İ`), donde el orden de la demo podría diferir del del servidor.
+ */
 function compareNames(a: string, b: string) {
   const length = Math.min(a.length, b.length)
   for (let index = 0; index < length; index += 1) {
