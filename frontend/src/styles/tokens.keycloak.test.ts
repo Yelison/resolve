@@ -155,7 +155,7 @@ describe('tema de Keycloak · una sola fuente de verdad', () => {
   })
 
   it('el botón del ojo de la contraseña mide lo mismo que el campo: --control-height, no --button-height', () => {
-    const rule = /(?:^|\})\s*\.pf-v5-c-button\.pf-m-control\s*\{([^}]*)\}/g
+    const rule = /^\.pf-v5-c-button\.pf-m-control\s*\{([^}]*)\}/gm
     const heights = [...themeStyles.matchAll(rule)].flatMap(([, body]) => [
       ...(body ?? '').matchAll(/min-height:\s*([^;]+);/g),
     ])
