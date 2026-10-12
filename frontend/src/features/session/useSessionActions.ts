@@ -31,10 +31,10 @@ export function leaveFailure(error: unknown): LeaveFailure {
   return 'other'
 }
 
-/** Cuánto se espera, como máximo, a las métricas del espacio nuevo antes de entrar en él (menos que la guardia de escrituras). */
+/** Cuánto se espera, como máximo, a las métricas del espacio nuevo (menos que la guardia de escrituras). */
 const METRICS_WAIT_MS = 4000
 
-/** Las métricas de tickets del espacio de la sesión, o `null` si fallan o no llegan a tiempo (la petición se aborta). */
+/** Las métricas de tickets del espacio de la sesión, o `null` si fallan o tardan más de `ms` (se aborta). */
 async function fetchMetricsWithin(ms: number) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ms)
@@ -115,8 +115,8 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
   })
 
   /**
-   * Cambia el espacio activo. El `Me` nuevo sustituye al anterior tras vaciar la caché y los borradores, y se vuelve al
-   * resumen (o a `to`): una ruta como /tickets/1046 apuntaría al ticket del mismo número en el otro espacio.
+   * Entra en el espacio que el servidor ya eligió: vacía la caché y los borradores, guarda el `Me` nuevo (y lo que `seed`
+   * deje en la caché) y navega al resumen o a `to`, sin ningún `await` desde que llega el `Me`.
    */
   const enterOrganization = async (me: Me, to = '/', seed?: () => void) => {
     // La guardia de escrituras se cierra antes de vaciar nada y se abre al confirmarse la navegación a `/`.
@@ -125,10 +125,13 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
     queryClient.setQueryData(sessionKeys.me, me)
     seed?.()
     postSessionMessage('organization-changed')
-    // Sin ningún `await` desde que llega el `Me` nuevo: la pantalla que se monte con él ya está en su ruta de destino.
     void navigate(to, { replace: true })
   }
 
+  /**
+   * Cambia el espacio activo. El `Me` nuevo sustituye al anterior tras vaciar la caché y los borradores, y se vuelve al
+   * resumen (o a `to`): una ruta como /tickets/1046 apuntaría al ticket del mismo número en el otro espacio.
+   */
   const switchOrganization = useMutation({
     mutationFn: ({ organizationId }: SwitchTarget) =>
       unwrap(api.POST('/session/organization', { body: { organizationId } })),
@@ -147,10 +150,10 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
   })
 
   /**
-   * Crea un espacio y pasa a trabajar en él: el `201` trae el `Me` de ese espacio, así que se entra como al cambiar
-   * (caché vacía, resumen del espacio nuevo) y el aviso lo dice. El diálogo que lo pidió se cierra; el foco lo lleva la
-   * shell al contenido de la pantalla nueva, como en cualquier navegación. Los fallos los muestra el diálogo, que los pone bajo su campo; aquí solo se relee la sesión si lo que se
-   * mostraba ya no es verdad (el límite o el permiso cambiaron en otra pestaña).
+   * Crea un espacio y pasa a trabajar en él: el `201` trae el `Me` de ese espacio, así que se entra como al cambiar (caché
+   * vacía, resumen del espacio nuevo) y el aviso lo dice. El diálogo que lo pidió se cierra; el foco lo lleva la shell al
+   * contenido de la pantalla nueva, como en cualquier navegación. Los fallos los muestra el diálogo, bajo su campo; aquí
+   * solo se relee la sesión si lo que se mostraba ya no es verdad (el límite o el permiso cambiaron en otra pestaña).
    */
   const createOrganization = useMutation({
     mutationFn: (body: NewOrganization) => unwrap(api.POST('/organizations', { body })),
