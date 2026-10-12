@@ -42,6 +42,7 @@ later with an unrelated error.
 | `RESOLVE_PUBLIC_URL`         | Public URL of the application, with `https`. Where the browser lands after signing in and out; it must be in the client's `post.logout.redirect.uris` |
 | `RESOLVE_DEMO_ENABLED`       | `true` on the public demo, `false` otherwise. **No default in `prod`**: it turns on `organization.demo` in `/me`, `X-Robots-Tag: noindex` and the maintenance mode |
 | `RESOLVE_DEMO_LIMITS`        | Optional (`false`). `true` turns on the per-organization caps and the 60-writes-per-minute limit |
+| `RESOLVE_ORGANIZATIONS_CREATION` | Optional (`admins`). Who can create a workspace (ADR 0004, decision 1-D): `admins` lets someone who administers a workspace create more; `open` lets **any verified identity** create one, including a person with no workspace at all (the sign-in page then offers «Crea tu espacio» instead of «Aún no estás en ningún espacio»). Empty counts as not set; any other value stops the start with a message that names the variable. **In a public deployment, `open` means every visitor with an account creates workspaces, up to 3 each, and the nightly reset (below) deletes them with the rest of the data**; `RESOLVE_DEMO_LIMITS=true` caps the writes per address but not how many accounts a visitor makes. It does not change who can sign in (that is the identity provider's) |
 | `RESOLVE_DEMO_CLIENT_IP_HEADER` | Optional. Header the platform proxy **overwrites** with the client address (`Fly-Client-IP` on Fly). Without it the limit counts the connection address (one bucket behind a proxy) |
 | `SERVER_PORT`                | Optional. The port the API listens on; `8080` in the image                             |
 
@@ -378,6 +379,12 @@ after 60 days without repository activity; **Run workflow** triggers it by hand.
    `public` schema; `resolve_ops` is not managed by Flyway and survives.
 4. **Maintenance off** and a **smoke**: readiness `UP`, `/` answers `200`, `/api/me` without a session `401`, two
    organizations in the database.
+
+**With `RESOLVE_ORGANIZATIONS_CREATION=open`** (ADR 0004, phase 4a) visitors create their own workspaces, and the accounts that
+come with them for people who had none. `flyway clean` deletes all of it every night, together with the rest of the demo data:
+nothing a visitor creates lasts past the next 03:00, which is what a public demo wants, and the web app must not promise
+otherwise. Nothing else changes in the reset: `V1009` puts back the demo person without a workspace
+(`nueva.persona@demo.example`) with the other demo data.
 
 If `clean` or `migrate` fails the flow is red and the maintenance mark is **not** removed: it expires by itself (10
 minutes), and nobody sees a half-migrated database before that. Run the workflow again.
