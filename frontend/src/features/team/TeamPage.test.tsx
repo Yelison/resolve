@@ -260,8 +260,10 @@ describe('TeamPage', () => {
     await screen.findByRole('table', { name: 'Equipo' })
     await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar miembros' }), 'LAURA@')
     await waitFor(() => expect(router.state.location.search).toBe('?q=LAURA%40'))
-    const table = screen.getByRole('table', { name: 'Equipo' })
-    expect(within(table).getAllByRole('row')).toHaveLength(2)
+    // La URL cambia antes de que la tabla vuelva a pintarse con el filtro: se espera a que converja.
+    await waitFor(() =>
+      expect(within(screen.getByRole('table', { name: 'Equipo' })).getAllByRole('row')).toHaveLength(2),
+    )
     expect(screen.getByRole('heading', { level: 2, name: 'Miembros 1 de 3' })).toBeInTheDocument()
     // El pie de la tabla concuerda en singular con una sola coincidencia (y en plural sin filtrar, abajo).
     expect(screen.getByText('Mostrando 1 miembro')).toBeInTheDocument()
