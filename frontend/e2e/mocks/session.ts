@@ -74,6 +74,15 @@ export const demoWorkspaces: Partial<Record<Me['role'], OrganizationRef[]>> = { 
 /** Los que el administrador de la demostración creó: «Has creado 2 de 3 espacios». Los otros le invitaron. */
 export const demoCreatedIn: string[] = [acme.id, kora.id]
 
+/** Quien entró con el proveedor y no tiene membresía alguna, como la dice el `401` `no-membership`. */
+export interface NoMembershipIdentity {
+  email: string
+  name: string
+}
+
+/** La cuenta sin espacio que siembra `V1009` en el perfil de demostración del backend. */
+export const NUEVA_PERSONA: NoMembershipIdentity = { email: 'nueva.persona@demo.example', name: 'Nueva Persona' }
+
 /** Cómo arranca la sesión simulada. */
 export interface SessionOptions {
   /** `false`: la API responde 401 hasta que el inicio de sesión simulado (`/api/oauth2/authorization/resolve`) lo cambia. */
@@ -97,6 +106,17 @@ export interface SessionOptions {
    * con el `type` del motivo (membresía retirada o ninguna membresía) hasta que cierra sesión.
    */
   refused?: 'access-deactivated' | 'no-membership'
+  /**
+   * La persona sin membresía alguna que el proveedor autenticó (`refused: 'no-membership'`): el `401` trae su `email` y su
+   * `name`, y en el modo `open` puede crear su primer espacio. Por defecto, la cuenta sembrada `V1009` del backend; `null`
+   * es un servidor anterior a la fase 4a, cuyo `401` no trae `canCreateOrganization`, `email` ni `name`.
+   */
+  identity?: NoMembershipIdentity | null
+  /**
+   * Quién puede crear un espacio (`resolve.organizations.creation`): `admins` (por defecto) solo a quien administra alguno;
+   * `open`, a cualquier identidad verificada mientras no llegue al límite, también a quien no tiene espacio.
+   */
+  creation?: 'admins' | 'open'
   /** La instalación es la demostración pública (`organization.demo`): el shell muestra su aviso. */
   demo?: boolean
 }
@@ -142,6 +162,10 @@ export function sessionMock(
 } {
   let signedIn = options.signedIn ?? true
   let refused = options.refused ?? null
+  const creation = options.creation ?? 'admins'
+  const identity = options.identity === undefined ? NUEVA_PERSONA : options.identity
+  // La cuenta que se crea con el primer espacio de quien llegó sin ninguno: desde entonces es la de la sesión.
+  let account: Me['user'] | null = null
   const roleMe: Me = role === 'customer' ? { ...me, role, customerId: 'c-maria' } : me
   // Sin lista explícita hay un solo espacio, el de la fixture, con el rol de la sesión. Es una copia: crear espacios
   // añade a la lista, y la de `demoWorkspaces` es del módulo.
@@ -165,7 +189,8 @@ export function sessionMock(
   // Los espacios de los que la persona ya salió dejan de ser utilizables, como en el servidor.
   const left = new Set<string>()
   const usable = () => organizations.filter((org) => !left.has(org.id))
-  let active = organizations[0]!
+  // Sin espacios (quien llegó sin ninguno) nada se sirve hasta crear el primero, que sustituye a este.
+  let active: OrganizationRef = organizations[0] ?? { ...acme }
   // Los ajustes simulados son los de un solo espacio: el color que guardan se atribuye, en el momento de guardar, al espacio
   // activo (`links.colorSaved`), y cada espacio conserva el suyo al cambiar.
   const colors = new Map<string, OrganizationColor>()
@@ -174,9 +199,9 @@ export function sessionMock(
   links.colorSaved = (color) => colors.set(active.id, color)
 
   const created = () => [...createdIds].filter((id) => usable().some((org) => org.id === id)).length
-  /** Como el servidor: `allowed` suma el rol (administrador en alguno de los espacios) y el límite. */
+  /** Como el servidor: `allowed` suma el modo, el rol (en `admins`, administrador en alguno de los espacios) y el límite. */
   const organizationCreation = (): Me['organizationCreation'] => ({
-    allowed: usable().some((org) => org.role === 'admin') && created() < ORGANIZATION_LIMIT,
+    allowed: (creation === 'open' || usable().some((org) => org.role === 'admin')) && created() < ORGANIZATION_LIMIT,
     created: created(),
     limit: ORGANIZATION_LIMIT,
   })
@@ -194,7 +219,9 @@ export function sessionMock(
       ...current,
       role: activeRole,
       customerId: activeRole === 'customer' ? 'c-maria' : null,
-      user: options.longNames ? { ...current.user, name: long('Nombre larguísimo de una persona') } : current.user,
+      user: options.longNames
+        ? { ...current.user, name: long('Nombre larguísimo de una persona') }
+        : (account ?? current.user),
       organization: {
         ...current.organization,
         ...(options.demo !== undefined ? { demo: options.demo } : {}),
@@ -225,6 +252,27 @@ export function sessionMock(
         status: 403,
         title: 'Sin permiso',
         detail: 'Token CSRF.',
+      }),
+    })
+
+  /**
+   * El 401 con el motivo por el que la aplicación no admite a quien el proveedor sí autenticó. El `no-membership` trae
+   * `canCreateOrganization`, `email` y `name` en los dos modos (con `identity: null`, como un servidor anterior, no). El
+   * `detail` es un texto para personas: la aplicación reconoce el caso por el `type`.
+   */
+  const refusal = (route: MockRoute, reason: 'access-deactivated' | 'no-membership') =>
+    route.fulfill({
+      status: 401,
+      contentType: 'application/problem+json',
+      headers: { 'set-cookie': `XSRF-TOKEN=${CSRF_TOKEN}; Path=/; SameSite=Lax` },
+      body: JSON.stringify({
+        type: `https://resolve.example/problems/${reason}`,
+        status: 401,
+        title: 'No autenticado',
+        detail: reason === 'no-membership' ? 'Sin membresía.' : 'Acceso desactivado.',
+        ...(reason === 'no-membership' && identity
+          ? { canCreateOrganization: creation === 'open', email: identity.email, name: identity.name }
+          : {}),
       }),
     })
 
@@ -263,14 +311,19 @@ export function sessionMock(
   }
 
   /**
-   * `POST /organizations` con los errores en el orden del contrato (el 401 y el token CSRF ya pasaron): 400 por campo,
-   * 403 si no es administrador de ningún espacio y 409 `organization-limit`. Crea el espacio con la persona de
-   * administradora, con el color de su id y los tres pasos por hacer, y pasa a trabajar en él.
+   * `POST /organizations` con los errores en el orden del contrato (el token CSRF ya pasó): 401 para quien no tiene
+   * espacio y la instalación no deja crear, 400 por campo, 403 si en `admins` no es administrador de ningún espacio (en
+   * `open` no hay 403) y 409 `organization-limit`. Crea el espacio con la persona de administradora, con el color de su id
+   * y los tres pasos por hacer, y pasa a trabajar en él; quien llegó sin espacio entra con ello en la sesión.
    */
   function create(route: MockRoute, body: Partial<NewOrganization> | null) {
+    const withoutWorkspace = refused === 'no-membership'
+    if (refused && !(withoutWorkspace && creation === 'open')) return refusal(route, refused)
     const errors = organizationErrors(body)
     if (errors.length > 0) return problem(route, 400, 'Datos no válidos', errors)
-    if (!usable().some((org) => org.role === 'admin')) return problem(route, 403, 'Sin permiso')
+    if (creation === 'admins' && !usable().some((org) => org.role === 'admin')) {
+      return problem(route, 403, 'Sin permiso')
+    }
     if (created() >= ORGANIZATION_LIMIT) {
       return conflict(route, 'organization-limit', 'Ya creaste el máximo de espacios')
     }
@@ -281,6 +334,12 @@ export function sessionMock(
       role: 'admin',
       color: colorOfId(id),
       memberCount: 1,
+    }
+    if (withoutWorkspace) {
+      // La cuenta nace con el primer espacio, con el nombre del proveedor (`V1009`: «Nueva Persona»).
+      if (identity) account = { id: 'u-nueva-persona', name: identity.name, email: identity.email }
+      refused = null
+      signedIn = true
     }
     organizations.push(workspace)
     createdIds.add(id)
@@ -323,20 +382,7 @@ export function sessionMock(
         })
       }
       if (method === 'GET' && path === '/me') {
-        if (refused) {
-          return route.fulfill({
-            status: 401,
-            contentType: 'application/problem+json',
-            headers: { 'set-cookie': `XSRF-TOKEN=${CSRF_TOKEN}; Path=/; SameSite=Lax` },
-            // El `detail` es un texto para personas: la aplicación reconoce el caso por el `type`.
-            body: JSON.stringify({
-              type: `https://resolve.example/problems/${refused}`,
-              status: 401,
-              title: 'No autenticado',
-              detail: refused === 'no-membership' ? 'Sin membresía.' : 'Acceso desactivado.',
-            }),
-          })
-        }
+        if (refused) return refusal(route, refused)
         if (!signedIn) return problem(route, 401, 'No autenticado')
         return route.fulfill({
           status: 200,
@@ -356,6 +402,8 @@ export function sessionMock(
       if (!isWrite) return undefined
       if (!signedIn && !refused) return problem(route, 401, 'No autenticado')
       if (request.headers()['x-xsrf-token'] !== CSRF_TOKEN) return csrfRejection(route)
+      // Sin acceso, ninguna escritura sirve salvo cerrar sesión y la creación, que decide `create` según el modo.
+      if (refused && path !== '/logout' && path !== '/organizations') return refusal(route, refused)
       if (leaveMatch) return leave(route, leaveMatch[1]!)
       if (path === '/organizations') return create(route, request.postDataJSON() as Partial<NewOrganization> | null)
       if (path === '/logout') {

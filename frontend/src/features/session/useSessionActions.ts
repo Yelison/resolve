@@ -171,7 +171,10 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
     },
     onError: (error) => {
       const failure = createFailure(error)
-      if (failure === 'limit' || failure === 'forbidden')
+      // El `401` `no-membership` es de quien crea su primer espacio y la instalación dejó de permitirlo entretanto: se relee
+      // la sesión y la pantalla de entrada pasa sola a «Aún no estás en ningún espacio».
+      const revoked = isApiError(error, 401) && error.problem.type === PROBLEM_TYPES.noMembership
+      if (failure === 'limit' || failure === 'forbidden' || revoked)
         void queryClient.invalidateQueries({ queryKey: sessionKeys.me })
     },
   })
