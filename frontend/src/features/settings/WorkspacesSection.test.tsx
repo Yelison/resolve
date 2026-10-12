@@ -205,6 +205,7 @@ describe('Configuración › Tus espacios · salir (escritorio)', () => {
       teamMember({ id: adminMe.user.id, name: 'Yelisson Ortiz', role: 'admin', openTickets: 4 }),
     ])
     sessionStorage.setItem('resolve-draft-1046', 'Borrador')
+    queryClient.setQueryData(['tickets', 'detail', 1046], { subject: 'Ticket de Acme' })
     await userEvent.click(await screen.findByRole('button', { name: 'Salir de Acme Studio' }))
     const dialog = await screen.findByRole('dialog', { name: '¿Salir de Acme Studio?' })
     expect(within(dialog).getByText('Tus 4 tickets asignados quedarán sin asignar.')).toBeInTheDocument()
@@ -213,6 +214,8 @@ describe('Configuración › Tus espacios · salir (escritorio)', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
     expect(await screen.findByRole('button', { name: 'Espacio: Lumen Diseño. Cambiar de espacio' })).toBeInTheDocument()
     expect(sessionStorage.getItem('resolve-draft-1046')).toBeNull()
+    // La caché del espacio que se deja no pasa al siguiente.
+    expect(queryClient.getQueryData(['tickets', 'detail', 1046])).toBeUndefined()
     expect(requestsTo(spy, 'DELETE', `/api/me/organizations/${orgA.id}`)).toHaveLength(1)
     expect(document.body).not.toHaveFocus()
   })
