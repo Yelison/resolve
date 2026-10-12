@@ -9,6 +9,7 @@ import { ActivityPanel } from './ActivityPanel'
 import { AttentionPanel } from './AttentionPanel'
 import { DraftsPanel } from './DraftsPanel'
 import { formatToday, greetingFor } from './greeting'
+import { GettingStarted } from './GettingStarted'
 import { PulseStrip } from './PulseStrip'
 import { RequestsPanel } from './RequestsPanel'
 import { useNow } from './useNow'
@@ -44,6 +45,7 @@ export function OverviewPage() {
           </Link>
         </div>
       </header>
+      <GettingStarted />
       <PulseStrip />
       <div className={styles.columns}>
         <AttentionPanel />
