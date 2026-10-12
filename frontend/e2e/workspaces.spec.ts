@@ -148,6 +148,48 @@ test.describe('selector de espacios', () => {
     })
   }
 
+  test('un color guardado se queda en su espacio: en la fila del selector, tras recargar y al ir a Lumen y volver a Acme', async ({
+    page,
+  }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/configuracion/empresa')
+    await page.getByRole('radio', { name: 'Violeta' }).check({ force: true })
+    await page.getByRole('button', { name: 'Guardar cambios' }).click()
+    await expect(page.getByText('Cambios guardados')).toBeVisible()
+    const violet = await tokenColor(page, 'violet')
+    const green = await tokenColor(page, 'green')
+    const markOf = (locator: Locator) =>
+      locator
+        .locator('[aria-hidden="true"]')
+        .first()
+        .evaluate((node) => getComputedStyle(node).backgroundColor)
+    const rowColors = async () => {
+      await card(page).click()
+      const rows = selector(page).getByRole('menuitemradio')
+      const colors = [await markOf(rows.nth(0)), await markOf(rows.nth(1))]
+      await page.keyboard.press('Escape')
+      return colors
+    }
+    // Sin recargar: la tarjeta y la fila de Acme ya son violeta.
+    expect(await markOf(card(page))).toBe(violet)
+    expect(await rowColors()).toEqual([violet, green])
+    // Ir a Lumen: su tarjeta es verde y Acme conserva el violeta; no pasa a Lumen.
+    await card(page).click()
+    await selector(page).getByRole('menuitemradio').nth(1).click()
+    await expect(card(page)).toContainText('Lumen Diseño')
+    expect(await markOf(card(page))).toBe(green)
+    expect(await rowColors()).toEqual([violet, green])
+    // Volver a Acme y recargar: sigue violeta.
+    await card(page).click()
+    await selector(page).getByRole('menuitemradio').nth(0).click()
+    await expect(card(page)).toContainText('Acme Studio')
+    expect(await markOf(card(page))).toBe(violet)
+    await page.reload()
+    await expect(card(page)).toContainText('Acme Studio')
+    expect(await markOf(card(page))).toBe(violet)
+  })
+
   test('colapsada, el cuadro conserva el color con su nombre accesible', async ({ page }) => {
     await mockApi(page, 'admin', { organizations: spaces })
     await page.setViewportSize({ width: 1024, height: 800 })

@@ -92,6 +92,8 @@ export interface SessionLinks {
   lastAdmin?: (organizationId: string) => boolean
   /** Libera lo que la persona tenía asignado en el espacio (sus tickets sin resolver). */
   release?: (organizationId: string) => void
+  /** Los ajustes avisan aquí cuando un `PATCH` correcto cambia el color: la sesión lo atribuye al espacio activo de ese momento. */
+  colorSaved?: (color: OrganizationColor) => void
 }
 
 /** Token que la API simulada entrega en la cookie `XSRF-TOKEN` con cada GET /me y que exige en las escrituras. */
@@ -132,18 +134,15 @@ export function sessionMock(
   const left = new Set<string>()
   const usable = () => organizations.filter((org) => !left.has(org.id))
   let active = organizations[0]!
-  // Los ajustes simulados son los de un solo espacio: el color que guardan se le atribuye al espacio activo, y cada espacio conserva el suyo al cambiar.
+  // Los ajustes simulados son los de un solo espacio: el color que guardan se atribuye, en el momento de guardar, al espacio
+  // activo (`links.colorSaved`), y cada espacio conserva el suyo al cambiar.
   const colors = new Map<string, OrganizationColor>()
-  let seenColor = me.organization.color
   const colorOf = (org: OrganizationRef) => colors.get(org.id) ?? org.color
   links.current.role = options.organizations ? active.role : role
+  links.colorSaved = (color) => colors.set(active.id, color)
 
   const session = (): Me => {
     const current = base ? base() : roleMe
-    if (current.organization.color !== seenColor) {
-      seenColor = current.organization.color
-      colors.set(active.id, seenColor)
-    }
     const activeRole = links.current.role
     return {
       ...current,

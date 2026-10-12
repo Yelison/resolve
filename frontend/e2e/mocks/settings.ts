@@ -20,7 +20,11 @@ const ORGANIZATION_COLORS: readonly string[] = [
  * `sessionMock`, para que un cambio de nombre del espacio o del perfil llegue al sidebar al releer la sesión: va antes
  * que `sessionMock` en `mockApi`, porque gana el primer manejador.
  */
-export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): MockFeature & { session: () => Me } {
+export function settingsMock(
+  roleOrGetter: Me['role'] | (() => Me['role']),
+  /** Se llama tras un `PATCH` correcto que cambia el color, para que la sesión lo atribuya al espacio activo. */
+  onColorSaved?: (color: OrganizationColor) => void,
+): MockFeature & { session: () => Me } {
   // El rol cambia al cambiar de espacio (agente en uno, cliente en otro): se lee en cada petición.
   const roleNow = () => (typeof roleOrGetter === 'function' ? roleOrGetter() : roleOrGetter)
   let stored: Me = { ...me }
@@ -40,6 +44,7 @@ export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): Moc
       name: settings.name,
       timeZone: settings.timeZone,
       supportEmail: settings.supportEmail,
+      color: settings.color,
     },
   })
   stored = withOrganization(organization)
@@ -98,6 +103,7 @@ export function settingsMock(roleOrGetter: Me['role'] | (() => Me['role'])): Moc
       )
       organization = changed ? { ...next, version: organization.version + 1 } : organization
       stored = withOrganization(organization)
+      if (changed && patch.color !== undefined) onColorSaved?.(patch.color)
       return route.fulfill({
         status: 200,
         contentType: 'application/json',

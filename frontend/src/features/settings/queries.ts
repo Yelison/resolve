@@ -66,7 +66,7 @@ export function useUpdateOrganization() {
             },
             // El selector y «Tus espacios» leen el color de la lista: la fila del espacio actual cambia sin recargar.
             organizations: me.organizations?.map((ref) =>
-              ref.id === settings.id ? { ...ref, color: settings.color } : ref,
+              ref.id === me.organization.id ? { ...ref, color: settings.color } : ref,
             ),
           },
       )
