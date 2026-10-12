@@ -91,7 +91,7 @@ Resolve has no passwords of its own. People sign in with an OpenID Connect ident
 
 - **Writes need the CSRF token.** The API sets a readable `XSRF-TOKEN` cookie with its first authenticated response; every `POST`, `PATCH` and `DELETE` must repeat its value in `X-XSRF-TOKEN`. The frontend does it for you; a `POST` right after signing in first needs a `GET` so the cookie exists.
 - **Signing out** is `POST /api/logout`, which answers `{ "logoutUrl": … }`. The browser must navigate there: that ends the provider's session too, so the next «Entrar» asks for the password again.
-- **People and organizations.** An invitation turns active the first time that email signs in. Someone in several organizations picks the active one from the account menu.
+- **People and organizations.** An invitation turns active the first time that email signs in. Someone in several organizations picks the active one from the account menu. Who can create a new one is a server setting (`RESOLVE_ORGANIZATIONS_CREATION`, below): by default only someone who administers a workspace; with `open`, any verified identity, including a person with no workspace yet, who gets a typed `401` that says so and may call `POST /api/organizations` and nothing else (see the [API guide](../api/README.md)).
 
 | Variable | Meaning |
 | --- | --- |
@@ -99,6 +99,7 @@ Resolve has no passwords of its own. People sign in with an OpenID Connect ident
 | `RESOLVE_OIDC_ISSUER` | Issuer URL of the realm; the default is the local Keycloak (`http://localhost:8180/realms/resolve`) |
 | `RESOLVE_OIDC_CLIENT_ID` / `RESOLVE_OIDC_CLIENT_SECRET` | The confidential client of the API (`resolve-api`; in the local realm the secret is a development value) |
 | `RESOLVE_PUBLIC_URL` | Where the browser lands after signing in and out: the address people use. Serving the app from the jar, it is the API's own address |
+| `RESOLVE_ORGANIZATIONS_CREATION` | Optional. `admins` (default) or `open`: who can create a workspace. Anything else stops the start. Locally, try `open` with `X-Demo-User: nueva.persona@demo.example`, a demo account with no workspace |
 | `RESOLVE_SESSION_COOKIE_SECURE` | `true` by default; only lower it for a browser that does not treat `localhost` as secure |
 
 **Demo mode.** With the `dev` profile alone there is no identity provider: the API loads the demo data and accepts the `X-Demo-User` header (the demo admin by default), and the dev server shows a demo-user picker. Adding `oidc` turns that login off even next to `dev`, and a `production` build of the frontend has no picker or header at all; the `prod` profile has no demo login either. The [local Keycloak](#sign-in-locally) is the realm for trying the real flow with the demo data.

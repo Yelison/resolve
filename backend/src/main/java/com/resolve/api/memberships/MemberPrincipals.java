@@ -8,6 +8,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.resolve.api.common.security.CurrentMember;
+import com.resolve.api.common.security.PrincipalResolver;
+import com.resolve.api.common.security.VerifiedIdentity;
+import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -23,12 +26,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class MemberPrincipals {
 
-	/** Resultado de resolver una identidad: el principal, o la razón por la que no hay ninguno. */
-	public record Resolution(@Nullable CurrentMember member, boolean deactivated) {
+	/**
+	 * Resultado de resolver una identidad: el principal, o la razón por la que no hay ninguno. {@code identity} solo existe
+	 * cuando no hay ninguna membresía ({@link #noMembership()}): quién es esa persona, para que el {@code 401} la salude.
+	 */
+	public record Resolution(@Nullable CurrentMember member, boolean deactivated, @Nullable VerifiedIdentity identity) {
 
-		static final Resolution UNKNOWN = new Resolution(null, false);
-
-		static final Resolution DEACTIVATED = new Resolution(null, true);
+		static final Resolution DEACTIVATED = new Resolution(null, true, null);
 
 		/** La identidad no tiene ninguna membresía (ni siquiera una retirada): no es lo mismo que haberla perdido. */
 		public boolean noMembership() {
@@ -36,7 +40,27 @@ public class MemberPrincipals {
 		}
 
 		static Resolution of(CurrentMember member) {
-			return new Resolution(member, false);
+			return new Resolution(member, false, null);
+		}
+
+		static Resolution withoutMembership(VerifiedIdentity identity) {
+			return new Resolution(null, false, identity);
+		}
+
+		/**
+		 * Deja en la petición por qué no hay principal, para el {@code 401}: acceso desactivado, o sin ninguna membresía
+		 * (y entonces quién es la persona, que la regla de {@code POST /organizations} lee cuando el alta está abierta).
+		 */
+		public void describeTo(HttpServletRequest request) {
+			if (deactivated()) {
+				request.setAttribute(PrincipalResolver.DEACTIVATED_ATTRIBUTE, Boolean.TRUE);
+			}
+			else if (noMembership()) {
+				request.setAttribute(PrincipalResolver.NO_MEMBERSHIP_ATTRIBUTE, Boolean.TRUE);
+				if (this.identity != null) {
+					request.setAttribute(PrincipalResolver.IDENTITY_ATTRIBUTE, this.identity);
+				}
+			}
 		}
 
 	}
@@ -45,9 +69,12 @@ public class MemberPrincipals {
 
 	private final MemberService members;
 
-	MemberPrincipals(MembershipRepository memberships, MemberService members) {
+	private final UserAccountRepository users;
+
+	MemberPrincipals(MembershipRepository memberships, MemberService members, UserAccountRepository users) {
 		this.memberships = memberships;
 		this.members = members;
+		this.users = users;
 	}
 
 	/**
@@ -60,7 +87,8 @@ public class MemberPrincipals {
 		List<Membership> all = this.memberships.findAllByUserEmail(email.trim());
 		List<Membership> usable = usable(all);
 		if (usable.isEmpty()) {
-			return all.isEmpty() ? Resolution.UNKNOWN : Resolution.DEACTIVATED;
+			return all.isEmpty() ? Resolution.withoutMembership(identityOf(email.trim(), identityName))
+					: Resolution.DEACTIVATED;
 		}
 		Membership chosen = usable.stream()
 			.filter((membership) -> membership.getOrganization().getId().equals(preferredOrganizationId))
@@ -101,6 +129,29 @@ public class MemberPrincipals {
 			.sorted(Comparator.comparing(OrganizationRefDto::name, String.CASE_INSENSITIVE_ORDER)
 				.thenComparing(OrganizationRefDto::id))
 			.toList();
+	}
+
+	/**
+	 * Quién es una identidad sin membresías: el nombre que da el proveedor; si no, el que ya tiene su cuenta (puede haber
+	 * una sin membresías, como la del usuario de demostración que aún no creó su espacio) y, si tampoco, la parte local del
+	 * correo. Nunca vacío. No crea ninguna cuenta: eso lo hace {@code POST /organizations}, cuando la persona crea su espacio.
+	 */
+	private VerifiedIdentity identityOf(String email, @Nullable String identityName) {
+		String name = MemberService.cleanIdentityName(identityName);
+		if (name == null) {
+			name = this.users.findByEmailIgnoreCase(email)
+				.map(UserAccount::getName)
+				.map(String::strip)
+				.filter((stored) -> !stored.isEmpty())
+				.orElseGet(() -> localPart(email));
+		}
+		return new VerifiedIdentity(email, name);
+	}
+
+	private static String localPart(String email) {
+		int at = email.indexOf('@');
+		String local = (at > 0) ? email.substring(0, at) : email;
+		return local.substring(0, Math.min(MemberRequestParser.MAX_NAME_LENGTH, local.length()));
 	}
 
 	/** Una membresía retirada o la de un cliente archivado no resuelve principal (ver {@link MemberService#isUsable}). */

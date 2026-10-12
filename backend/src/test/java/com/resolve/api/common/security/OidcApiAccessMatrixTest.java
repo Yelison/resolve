@@ -39,6 +39,13 @@ class OidcApiAccessMatrixTest extends OidcApiIntegrationTest {
 	}
 
 	@Test
+	void whileTheDoorIsClosedAnIdentityWithoutMembershipsGetsTheNoMembershipProblemOnEveryOperation() throws Exception {
+		assertThat(ApiAccess.identityWithoutMembershipViolations(this.mvc, signedInWithCsrf("nueva@gente.example"),
+				"nueva@gente.example", false))
+			.isEmpty();
+	}
+
+	@Test
 	void everyWriteOfTheContractAnswers409BeforeTheControllerWhenTheOrganizationShownIsNotTheSessionOne()
 			throws Exception {
 		UUID acme = this.data.organization("Acme");

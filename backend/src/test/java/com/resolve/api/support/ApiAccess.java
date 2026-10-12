@@ -169,6 +169,67 @@ public final class ApiAccess {
 	}
 
 	/**
+	 * Recorre cada operación del contrato (salvo {@link #LOGOUT}) como una identidad verificada que no tiene ninguna
+	 * membresía, y devuelve lo que no cumple: con el alta abierta ({@code open}) solo {@code createOrganization} puede llegar
+	 * a un controlador (con el cuerpo vacío de {@link #request} responderá 400, y no crea nada); todas las demás, y esa
+	 * misma con el modo {@code admins}, responden el 401 Problem {@code no-membership} antes del controlador, conforme al
+	 * contrato y con {@code canCreateOrganization} igual a {@code open}, y el correo y el nombre de la persona. Es la
+	 * prueba de que esa identidad no alcanza ninguna otra ruta, tampoco una que se añada mañana: una operación nueva sin
+	 * fila en {@link #allowed()} ya hace fallar la tabla.
+	 *
+	 * @param identity la identidad sin membresías, con lo que su cadena exija (el token CSRF con {@code oidc})
+	 * @param email el correo de esa identidad
+	 */
+	public static List<String> identityWithoutMembershipViolations(MockMvc mvc, RequestPostProcessor identity,
+			String email, boolean open) throws Exception {
+		List<String> violations = new ArrayList<>();
+		int checked = 0;
+		for (Operation operation : OpenApiContract.operations()) {
+			if (LOGOUT.equals(operation.operationId())) {
+				continue;
+			}
+			checked++;
+			String who = operation.operationId() + " " + operation.method() + " " + operation.path()
+					+ " como identidad sin espacio (" + (open ? "open" : "admins") + ")";
+			MvcResult result = mvc.perform(request(operation).with(identity)).andReturn();
+			int status = result.getResponse().getStatus();
+			if (open && operation.operationId().equals("createOrganization")) {
+				if (!(result.getHandler() instanceof HandlerMethod)) {
+					violations.add(who + ": debía llegar al controlador y respondió " + status);
+				}
+				else if (status == 401 || status == 403) {
+					violations.add(who + ": no debía ser " + status);
+				}
+				continue;
+			}
+			String body = result.getResponse().getContentAsString();
+			if (status != 401) {
+				violations.add(who + ": debía ser 401 y fue " + status);
+			}
+			else if (result.getHandler() != null) {
+				violations.add(who + ": la seguridad debía cortarla antes del controlador");
+			}
+			else if (!body.contains("\"type\":\"https://resolve.example/problems/no-membership\"")
+					|| !body.contains("\"canCreateOrganization\":" + open)
+					|| !body.contains("\"email\":\"" + email + "\"") || !body.contains("\"name\":")) {
+				violations.add(who + ": el 401 no es el no-membership esperado: " + body);
+			}
+			else {
+				try {
+					OpenApiContract.assertMatches(operation.operationId(), result);
+				}
+				catch (AssertionError error) {
+					violations.add(who + ": el 401 no cumple el contrato: " + error.getMessage());
+				}
+			}
+		}
+		if (checked == 0) {
+			violations.add("el recorrido no encontró ninguna operación: no comprobó nada");
+		}
+		return violations;
+	}
+
+	/**
 	 * Recorre cada escritura del contrato con una organización de cabecera que no es la de la sesión y devuelve lo que no
 	 * cumple: la que declara la cabecera debe responder 409 Problem con el tipo {@code organization-mismatch}, conforme
 	 * al contrato y sin que la petición llegue a ningún controlador (así nada se escribe); la que no la declara

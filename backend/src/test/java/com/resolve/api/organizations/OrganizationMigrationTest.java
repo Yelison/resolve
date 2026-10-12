@@ -40,6 +40,16 @@ class OrganizationMigrationTest {
 			.load();
 	}
 
+	/** La persona de demostración «sin espacio» (V1009): existe y no tiene ninguna membresía, ni siquiera retirada. */
+	private static void assertUserWithoutWorkspace(Connection connection) throws SQLException {
+		assertThat(scalar(connection, "select name from users where email = 'nueva.persona@demo.example'"))
+			.isEqualTo("Nueva Persona");
+		assertThat(scalar(connection,
+				"select count(*) from memberships m join users u on u.id = m.user_id where u.email = 'nueva.persona@demo.example'"))
+			.as("membresías de la persona de demostración sin espacio")
+			.isEqualTo("0");
+	}
+
 	private static String scalar(Connection connection, String sql) throws SQLException {
 		try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery(sql)) {
 			rows.next();
@@ -94,6 +104,7 @@ class OrganizationMigrationTest {
 						"select count(*) from articles where published_at is not null and first_published_at is distinct from published_at"))
 					.isEqualTo("0");
 				assertThat(scalar(connection, "select count(*) from organizations")).isEqualTo("3");
+				assertUserWithoutWorkspace(connection);
 				// Una organización nueva tras la migración empieza sin completar y con su color por el disparador.
 				try (Statement statement = connection.createStatement()) {
 					statement.execute("insert into organizations (id, name, time_zone) values ('" + UUID.nameUUIDFromBytes(new byte[] { 1 })
@@ -127,6 +138,7 @@ class OrganizationMigrationTest {
 				assertThat(scalar(connection, "select count(*) from organizations where getting_started_done_at is null"))
 					.as("organizaciones de demostración sin marcar")
 					.isEqualTo("0");
+				assertUserWithoutWorkspace(connection);
 				// «Se publicó alguna vez»: los artículos publicados que ya existían tienen su primera fecha.
 				assertThat(scalar(connection, "select count(*) from articles where published_at is not null")).isNotEqualTo("0");
 				assertThat(scalar(connection,

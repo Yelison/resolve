@@ -186,6 +186,24 @@ class WorkspaceCreationTest extends TeamFixture {
 	}
 
 	@Test
+	void whileTheDoorIsClosedAnIdentityWithoutMembershipsGetsTheNoMembershipProblemBeforeTheBodyIsRead() throws Exception {
+		int before = organizationCount();
+
+		for (String json : List.of(body("Colado"), "{}")) {
+			this.mvc.perform(createRequest("nueva@gente.example", json))
+				.andExpect(status().isUnauthorized())
+				.andExpect(matchesContract("createOrganization"))
+				.andExpect(jsonPath("$.type").value("https://resolve.example/problems/no-membership"))
+				.andExpect(jsonPath("$.canCreateOrganization").value(false))
+				.andExpect(jsonPath("$.email").value("nueva@gente.example"))
+				.andExpect(jsonPath("$.name").value("nueva"));
+		}
+
+		assertThat(organizationCount()).isEqualTo(before);
+		assertThat(this.data.usersWithEmail("nueva@gente.example")).isZero();
+	}
+
+	@Test
 	void theBodyIsValidatedBeforeThePermissionSoAnAgentWithAnEmptyBodyGetsA400() throws Exception {
 		this.mvc.perform(createRequest(LAURA, "{}"))
 			.andExpect(status().isBadRequest())

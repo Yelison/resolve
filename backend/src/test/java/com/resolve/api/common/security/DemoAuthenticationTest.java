@@ -26,7 +26,25 @@ class DemoAuthenticationTest extends ApiIntegrationTest {
 		this.mvc.perform(get(API + "/me").with(as("nadie@example.com")))
 			.andExpect(status().isUnauthorized())
 			.andExpect(matchesContract("getMe"))
-			.andExpect(jsonPath("$.type").value("https://resolve.example/problems/no-membership"));
+			.andExpect(jsonPath("$.type").value("https://resolve.example/problems/no-membership"))
+			.andExpect(jsonPath("$.canCreateOrganization").value(false))
+			.andExpect(jsonPath("$.email").value("nadie@example.com"))
+			.andExpect(jsonPath("$.name").value("nadie"));
+	}
+
+	@Test
+	void onlyTheNoMembershipProblemCarriesTheIdentityExtensions() throws Exception {
+		UUID acme = this.data.organization("Acme");
+		UUID laura = this.data.staff(acme, "agent", "Laura Méndez", "laura@acme.example");
+		this.data.setMembershipStatus(acme, laura, "removed");
+
+		this.mvc.perform(get(API + "/me").with(as("laura@acme.example")))
+			.andExpect(jsonPath("$.canCreateOrganization").doesNotExist())
+			.andExpect(jsonPath("$.email").doesNotExist())
+			.andExpect(jsonPath("$.name").doesNotExist());
+		this.mvc.perform(get(API + "/me"))
+			.andExpect(jsonPath("$.canCreateOrganization").doesNotExist())
+			.andExpect(jsonPath("$.email").doesNotExist());
 	}
 
 	@Test
