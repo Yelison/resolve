@@ -1,13 +1,13 @@
 import type { Locator, Page } from '@playwright/test'
 import type { OrganizationRef } from '../src/api/schema'
 import { expect, mockApi, test } from './fixtures'
-import { acme, demoWorkspaces, lumen, norte } from './mocks/session'
+import { acme, demoCreatedIn, demoWorkspaces, lumen, norte } from './mocks/session'
 
 /** Anchos de revisión y fronteras de breakpoint definidos en la guía de diseño. */
 const widths = [320, 390, 767, 768, 1024, 1199, 1200, 1440]
 const themes = ['light', 'dark'] as const
 
-/** Los tres espacios de la demostración: administrador en Acme, agente en Lumen Diseño y cliente en Norte Viajes. */
+/** Los cuatro espacios de la demostración: administrador en Acme y en Kora Fitness, agente en Lumen Diseño y cliente en Norte Viajes. */
 const spaces = demoWorkspaces.admin!
 
 const card = (page: Page) => page.getByRole('button', { name: /^Espacio: .*\. Cambiar de espacio$/ })
@@ -62,11 +62,11 @@ test.describe('selector de espacios', () => {
     await page.keyboard.press('Enter')
     const menu = selector(page)
     const rows = menu.getByRole('menuitemradio')
-    await expect(rows).toHaveCount(3)
+    await expect(rows).toHaveCount(4)
     await expect(rows.nth(0)).toHaveAttribute('aria-checked', 'true')
     await expect(rows.nth(0)).toBeFocused()
-    await expect(menu.getByRole('menuitem', { name: 'Tus espacios' })).toBeVisible()
-    await expect(menu.getByRole('menuitem', { name: /Crear espacio/ })).toHaveCount(0)
+    // Tras el separador: «Crear espacio» (el administrador ha creado 2 de 3) y «Tus espacios».
+    await expect(menu.getByRole('menuitem')).toHaveText(['Crear espacio', 'Tus espacios'])
 
     // Escape cierra y devuelve el foco a la tarjeta.
     await page.keyboard.press('Escape')
@@ -358,7 +358,7 @@ test.describe('selector de espacios', () => {
 test.describe('Configuración › Tus espacios', () => {
   for (const theme of themes) {
     test(`escritorio: lista los espacios con tu rol; el cliente no tiene «Salir» · ${theme}`, async ({ page }) => {
-      await mockApi(page, 'admin', { organizations: spaces })
+      await mockApi(page, 'admin', { organizations: spaces, createdIn: demoCreatedIn })
       await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
       await page.setViewportSize({ width: 1440, height: 900 })
       await page.goto('/configuracion/general')
@@ -366,11 +366,14 @@ test.describe('Configuración › Tus espacios', () => {
       await expect(page).toHaveURL(/\/configuracion\/espacios$/)
       await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
       const rows = page.locator('section[aria-labelledby="workspaces-heading"] li')
-      await expect(rows).toHaveCount(3)
+      await expect(rows).toHaveCount(4)
       await expect(rows.nth(0)).toContainText('Administrador · 4 personas')
       await expect(rows.nth(0)).toContainText('Estás aquí')
       await expect(rows.nth(1)).toContainText('Agente · 6 personas')
       await expect(rows.nth(2)).toContainText('Soporte de Norte Viajes')
+      await expect(rows.nth(3)).toContainText('Administrador · 3 personas')
+      await expect(page.getByRole('button', { name: 'Crear espacio' })).toBeVisible()
+      await expect(page.getByText('Has creado 2 de 3 espacios.')).toBeVisible()
       await expect(page.getByRole('button', { name: 'Salir de Norte Viajes' })).toHaveCount(0)
       await expect(page.getByRole('button', { name: 'Salir de Lumen Diseño' })).toBeEnabled()
       expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
@@ -404,7 +407,7 @@ test.describe('Configuración › Tus espacios', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Configuración' })).toBeFocused()
     // El selector ya no lo ofrece.
     await card(page).click()
-    await expect(selector(page).getByRole('menuitemradio')).toHaveCount(2)
+    await expect(selector(page).getByRole('menuitemradio')).toHaveCount(3)
   })
 
   test('cancelar no sale y devuelve el foco al botón «Salir»; Escape también', async ({ page }) => {
@@ -566,7 +569,7 @@ test.describe('Configuración › Tus espacios', () => {
         await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
         expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
         const rows = page.locator('section[aria-labelledby="workspaces-heading"] li')
-        await expect(rows).toHaveCount(3)
+        await expect(rows).toHaveCount(4)
         for (const row of await rows.all()) {
           const box = (await row.boundingBox())!
           expect(box.x + box.width).toBeLessThanOrEqual(width)
