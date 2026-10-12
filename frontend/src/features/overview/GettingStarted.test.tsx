@@ -16,7 +16,6 @@ function renderSteps(body: object | (() => { body: object }), queryClient = crea
   const spy = mockApi({
     'GET /api/me': { body: adminMe },
     'GET /api/tickets/metrics': typeof body === 'function' ? (body as () => { body: object }) : { body },
-    'GET /api/team': { body: [] },
   })
   const router = createMemoryRouter(
     [

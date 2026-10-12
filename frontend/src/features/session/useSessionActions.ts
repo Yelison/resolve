@@ -31,6 +31,9 @@ export function leaveFailure(error: unknown): LeaveFailure {
   return 'other'
 }
 
+/** Cuánto se espera a las métricas del espacio nuevo antes de entrar en él. */
+const METRICS_WAIT_MS = 1500
+
 /** Por qué no se pudo crear un espacio, según el estado y el `type` del Problem (nunca por su texto). */
 export type CreateFailure = 'limit' | 'forbidden' | 'invalid' | 'other'
 
@@ -102,15 +105,14 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
    * Cambia el espacio activo. El `Me` nuevo sustituye al anterior tras vaciar la caché y los borradores, y se vuelve al
    * resumen (o a `to`): una ruta como /tickets/1046 apuntaría al ticket del mismo número en el otro espacio.
    */
-  const clearAndStore = async (me: Me) => {
+  const enterOrganization = async (me: Me, to = '/', seed?: () => void) => {
     // La guardia de escrituras se cierra antes de vaciar nada y se abre al confirmarse la navegación a `/`.
     holdWrites()
     await clearSessionData(queryClient)
     queryClient.setQueryData(sessionKeys.me, me)
+    seed?.()
     postSessionMessage('organization-changed')
-  }
-  const enterOrganization = async (me: Me, to = '/') => {
-    await clearAndStore(me)
+    // Sin ningún `await` desde que llega el `Me` nuevo: la pantalla que se monte con él ya está en su ruta de destino.
     void navigate(to, { replace: true })
   }
 
@@ -140,15 +142,18 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
   const createOrganization = useMutation({
     mutationFn: (body: NewOrganization) => unwrap(api.POST('/organizations', { body })),
     onSuccess: async (me: Me) => {
-      await clearAndStore(me)
-      // «Primeros pasos» sale de las métricas: con ellas ya en caché, Inicio pinta el panel de una vez y no empuja la
-      // página al llegar. Si falla, Inicio las pide como siempre.
-      await queryClient.prefetchQuery({
-        queryKey: ticketKeys.metrics(),
-        queryFn: ({ signal }) => unwrap(api.GET('/tickets/metrics', { signal })),
-        retry: false,
+      // El servidor ya está en el espacio nuevo y la pantalla sigue en el anterior: las escrituras se retienen desde ya.
+      holdWrites()
+      // «Primeros pasos» sale de las métricas: se piden antes de cambiar de pantalla (el servidor ya responde en el espacio
+      // nuevo) y se dejan en la caché, así Inicio pinta el panel de una vez y no empuja la página al llegar. Con tope de
+      // espera; si falla o tarda, Inicio las pide como siempre.
+      const metrics = await Promise.race([
+        unwrap(api.GET('/tickets/metrics')).catch(() => null),
+        new Promise<null>((resolve) => setTimeout(resolve, METRICS_WAIT_MS, null)),
+      ])
+      await enterOrganization(me, '/', () => {
+        if (metrics) queryClient.setQueryData(ticketKeys.metrics(), metrics)
       })
-      void navigate('/', { replace: true })
       toast.show({ title: `Ya estás en ${me.organization.name}` })
     },
     onError: (error) => {

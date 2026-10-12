@@ -650,7 +650,7 @@ describe('AppShell · pantalla por espacio', () => {
       { initialEntries: ['/'] },
     )
     const { queryClient } = renderWithProviders(<RouterProvider router={router} />)
-    return { queryClient, mounts: () => mounts }
+    return { queryClient, router, mounts: () => mounts }
   }
 
   it('cargar la sesión no monta la pantalla dos veces', async () => {
@@ -661,10 +661,10 @@ describe('AppShell · pantalla por espacio', () => {
     expect(mounts()).toBe(1)
   })
 
-  it('al pasar a otro espacio sin cambiar de ruta (Inicio) monta una pantalla nueva, que pide sus datos', async () => {
-    const { queryClient, mounts } = renderCounting()
+  it('al navegar con otra organización (aunque sea a la misma ruta) monta una pantalla nueva, que pide sus datos', async () => {
+    const { queryClient, router, mounts } = renderCounting()
     await waitFor(() => expect(queryClient.getQueryData(['session', 'me'])).toBeDefined())
-    // Como al cambiar o crear un espacio: la caché se vacía y llega el `Me` del espacio nuevo.
+    // Como al cambiar o crear un espacio: la caché se vacía, llega el `Me` del espacio nuevo y se navega a Inicio.
     act(() => {
       queryClient.clear()
       queryClient.setQueryData(['session', 'me'], {
@@ -672,6 +672,20 @@ describe('AppShell · pantalla por espacio', () => {
         organization: { ...adminMe.organization, id: 'org-2', name: 'Lumen Taller' },
       })
     })
+    // Hasta que la navegación llega, la pantalla no se toca: no pide datos del espacio nuevo en su ruta anterior.
+    expect(mounts()).toBe(1)
+    await act(async () => {
+      await router.navigate('/', { replace: true })
+    })
     await waitFor(() => expect(mounts()).toBe(2))
+  })
+
+  it('navegar con la misma organización no monta la pantalla otra vez', async () => {
+    const { queryClient, router, mounts } = renderCounting()
+    await waitFor(() => expect(queryClient.getQueryData(['session', 'me'])).toBeDefined())
+    await act(async () => {
+      await router.navigate('/', { replace: true })
+    })
+    expect(mounts()).toBe(1)
   })
 })

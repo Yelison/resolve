@@ -84,6 +84,30 @@ test.describe('selector de espacios', () => {
     expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false)
   })
 
+  test('cambiar de espacio desde un ticket no vuelve a pedir ese ticket en el espacio nuevo', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets/1046')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    const after: string[] = []
+    let switched = false
+    page.on('response', (response) => {
+      if (response.request().method() === 'POST' && response.url().endsWith('/api/session/organization'))
+        switched = true
+    })
+    page.on('request', (request) => {
+      if (switched && new URL(request.url()).pathname.startsWith('/api/tickets/1046')) after.push(request.url())
+    })
+    await card(page).click()
+    await selector(page)
+      .getByRole('menuitemradio', { name: /^Lumen Diseño/ })
+      .click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('region', { name: 'Notificaciones' })).toContainText('Ahora trabajas en Lumen Diseño')
+    await page.waitForTimeout(500)
+    expect(after).toEqual([])
+  })
+
   for (const theme of themes) {
     test(`la tarjeta expandida distingue el cuadro de iniciales de su fondo, con y sin color · ${theme}`, async ({
       page,

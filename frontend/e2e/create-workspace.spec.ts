@@ -81,6 +81,43 @@ test.describe('Crear espacio · escritorio', () => {
     await expect(done.locator('svg')).toHaveCount(1)
   })
 
+  test('crear estando en un ticket, con las métricas tardando, no vuelve a pedir ese ticket en el espacio nuevo', async ({
+    page,
+  }) => {
+    await mockApi(page, 'admin', demoAdmin)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/tickets/1046')
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    // Las métricas del espacio nuevo se retienen 1 s: es la ventana en que el servidor ya está en el espacio nuevo.
+    let release: () => void = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    await page.route('**/api/tickets/metrics', async (route) => {
+      await held
+      await route.fallback()
+    })
+    const dialog = await openFromSelector(page)
+    await dialog.getByRole('textbox', { name: 'Nombre del espacio' }).fill('Lumen Taller')
+    const after: string[] = []
+    let created = false
+    page.on('response', (response) => {
+      if (response.request().method() === 'POST' && response.url().endsWith('/api/organizations')) created = true
+    })
+    page.on('request', (request) => {
+      if (created && new URL(request.url()).pathname.startsWith('/api/tickets/1046')) after.push(request.url())
+    })
+    await dialog.getByRole('button', { name: 'Crear espacio' }).click()
+    await expect.poll(() => created).toBe(true)
+    await page.waitForTimeout(1000)
+    // Durante la espera la página sigue en su ruta, sin haberse tocado, y el diálogo en «Creando…».
+    await expect(page).toHaveURL(/\/tickets\/1046$/)
+    await expect(dialog.getByRole('button', { name: 'Creando…' })).toBeVisible()
+    expect(after).toEqual([])
+    release()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('region', { name: 'Primeros pasos' })).toBeVisible()
+    expect(after).toEqual([])
+  })
+
   test('«Primeros pasos» no empuja la página: nada se mueve al llegar y la franja de métricas queda donde estaba', async ({
     page,
   }) => {

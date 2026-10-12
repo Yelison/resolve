@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Me, OrganizationRef } from '../../api/schema'
 import { adminMe, mockApi } from '../../test/api'
+import { metrics } from '../../test/ticketFixtures'
 import { ticketKeys } from '../tickets/queries'
 import { sessionKeys } from './queries'
 import { releaseWrites } from './sessionLifecycle'
@@ -123,7 +124,7 @@ describe('diálogo «Crear espacio»', () => {
     const spy = mockApi({
       'GET /api/me': { body: meInAcme },
       'POST /api/organizations': { status: 201, body: meInNew },
-      'GET /api/tickets/metrics': { body: { gettingStarted: null } },
+      'GET /api/tickets/metrics': { body: { ...metrics, gettingStarted: null } },
     })
     sessionStorage.setItem('resolve-draft-1046', 'Borrador del otro espacio')
     const { queryClient, router } = renderShell('/tickets/1046')
@@ -148,8 +149,23 @@ describe('diálogo «Crear espacio»', () => {
     // El foco va al contenido de la pantalla nueva, no a `body`.
     await waitFor(() => expect(document.getElementById('contenido')).toHaveFocus())
     // «Primeros pasos» sale de las métricas: ya están en caché cuando Inicio se pinta, sin que nada las pida desde la página.
-    expect(queryClient.getQueryData(ticketKeys.metrics())).toEqual({ gettingStarted: null })
+    expect(queryClient.getQueryData(ticketKeys.metrics())).toEqual({ ...metrics, gettingStarted: null })
     expect(await screen.findByRole('button', { name: 'Espacio: Lumen Diseño. Cambiar de espacio' })).toBeInTheDocument()
+  })
+
+  it('si las métricas del espacio nuevo fallan, entra igual: Inicio las pide como siempre', async () => {
+    mockApi({
+      'GET /api/me': { body: meInAcme },
+      'POST /api/organizations': { status: 201, body: meInNew },
+      'GET /api/tickets/metrics': { status: 500, body: { status: 500, title: 'Error' } },
+    })
+    const { queryClient, router } = renderShell('/tickets/1046')
+    const dialog = await openDialog()
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Nombre del espacio' }), 'Lumen Diseño')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Crear espacio' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+    expect(queryClient.getQueryData(ticketKeys.metrics())).toBeUndefined()
+    expect(queryClient.getQueryData(sessionKeys.me)).toEqual(meInNew)
   })
 
   it('al límite (`409` organization-limit) pasa al estado del límite con «Ver tus espacios» y «Cerrar»', async () => {
@@ -240,7 +256,7 @@ describe('diálogo «Crear espacio»', () => {
     const spy = mockApi({
       'GET /api/me': { body: meInAcme },
       'POST /api/organizations': () => pending,
-      'GET /api/tickets/metrics': { body: { gettingStarted: null } },
+      'GET /api/tickets/metrics': { body: { ...metrics, gettingStarted: null } },
     })
     renderShell()
     const dialog = await openDialog()
