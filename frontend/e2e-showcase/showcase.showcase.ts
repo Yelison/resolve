@@ -223,6 +223,69 @@ test('elegir otro usuario tras cerrar sesión sustituye la elección que sobrevi
   await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
 })
 
+test('la administración tiene tres espacios: cambia a uno donde es cliente y sale de otro, todo en memoria', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('')
+  await enterAs(page, ADMIN)
+  await expect(heading(page, HOME)).toBeVisible()
+  const card = page.getByRole('button', { name: /^Espacio: .*\. Cambiar de espacio$/ })
+  await expect(card).toContainText('Acme Studio')
+  await card.click()
+  const menu = page.getByRole('menu', { name: 'Cambiar de espacio' })
+  await expect(menu.getByRole('menuitemradio')).toHaveText([/Acme Studio/, /Lumen Diseño/, /Norte Viajes/])
+
+  // En «Norte Viajes» es cliente: sus solicitudes y sin «Tus espacios».
+  await menu.getByRole('menuitemradio', { name: /^Norte Viajes/ }).click()
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Equipo' })).toHaveCount(0)
+
+  // En «Lumen Diseño» es agente; allí «Tus espacios» deja salir de él.
+  await card.click()
+  await menu.getByRole('menuitemradio', { name: /^Lumen Diseño/ }).click()
+  await expect(card).toContainText('Agente')
+  await page.goto('configuracion/espacios')
+  await page.getByRole('button', { name: 'Salir de Lumen Diseño' }).click()
+  await page
+    .getByRole('dialog', { name: '¿Salir de Lumen Diseño?' })
+    .getByRole('button', { name: 'Salir del espacio' })
+    .click()
+  await expect(card).toContainText('Acme Studio')
+  await card.click()
+  await expect(menu.getByRole('menuitemradio')).toHaveText([/Acme Studio/, /Norte Viajes/])
+
+  // El único administrador de Acme no puede salir: la demostración aplica la misma regla que el servidor.
+  await page.keyboard.press('Escape')
+  await page.goto('configuracion/espacios')
+  await page.getByRole('button', { name: 'Salir de Acme Studio' }).click()
+  await page
+    .getByRole('dialog', { name: '¿Salir de Acme Studio?' })
+    .getByRole('button', { name: 'Salir del espacio' })
+    .click()
+  await expect(page.getByRole('dialog', { name: 'No puedes salir de Acme Studio' })).toBeVisible()
+
+  // Recargar reinicia la demostración: los tres espacios vuelven.
+  await page.reload()
+  await card.click()
+  await expect(menu.getByRole('menuitemradio')).toHaveCount(3)
+})
+
+test('el agente y el cliente de la demostración tienen un solo espacio: sin salida y sin selector', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('')
+  await enterAs(page, 'Agente')
+  await page.goto('configuracion/espacios')
+  await expect(page.getByRole('button', { name: 'Salir de Acme Studio' })).toBeDisabled()
+  await expect(page.getByText('Es tu único espacio')).toBeVisible()
+  await signOut(page)
+  await enterAs(page, CUSTOMER)
+  await expect(page.getByRole('link', { name: 'Mis solicitudes' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Cambiar de espacio/ })).toHaveCount(0)
+})
+
 for (const width of [390, 1440]) {
   test(`recargar conserva la sesión y cerrar sesión la quita · ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })

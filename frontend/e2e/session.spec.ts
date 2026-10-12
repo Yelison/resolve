@@ -524,7 +524,9 @@ test.describe('menú de la cuenta', () => {
         const cardBox = (await card.boundingBox())!
         expect(cardBox.width).toBeGreaterThanOrEqual(44)
         expect(cardBox.height).toBeGreaterThanOrEqual(44)
-        expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(sidebarBox.x + sidebarBox.width)
+        // El drawer ya terminó de entrar: se vuelve a medir el sidebar, no el de cuando aún se deslizaba.
+        const sidebarNow = (await page.getByRole('navigation', { name: 'Principal' }).locator('..').boundingBox())!
+        expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(sidebarNow.x + sidebarNow.width)
         await card.click()
         const rows =
           width < 768
