@@ -11,6 +11,7 @@ import com.resolve.api.support.RowLock;
 import com.resolve.api.support.TestClockConfiguration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -229,6 +230,7 @@ class GettingStartedApiTest extends ApiIntegrationTest {
 	 * número de ticket, editar los ajustes) la lectura responde igual, sin esperar, y la marca se escribe en la siguiente.
 	 */
 	@Test
+	@Timeout(20)
 	void aRowHeldByAnotherTransactionNeitherDelaysTheReadNorLosesTheMark() throws Exception {
 		UUID solo = this.data.organization("Solo");
 		UUID author = this.data.staff(solo, "admin", "Sola Admin", "sola@solo.example");
