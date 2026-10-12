@@ -2,6 +2,8 @@ import { focusManager, onlineManager, type QueryClient } from '@tanstack/react-q
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { Modal } from '../../components/ui'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, unwrap } from '../../api/client'
@@ -23,6 +25,22 @@ function Probe() {
   return <h1>{probe.data ? 'Sondeo cargado' : probe.error ? 'Sondeo con error' : 'Sondeo cargando'}</h1>
 }
 
+/** Una página cuyo diálogo se abre y cierra desde fuera del drawer: no hay camino de producción que lo haga, y es lo que se prueba. */
+function ModalProbe() {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const toggle = (event: Event) => setOpen((event as CustomEvent<boolean>).detail)
+    window.addEventListener('probe-modal', toggle)
+    return () => window.removeEventListener('probe-modal', toggle)
+  }, [])
+  return (
+    <>
+      <h1>Sonda del diálogo</h1>
+      <Modal open={open} onClose={() => setOpen(false)} title="Diálogo de sonda" />
+    </>
+  )
+}
+
 function renderShell(path = '/tickets') {
   return renderShellWith(undefined, path).router
 }
@@ -38,6 +56,7 @@ function renderShellWith(client?: QueryClient, path = '/tickets') {
           { path: 'tickets', element: <h1>Tickets</h1>, handle: { crumb: 'Tickets' } },
           { path: 'clientes', element: <h1>Clientes</h1>, handle: { crumb: 'Clientes' } },
           { path: 'sondeo', element: <Probe />, handle: { crumb: 'Sondeo' } },
+          { path: 'dialogo', element: <ModalProbe />, handle: { crumb: 'Diálogo' } },
         ],
       },
       { path: '/entrar', element: <h1>Entrar</h1> },
@@ -79,6 +98,27 @@ describe('AppShell en móvil', () => {
     expect(router.state.location.pathname).toBe('/clientes')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.getByRole('main')).toHaveFocus()
+    expect(document.documentElement).not.toHaveClass('forma-scroll-locked')
+  })
+
+  it('con el drawer abierto, abrir y cerrar un diálogo mantiene el bloqueo del scroll hasta cerrar el drawer', async () => {
+    renderShell('/dialogo')
+    const setProbe = (open: boolean) =>
+      act(() => void window.dispatchEvent(new CustomEvent('probe-modal', { detail: open })))
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    expect(document.documentElement).toHaveClass('forma-scroll-locked')
+
+    setProbe(true)
+    expect(await screen.findByRole('dialog', { name: 'Diálogo de sonda' })).toBeInTheDocument()
+    expect(document.documentElement).toHaveClass('forma-scroll-locked')
+
+    setProbe(false)
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Diálogo de sonda' })).not.toBeInTheDocument())
+    // El drawer sigue abierto: el bloqueo no se suelta con el cierre del diálogo.
+    expect(screen.getByRole('dialog', { name: 'Menú principal' })).toBeInTheDocument()
+    expect(document.documentElement).toHaveClass('forma-scroll-locked')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar menú' }))
     expect(document.documentElement).not.toHaveClass('forma-scroll-locked')
   })
 
