@@ -12,6 +12,16 @@ const spaces = demoWorkspaces.admin!
 
 const card = (page: Page) => page.getByRole('button', { name: /^Espacio: .*\. Cambiar de espacio$/ })
 const selector = (page: Page) => page.getByRole('menu', { name: 'Cambiar de espacio' })
+/** El valor resuelto de un color de espacio en el tema activo, como lo calcula el navegador (`rgb(…)`). */
+const tokenColor = (page: Page, key: string) =>
+  page.evaluate((name) => {
+    const probe = document.createElement('div')
+    probe.style.background = `var(--color-workspace-${name})`
+    document.body.append(probe)
+    const value = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return value
+  }, key)
 const horizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 const longName = (name: string) =>
@@ -75,26 +85,95 @@ test.describe('selector de espacios', () => {
   })
 
   for (const theme of themes) {
-    test(`la tarjeta expandida distingue el cuadro de iniciales de su fondo · ${theme}`, async ({ page }) => {
+    test(`la tarjeta expandida distingue el cuadro de iniciales de su fondo, con y sin color · ${theme}`, async ({
+      page,
+    }) => {
+      await mockApi(page, 'admin', { organizations: spaces })
+      await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+      await page.setViewportSize({ width: 1440, height: 900 })
+      // Mientras /me carga no hay color: el cuadro es neutro y toma el fondo del propio sidebar (el arreglo de la fase 1).
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => (release = resolve))
+      await page.route('**/api/me', async (route) => {
+        await gate
+        await route.fallback()
+      })
+      await page.goto('/')
+      const nav = page.getByRole('navigation', { name: 'Principal' })
+      const neutralCard = nav.locator('xpath=preceding-sibling::*[1]')
+      const neutralMark = neutralCard.locator('[aria-hidden="true"]').first()
+      await expect(neutralMark).toBeVisible()
+      const sidebarBackground = await nav.locator('..').evaluate((node) => getComputedStyle(node).backgroundColor)
+      expect(await neutralMark.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(sidebarBackground)
+      const loaded = page.waitForResponse('**/api/me')
+      release()
+      await loaded
+      // Con color se distingue solo: el fondo del espacio, distinto del de la tarjeta, con iniciales blancas.
+      const trigger = card(page)
+      await expect(trigger).toContainText('AS')
+      const [cardBackground, markBackground, markInk] = await trigger.evaluate((node) => [
+        getComputedStyle(node).backgroundColor,
+        getComputedStyle(node.firstElementChild!).backgroundColor,
+        getComputedStyle(node.firstElementChild!).color,
+      ])
+      expect(markBackground).not.toBe(cardBackground)
+      expect(markBackground).toBe(await tokenColor(page, 'blue'))
+      expect(markInk).toBe('rgb(255, 255, 255)')
+    })
+
+    test(`cada espacio lleva su color en la tarjeta, en el selector y en «Tus espacios» · ${theme}`, async ({
+      page,
+    }) => {
       await mockApi(page, 'admin', { organizations: spaces })
       await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
       await page.setViewportSize({ width: 1440, height: 900 })
       await page.goto('/')
-      const trigger = card(page)
-      await expect(trigger).toContainText('AS')
-      const [cardBackground, markBackground] = await trigger.evaluate((node) => [
-        getComputedStyle(node).backgroundColor,
-        getComputedStyle(node.firstElementChild!).backgroundColor,
-      ])
-      expect(markBackground).not.toBe(cardBackground)
-      // El cuadro toma el fondo del propio sidebar, no un color nuevo.
-      const sidebarBackground = await page
-        .getByRole('navigation', { name: 'Principal' })
-        .locator('..')
-        .evaluate((node) => getComputedStyle(node).backgroundColor)
-      expect(markBackground).toBe(sidebarBackground)
+      const blue = await tokenColor(page, 'blue')
+      const green = await tokenColor(page, 'green')
+      const orange = await tokenColor(page, 'orange')
+      expect(new Set([blue, green, orange]).size).toBe(3)
+      await card(page).click()
+      const rows = selector(page).getByRole('menuitemradio')
+      for (const [index, color] of [blue, green, orange].entries()) {
+        const mark = rows.nth(index).locator('[aria-hidden="true"]').first()
+        expect(await mark.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(color)
+      }
+      await page.keyboard.press('Escape')
+      await page.goto('/configuracion/espacios')
+      const list = page.locator('section[aria-labelledby="workspaces-heading"] li')
+      for (const [index, color] of [blue, green, orange].entries()) {
+        const mark = list.nth(index).locator('[aria-hidden="true"]').first()
+        expect(await mark.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(color)
+      }
     })
   }
+
+  test('colapsada, el cuadro conserva el color con su nombre accesible', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 1024, height: 800 })
+    await page.goto('/tickets')
+    const trigger = card(page)
+    await expect(trigger).toHaveAccessibleName('Espacio: Acme Studio. Cambiar de espacio')
+    expect(await trigger.evaluate((node) => getComputedStyle(node.firstElementChild!).backgroundColor)).toBe(
+      await tokenColor(page, 'blue'),
+    )
+  })
+
+  test('móvil: la tarjeta del drawer y sus filas llevan el color de cada espacio', async ({ page }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/tickets')
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
+    const trigger = card(page)
+    await trigger.click()
+    const group = page.getByRole('group', { name: 'Cambiar de espacio' })
+    const green = await tokenColor(page, 'green')
+    const lumen = group.getByRole('button', { name: 'Lumen Diseño, Agente' }).locator('[aria-hidden="true"]').first()
+    expect(await lumen.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(green)
+    expect(await trigger.evaluate((node) => getComputedStyle(node.firstElementChild!).backgroundColor)).toBe(
+      await tokenColor(page, 'blue'),
+    )
+  })
 
   test('colapsada: el cuadro es el disparador, con nombre accesible y tooltip también con foco', async ({ page }) => {
     await mockApi(page, 'admin', { organizations: spaces })

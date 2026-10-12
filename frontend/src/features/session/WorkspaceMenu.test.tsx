@@ -12,7 +12,7 @@ const inOrg = (base: typeof adminMe | typeof customerMe, org: OrganizationRef, a
   ({
     ...base,
     role: org.role,
-    organization: { ...base.organization, id: org.id, name: org.name },
+    organization: { ...base.organization, id: org.id, name: org.name, color: org.color },
     organizations: all,
   }) as Me
 
@@ -62,6 +62,23 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     await userEvent.click(trigger)
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('el color del espacio pinta el cuadro de la tarjeta y el de cada fila, sin que el color sea la única pista', async () => {
+    mockApi({ 'GET /api/me': { body: meInAcme } })
+    renderShell()
+    const trigger = await card()
+    expect(within(trigger).getByText('AS')).toHaveAttribute('data-color', 'green')
+    const menu = await openSwitcher()
+    const rows = within(menu).getAllByRole('menuitemradio')
+    expect(rows.map((row) => row.querySelector('[data-color]')?.getAttribute('data-color'))).toEqual([
+      'green',
+      'magenta',
+      'orange',
+    ])
+    // Cada fila conserva su nombre y su rol en texto.
+    expect(rows[1]).toHaveTextContent('Northwind')
+    expect(rows[1]).toHaveTextContent('Agente')
   })
 
   it('cada fila lleva su rol y marca el espacio actual; sin «Crear espacio» en esta fase', async () => {
@@ -306,6 +323,26 @@ describe('selector de espacios · barra colapsada y drawer', () => {
     await userEvent.keyboard('{Enter}')
     expect(screen.getByRole('menu', { name: 'Cambiar de espacio' })).toBeInTheDocument()
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('colapsada, el cuadro del espacio lleva el color y conserva el nombre accesible', async () => {
+    mockApi({ 'GET /api/me': { body: meInNorthwind } })
+    renderShell('/tickets', undefined, undefined, 1024)
+    const trigger = await card('Northwind')
+    expect(within(trigger).getByText('N')).toHaveAttribute('data-color', 'magenta')
+  })
+
+  it('en el drawer, la tarjeta y cada fila de la lista llevan el color de su espacio', async () => {
+    mockApi({ 'GET /api/me': { body: meInAcme } })
+    renderShell('/tickets', undefined, undefined, 390)
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    const trigger = await within(drawer).findByRole('button', { name: 'Espacio: Acme Studio. Cambiar de espacio' })
+    expect(within(trigger).getByText('AS')).toHaveAttribute('data-color', 'green')
+    await userEvent.click(trigger)
+    const group = within(drawer).getByRole('group', { name: 'Cambiar de espacio' })
+    const row = within(group).getByRole('button', { name: 'Northwind, Agente' })
+    expect(row.querySelector('[data-color]')).toHaveAttribute('data-color', 'magenta')
   })
 
   it('en el drawer el selector se despliega dentro del menú y elegir otro espacio cierra el drawer', async () => {
