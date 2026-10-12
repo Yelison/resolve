@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 
 import com.resolve.api.common.error.ApiValidationException;
 import com.resolve.api.common.error.ConflictException;
+import com.resolve.api.common.error.ProblemTypes;
 import com.resolve.api.common.error.ResourceNotFoundException;
 import com.resolve.api.common.persistence.Ids;
 import com.resolve.api.common.persistence.LockTimeouts;
@@ -23,6 +24,7 @@ import com.resolve.api.organizations.OrganizationRepository;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +44,11 @@ class MemberService {
 	private static final String ALREADY_MEMBER = "Ya forma parte del equipo.";
 
 	private static final String LAST_ADMIN = "La organización debe conservar al menos un administrador activo.";
+
+	private static final String LAST_ORGANIZATION = "No puedes salir de tu única organización.";
+
+	/** Desconocida, ajena o ya abandonada: el mismo texto, para no revelar cuáles existen. */
+	private static final String UNKNOWN_ORGANIZATION = "No existe la organización.";
 
 	private final MembershipRepository memberships;
 
@@ -188,10 +195,7 @@ class MemberService {
 			throw new ConflictException("El miembro fue retirado del equipo.");
 		}
 		if (target.getRole() != newRole) {
-			if (isActiveAdmin(target) && this.memberships.countActiveAdmins(organizationId) <= 1) {
-				throw new ConflictException(LAST_ADMIN);
-			}
-			this.guardHook.ifAvailable(MemberGuardHook::afterGuardCheck);
+			guardLastAdmin(target);
 			target.changeRole(newRole);
 			this.memberships.flush();
 		}
@@ -213,15 +217,88 @@ class MemberService {
 		if (target.getStatus() == MemberStatus.REMOVED) {
 			throw new ConflictException("El miembro ya fue retirado del equipo.");
 		}
-		if (isActiveAdmin(target) && this.memberships.countActiveAdmins(organizationId) <= 1) {
-			throw new ConflictException(LAST_ADMIN);
+		retire(member, target);
+		return withLoad(organizationId, target);
+	}
+
+	/**
+	 * Sale de una organización: retira la propia membresía por el mismo camino que {@link #remove}, bajo el mismo
+	 * bloqueo del equipo, así que el último administrador activo no puede salir ni a la vez que otro. La organización
+	 * viene de la ruta y puede no ser la de la sesión: el actor de la liberación de tickets se construye en ella.
+	 * Orden de errores: 404 (desconocida, ajena o ya abandonada, todas iguales), 403 (membresía de cliente: su acceso
+	 * pertenece a la empresa que lo atiende), 409 {@code last-organization} (es la única membresía utilizable de la
+	 * persona) y 409 {@code last-admin}. Una membresía {@code invited} también puede abandonarse: ya aparece en la
+	 * lista de organizaciones.
+	 *
+	 * <p>
+	 * <b>Orden de los bloqueos.</b> Primero el de la persona ({@code user-memberships:{userId}}) y después el del equipo
+	 * de la organización ({@code lockTeam}), siempre en ese orden. La regla «nadie sale de su único espacio» mira las
+	 * membresías de la persona en <i>otras</i> organizaciones, y dos salidas simultáneas de organizaciones distintas no
+	 * comparten el bloqueo del equipo: sin uno por persona, cada una vería a la otra aún utilizable y la persona
+	 * quedaría sin ninguna. Con él se evalúan una a una, y la segunda ve ya confirmada la primera. Tiene que ir antes
+	 * que {@code lockTeam} para no crear interbloqueos: una salida que ya tiene el equipo de A y pidiera después el de la
+	 * persona esperaría a otra que tiene el de la persona y pide el de A. Cada petición toma un solo equipo, así que
+	 * con el de la persona siempre primero no hay ciclo posible.
+	 */
+	@Transactional
+	void leave(CurrentMember member, UUID organizationId) {
+		// Sin bloquear nada todavía: un id que no es de la persona no debe tomar ningún bloqueo.
+		Role role = this.memberships.findStanding(organizationId, member.userId())
+			.filter((standing) -> standing.status() != MemberStatus.REMOVED)
+			.map(MembershipStanding::role)
+			.orElseThrow(() -> new ResourceNotFoundException(UNKNOWN_ORGANIZATION));
+		if (role == Role.CUSTOMER) {
+			throw new AccessDeniedException("Los clientes no abandonan una organización por su cuenta.");
 		}
-		this.guardHook.ifAvailable(MemberGuardHook::afterGuardCheck);
+		lockUserMemberships(member.userId());
+		if (this.memberships.findLiveElsewhere(member.userId(), organizationId)
+			.stream()
+			.noneMatch((other) -> isUsable(MemberStatus.ACTIVE, other.customerId()))) {
+			throw new ConflictException(LAST_ORGANIZATION, ProblemTypes.LAST_ORGANIZATION);
+		}
+		lockTeam(organizationId);
+		Membership own = this.memberships.lockTeamMember(organizationId, member.userId())
+			.filter((membership) -> membership.getStatus() != MemberStatus.REMOVED)
+			.orElseThrow(() -> new ResourceNotFoundException(UNKNOWN_ORGANIZATION));
+		retire(new CurrentMember(member.userId(), member.name(), member.email(), organizationId, own.getRole(), null),
+				own);
+	}
+
+	/**
+	 * Una membresía resuelve principal si no está retirada y, siendo de cliente, su cliente no está archivado. Es la regla
+	 * de {@link MemberPrincipals} y de la comprobación de «único espacio»: una sola definición.
+	 */
+	boolean isUsable(MemberStatus status, @Nullable UUID customerId) {
+		return status != MemberStatus.REMOVED
+				&& !(customerId != null && this.customers.existsByIdAndArchivedAtIsNotNull(customerId));
+	}
+
+	/** Exclusión mutua por persona hasta el commit; ver el orden de bloqueos en {@link #leave}. */
+	private void lockUserMemberships(UUID userId) {
+		LockTimeouts.lockAdvisory(this.jdbc, "user-memberships:" + userId);
+	}
+
+	/**
+	 * Lo que comparten retirar a un miembro y salir: la regla del último administrador, la membresía {@code removed}
+	 * y los tickets sin resolver liberados. Primero marca la membresía y hace flush (ese {@code UPDATE} toma el
+	 * bloqueo de fila que serializa con las asignaciones) y después libera los tickets en la misma transacción. Quien
+	 * llama ya tiene el bloqueo del equipo y la fila del miembro; {@code actor} pertenece a la organización de
+	 * {@code target}, que es la que limita la liberación.
+	 */
+	private void retire(CurrentMember actor, Membership target) {
+		guardLastAdmin(target);
 		Instant now = this.clock.instant();
 		target.remove(now);
 		this.memberships.flush();
-		this.tickets.releaseOpenTickets(member, userId, now);
-		return withLoad(organizationId, target);
+		this.tickets.releaseOpenTickets(actor, target.getUser().getId(), now);
+	}
+
+	/** El último administrador activo no cambia de rol, ni se retira, ni sale (409 con tipo {@code last-admin}). */
+	private void guardLastAdmin(Membership target) {
+		if (isActiveAdmin(target) && this.memberships.countActiveAdmins(target.getOrganization().getId()) <= 1) {
+			throw new ConflictException(LAST_ADMIN, ProblemTypes.LAST_ADMIN);
+		}
+		this.guardHook.ifAvailable(MemberGuardHook::afterGuardCheck);
 	}
 
 	/**

@@ -1,6 +1,7 @@
 package com.resolve.api.memberships;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -64,6 +65,31 @@ public interface MembershipRepository extends JpaRepository<Membership, UUID> {
 				com.resolve.api.memberships.Role.ADMIN, com.resolve.api.memberships.Role.AGENT)
 			""")
 	Optional<Membership> lockTeamMember(UUID organizationId, UUID userId);
+
+	/** Rol y estado de la membresía del usuario en la organización, sea cual sea su rol, sin tomar ningún bloqueo. */
+	@Query("""
+			select new com.resolve.api.memberships.MembershipStanding(m.role, m.status) from Membership m
+			where m.organization.id = :organizationId and m.user.id = :userId
+			""")
+	Optional<MembershipStanding> findStanding(UUID organizationId, UUID userId);
+
+	/** Membresías no retiradas de la persona en las demás organizaciones, sin cargarlas ni bloquearlas. */
+	@Query("""
+			select new com.resolve.api.memberships.LiveMembership(m.role, m.customerId) from Membership m
+			where m.user.id = :userId and m.organization.id <> :organizationId
+				and m.status <> com.resolve.api.memberships.MemberStatus.REMOVED
+			""")
+	List<LiveMembership> findLiveElsewhere(UUID userId, UUID organizationId);
+
+	/** Personal activo (admin o agente) de cada organización dada: los invitados, retirados y clientes no cuentan. */
+	@Query("""
+			select new com.resolve.api.memberships.StaffCount(m.organization.id, count(m))
+			from Membership m
+			where m.organization.id in :organizationIds and m.role in (com.resolve.api.memberships.Role.ADMIN,
+				com.resolve.api.memberships.Role.AGENT) and m.status = com.resolve.api.memberships.MemberStatus.ACTIVE
+			group by m.organization.id
+			""")
+	List<StaffCount> countActiveStaff(Collection<UUID> organizationIds);
 
 	/** Cualquier membresía del usuario en la organización, sea cual sea su rol o estado. */
 	@Query("""

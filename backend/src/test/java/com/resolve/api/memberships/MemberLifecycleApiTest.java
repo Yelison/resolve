@@ -195,6 +195,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 		this.mvc.perform(post(API + "/members/" + this.admin + "/remove").with(as(ADMIN)))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("removeMember"))
+			.andExpect(jsonPath("$.type").doesNotExist())
 			.andExpect(jsonPath("$.detail").value("No puedes retirarte a ti mismo del equipo."));
 		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("active");
 
@@ -203,7 +204,9 @@ class MemberLifecycleApiTest extends TeamFixture {
 		CurrentMember otherActor = new CurrentMember(UUID.randomUUID(), "Otro", "otro@acme.example", this.acme,
 				Role.ADMIN, null);
 		assertThatThrownBy(() -> this.members.remove(otherActor, this.admin)).isInstanceOf(ConflictException.class)
-			.hasMessageContaining("al menos un administrador");
+			.hasMessageContaining("al menos un administrador")
+			.extracting((exception) -> ((ConflictException) exception).type())
+			.isEqualTo("https://resolve.example/problems/last-admin");
 		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("active");
 		// Un administrador solo invitado no cuenta como activo.
 		this.data.setMembershipStatus(this.acme, second, "invited");
@@ -217,6 +220,7 @@ class MemberLifecycleApiTest extends TeamFixture {
 			.content("{\"role\": \"agent\"}"))
 			.andExpect(status().isConflict())
 			.andExpect(matchesContract("changeMemberRole"))
+			.andExpect(jsonPath("$.type").value("https://resolve.example/problems/last-admin"))
 			.andExpect(jsonPath("$.detail").value("La organización debe conservar al menos un administrador activo."));
 		assertThat(this.data.membershipStatus(this.acme, this.admin)).isEqualTo("active");
 		this.mvc.perform(get(API + "/me").with(as(ADMIN))).andExpect(jsonPath("$.role").value("admin"));

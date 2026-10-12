@@ -8,8 +8,18 @@ export const me: Me = {
   customerId: null,
 }
 
-export const acme: OrganizationRef = { id: '0192f000-0000-7000-8000-000000000001', name: 'Acme Studio' }
-export const northwind: OrganizationRef = { id: '0192f000-0000-7000-8000-000000000002', name: 'Northwind' }
+export const acme: OrganizationRef = {
+  id: '0192f000-0000-7000-8000-000000000001',
+  name: 'Acme Studio',
+  role: 'admin',
+  memberCount: 4,
+}
+export const northwind: OrganizationRef = {
+  id: '0192f000-0000-7000-8000-000000000002',
+  name: 'Northwind',
+  role: 'agent',
+  memberCount: 6,
+}
 
 /** Cómo arranca la sesión simulada. */
 export interface SessionOptions {

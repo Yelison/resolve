@@ -33,12 +33,14 @@ class InvitationActivationLockTest extends TeamFixture {
 		try (RowLock lock = RowLock.hold(this.dataSource,
 				"select id from memberships where organization_id = ? and user_id = ? for no key update", this.acme,
 				this.invited)) {
-			// La petición se resuelve sin esperar: mismo rol y la misma respuesta que tendrá activada.
+			// La petición se resuelve sin esperar: mismo rol y la misma respuesta que tendrá activada, salvo el tamaño del
+			// equipo, que cuenta solo al personal activo y la invitación todavía no lo es.
 			ResultActions skipped = assertTimeoutPreemptively(LIMIT, () -> this.mvc.perform(get(API + "/me").with(as(INVITED))));
 			skipped.andExpect(status().isOk())
 				.andExpect(matchesContract("getMe"))
 				.andExpect(jsonPath("$.role").value("agent"))
-				.andExpect(jsonPath("$.user.id").value(this.invited.toString()));
+				.andExpect(jsonPath("$.user.id").value(this.invited.toString()))
+				.andExpect(jsonPath("$.organizations[0].memberCount").value(3));
 			before = skipped.andReturn().getResponse().getContentAsString();
 		}
 
@@ -49,7 +51,8 @@ class InvitationActivationLockTest extends TeamFixture {
 			.getResponse()
 			.getContentAsString();
 		assertThat(this.data.membershipStatus(this.acme, this.invited)).isEqualTo("active");
-		assertThat(after).isEqualTo(before);
+		assertThat(after).contains("\"memberCount\":4");
+		assertThat(after.replace("\"memberCount\":4", "\"memberCount\":3")).isEqualTo(before);
 	}
 
 	@Test

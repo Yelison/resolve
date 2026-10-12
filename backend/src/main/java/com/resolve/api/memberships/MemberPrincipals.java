@@ -2,11 +2,12 @@ package com.resolve.api.memberships;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import com.resolve.api.common.security.CurrentMember;
-import com.resolve.api.customers.CustomerRepository;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -42,13 +43,10 @@ public class MemberPrincipals {
 
 	private final MembershipRepository memberships;
 
-	private final CustomerRepository customers;
-
 	private final MemberService members;
 
-	MemberPrincipals(MembershipRepository memberships, CustomerRepository customers, MemberService members) {
+	MemberPrincipals(MembershipRepository memberships, MemberService members) {
 		this.memberships = memberships;
-		this.customers = customers;
 		this.members = members;
 	}
 
@@ -79,27 +77,37 @@ public class MemberPrincipals {
 			.map((membership) -> enter(membership, null).member());
 	}
 
-	/** Organizaciones donde esa identidad puede trabajar, por nombre y después id. */
+	/**
+	 * Organizaciones donde esa identidad puede trabajar, por nombre y después id, con su rol allí y el tamaño del
+	 * equipo. Los tamaños salen de una sola consulta agrupada para todas las organizaciones de la persona, no de una por
+	 * organización.
+	 */
 	public List<OrganizationRefDto> organizationsOf(String email) {
-		return usable(this.memberships.findAllByUserEmail(email.trim())).stream()
+		List<Membership> usable = usable(this.memberships.findAllByUserEmail(email.trim()));
+		List<UUID> staffOrganizations = usable.stream()
+			.filter((membership) -> membership.getRole().isStaff())
+			.map((membership) -> membership.getOrganization().getId())
+			.toList();
+		Map<UUID, Long> staff = staffOrganizations.isEmpty() ? Map.of()
+				: this.memberships.countActiveStaff(staffOrganizations)
+					.stream()
+					.collect(Collectors.toMap(StaffCount::organizationId,
+							StaffCount::count));
+		return usable.stream()
 			.map((membership) -> new OrganizationRefDto(membership.getOrganization().getId(),
-					membership.getOrganization().getName()))
+					membership.getOrganization().getName(), membership.getRole(),
+					membership.getRole().isStaff()
+							? Math.toIntExact(staff.getOrDefault(membership.getOrganization().getId(), 0L)) : null))
 			.sorted(Comparator.comparing(OrganizationRefDto::name, String.CASE_INSENSITIVE_ORDER)
 				.thenComparing(OrganizationRefDto::id))
 			.toList();
 	}
 
-	/** Una membresía retirada o la de un cliente archivado no resuelve principal. */
+	/** Una membresía retirada o la de un cliente archivado no resuelve principal (ver {@link MemberService#isUsable}). */
 	private List<Membership> usable(List<Membership> all) {
 		return all.stream()
-			.filter((membership) -> membership.getStatus() != MemberStatus.REMOVED)
-			.filter((membership) -> !isArchivedCustomer(membership))
+			.filter((membership) -> this.members.isUsable(membership.getStatus(), membership.getCustomerId()))
 			.toList();
-	}
-
-	private boolean isArchivedCustomer(Membership membership) {
-		UUID customerId = membership.getCustomerId();
-		return customerId != null && this.customers.existsByIdAndArchivedAtIsNotNull(customerId);
 	}
 
 	/**
