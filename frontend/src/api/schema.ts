@@ -605,8 +605,8 @@ export interface paths {
         put?: never;
         /**
          * Change the role of an admin or agent (admin only)
-         * @description Works on invited and active members. Changing the role of the last active admin is a 409, and so is
-         *     changing the role of a removed member. A user that is not an admin or agent of the organization
+         * @description Works on invited and active members. Changing the role of the last active admin is a 409 with the Problem `type`
+         *     `https://resolve.example/problems/last-admin`, and so is changing the role of a removed member (without that type). A user that is not an admin or agent of the organization
          *     (unknown, from another organization or a customer) is a 404.
          */
         post: operations["changeMemberRole"];
@@ -633,7 +633,8 @@ export interface paths {
          * @description Marks the membership `removed`; it is never deleted. The member stops being able to sign in, leaves
          *     `/assignees` and the team metrics, and their unresolved tickets are unassigned in the same transaction,
          *     each with an `assignee_changed` activity whose actor is the caller; resolved tickets keep their assignee.
-         *     Removing oneself, the last active admin or an already removed member is a 409. A user that is not an
+         *     Removing oneself or an already removed member is a 409, and so is removing the last active admin, with the
+         *     Problem `type` `https://resolve.example/problems/last-admin`. A user that is not an
          *     admin or agent of the organization is a 404.
          */
         post: operations["removeMember"];

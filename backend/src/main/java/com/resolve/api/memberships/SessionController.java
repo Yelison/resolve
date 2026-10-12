@@ -22,8 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Organización con la que trabaja la sesión. Es el único sitio donde llega un id de organización del cliente, y no se
- * confía en él: se comprueba contra las membresías de la identidad ya verificada antes de guardarlo en la sesión.
+ * Organización con la que trabaja la sesión. Es uno de los dos sitios donde llega un id de organización del cliente (el otro
+ * es {@link MyOrganizationsController}, que sale de una), y no se confía en él: se comprueba contra las membresías de la
+ * identidad ya verificada antes de guardarlo en la sesión.
  */
 @RestController
 class SessionController {

@@ -7,7 +7,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Principal autenticado: usuario, organización y rol. Todo acceso a datos se limita a {@link #organizationId()};
- * la API nunca acepta una organización enviada por el cliente.
+ * la API no confía en una organización enviada por el cliente (solo elegir la de la sesión y salir de una la reciben, y
+ * las comprueban contra las membresías de la identidad).
  */
 public record CurrentMember(UUID userId, String name, String email, UUID organizationId, Role role,
 		@Nullable UUID customerId) {

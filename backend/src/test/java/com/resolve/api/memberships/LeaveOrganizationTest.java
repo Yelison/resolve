@@ -58,9 +58,15 @@ class LeaveOrganizationTest extends TeamFixture {
 		this.mvc.perform(get(API + "/session/organizations").with(as(LAURA)))
 			.andExpect(jsonPath("$.length()").value(1))
 			.andExpect(jsonPath("$[0].id").value(this.northwind.toString()));
-		// Y la persona sigue en el equipo de Acme como retirada, para quien la ve.
-		JsonNode team = listMembers(ADMIN);
-		assertThat(team.findValuesAsString("status")).contains("removed");
+		// Y sigue en el equipo de Acme como retirada (la fila no se borra), para quien lo ve.
+		JsonNode laura = null;
+		for (JsonNode member : listMembers(ADMIN)) {
+			if (this.laura.toString().equals(member.path("id").asString())) {
+				laura = member;
+			}
+		}
+		assertThat(laura).isNotNull();
+		assertThat(laura.path("status").asString()).isEqualTo("removed");
 	}
 
 	@Test
