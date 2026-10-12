@@ -1,6 +1,8 @@
 """Builds the tour GIF from the frames recorded by record.mjs (no ffmpeg needed; only Pillow).
 
-Usage: python make_gif.py <recording dir> <output.gif> [width=1000] [fps=10]
+Usage: python make_gif.py <recording dir> <output.gif> [width=1000] [fps=10] [hold=1.0]
+
+The screencast only emits a frame when the page changes, so the last frame is held for `hold` seconds.
 """
 import json
 import sys
@@ -11,10 +13,11 @@ from PIL import Image
 src, out = Path(sys.argv[1]), Path(sys.argv[2])
 width = int(sys.argv[3]) if len(sys.argv) > 3 else 1000
 fps = int(sys.argv[4]) if len(sys.argv) > 4 else 10
+hold = float(sys.argv[5]) if len(sys.argv) > 5 else 1.0
 
 rec = json.loads((src / "frames.json").read_text())
 frames, start = rec["frames"], rec["start"]
-duration = frames[-1]["t"] - start
+duration = frames[-1]["t"] - start + hold
 images, cursor = [], 0
 for i in range(int(duration * fps) + 1):
     t = start + i / fps

@@ -1,9 +1,10 @@
 // Records the README tour against the real stack (deploy/docker-compose.prod.yml with the demo data).
-// Usage: node scripts/readme-tour/record.mjs [outDir]   (env: BASE_URL, PASSWORD)
+// Usage: node scripts/readme-tour/record.mjs [outDir]   (env: BASE_URL, PASSWORD; outDir defaults to the system temp dir)
 // Writes outDir/frames/*.jpg and outDir/frames.json (timestamps in seconds); make_gif.py turns them into the GIF.
 import { createRequire } from 'node:module'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -13,7 +14,7 @@ const { chromium } = require('@playwright/test')
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:8080'
 const ADMIN = 'yelisson.ortiz@acme.example'
 const PASSWORD = process.env.PASSWORD ?? 'demo' // password of the development realm, public on purpose
-const outDir = resolve(process.argv[2] ?? 'tour-out')
+const outDir = resolve(process.argv[2] ?? join(tmpdir(), 'resolve-tour'))
 const framesDir = resolve(outDir, 'frames')
 rmSync(framesDir, { recursive: true, force: true })
 mkdirSync(framesDir, { recursive: true })
@@ -103,7 +104,7 @@ try {
   // 2. Overview
   await page.waitForURL((u) => u.origin === new URL(BASE_URL).origin && !u.pathname.startsWith('/api'))
   await page.getByText('Necesitan atención').first().waitFor()
-  await pause(1500)
+  await pause(1200)
   await page.mouse.move(700, 480, { steps: 20 })
   await pause(900)
 
@@ -119,21 +120,24 @@ try {
   await pause(500)
   await click(page.getByRole('button', { name: 'Enviar respuesta' }), 400)
   await page.getByText(text).first().waitFor()
-  await pause(1800)
+  await pause(1000)
 
   // 4. The admin belongs to one workspace in the demo data: show «Tus espacios», then Customers and Reports
   await click(page.getByRole('button', { name: /Cambiar de espacio/ }).first(), 800)
-  await click(page.getByRole('menuitem', { name: 'Tus espacios' }), 1500)
+  await click(page.getByRole('menuitem', { name: 'Tus espacios' }), 1100)
   await click(page.getByRole('link', { name: 'Clientes', exact: true }).first(), 1200)
   await page.mouse.wheel(0, 250)
   await pause(800)
-  await click(page.getByRole('link', { name: 'Reportes', exact: true }).first(), 1500)
+  await click(page.getByRole('link', { name: 'Reportes', exact: true }).first(), 1200)
 
   // 5. Sign out
   await click(page.getByRole('button', { name: /^Cuenta:/ }), 700)
   await click(page.getByRole('menuitem', { name: 'Cerrar sesión' }), 0)
-  await page.waitForURL(/\/entrar|\/realms\//, { timeout: 15000 }).catch(() => {})
-  await pause(1200)
+  await page
+    .getByRole('button', { name: /Entrar con tu cuenta/ })
+    .or(page.getByRole('link', { name: /Entrar con tu cuenta/ }))
+    .waitFor({ timeout: 15000 })
+  await pause(1000)
 } catch (error) {
   await page.screenshot({ path: resolve(outDir, 'failure.png') })
   console.error('Tour failed:', error)

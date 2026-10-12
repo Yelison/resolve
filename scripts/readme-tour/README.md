@@ -9,8 +9,8 @@ Records the GIF at `docs/assets/resolve-tour.gif` against the real stack (no moc
    BASE_URL=http://localhost:8080 node scripts/readme-tour/record.mjs /tmp/tour
    ```
 
-   It saves the frames of a CDP screencast and their timestamps in `/tmp/tour`; if a step fails, `failure.png` shows where.
-3. Build the GIF (Pillow only, no ffmpeg; width 1000 px, 10 fps):
+   It saves the frames of a CDP screencast and their timestamps in `/tmp/tour` (without the argument, in `resolve-tour` under the system temp directory); if a step fails, `failure.png` shows where.
+3. Build the GIF (Pillow only, no ffmpeg; width 1000 px, 10 fps, the last frame held for 1 s):
 
    ```sh
    python3 -m venv /tmp/tour-venv && /tmp/tour-venv/bin/pip install pillow

@@ -63,7 +63,7 @@ Recorded locally against the real stack (Spring Boot, Keycloak and PostgreSQL), 
 - **Accessible by construction.** Components follow the WAI-ARIA Authoring Practices: menu button, tabs, toolbar, dialogs on native `<dialog>` (focus trap, Escape, focus return), tooltips that also appear on focus and can be dismissed (WCAG 1.4.13), labelled fields with announced errors, 44 px touch targets on small screens, a skip link and `prefers-reduced-motion`.
 - **Responsive by content, not by device.** Two breakpoints (768 and 1200 px) drive the shell: a drawer on mobile, an icon sidebar on tablets and a collapsible sidebar on desktop. The customer and team tables share one layout built on container queries: cards in narrow containers, priority columns from 768 to 1199 px and the full table from 1200 px. The ticket table has its own container-query layout and is not guaranteed to behave the same at every width (at 1024 px it already shows all its columns).
 - **Honest UI.** No fake success states: actions without a backend say they are not connected yet, and demo data is labelled as such.
-- **Tested** (counts as of 2026-10-12). 1704 unit and component tests (`npm test`) with coverage thresholds; 884 backend tests (the `Backend - build and tests` job of CI on `main`, run 38296875283), most of them integration tests on PostgreSQL (Testcontainers), covering organization isolation, permissions, internal notes, filters, pagination, validation, update conflicts, metrics, transactional rollback and concurrency with real threads (ticket numbering, racing edits and replies), with a check that fails the build when an operation of the contract has no validated response; and 1060 Playwright tests (mocked API; `npx playwright test --list`) for every area, from the ticket flow to the article editor and the settings tabs, with layout checks at 320–1440 px (no layout shift when data arrives), table layouts at 390, 1024, 1200 and 1440 px, drawer focus, the persisted sidebar and horizontal overflow at 320–1440 px (including the 767/768 and 1199/1200 edges) in both themes, plus 6 full-stack smoke scenarios against the real API.
+- **Tested** (counts as of 2026-10-12). 1704 unit and component tests (`npm test`) with coverage thresholds; 884 backend tests (the `Backend - build and tests` job of CI on `main`, run 38296875283), most of them integration tests on PostgreSQL (Testcontainers), covering organization isolation, permissions, internal notes, filters, pagination, validation, update conflicts, metrics, transactional rollback and concurrency with real threads (ticket numbering, racing edits and replies), with a check that fails the build when an operation of the contract has no validated response; and 1060 Playwright tests (1040 with the mocked API plus 20 of the component catalog; `npx playwright test --list`) for every area, from the ticket flow to the article editor and the settings tabs, with layout checks at 320–1440 px (no layout shift when data arrives), table layouts at 390, 1024, 1200 and 1440 px, drawer focus, the persisted sidebar and horizontal overflow at 320–1440 px (including the 767/768 and 1199/1200 edges) in both themes, plus 6 full-stack smoke scenarios against the real API (`SMOKE=1 npx playwright test --list`).
 
 ## Forma UI
 
@@ -224,7 +224,7 @@ The complete stack (the production image with the web app inside, Keycloak with 
 
 ```sh
 cp deploy/env.prod.example deploy/.env.prod.local
-sed -i 's/^# SPRING_FLYWAY_LOCATIONS/SPRING_FLYWAY_LOCATIONS/' deploy/.env.prod.local   # loads the demo data
+echo 'SPRING_FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/demo' >> deploy/.env.prod.local   # loads the demo data
 docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env.prod.local -p resolve up -d --build
 ```
 
@@ -238,7 +238,7 @@ The values in the variables file are fictional and only meant for this local tes
 
 ## Full deployment (prepared, not published)
 
-**Not published, by the owner's decision.** Everything is prepared and documented, but nothing is online: the owner chose not to host the application (no Fly.io or Neon accounts), and the static demo plus [Run it yourself](#run-it-yourself) take its place. What follows describes the deployment as it would run, and is kept for whoever wants to publish it. The pipeline ([`deploy.yml`](.github/workflows/deploy.yml)) and the nightly reset ([`demo-reset.yml`](.github/workflows/demo-reset.yml)) skip every job until the owner sets the repository variable `DEPLOY_ENABLED=true`. The planned address is `https://resolve-demo.fly.dev` (a decision to confirm), and it will be written here after the first successful deployment, with the password below.
+**Not published, by the owner's decision.** Everything is prepared and documented, but nothing is online: the owner chose not to host the application (no Fly.io or Neon accounts), and the static demo plus [Run it yourself](#run-it-yourself) take its place. What follows describes the deployment as it would run, and is kept for whoever wants to publish it. The pipeline ([`deploy.yml`](.github/workflows/deploy.yml)) and the nightly reset ([`demo-reset.yml`](.github/workflows/demo-reset.yml)) skip every job until the owner sets the repository variable `DEPLOY_ENABLED=true`. The address it would use is `https://resolve-demo.fly.dev` (a decision to confirm); it would be written here after a first successful deployment, with the password below.
 
 <!-- Deployment badge: add it after the first successful deployment. Today every run of deploy.yml is «skipped» (DEPLOY_ENABLED is not set), so the badge would show «no status» or a misleading result.
 [![Deploy](https://github.com/Yelison/resolve/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/Yelison/resolve/actions/workflows/deploy.yml)
@@ -307,7 +307,7 @@ The Figma frames are the visual reference. Where they conflict with the written 
 
 Everything planned so far is merged; what remains is open.
 
-- [ ] First deployment of the public demo: the owner creates the accounts and sets `DEPLOY_ENABLED` ([the list](docs/deploy/README.md#what-the-owner-has-to-create)), then checks [what could not be verified without them](docs/deploy/README.md#verify-on-the-first-deployment) and adds the address, the password and the deployment badge to this README
+- [ ] Not planned (the owner chose not to host it): if the demo is ever published, the owner creates the accounts and sets `DEPLOY_ENABLED` ([the list](docs/deploy/README.md#what-the-owner-has-to-create)), then checks [what could not be verified without them](docs/deploy/README.md#verify-on-the-first-deployment) and adds the address, the password and the deployment badge to this README
 - [ ] Demo realm: stable signing keys, so a deployment of the identity provider does not break the sign-out of open sessions ([Limits of the demo](docs/deploy/README.md#limits-of-the-demo))
 - [ ] Sign-in: a specific problem type for an unverified email at the identity provider (#83)
 - [ ] Tests: a prod-profile context leaves console logging in ECS format for the rest of the JVM (#92)
