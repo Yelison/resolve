@@ -62,7 +62,7 @@ const bareTickets: BareTicket[] = [
  * Las métricas salen de los propios tickets, con las definiciones del servidor: `open` es todo lo que no está resuelto,
  * `openedToday` lo no resuelto creado hoy en la zona de la organización, y las vistas cuentan lo mismo que la lista.
  */
-function metricsOf(items: readonly BareTicket[]): TicketMetrics {
+function metricsOf(items: readonly BareTicket[], gettingStarted: TicketMetrics['gettingStarted']): TicketMetrics {
   const unresolved = items.filter((ticket) => ticket.status !== 'resolved')
   const now = new Date()
   const timeZone = me.organization.timeZone
@@ -81,7 +81,7 @@ function metricsOf(items: readonly BareTicket[]): TicketMetrics {
     ).length,
     firstResponseMinutes: 18,
     firstResponseTargetMinutes: 30,
-    gettingStarted: null,
+    gettingStarted,
     views: {
       all: items.length,
       mine: unresolved.filter((ticket) => ticket.assignee?.id === me.user.id).length,
@@ -269,6 +269,8 @@ const activity: Activity[] = [
 export function ticketsMock(
   customerOf: (id: string) => Customer,
   roleOrGetter: Me['role'] | (() => Me['role']) = 'admin',
+  /** «Primeros pasos» del espacio activo: solo lo tiene un espacio recién creado, y su administrador. */
+  gettingStarted: () => TicketMetrics['gettingStarted'] = () => null,
 ): MockFeature & {
   /** Salir de un espacio: los tickets sin resolver que tenía la persona quedan sin asignar. */
   release: (userId: string) => void
@@ -284,7 +286,7 @@ export function ticketsMock(
   const handle: MockHandler = ({ route, url, path, method }) => {
     const ticketMatch = path.match(/^\/tickets\/(\d+)(\/messages|\/activity)?$/)
 
-    if (method === 'GET' && path === '/tickets/metrics') return json(route, metricsOf(live()))
+    if (method === 'GET' && path === '/tickets/metrics') return json(route, metricsOf(live(), gettingStarted()))
     if (method === 'GET' && path === '/tickets/activity') return json(route, recentActivity)
     if (method === 'GET' && path === '/tickets/attention') {
       // Como el servidor: solo el personal, y el alcance es obligatorio.

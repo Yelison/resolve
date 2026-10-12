@@ -1,7 +1,7 @@
 import { DEMO_USER_EVENT, DEMO_USER_STORAGE_KEY } from '../api/client'
 import { createArticleStore } from '../../e2e/mocks/knowledge'
 import { createMockFeatures } from '../../e2e/mocks/api'
-import { demoWorkspaces } from '../../e2e/mocks/session'
+import { demoCreatedIn, demoWorkspaces } from '../../e2e/mocks/session'
 import { isApiUrl, respondToApi } from './adapter'
 import { roleFor } from './users'
 
@@ -51,7 +51,14 @@ export function installShowcase() {
   // Solo la administración tiene varios espacios (agente en uno, cliente en otro): el selector tiene algo que mostrar.
   const build = (signedIn: boolean) => {
     const role = roleFor(readStored(picker))
-    return createMockFeatures(role, { articleStore, signedIn, organizations: demoWorkspaces[role] })
+    const organizations = demoWorkspaces[role]
+    // El administrador de la demostración ya creó dos de sus espacios: crear otro es posible, y un cuarto, no.
+    return createMockFeatures(role, {
+      articleStore,
+      signedIn,
+      organizations,
+      createdIn: organizations && role === 'admin' ? demoCreatedIn : undefined,
+    })
   }
 
   // El selector se preselecciona con `localStorage`: se deja el usuario de la pestaña, o nada si no hay.
