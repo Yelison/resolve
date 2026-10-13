@@ -13,7 +13,7 @@
 }
 
 @media (max-width: 767px) {
-  /* En la hoja inferior las acciones ocupan el ancho y cada una mide al menos 44 px. */
+  /* Por debajo de 768 px (la hoja inferior del diálogo y la tarjeta de «Crea tu espacio») las acciones ocupan el ancho y cada una mide al menos 44 px. */
   .actions > * {
     flex: 1 1 auto;
     min-height: 44px;

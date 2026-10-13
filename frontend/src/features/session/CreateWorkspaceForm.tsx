@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type FormEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { isApiError } from '../../api/client'
@@ -6,7 +7,7 @@ import { LockTimeoutAlert } from '../../lib/LockTimeoutAlert'
 import { isLockTimeout, mutationErrorDetail } from '../../lib/mutationError'
 import { useRepeatableSubmission } from '../../lib/useRepeatableSubmission'
 import { timeZoneGroups } from '../settings/timeZones'
-import { createFailure, useSessionActions } from './useSessionActions'
+import { createFailure, lostSession, useSessionActions } from './useSessionActions'
 import styles from './CreateWorkspaceForm.module.css'
 
 const MAX_NAME = 120
@@ -29,10 +30,11 @@ export interface CreateWorkspaceFormProps {
 /**
  * El formulario de «Crear espacio»: nombre y zona horaria (la del navegador por defecto), la validación del cliente y los
  * errores del servidor bajo su campo. Lo comparten el diálogo de quien ya tiene espacio y la pantalla de quien llega sin
- * ninguno (`NewWorkspacePage`): crear es una sola acción y no se escribe dos veces.
+ * ninguno (`CreateYourWorkspaceCard`): crear es una sola acción y no se escribe dos veces.
  */
 export function CreateWorkspaceForm({ onCreated, onLimit, onCancel }: CreateWorkspaceFormProps) {
   const { createOrganization } = useSessionActions()
+  const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [timeZone, setTimeZone] = useState(browserTimeZone)
   const [errors, setErrors] = useState<Errors>({})
@@ -89,10 +91,13 @@ export function CreateWorkspaceForm({ onCreated, onLimit, onCancel }: CreateWork
           if (message) serverErrors[field] = message
         }
       }
+      // Un `401` sin sesión cargada no es un fallo del envío: la relectura de `/me` cambia la pantalla y, mientras llega,
+      // «Revisa tu conexión» sería falso y se anunciaría.
+      const showFailure = Object.keys(serverErrors).length === 0 && !lostSession(queryClient, error)
       flushSync(() => {
         setLockError(null)
         setErrors(serverErrors)
-        setFailed(Object.keys(serverErrors).length === 0 ? mutationErrorDetail(error) : null)
+        setFailed(showFailure ? mutationErrorDetail(error) : null)
       })
       form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
     }

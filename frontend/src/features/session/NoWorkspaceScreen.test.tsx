@@ -26,6 +26,7 @@ const noMembership = (extra: object) => ({
 const open = noMembership({ canCreateOrganization: true, ...identity })
 const closed = noMembership({ canCreateOrganization: false, ...identity })
 const oldServer = noMembership({})
+const unauthorized = { status: 401, body: { status: 401, title: 'No autenticado' } }
 
 const meInNew = {
   ...adminMe,
@@ -171,6 +172,44 @@ describe('«Crea tu espacio» (la instalación deja crear)', () => {
     const heading = await screen.findByRole('heading', { level: 1, name: 'Aún no estás en ningún espacio' })
     await waitFor(() => expect(heading).toHaveFocus())
     expect(screen.queryByRole('textbox', { name: 'Nombre del espacio' })).not.toBeInTheDocument()
+  })
+
+  it('mientras se relee /me tras el cambio de modo no se pinta ni se anuncia «No pudimos crear el espacio»', async () => {
+    let reads = 0
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => (release = resolve))
+    mockApi({
+      'GET /api/me': async () => {
+        if (reads++ === 0) return open
+        await gate
+        return closed
+      },
+      'POST /api/organizations': noMembership({ canCreateOrganization: false, ...identity }),
+    })
+    renderApp('/entrar')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Nombre del espacio' }), 'Lumen')
+    await userEvent.click(screen.getByRole('button', { name: 'Crear espacio' }))
+    // La relectura está en vuelo: la pantalla sigue en «Crea tu espacio» y sin un error que no es verdad.
+    await waitFor(() => expect(reads).toBe(2))
+    expect(screen.getByRole('heading', { level: 1, name: 'Crea tu espacio' })).toBeInTheDocument()
+    expect(screen.queryByText('No pudimos crear el espacio')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    release()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Aún no estás en ningún espacio' })).toBeInTheDocument()
+  })
+
+  it('con la sesión caducada (401 sin tipo) la creación relee /me y la pantalla pasa a «Entra a Resolve», sin «Revisa tu conexión»', async () => {
+    let reads = 0
+    mockApi({
+      'GET /api/me': () => (reads++ === 0 ? open : unauthorized),
+      'POST /api/organizations': unauthorized,
+    })
+    renderApp('/entrar')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Nombre del espacio' }), 'Lumen')
+    await userEvent.click(screen.getByRole('button', { name: 'Crear espacio' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Entra a Resolve' })).toBeInTheDocument()
+    expect(screen.queryByText(/Revisa tu conexión/)).not.toBeInTheDocument()
+    expect(screen.queryByText('No pudimos crear el espacio')).not.toBeInTheDocument()
   })
 
   it('un 403 de la creación (el modo cambió) relee la sesión y la pantalla pasa a la tarjeta cerrada, con el foco en su título', async () => {

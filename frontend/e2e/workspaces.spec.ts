@@ -634,6 +634,16 @@ test.describe('modo abierto (`resolve.organizations.creation: open`): quién ve 
     await page.goto('/configuracion/espacios')
     await expect(page.getByRole('button', { name: 'Crear espacio' })).toBeVisible()
 
+    // En el drawer móvil también: el predicado es el mismo, pero una regresión solo ahí no se vería.
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/tickets')
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
+    await card(page).click()
+    await expect(
+      page.getByRole('group', { name: 'Cambiar de espacio' }).getByRole('button', { name: 'Crear espacio' }),
+    ).toBeVisible()
+    await page.setViewportSize({ width: 1440, height: 900 })
+
     await mockApi(page, 'agent', { creation: 'admins' })
     await page.reload()
     await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
