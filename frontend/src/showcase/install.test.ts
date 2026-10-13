@@ -427,6 +427,9 @@ describe('installShowcase · «Persona nueva (sin espacio)»', () => {
     const logout = await api('/logout', { method: 'POST', headers: { 'X-XSRF-TOKEN': token } })
     expect(logout.status).toBe(200)
     expect(sessionStorage.getItem(DEMO_USER_STORAGE_KEY)).toBeNull()
-    expect((await api('/me')).status).toBe(401)
+    // Ya no es «sin espacio»: es el 401 de quien no tiene sesión, que lleva al selector.
+    const after = await api('/me')
+    expect(after.status).toBe(401)
+    expect((await after.json()).type ?? 'about:blank').toBe('about:blank')
   })
 })
