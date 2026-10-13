@@ -337,6 +337,66 @@ test.describe('selector de espacios', () => {
     await expect(page.getByRole('searchbox', { name: 'Buscar espacio' })).toHaveCount(0)
   })
 
+  test('móvil: con 8 espacios o más, Escape en el buscador del drawer borra el texto y solo el segundo cierra el drawer', async ({
+    page,
+  }) => {
+    await mockApi(page, 'admin', { organizations: manySpaces(9) })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/tickets')
+    const drawer = page.getByRole('dialog', { name: 'Menú principal' })
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
+    await card(page).click()
+    const group = page.getByRole('group', { name: 'Cambiar de espacio' })
+    const search = group.getByRole('searchbox', { name: 'Buscar espacio' })
+    await search.fill('Espacio 7')
+    await expect(group.getByRole('button', { name: /^Espacio 7,/ })).toHaveCount(1)
+    // El primer Escape solo vacía el campo: ni el drawer ni la lista se cierran.
+    await search.press('Escape')
+    await expect(search).toHaveValue('')
+    await expect(drawer).toBeVisible()
+    await expect(group).toBeVisible()
+    // Con el campo vacío, Escape cierra el drawer y el foco vuelve al botón del menú.
+    await search.press('Escape')
+    await expect(drawer).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Abrir menú' })).toBeFocused()
+  })
+
+  for (const theme of themes) {
+    test(`móvil: el texto escrito en «Buscar espacio» del drawer se lee sobre el campo · ${theme}`, async ({
+      page,
+    }) => {
+      await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+      await mockApi(page, 'admin', { organizations: manySpaces(9) })
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.goto('/tickets')
+      await page.getByRole('button', { name: 'Abrir menú' }).click()
+      await card(page).click()
+      const search = page
+        .getByRole('group', { name: 'Cambiar de espacio' })
+        .getByRole('searchbox', { name: 'Buscar espacio' })
+      await search.fill('Espacio 7')
+      // El drawer es una banda oscura con texto claro: el campo (`--color-surface`) no debe heredarlo.
+      const ratio = await search.evaluate((input) => {
+        const channels = (value: string) =>
+          value
+            .match(/[\d.]+/g)!
+            .slice(0, 3)
+            .map(Number)
+        const luminance = (rgb: number[]) => {
+          const [r, g, b] = rgb.map((value) => {
+            const c = value / 255
+            return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+          })
+          return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+        }
+        const style = getComputedStyle(input)
+        const [a, b] = [luminance(channels(style.color)), luminance(channels(style.backgroundColor))]
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+      })
+      expect(ratio, 'contraste del texto escrito').toBeGreaterThanOrEqual(4.5)
+    })
+  }
+
   test('un cliente con un solo espacio no tiene selector; con dos, solo cambia', async ({ page }) => {
     await mockApi(page, 'customer')
     await page.setViewportSize({ width: 1440, height: 900 })

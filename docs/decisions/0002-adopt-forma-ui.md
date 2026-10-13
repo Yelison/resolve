@@ -1,7 +1,7 @@
 # 0002 · Adopt Forma UI for the shared components
 
 - **Status:** accepted, 2026-10-10. It landed with the adoption, in #120 (Button, IconButton, Icon) and #121 (the rest); the tokens came in #114.
-- **Supersedes:** [0001](0001-forma-ui-extraction.md), in part: for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal. [Amendment 1](#amendment-1--020-tabs-and-radio) adds Tabs and Radio. 0001 still applies to every other component in `frontend/src/components/ui`.
+- **Supersedes:** [0001](0001-forma-ui-extraction.md), in part: for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal. [Amendment 1](#amendment-1--020-tabs-and-radio) adds Tabs and Radio, and [Amendment 3](#amendment-3--040-avatar-searchfield-and-select) adds Avatar, SearchField and Select. 0001 still applies to every other component in `frontend/src/components/ui`.
 
 ## Context
 
@@ -36,18 +36,19 @@ what each column means:
 - **Test and catalog:** a test file of its own in the package at the `@yelison/forma-ui@0.1.0` tag, and a `<Component>` in
   Resolve's catalog (`/catalogo`, development build).
 
-| Component | 1 · areas (of 3 needed) | 1 · stable for a phase | 2 · API documented (JSDoc) | 3 · no domain types | 4 · token-only values | 5 · own test and catalog entry |
-| --- | --- | --- | --- | --- | --- | --- |
-| Button | 8 | no (package 0.1.0, no earlier release) | 6/6 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
-| IconButton | 2 | no (package 0.1.0, no earlier release) | 3/3 | yes (imports only react and its own modules) | yes (the one `px` literal is `--icon-size: 20px`, local to the component) | test: yes; catalog: yes |
-| Badge | 5 | no (package 0.1.0, no earlier release) | 1/1 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
-| Field | 0 | no (package 0.1.0, no earlier release) | 11/11 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: **no entry of its own** (rendered inside the Input, Select and Textarea entries) |
-| Input | 5 | no (package 0.1.0, no earlier release) | 5/5 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
-| Icon | 4 | no (package 0.1.0, no earlier release) | 3/3 | yes (imports only react and its own modules) | yes (no CSS of its own: size by prop, 20 px by default) | test: yes; catalog: yes |
-| Tooltip | 1 | no (package 0.1.0, no earlier release) | 11/11 | yes (imports only react and its own modules) | yes (no `px` literals) | test: yes; catalog: yes |
-| Modal (Dialog) | 5 | no (package 0.1.0, no earlier release) | 8/8 | yes (imports only react and its own modules) | yes (no size literals; one 8 px animation offset, a motion exception) | test: yes; catalog: yes |
+| Component      | 1 · areas (of 3 needed) | 1 · stable for a phase                 | 2 · API documented (JSDoc) | 3 · no domain types                          | 4 · token-only values                                                     | 5 · own test and catalog entry                                                                       |
+| -------------- | ----------------------- | -------------------------------------- | -------------------------- | -------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Button         | 8                       | no (package 0.1.0, no earlier release) | 6/6                        | yes (imports only react and its own modules) | yes (no `px` literals)                                                    | test: yes; catalog: yes                                                                              |
+| IconButton     | 2                       | no (package 0.1.0, no earlier release) | 3/3                        | yes (imports only react and its own modules) | yes (the one `px` literal is `--icon-size: 20px`, local to the component) | test: yes; catalog: yes                                                                              |
+| Badge          | 5                       | no (package 0.1.0, no earlier release) | 1/1                        | yes (imports only react and its own modules) | yes (no `px` literals)                                                    | test: yes; catalog: yes                                                                              |
+| Field          | 0                       | no (package 0.1.0, no earlier release) | 11/11                      | yes (imports only react and its own modules) | yes (no `px` literals)                                                    | test: yes; catalog: **no entry of its own** (rendered inside the Input, Select and Textarea entries) |
+| Input          | 5                       | no (package 0.1.0, no earlier release) | 5/5                        | yes (imports only react and its own modules) | yes (no `px` literals)                                                    | test: yes; catalog: yes                                                                              |
+| Icon           | 4                       | no (package 0.1.0, no earlier release) | 3/3                        | yes (imports only react and its own modules) | yes (no CSS of its own: size by prop, 20 px by default)                   | test: yes; catalog: yes                                                                              |
+| Tooltip        | 1                       | no (package 0.1.0, no earlier release) | 11/11                      | yes (imports only react and its own modules) | yes (no `px` literals)                                                    | test: yes; catalog: yes                                                                              |
+| Modal (Dialog) | 5                       | no (package 0.1.0, no earlier release) | 8/8                        | yes (imports only react and its own modules) | yes (no size literals; one 8 px animation offset, a motion exception)     | test: yes; catalog: yes                                                                              |
 
 For reference, the measurement at `c3f02f8` found the following failures:
+
 - **Stability:** every component failed criterion 1's stability clause.
 - **Areas:** Field and Tooltip had 0 direct areas, and IconButton had 2, all against criterion 1's minimum of 3.
 - **Literal sizes:** Button, Badge, Tooltip and Modal had literal sizes, against criterion 4.
@@ -62,6 +63,7 @@ For reference, the measurement at `c3f02f8` found the following failures:
   - IconButton is used in 2 areas (Customers and Team), but it lives in Button's file and shares its tokens and styles.
 
   The three travel as dependencies of components that qualify. None of them is adopted on its own merit.
+
 - **Criterion 4.** Every literal size became a token in Forma UI with the same value: `--spinner-size`, `--badge-min-height`, `--tooltip-max-width`, `--dialog-width`, `--dialog-width-wide` and the `--z-*` scale. Nothing shifts visually. The `px` literals left in the published CSS are `--icon-size: 20px`, a custom property local to `IconButton` (the size of its icons, the default of `Icon`), and the `translateY(8px)` of the `@keyframes forma-dialog__enter`, the entrance of the dialog. That 8 px is a motion exception, like the borders and the 1–2 px offsets: a distance travelled by an animation, not a size of a box, and 0001's measurement did not count it either (`Modal.module.css` already had it).
 - **Criterion 5.**
   - **Tests:** every component has its own test file in Forma UI, plus browser tests.
@@ -75,29 +77,30 @@ For reference, the measurement at `c3f02f8` found the following failures:
    - The one DOM difference is the `<span>` that wraps the icons in `IconButton`, which changes neither the accessible name nor the layout. Comparing the computed style and the attributes of every element of the views listed under «Deliberate visual changes» finds no other.
 3. **Tokens.** `@yelison/forma-ui/tokens.css` contains every token of Resolve's current `tokens.css` with its exact value, a semantic parity test in Forma UI guards this, and each case below differs from today only as described:
 
-   | Token or group | In the package | Note |
-   | --- | --- | --- |
-   | The 26 colour tokens per theme, including `--color-nav*`, `--color-link` and `--color-progress-track` | yes, exact values | |
-   | The AA values adjusted in code: #14 muted, #65 brand, brand-hover and link, #75 progress-track | yes, exact values | They stay as Resolve has them, not as in Figma |
-   | Typography and spacing | yes | `--font-family` becomes `'Inter Variable', Inter, …`, the value `global.css` already sets today |
-   | Library sizing, radius, motion, focus ring, overlay and shadow tokens (now in `global.css`) | yes, same values | |
-   | New tokens (component sizes and the `--z-*` scale) | yes, added | |
-   | App layout tokens: `--sidebar-*`, `--header-height`, `--page-gutter`, `--drawer-width`, `--reading-width` | no | They stay in Resolve's `global.css`, as Resolve's own layer on top |
-   | Chart tokens: `--color-chart-1…4` (#109) and the sequential ramp `--color-chart-seq-1…4` | no | They stay in Resolve's own layer until Forma UI has charts; they are not part of the generated `tokens.css` |
-
+   | Token or group                                                                                            | In the package    | Note                                                                                                        |
+   | --------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------- |
+   | The 26 colour tokens per theme, including `--color-nav*`, `--color-link` and `--color-progress-track`     | yes, exact values |                                                                                                             |
+   | The AA values adjusted in code: #14 muted, #65 brand, brand-hover and link, #75 progress-track            | yes, exact values | They stay as Resolve has them, not as in Figma                                                              |
+   | Typography and spacing                                                                                    | yes               | `--font-family` becomes `'Inter Variable', Inter, …`, the value `global.css` already sets today             |
+   | Library sizing, radius, motion, focus ring, overlay and shadow tokens (now in `global.css`)               | yes, same values  |                                                                                                             |
+   | New tokens (component sizes and the `--z-*` scale)                                                        | yes, added        |                                                                                                             |
+   | App layout tokens: `--sidebar-*`, `--header-height`, `--page-gutter`, `--drawer-width`, `--reading-width` | no                | They stay in Resolve's `global.css`, as Resolve's own layer on top                                          |
+   | Chart tokens: `--color-chart-1…4` (#109) and the sequential ramp `--color-chart-seq-1…4`                  | no                | They stay in Resolve's own layer until Forma UI has charts; they are not part of the generated `tokens.css` |
    - `frontend/src/styles/tokens.css` and the identity-provider copy are generated from the package's file in the same commit, so `tokens.keycloak.test.ts` keeps its byte comparison.
    - `tokens.contrast.test.ts` keeps the same pairs, thresholds and parity; it now also reads Resolve's `chart-tokens.css`, because the chart tokens moved out of `tokens.css` into Resolve's own layer.
    - Resolve's public CSS variable names do not change.
+
 4. **Base and app CSS.** `global.css` keeps Resolve's reset and app layout tokens and imports the package's `base.css`. The package's `styles.css` is imported first in the module that loads the components (`components/ui/index.ts`), because bundlers order CSS by chunk: imported only from `global.css`, it would reach the page after the CSS of Resolve's own components (the package README's order is the order inside one stylesheet; Vite links the CSS of a shared chunk before the entry point's). In the build `styles.css` opens `ui-*.css`, so a Resolve class passed as `className` has the same specificity as the package's rule and wins by order; where it matters the selector is also made more specific as a defence. Tests on the build pin both (see `docs/development/dependencies.md`).
    - **Resolve's control box.** `Input` is the package's, but `Select`, `Textarea` and `Combobox` stay Resolve's and share a control box in `components/ui/shared/control.module.css`. It was Field's `.control` and keeps the same rules, now with the package's focus ring (next point). It is the only visual rule of Field that Resolve keeps.
 5. **Copy.** The package ships no copy in one language: its built-in strings default to English. Resolve installs `FormaProvider` with every built-in string in Spanish, and a Resolve test pins each one:
 
-   | Key | Used by | Resolve's value |
-   | --- | --- | --- |
-   | `buttonLoading` | Button while `loading` | `Enviando…` |
-   | `dialogClose` | `useFormaStrings()`, for a close button put in a Dialog footer | `Cerrar` (Resolve's dialogs carry their own «Cancelar» and do not read it today) |
+   | Key             | Used by                                                        | Resolve's value                                                                  |
+   | --------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+   | `buttonLoading` | Button while `loading`                                         | `Enviando…`                                                                      |
+   | `dialogClose`   | `useFormaStrings()`, for a close button put in a Dialog footer | `Cerrar` (Resolve's dialogs carry their own «Cancelar» and do not read it today) |
 
    Tooltip, Badge, Field, Input and Icon have no built-in strings: all their text comes from props. If a later version of the package adds a key, the Dependabot pull request must add its Spanish value, and the test fails until it does.
+
 6. **Theme.**
    - `useTheme` delegates to the package's `createThemeStore({ storageKey: 'resolve-theme' })`, a single store for the application, which keeps existing users' stored preferences (the key is the one Resolve always used). «System» still removes the key and follows the operating system live.
    - The first-paint script of `index.html` is now the output of `themeScript({ storageKey: 'resolve-theme' })`, byte for byte (not the equivalent code Resolve had: that one left a global variable behind; this one is block-scoped). A test pins it.
@@ -192,3 +195,79 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 - **No visual change.** Every value is the one it replaces; Forma UI's browser tests check the computed values. In Resolve, `tokens.css` and its Keycloak copy gain the four declarations and nothing else, and none of the names clashes with Resolve's own layer (`tokens.sync.test.ts`).
 - **Why it does not merge by itself.** A patch that adds or changes tokens fails `tokens.sync.test.ts` on purpose, so it goes through `sync:forma-tokens` and a review. Patches that only touch component code or CSS still auto-merge (see `docs/development/dependencies.md`).
 
+## Amendment 3 · 0.4.0: Avatar, SearchField and Select
+
+- **Status:** accepted, 2026-10-13. It lands in #159, which adopts `@yelison/forma-ui` 0.4.0 (Forma UI #67, #68 and #69).
+- **Scope:** it adds Avatar, SearchField and Select to the components that 0001 no longer covers, and the eight icons of 0.4.0. Every other component stays under 0001. Checkbox and Switch still keep `shared/choice.module.css`. `shared/control.module.css` stays too: `Textarea` and `Combobox` import it, and nothing that left does.
+
+The three components left `components/ui`; the method is the one of Amendments 1 and 2, and the measured code is the one of this pull request.
+
+### The readiness criteria of 0001, measured
+
+Same columns and rules as Amendment 1 (areas, JSDoc over the members declared in the props types, imports of the published modules, `px` literals in the published `styles.css`, tests of the package at the `@yelison/forma-ui@0.4.0` tag, entry in `/catalogo`). For SearchField and Select the literals of `.forma-field-control`, the box they are built on, are counted too, and Avatar counts `AvatarProps`.
+
+| Component   | 1 · areas (of 3 needed)                                             | 1 · stable for a phase                | 2 · API documented (JSDoc) | 3 · no domain types                          | 4 · token-only values                                                | 5 · own test and catalog entry |
+| ----------- | ------------------------------------------------------------------- | ------------------------------------- | -------------------------- | -------------------------------------------- | -------------------------------------------------------------------- | ------------------------------ |
+| Avatar      | 4 (customers, reports, settings, team)                              | no (new in 0.4.0, no earlier release) | 6/6                        | yes (imports only react and its own modules) | yes (no `px` literals: the three sizes are `--avatar-size-*` tokens) | test: yes; catalog: yes        |
+| SearchField | 6 (customers, knowledge, search, session, team, tickets)            | no (new in 0.4.0, no earlier release) | 4/4                        | yes (imports only react and its own modules) | yes (no `px` literals; the icon is `--control-icon-size`)            | test: yes; catalog: yes        |
+| Select      | 7 (customers, knowledge, reports, session, settings, team, tickets) | no (new in 0.4.0, no earlier release) | 5/5                        | yes (imports only react and its own modules) | yes (no `px` literals)                                               | test: yes; catalog: yes        |
+
+- **Areas.** All three reach 3 or more by themselves; none needs the dependency argument. Avatar is also used inside Sidebar, Message and the team and customer tables, which are not counted.
+- **Stability.** As in the earlier amendments, the clause cannot be met: the package has no earlier release of these components, and Forma UI's reviews, tests and versioning replace it.
+- **Criterion 4.** None fails. The sizes that were literals in Resolve (`28px`, `36px` and `48px` of Avatar; the 20 px of the icon in a field) are tokens now, with the same values.
+
+### Decision
+
+Resolve adopts Avatar, SearchField and Select from `@yelison/forma-ui@0.4.0`, with the decisions of the first adoption:
+
+1. **Dependency and tokens.** Exact version `0.4.0`. `npm run sync:forma-tokens` adds four tokens, all additive: `--control-icon-size` (20px) and `--avatar-size-small`, `--avatar-size-medium` and `--avatar-size-large` (28px, 36px and 48px). No token that existed changes its value, and `tokens.sync.test.ts` passes.
+2. **Compatible barrel.** `Avatar/Avatar.ts`, `SearchField/SearchField.ts` and `Select/Select.ts` are one-line re-exports; their `.tsx`, CSS Modules and tests are gone. A diff of the resolved types of the barrel before and after (135 exports each, against the base of this pull request) finds:
+   - **Additions:** `tone` on Avatar; `announce` on Select; `hideLabel` on Input, Field and, through them, the components that extend them; and the eight new names in the unions of `IconName`.
+   - **A deliberate narrowing.** `SearchFieldProps` no longer has `defaultValue` or `children`: the package omits them, because the field is always controlled (`value` and `onValueChange`). Nothing in Resolve uses them, so no import or call site changes, and it is not a break for the application. The `ref` that `Menu` passes to `SearchField` still reaches the `<input>`.
+   - No import of `features/**` changes.
+3. **Copy.** `FormaStrings` gets no new key in 0.4.0 (it still has `buttonLoading` and `dialogClose`), so `app/formaStrings.ts` does not change.
+4. **Initials.** The package exports no helper for them, only `Avatar`. `components/ui/Avatar/initials.ts` stays in Resolve, with the package's logic, because `WorkspaceMark` cuts the initials of a workspace with it and a workspace and an avatar must cut them the same way. `initials.test.tsx` compares `initialsOf(name)` with the text the package's `<Avatar>` draws, for ten names, so a change in the package shows up as a failing test. Pending for Forma UI: export the helper, and Resolve deletes the file.
+
+### Visual and behavioural differences
+
+Measured as in Amendment 1, on computed styles, box, attributes and pseudo-elements of every node, with the base (`da3945d`, 0.3.0) and the tip served side by side, in both themes at 1440 and 390 px:
+
+- **The build** (`vite build --mode showcase`, 252 scenes): Team (members, load and invitations), Customers (directory and a customer), Reports (agents), Settings (general, company, workspaces and permissions), a ticket with its messages, the global search, the collapsed sidebar and the mobile drawer; each SearchField and Select at rest, with hover, with keyboard focus, with text and after Escape.
+- **`/catalogo`** (development server in `showcase` mode, 36 scenes).
+- **Loading skeletons**, with the request held in the production build: the `avatarGhost` of the customers directory and the `placeholderAvatar` of the team load panel, and the search of the workspace switcher in the drawer and in the menu with 9 workspaces.
+
+**Avatar and Select: no computed property, box, attribute or pseudo-element differs**, apart from the four new custom properties, which the dump of computed styles lists on every node. The `.avatarGhost.avatarGhost` rule keeps winning (its two classes beat the one of `.forma-avatar__blue` by specificity, not by order), and `.placeholderAvatar` still wins by order: `e2e/production-bundle.spec.ts`, which pins it, passes.
+
+**SearchField.** These differences are decided:
+
+- **It takes the box of `Input`** (decided by the owner, in the name of the shared design system). The background goes from `--color-bg` to `--color-surface` (`rgb(245, 247, 251)` to `rgb(255, 255, 255)` in light, `rgb(11, 18, 32)` to `rgb(20, 31, 50)` in dark), with the hover and focus states of `Input`. It shows in the hero of the knowledge base, the global search, the workspace switcher, the filter bars of tickets, customers and team, and `Menu`. The border is the same token as before (`--color-line`), so the field is as visible as an `Input`. Against a white panel that border is about 1.2:1, the same as every `Input`: a fact of the design system, not a regression of this change. What does go is the faint tinted fill.
+- **The DOM.** The box moves from the `<label>` to the `<input>`, so the padding and the border go down to the input, the cursor over the field is the text one, and there is one more node (the package's `Field` container). `fieldClassName` now reaches that container and `className` the input.
+- **No height changes**, except where a screen drew the box itself (next point), and the example field of `/catalogo` (development server only): its box no longer stretches to the 89 px of its row and measures 40 px at 1440.
+
+Two screens did draw the box themselves, and the first measurement found them broken:
+
+- **The hero of the knowledge base** (`KnowledgeHero.module.css`) painted the height, the border and the background on `fieldClassName`, which was the box. With 0.4.0 those rules fell on the container: a white strip under a 40 px field, the border `--hero-field-border` lost and, in the light theme, the typed text white on white. The hero now puts the flex on the container and the box rules on the input (`className`), with a text colour of its own.
+- **The workspace search in the mobile drawer** (8 workspaces or more) inherited the drawer's light text over its `--color-surface` background, about 2:1 in the light theme. `WorkspaceMenu.module.css` sets the colour on the input.
+
+The cause is the same: the package's rule for the control's colour is written in `:where()`, with specificity 0, so a parent's colour reaches it (the reset's `input { color: inherit }` wins). Each case has an e2e that measures the contrast of the typed text (at least 4.5), with its mutation. Both are reported to Forma UI, which can fix them once for every consumer; the local rules can then go.
+
+**Escape.** What a person sees does not change in any of the three places:
+
+- **Global search:** Escape always closes the dialog, with or without text (the capture phase wins, and `GlobalSearch.test.tsx` pins it).
+- **The workspace switcher and `Menu`:** the first Escape empties the field and the second closes. The package's SearchField now also stops the event when it empties the field, so nothing above sees that first Escape; neither `Menu` nor the switcher needed it (their handlers closed only with the field empty).
+- **The switcher inside the mobile drawer** (the case no test covered): a new e2e checks that the first Escape empties the field and keeps the drawer open, and the second closes it and returns the focus to the menu button. It passes on the base too. A `type="search"` field empties itself with Escape in the browser, but it is the package's `preventDefault` that keeps the drawer's `<dialog>` open on that first Escape, so the test depends on it and fails without it (checked by mutation).
+
+**Initials.** The package cuts them by user-perceived character, so an accent written as a combining mark or an emoji stays whole, and `toUpperCase()` takes no language, with `ß` left as `ß`; an empty `name` now hides the avatar from assistive technology, and a new `src` is tried after one that failed. Resolve's avatars were already decorative wherever a name sits beside them, so no screen changes; `WorkspaceMark` follows the same logic through `initials.ts`.
+
+### Weight
+
+Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build`), before and after: JavaScript 668 610 → 670 219 bytes (+1 609; gzip 202 810 → 203 418, +608) and CSS 125 695 → 126 451 bytes (+756; gzip 22 281 → 22 381, +100). The package's `SearchField` and `Select` carry the table of icon paths with them, and it grew by eight icons.
+
+### Pending
+
+- **Forma UI:** export the initials helper; let `:where()` rules not lose to an inherited colour; say in the changelog that `fieldClassName` of SearchField moved from the box to its container.
+- **Checkbox and Switch** are still the next family of the same base.
+- **Resolve, when it adopts Forma UI 0.5.0:**
+  - Remove `color: var(--color-ink)` from `.search .input` in `KnowledgeHero.module.css`, and the `.panel .searchInput` rule with its `className` in `WorkspaceMenu`: the package will give the control a colour of its own. The contrast e2e tests of both stay.
+  - Move the element reset of `styles/global.css` into `@layer base`.
+  - Delete `Avatar/initials.ts` and its guardian, because the package will export `initialsOf`; `WorkspaceMark` imports it from there.

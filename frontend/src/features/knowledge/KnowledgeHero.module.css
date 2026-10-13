@@ -54,16 +54,23 @@
   max-width: 40rem;
 }
 
-/* El campo gana todo el sobrante de la fila: si el botón no cabe a su lado, pasa debajo y ocupa el ancho. */
+/* El contenedor del campo gana todo el sobrante de la fila: si el botón no cabe a su lado, pasa debajo y ocupa el ancho. */
 .search .field {
   flex: 100 1 16rem;
+}
+
+/*
+ * La caja es el `<input>` (`className`), no el contenedor. El texto se fija aquí: la banda lo pone claro y el campo, de
+ * fondo `--color-surface`, lo heredaría (la regla del paquete va en `:where()` y no gana a la herencia del reset).
+ */
+.search .input {
   min-height: calc(var(--touch-target) + var(--space-8));
   border-color: var(--hero-field-border);
-  background: var(--color-surface);
+  color: var(--color-ink);
   text-align: left;
 }
 
-.search .field:focus-within {
+.search .input:focus-visible {
   border-color: var(--color-focus);
 }
 
