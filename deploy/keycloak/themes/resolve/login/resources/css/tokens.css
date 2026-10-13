@@ -1,4 +1,4 @@
-/* Generado desde `@yelison/forma-ui@0.2.1` (la versión de la última sincronía): no lo edites a mano.
+/* Generado desde `@yelison/forma-ui@0.4.0` (la versión de la última sincronía): no lo edites a mano.
  * Ejecuta `npm run sync:forma-tokens` para regenerarlo; la misma orden escribe la copia del tema de Keycloak
  * (`deploy/keycloak/themes/resolve/login/resources/css/tokens.css`), que debe ser idéntica a este archivo.
  * Debajo va, sin cambios, el `tokens.css` del paquete. Los tokens propios de Resolve están en `global.css` (diseño de
@@ -68,8 +68,12 @@
   --radius-small: 4px;
   --radius-round: 999px;
   --control-height: 40px;
+  --control-icon-size: 20px;
   --button-height: 42px;
   --touch-target: 44px;
+  --avatar-size-small: 28px;
+  --avatar-size-medium: 36px;
+  --avatar-size-large: 48px;
   --badge-min-height: 28px;
   --choice-min-height: 36px;
   --icon-button-glyph-size: 20px;

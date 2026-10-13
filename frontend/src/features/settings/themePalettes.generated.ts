@@ -1,4 +1,4 @@
-/* Generado desde `@yelison/forma-ui@0.2.1` (la versión de la última sincronía): no lo edites a mano.
+/* Generado desde `@yelison/forma-ui@0.4.0` (la versión de la última sincronía): no lo edites a mano.
  * Ejecuta `npm run sync:forma-tokens` para regenerarlo. `themePalettes.test.ts` falla si difiere del paquete. */
 
 /** Colores de cada tema que usan las miniaturas de `ThemeBlock`. */
