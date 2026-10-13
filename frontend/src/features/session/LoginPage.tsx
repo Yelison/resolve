@@ -1,12 +1,15 @@
-import { useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router'
 import { isApiError, PROBLEM_TYPES, readCsrfToken } from '../../api/client'
 import { cx } from '../../lib/cx'
 import { Alert, Button, EmptyState, Skeleton } from '../../components/ui'
 import { Brand } from '../../components/ui/Sidebar/Brand'
 import { DemoUserPicker } from './DemoUserPicker'
+import { noMembershipNewcomer } from './newcomer'
+import { NewcomerCard } from './NoWorkspaceCards'
 import { ShowcaseLoginFrame } from './ShowcaseLoginFrame'
-import { useMe } from './queries'
+import { sessionKeys, useMe } from './queries'
 import styles from './session.module.css'
 import { subscribeSessionMessages } from './sessionChannel'
 import { LOGIN_PATH, navigation } from './sessionLifecycle'
@@ -40,23 +43,41 @@ export function LoginPage() {
   const demoLogin = import.meta.env.DEV || import.meta.env.MODE === 'smoke' || import.meta.env.MODE === 'showcase'
   // En la demostración estática no hay proveedor de identidad al que salir: solo se ofrece el selector de usuarios.
   const providerLogin = import.meta.env.MODE !== 'showcase'
-  const unauthenticated = !me.data && isApiError(me.error, 401)
+  // Releer una sesión que nunca cargó devuelve la consulta a «pending» y pierde el error, ya en el primer render (al llegar
+  // desde la shell, que acaba de recibir el 401, `useMe` empieza a releerlo): sin esto el esqueleto sustituye a la pantalla, y
+  // borra lo escrito en ella, cada vez que una relectura —p. ej. tras un 409— sigue en vuelo. Se parte del error que la
+  // shell dejó en la caché y se conserva el último hasta que llega otro.
+  const queryClient = useQueryClient()
+  const [lastError, setLastError] = useState<unknown>(() => queryClient.getQueryState(sessionKeys.me)?.error ?? null)
+  if (me.error && me.error !== lastError) setLastError(me.error)
+  const error = me.error ?? lastError
+  const unauthenticated = !me.data && isApiError(error, 401)
   const { signOut } = useSessionActions()
   // Motivo por el que el proveedor sí autenticó a la persona pero la aplicación no la admite.
-  const type = isApiError(me.error, 401) ? me.error.problem.type : undefined
+  const type = isApiError(error, 401) ? error.problem.type : undefined
   const refusal = type ? REFUSALS.get(type) : undefined
   // Con una sesión OIDC en el servidor hay cookie de CSRF: se puede cerrar para entrar con otra cuenta.
   const canSignOut = refusal !== undefined && readCsrfToken() !== null
+  // Quien no tiene ningún espacio y a quien el `401` dice quién es y si puede crear el suyo. Un servidor anterior no manda
+  // el correo: ahí queda el aviso de siempre, en la pantalla de entrada.
+  const newcomer = noMembershipNewcomer(error)
+  const screen = newcomer ? (newcomer.canCreate ? 'create' : 'none') : 'entry'
 
   useEffect(() => {
-    document.title = 'Entrar · Resolve'
-  }, [])
+    document.title =
+      screen === 'create'
+        ? 'Crea tu espacio · Resolve'
+        : screen === 'none'
+          ? 'Aún no estás en ningún espacio · Resolve'
+          : 'Entrar · Resolve'
+  }, [screen])
   // Otra pestaña acaba de entrar: aquí se vuelve a comprobar la sesión (con ella, esta pantalla redirige al resumen).
   const { refetch } = me
   useEffect(() => subscribeSessionMessages((type) => type === 'signed-in' && void refetch()), [refetch])
+  // También cuando la pantalla cambia sola (la instalación cerró la creación entretanto): el foco sigue al título nuevo.
   useEffect(() => {
     if (unauthenticated) heading.current?.focus({ preventScroll: true })
-  }, [unauthenticated])
+  }, [unauthenticated, screen])
 
   if (me.data) return <Navigate to="/" replace />
 
@@ -67,8 +88,8 @@ export function LoginPage() {
   const page = (
     <main className={styles.login}>
       <div className={styles.card}>
-        {/* Solo el logo: el título ya dice «Resolve», así que el nombre de la marca no se repite justo encima. */}
-        <Brand showName={false} />
+        {/* Solo el logo: el título ya dice «Resolve», así que el nombre de la marca no se repite justo encima. Los títulos de quien llega sin espacio no lo dicen: ahí va con el nombre. */}
+        <Brand showName={newcomer !== undefined} />
         {me.isError && !unauthenticated ? (
           <EmptyState
             kind="error"
@@ -84,6 +105,14 @@ export function LoginPage() {
                 Reintentar
               </Button>
             }
+          />
+        ) : newcomer ? (
+          // Con sesión OIDC (cookie de CSRF) se puede cerrar para entrar con otra cuenta.
+          <NewcomerCard
+            newcomer={newcomer}
+            heading={heading}
+            onSignOut={readCsrfToken() !== null ? () => signOut.mutate() : undefined}
+            signingOut={signOut.isPending}
           />
         ) : (
           <div className={styles.entryFrame}>

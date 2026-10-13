@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { api, isApiError, PROBLEM_TYPES, unwrap } from '../../api/client'
 import type { Me, NewOrganization } from '../../api/schema'
@@ -55,6 +55,14 @@ export function createFailure(error: unknown): CreateFailure {
   if (isApiError(error, 403)) return 'forbidden'
   if (isApiError(error, 400)) return 'invalid'
   return 'other'
+}
+
+/**
+ * ¿Es un `401` sin sesión cargada? Quien lo recibe es la pantalla de entrada (con la sesión cargada, de un `401` se encarga
+ * `useSessionSync`): ahí decide la relectura de `/me`, no el formulario, que no debe pintar un error por ello.
+ */
+export function lostSession(queryClient: QueryClient, error: unknown) {
+  return isApiError(error, 401) && !queryClient.getQueryData(sessionKeys.me)
 }
 
 /** A qué espacio se cambia y, si no es el resumen, a dónde se va después (p. ej. `/equipo`). */
@@ -171,7 +179,10 @@ export function useSessionActions({ onLogoutUnavailable }: SessionActionsOptions
     },
     onError: (error) => {
       const failure = createFailure(error)
-      if (failure === 'limit' || failure === 'forbidden')
+      // Un `401` sin sesión cargada es de quien crea su primer espacio desde la pantalla de entrada: la instalación dejó de
+      // permitirlo (`no-membership` cerrado) o la sesión terminó. Se relee la sesión y esa pantalla pasa sola a la tarjeta
+      // que corresponda («Aún no estás en ningún espacio» o «Entra a Resolve»).
+      if (failure === 'limit' || failure === 'forbidden' || lostSession(queryClient, error))
         void queryClient.invalidateQueries({ queryKey: sessionKeys.me })
     },
   })

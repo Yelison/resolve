@@ -49,3 +49,9 @@ export const ONLY_WORKSPACE_TEXT = 'Es tu único espacio'
 
 /** «1 espacio», «3 espacios». */
 export const spacesCount = (count: number) => plural(count, 'espacio', 'espacios')
+
+/** «Ya creaste 3 espacios, el máximo por persona.»: el número es el del servidor, no uno fijo. */
+export const limitSentence = (limit: number | undefined) =>
+  limit === undefined
+    ? 'Ya creaste el máximo de espacios por persona.'
+    : `Ya creaste ${spacesCount(limit)}, el máximo por persona.`

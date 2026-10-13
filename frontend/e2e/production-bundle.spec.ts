@@ -34,6 +34,11 @@ test('el build de producción no incluye la API simulada ni el modo showcase', (
     'Lumen Diseño',
     'Norte Viajes',
     'Kora Fitness',
+    // La cuenta sin espacio del selector de la demostración (`src/showcase/users.ts`, `NUEVA_PERSONA` de los mocks).
+    'Persona nueva',
+    'Nueva Persona',
+    'nueva.persona',
+    'demo.example',
     'e2e-csrf-token',
     'Sin fixture para',
     'Demostración con datos de ejemplo',

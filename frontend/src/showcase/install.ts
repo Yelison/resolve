@@ -1,9 +1,9 @@
 import { DEMO_USER_EVENT, DEMO_USER_STORAGE_KEY } from '../api/client'
 import { createArticleStore } from '../../e2e/mocks/knowledge'
 import { createMockFeatures } from '../../e2e/mocks/api'
-import { demoCreatedIn, demoWorkspaces } from '../../e2e/mocks/session'
+import { demoCreatedIn, demoWorkspaces, NUEVA_PERSONA } from '../../e2e/mocks/session'
 import { isApiUrl, respondToApi } from './adapter'
-import { roleFor } from './users'
+import { entersWithoutWorkspace, roleFor } from './users'
 
 /**
  * La elección de usuario se guarda en `sessionStorage`: sobrevive a recargar y a abrir un enlace interno en la misma
@@ -48,14 +48,29 @@ function writeCookie(cookie: string) {
 export function installShowcase() {
   const appUrl = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}`
   const articleStore = createArticleStore()
+  // La demostración corre en el modo `open` (`resolve.organizations.creation`): crear un espacio no pide ser administrador,
+  // y quien no tiene ninguno entra a «Crea tu espacio» (el cliente no ve la opción en la interfaz).
   // Solo la administración tiene varios espacios (agente en uno, cliente en otro): el selector tiene algo que mostrar.
   const build = (signedIn: boolean) => {
-    const role = roleFor(readStored(picker))
+    const chosen = readStored(picker)
+    const role = roleFor(chosen)
+    if (entersWithoutWorkspace(chosen)) {
+      // Sin ninguna membresía: el servidor responde `401` `no-membership` con su correo y su nombre hasta que cree el primero.
+      return createMockFeatures(role, {
+        articleStore,
+        signedIn,
+        creation: 'open',
+        organizations: [],
+        refused: 'no-membership',
+        identity: NUEVA_PERSONA,
+      })
+    }
     const organizations = demoWorkspaces[role]
     // El administrador de la demostración ya creó dos de sus espacios: crear otro es posible, y un cuarto, no.
     return createMockFeatures(role, {
       articleStore,
       signedIn,
+      creation: 'open',
       organizations,
       createdIn: organizations && role === 'admin' ? demoCreatedIn : undefined,
     })

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEMO_USER_EVENT, DEMO_USER_STORAGE_KEY } from '../api/client'
+import { NUEVA_PERSONA } from '../../e2e/mocks/session'
 import { installShowcase } from './install'
+import { showcaseUsers } from './users'
 
 const CUSTOMER = 'maria.perez@cliente.example'
 const originalFetch = window.fetch
@@ -240,11 +242,11 @@ describe('installShowcase · crear espacios en la demostración', () => {
       body: JSON.stringify(body),
     })
 
-  it('el administrador de la demostración ha creado 2 de 3 espacios y puede crear otro; el agente no', async () => {
+  it('la demostración corre en el modo abierto: el administrador ha creado 2 de 3 y puede crear otro, y el agente también', async () => {
     await signIn(ADMIN)
     expect((await me()).organizationCreation).toEqual({ allowed: true, created: 2, limit: 3 })
     await signIn(AGENT)
-    expect((await me()).organizationCreation).toEqual({ allowed: false, created: 0, limit: 3 })
+    expect((await me()).organizationCreation).toEqual({ allowed: true, created: 0, limit: 3 })
   })
 
   it('crea el espacio: 201 con el Me nuevo, administrador, con su color calculado, y la sesión pasa a él', async () => {
@@ -291,15 +293,17 @@ describe('installShowcase · crear espacios en la demostración', () => {
     expect((await create(token, { name: 'Tres', timeZone: 'America/Bogota' })).status).toBe(201)
   })
 
-  it('los errores van en el orden del contrato: 400 por campo antes del 403 y del 409', async () => {
+  it('los errores van en el orden del contrato: 400 por campo y después el 409; en el modo abierto no hay 403', async () => {
     const token = await signIn(AGENT)
     const invalid = await create(token, { name: '   ', timeZone: 'No/Existe' })
     expect(invalid.status).toBe(400)
     expect((await invalid.json()).errors.map((error: { field: string }) => error.field)).toEqual(['name', 'timeZone'])
     const tooLong = await create(token, { name: 'x'.repeat(121), timeZone: 'Europe/Madrid' })
     expect(tooLong.status).toBe(400)
-    // Con el cuerpo válido, un agente sin espacios de administración recibe el 403.
-    expect((await create(token, { name: 'Mío', timeZone: 'Europe/Madrid' })).status).toBe(403)
+    // Con el cuerpo válido, un agente sin espacios de administración también crea: en `open` no hay 403.
+    const agent = await create(token, { name: 'Mío', timeZone: 'Europe/Madrid' })
+    expect(agent.status).toBe(201)
+    expect(await agent.json()).toMatchObject({ role: 'admin', organization: { name: 'Mío' } })
     // Sin token CSRF se rechaza como cualquier escritura, antes que el cuerpo.
     expect((await create(null, { name: '', timeZone: '' })).status).toBe(403)
   })
@@ -337,5 +341,95 @@ describe('installShowcase · crear espacios en la demostración', () => {
     const draft = drafts.items?.[0] ?? drafts[0]
     expect((await write(token, `/knowledge/articles/${draft.slug}/publish`, {})).status).toBe(200)
     expect(await gettingStarted()).toBeNull()
+  })
+})
+
+describe('installShowcase · «Persona nueva (sin espacio)»', () => {
+  const NEWCOMER = 'nueva.persona@demo.example'
+  const NO_MEMBERSHIP = 'https://resolve.example/problems/no-membership'
+
+  async function signIn() {
+    sessionStorage.setItem(DEMO_USER_STORAGE_KEY, NEWCOMER)
+    load()
+    return csrfToken()
+  }
+  const create = (token: string, body: unknown) =>
+    api('/organizations', {
+      method: 'POST',
+      headers: { 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+  it('su correo es el de la cuenta sin espacio de la API (V1009) y es una opción del selector', () => {
+    expect(NEWCOMER).toBe(NUEVA_PERSONA.email)
+    expect(showcaseUsers.find((user) => user.email === NEWCOMER)).toMatchObject({
+      label: 'Persona nueva (sin espacio)',
+      withoutWorkspace: true,
+    })
+  })
+
+  it('/me responde el 401 no-membership con su correo, su nombre y canCreateOrganization: true (modo abierto)', async () => {
+    await signIn()
+    const response = await api('/me')
+    expect(response.status).toBe(401)
+    expect(await response.json()).toMatchObject({
+      type: NO_MEMBERSHIP,
+      canCreateOrganization: true,
+      email: NEWCOMER,
+      name: 'Nueva Persona',
+    })
+  })
+
+  it('ninguna otra escritura la admite, solo crear: el resto es el mismo 401', async () => {
+    const token = await signIn()
+    const select = await api('/session/organization', {
+      method: 'POST',
+      headers: { 'X-XSRF-TOKEN': token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organizationId: '0192f000-0000-7000-8000-000000000001' }),
+    })
+    expect(select.status).toBe(401)
+    expect(await select.json()).toMatchObject({ type: NO_MEMBERSHIP })
+  })
+
+  it('crear su espacio: 400 por campo antes que nada, y con el cuerpo válido 201 con ella como administradora', async () => {
+    const token = await signIn()
+    expect((await create(token, { name: '', timeZone: 'Europe/Madrid' })).status).toBe(400)
+    const response = await create(token, { name: 'Lumen Diseño', timeZone: 'Europe/Madrid' })
+    expect(response.status).toBe(201)
+    expect(await response.json()).toMatchObject({
+      role: 'admin',
+      user: { name: 'Nueva Persona', email: NEWCOMER },
+      organization: { name: 'Lumen Diseño', timeZone: 'Europe/Madrid' },
+      organizationCreation: { allowed: true, created: 1, limit: 3 },
+      organizations: [{ name: 'Lumen Diseño', role: 'admin' }],
+    })
+    // Desde entonces la sesión es de ese espacio, con «Primeros pasos».
+    expect(await (await api('/me')).json()).toMatchObject({ organization: { name: 'Lumen Diseño' } })
+    expect((await (await api('/tickets/metrics')).json()).gettingStarted).toEqual({
+      invitedTeam: false,
+      addedCustomer: false,
+      publishedArticle: false,
+    })
+  })
+
+  it('al recargar vuelve al estado inicial: el espacio creado no se guarda', async () => {
+    const token = await signIn()
+    await create(token, { name: 'Lumen Diseño', timeZone: 'Europe/Madrid' })
+    expect((await api('/me')).status).toBe(200)
+    load()
+    const reloaded = await api('/me')
+    expect(reloaded.status).toBe(401)
+    expect(await reloaded.json()).toMatchObject({ type: NO_MEMBERSHIP })
+  })
+
+  it('cerrar sesión la deja fuera y borra la elección', async () => {
+    const token = await signIn()
+    const logout = await api('/logout', { method: 'POST', headers: { 'X-XSRF-TOKEN': token } })
+    expect(logout.status).toBe(200)
+    expect(sessionStorage.getItem(DEMO_USER_STORAGE_KEY)).toBeNull()
+    // Ya no es «sin espacio»: es el 401 de quien no tiene sesión, que lleva al selector.
+    const after = await api('/me')
+    expect(after.status).toBe(401)
+    expect((await after.json()).type ?? 'about:blank').toBe('about:blank')
   })
 })
