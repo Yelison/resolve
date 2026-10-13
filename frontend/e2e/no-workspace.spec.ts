@@ -56,8 +56,14 @@ test.describe('«Crea tu espacio» · instalación abierta', () => {
     await page.keyboard.press('Tab')
     await expect(page.getByRole('button', { name: 'Entrar con otra cuenta' })).toBeFocused()
 
-    // Enter desde el nombre envía el formulario.
-    await name.focus()
+    // Con Mayús+Tab se vuelve al nombre y Enter envía el formulario: todo el recorrido es de teclado.
+    await page.keyboard.press('Shift+Tab')
+    await expect(page.getByRole('button', { name: 'Crear espacio' })).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect(zone).toBeFocused()
+    await page.keyboard.press('Shift+Tab')
+    await expect(name).toBeFocused()
+    await expect(name).toHaveValue('Lumen Diseño')
     const request = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/api/organizations'))
     await page.keyboard.press('Enter')
     expect((await request).postDataJSON()).toEqual({ name: 'Lumen Diseño', timeZone: 'Europe/Madrid' })

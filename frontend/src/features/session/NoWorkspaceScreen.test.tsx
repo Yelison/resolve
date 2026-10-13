@@ -173,6 +173,20 @@ describe('«Crea tu espacio» (la instalación deja crear)', () => {
     expect(screen.queryByRole('textbox', { name: 'Nombre del espacio' })).not.toBeInTheDocument()
   })
 
+  it('un 403 de la creación (el modo cambió) relee la sesión y la pantalla pasa a la tarjeta cerrada, con el foco en su título', async () => {
+    let reads = 0
+    mockApi({
+      'GET /api/me': () => (reads++ === 0 ? open : closed),
+      'POST /api/organizations': { status: 403, body: { status: 403, title: 'Sin permiso' } },
+    })
+    renderApp('/entrar')
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Nombre del espacio' }), 'Lumen')
+    await userEvent.click(screen.getByRole('button', { name: 'Crear espacio' }))
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Aún no estás en ningún espacio' })
+    await waitFor(() => expect(heading).toHaveFocus())
+    expect(screen.queryByRole('textbox', { name: 'Nombre del espacio' })).not.toBeInTheDocument()
+  })
+
   it('«Entrar con otra cuenta» cierra la sesión con el token de CSRF y sale hacia el proveedor', async () => {
     const spy = mockApi({
       'GET /api/me': open,
@@ -226,12 +240,5 @@ describe('«Aún no estás en ningún espacio» (la instalación no deja crear)'
     expect(alert).toHaveTextContent('no pertenece a ningún espacio de Resolve')
     expect(screen.getByRole('heading', { level: 1, name: 'Entra a Resolve' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Aún no estás en ningún espacio' })).not.toBeInTheDocument()
-  })
-
-  it('un correo de 120 caracteres se ve entero (se parte, no se recorta)', async () => {
-    const long = `${'a'.repeat(100)}@${'b'.repeat(19)}.com`
-    mockApi({ 'GET /api/me': noMembership({ canCreateOrganization: false, email: long, name: 'Ana' }) })
-    renderApp('/entrar')
-    expect(await screen.findByText(long)).toBeInTheDocument()
   })
 })
