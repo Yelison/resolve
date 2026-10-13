@@ -1,4 +1,4 @@
-/* Caja compartida por Select, Textarea y Combobox (Input es del paquete y lleva la suya); :where() la deja sin especificidad para que cada control la ajuste. */
+/* Caja compartida por Textarea y Combobox (Input y Select son del paquete y llevan la suya); :where() la deja sin especificidad para que cada control la ajuste. */
 :where(.control) {
   width: 100%;
   min-height: var(--control-height);
@@ -37,8 +37,8 @@
 }
 
 /* Solo lectura no es deshabilitado: el valor sigue legible, seleccionable y enfocable, así que conserva el color del texto
-   y cambia el estilo del borde, que no depende solo del color. Es la regla de `Input` del paquete: Select y Textarea
-   (y Combobox) tienen el mismo aspecto. */
+   y cambia el estilo del borde, que no depende solo del color. Es la regla de `Input` del paquete: Textarea
+   y Combobox tienen el mismo aspecto. */
 .control[readonly] {
   border-style: dashed;
   background: var(--color-bg);

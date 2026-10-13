@@ -18,7 +18,7 @@ function capitalOf(word: string): string {
  * Primera letra del nombre y del último apellido, en mayúsculas.
  *
  * Es la misma lógica que `Avatar` de `@yelison/forma-ui` (≥ 0.4.0), que no exporta el ayudante: `WorkspaceMark` lo usa
- * para las iniciales de un espacio, y así el espacio y el avatar las calculan igual. `initials.test.ts` compara las dos.
+ * para las iniciales de un espacio, y así el espacio y el avatar las calculan igual. `initials.test.tsx` compara las dos.
  * Pendiente para Forma UI: exportarlo y borrar este archivo.
  */
 export function initialsOf(name: string): string {
