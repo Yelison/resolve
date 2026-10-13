@@ -87,7 +87,7 @@ The details are in the [development guide](docs/development/README.md#authentica
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | React 19, TypeScript (strict), Vite 8, TanStack Query, React Router 7, CSS Modules |
+| Frontend | React 19, TypeScript (strict), Vite 8, TanStack Query, React Router 8, CSS Modules |
 | UI | Forma UI ([`@yelison/forma-ui`](https://www.npmjs.com/package/@yelison/forma-ui)) and Resolve's own components, with design tokens |
 | Backend | Java 25, Spring Boot 4, Spring Data JPA, Flyway |
 | Data and identity | PostgreSQL 17, Keycloak (OpenID Connect) |
@@ -125,7 +125,6 @@ Every area of the product is done, in the views and in the Spring Boot API: home
 - [ ] Article ratings («¿Te resultó útil?»)
 - [ ] Tags, attachments and SLA for tickets
 - [ ] Sign-in: a specific problem type for an unverified email at the identity provider (#83)
-- [ ] Tests: a prod-profile context leaves console logging in ECS format for the rest of the JVM (#92)
 - [ ] Demo realm: stable signing keys, so a deployment of the identity provider does not break the sign-out of open sessions ([limits of the demo](docs/deploy/README.md#limits-of-the-demo))
 - [ ] Not planned: for real users, an own domain, a data retention and deletion policy, support with an SLA and alerting, and [publishing the full deployment](docs/deploy/README.md#the-public-demo-prepared-not-published)
 
