@@ -337,6 +337,30 @@ test.describe('selector de espacios', () => {
     await expect(page.getByRole('searchbox', { name: 'Buscar espacio' })).toHaveCount(0)
   })
 
+  test('móvil: con 8 espacios o más, Escape en el buscador del drawer borra el texto y solo el segundo cierra el drawer', async ({
+    page,
+  }) => {
+    await mockApi(page, 'admin', { organizations: manySpaces(9) })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/tickets')
+    const drawer = page.getByRole('dialog', { name: 'Menú principal' })
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
+    await card(page).click()
+    const group = page.getByRole('group', { name: 'Cambiar de espacio' })
+    const search = group.getByRole('searchbox', { name: 'Buscar espacio' })
+    await search.fill('Espacio 7')
+    await expect(group.getByRole('button', { name: /^Espacio 7,/ })).toHaveCount(1)
+    // El primer Escape solo vacía el campo: ni el drawer ni la lista se cierran.
+    await search.press('Escape')
+    await expect(search).toHaveValue('')
+    await expect(drawer).toBeVisible()
+    await expect(group).toBeVisible()
+    // Con el campo vacío, Escape cierra el drawer y el foco vuelve al botón del menú.
+    await search.press('Escape')
+    await expect(drawer).toBeHidden()
+    await expect(page.getByRole('button', { name: 'Abrir menú' })).toBeFocused()
+  })
+
   test('un cliente con un solo espacio no tiene selector; con dos, solo cambia', async ({ page }) => {
     await mockApi(page, 'customer')
     await page.setViewportSize({ width: 1440, height: 900 })
