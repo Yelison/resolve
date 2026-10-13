@@ -175,6 +175,49 @@ test.describe('base de conocimiento', () => {
     expect(Math.abs(wideButton.y - wideField.y)).toBeLessThan(wideField.height)
   })
 
+  for (const theme of ['light', 'dark'] as const) {
+    for (const width of [1440, 390]) {
+      test(`el campo del buscador mide lo que «Buscar» y su texto escrito se lee sobre el campo · ${theme} · ${width}px`, async ({
+        page,
+      }) => {
+        await page.addInitScript((value) => localStorage.setItem('resolve-theme', value), theme)
+        await page.setViewportSize({ width, height: 900 })
+        await page.goto('/conocimiento')
+        const field = page.getByRole('searchbox', { name: 'Buscar artículos' })
+        const button = page.getByRole('search').getByRole('button', { name: 'Buscar' })
+        await field.fill('recuperar contraseña')
+        const [fieldBox, buttonBox] = [(await field.boundingBox())!, (await button.boundingBox())!]
+        expect(fieldBox.height).toBeCloseTo(buttonBox.height, 0)
+        // La caja es el propio campo: su contenedor no pinta nada debajo ni lo supera.
+        const container = await field.evaluate((input) => {
+          const box = input.parentElement!.parentElement!
+          return { height: box.getBoundingClientRect().height, background: getComputedStyle(box).backgroundColor }
+        })
+        expect(container.height).toBeCloseTo(fieldBox.height, 0)
+        expect(container.background).toBe('rgba(0, 0, 0, 0)')
+        // El hero pone texto claro: el campo (`--color-surface`) no debe heredarlo.
+        const ratio = await field.evaluate((input) => {
+          const channels = (value: string) =>
+            value
+              .match(/[\d.]+/g)!
+              .slice(0, 3)
+              .map(Number)
+          const luminance = ([r, g, b]: number[]) => {
+            const [lr, lg, lb] = [r, g, b].map((v) => {
+              const c = v! / 255
+              return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+            })
+            return 0.2126 * lr! + 0.7152 * lg! + 0.0722 * lb!
+          }
+          const style = getComputedStyle(input)
+          const [a, b] = [luminance(channels(style.color)), luminance(channels(style.backgroundColor))]
+          return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+        })
+        expect(ratio, 'contraste del texto escrito').toBeGreaterThanOrEqual(4.5)
+      })
+    }
+  }
+
   test('un nombre de categoría y un título de 120 caracteres sin espacios no se recortan ni desbordan', async ({
     page,
   }) => {

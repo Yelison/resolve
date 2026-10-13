@@ -62,6 +62,7 @@ export function KnowledgeHero({ audience, articleCount, value, onValueChange, on
           value={value}
           onValueChange={onValueChange}
           fieldClassName={styles.field}
+          className={styles.input}
         />
         <Button type="submit" className={styles.submit}>
           Buscar
