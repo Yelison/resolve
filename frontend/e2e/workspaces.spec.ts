@@ -645,7 +645,7 @@ test.describe('modo abierto (`resolve.organizations.creation: open`): quién ve 
     await page.setViewportSize({ width: 1440, height: 900 })
 
     await mockApi(page, 'agent', { creation: 'admins' })
-    await page.reload()
+    await page.goto('/configuracion/espacios')
     await expect(page.getByRole('heading', { level: 2, name: 'Tus espacios' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Crear espacio' })).toHaveCount(0)
   })
