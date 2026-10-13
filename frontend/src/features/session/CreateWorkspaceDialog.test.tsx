@@ -235,6 +235,22 @@ describe('diálogo «Crear espacio»', () => {
     expect(queryClient.getQueryData<Me>(sessionKeys.me)?.organizationCreation.allowed).toBe(false)
   })
 
+  it('con la sesión cargada, un 401 deja el diálogo abierto con «No pudimos crear el espacio» y la mutación no relee /me', async () => {
+    const spy = mockApi({
+      'GET /api/me': { body: meInAcme },
+      'POST /api/organizations': problem(401),
+    })
+    renderShell()
+    const dialog = await openDialog()
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Nombre del espacio' }), 'Otro')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Crear espacio' }))
+    // Con sesión, de un 401 se ocupa `useSessionSync`: el formulario avisa como siempre y no es quien relee la sesión.
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('No pudimos crear el espacio')
+    expect(screen.getByRole('dialog', { name: 'Crear espacio' })).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(requests(spy).filter((request) => request.url.endsWith('/api/me'))).toHaveLength(1)
+  })
+
   it('Escape y «Cancelar» cierran sin crear y devuelven el foco a la tarjeta', async () => {
     const spy = mockApi({ 'GET /api/me': { body: meInAcme } })
     renderShell()
