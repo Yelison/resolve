@@ -265,9 +265,74 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 
 ### Pending
 
-- **Forma UI:** export the initials helper; let `:where()` rules not lose to an inherited colour; say in the changelog that `fieldClassName` of SearchField moved from the box to its container.
+- **Forma UI:** export the initials helper; let `:where()` rules not lose to an inherited colour; say in the changelog that `fieldClassName` of SearchField moved from the box to its container. *Done in 0.5.0 (Amendment 4): `initialsOf` is exported, the colour of a control has the specificity of a class, and the changelog and README say where each class goes.*
 - **Checkbox and Switch** are still the next family of the same base.
-- **Resolve, when it adopts Forma UI 0.5.0:**
+- **Resolve, when it adopts Forma UI 0.5.0:** *all three done in Amendment 4.*
   - Remove `color: var(--color-ink)` from `.search .input` in `KnowledgeHero.module.css`, and the `.panel .searchInput` rule with its `className` in `WorkspaceMenu`: the package will give the control a colour of its own. The contrast e2e tests of both stay.
   - Move the element reset of `styles/global.css` into `@layer base`.
   - Delete `Avatar/initials.ts` and its guardian, because the package will export `initialsOf`; `WorkspaceMark` imports it from there.
+
+## Amendment 4 · 0.5.0: FilterChip, `initialsOf` and the reset layer
+
+- **Status:** accepted, 2026-10-13. It lands in #160, which adopts `@yelison/forma-ui` 0.5.0 (Forma UI #71, #72, #73 and #74).
+- **Scope:** it adds FilterChip to the components that 0001 no longer covers, and it pays the commitments that Amendment 3 left in «Pending». Every other component stays under 0001. `shared/control.module.css` stays: `Textarea` and `Combobox` still import it.
+
+### The readiness criteria of 0001, measured
+
+Same columns and rules as Amendments 1 and 3, measured on the code of this pull request (script `measure-adr-050.mjs` in the task evidence): areas, JSDoc over the members declared in the props type, imports of the published modules, `px` literals in the published `styles.css`, tests of the package at the `@yelison/forma-ui@0.5.0` tag, entry in `/catalogo`.
+
+| Component  | 1 · areas (of 3 needed)        | 1 · stable for a phase                | 2 · API documented (JSDoc) | 3 · no domain types                          | 4 · token-only values                                                              | 5 · own test and catalog entry |
+| ---------- | ------------------------------ | ------------------------------------- | -------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------ |
+| FilterChip | 3 (customers, team, tickets)   | no (new in 0.5.0, no earlier release) | 1/1                        | yes (imports only react and its own modules) | yes (no `px` literals: the height is `--choice-min-height`, then `--touch-target`) | test: yes; catalog: yes        |
+
+- **Areas.** It reaches 3 by itself, with five uses: one in tickets, one in customers, two in team (role and status) and one in `/catalogo`, which does not count.
+- **Stability.** As in the earlier amendments the clause cannot be met: the package has no earlier release of the component.
+- **Criterion 4.** None fails. The literal `36px` of Resolve's chip is a token now, with the same value.
+
+### Decision
+
+Resolve adopts FilterChip from `@yelison/forma-ui@0.5.0`, with the decisions of the first adoption:
+
+1. **Dependency and tokens.** Exact version `0.5.0` (integrity `sha512-74wlu/hx…WDIVg==`, checked against the registry; `npm audit signatures` verifies the registry signature and the SLSA provenance). `npm run sync:forma-tokens` adds tokens, all additive: `--color-purple-bg` and `--color-purple-ink` (`#efe7ff` and `#7751b8` in light, `#31244a` and `#cfb1ff` in dark, so four values; each is declared in the light block, in the dark block and in the system-dark block) and `--button-height-compact` (36px, and `--touch-target` below 768px). **No token that existed changes its value**, and `tokens.sync.test.ts` passes.
+2. **Compatible barrel.** `FilterChip/FilterChip.ts` is a one-line re-export; its `.tsx`, CSS Module and test are gone. A diff of the resolved types of the barrel before and after (135 exports each, against the base of this pull request) finds:
+   - **Additions:** `shape` on Badge, `purple` in `BadgeTone`, and `size` on Button (see «Additions Resolve does not use yet»).
+   - **A deliberate narrowing.** `FilterChipProps` no longer has `aria-pressed`: the chip owns it, and it comes from `selected`. Nothing in Resolve passes it, so no call site changes (`tsc` is clean).
+   - No import of `features/**` changes.
+3. **Mode derived from `aria-haspopup`.** The chip is a trigger when `aria-haspopup` is anything but `undefined`, `false` or `"false"`: it draws the chevron and adds no `aria-pressed`, and `selected` only changes how it looks. Without it, it is a toggle with `aria-pressed` taken from `selected` and no chevron. Resolve's five uses spread the trigger of `Menu`, which carries `aria-haspopup: 'menu'` (`MenuTriggerProps` types it as the literal), so all five stay triggers. Two tests pin it: `FilterChip.test.tsx` (inside a `Menu`, with `selected` on and off, plus the toggle mode) and `e2e/filter-chips.spec.ts` (the real Tickets, Customers and Team screens, with and without an applied filter, and at 390 px with the 44 px height), with `e2e/catalog/filter-chip.spec.ts` for `/catalogo`. A chip that lost `aria-haspopup` would silently become a toggle with `aria-pressed` and no chevron; the e2e fails on it (mutation checked).
+4. **`initialsOf` from the package.** `Avatar/initials.ts` and its tests are deleted. `Avatar/Avatar.ts` re-exports `initialsOf` with `Avatar`, and `WorkspaceMark` imports it from there (not from the barrel, which `Sidebar` is part of). `Avatar/initials.test.tsx` keeps only what is Resolve's: for eleven names (the demo workspaces, and accents, emoji, `ß` and Chinese), the `WorkspaceMark` square and the `<Avatar>` draw the same letters.
+5. **The reset is in `@layer base`.** `button, input, select, textarea { font: inherit; color: inherit }` moved from the top level of `styles/global.css` into `@layer base { … }`, as the README of the package asks. Without a layer it has the specificity of an element and beats the box of a package control, which is written in `:where()`. In a layer, any rule without one wins, whatever the order of the stylesheets, and the layer still beats the browser's own sheet, so native buttons and fields keep inheriting the font and the colour.
+   - **Nothing changes on screen** (see the measurements below). The reset could only have been beating rules of specificity 0: `:where(.forma-field-control)` (Input, Select, SearchField) and Resolve's own `:where(.control)` (Textarea, Combobox). Their font is `--font-body`, the body's, so they paint the same wherever no ancestor sets another font.
+   - **No other rule moved.** The other element rules of `global.css` (`img, svg { display: block }`, `a`, `:focus-visible`, `h1…p { margin: 0 }`) already lost nothing to a `:where()` rule, and the `prefers-reduced-motion` block uses `!important`, whose order inverts inside a layer (an `!important` in a layer beats one outside), so moving it would change behaviour for no gain.
+   - **The order of the sheets still holds.** `global.order.test.ts` pins that the reset sits inside `@layer base` and that no unlayered copy remains (mutation: take it out of the layer, or add a copy). `e2e/production-bundle.spec.ts` checks in the production build that the minified CSS keeps the layer and measures it: a native control with no class inherits the font and colour of a container, and an `Input` with the package's class takes `--font-body` and `--color-ink` instead (it fails with the reset outside the layer). The existing tests for the order of `styles.css` pass.
+6. **The two text-colour fixes of Amendment 3 are gone.** `color: var(--color-ink)` left `.search .input` in `KnowledgeHero.module.css` (the 52 px height and the border of the hero stay), and `.panel .searchInput` left `WorkspaceMenu.module.css` with its `className`. The package now gives a control the specificity of a class for its text colour. The contrast e2e tests of both (`knowledge.spec.ts`, four cases; `workspaces.spec.ts`, two) **stay and pass**, and they pass for the right reason: with the package's `.forma-field-control { color: var(--color-ink) }` rule deleted from `node_modules`, the three light-theme cases fail (contrast 1, 1 and 2.03 against the 4.5 required) and the dark ones keep passing, as before. The package was restored with `npm ci` and compared byte by byte.
+
+### Visual and behavioural differences
+
+Measured as in Amendments 1 and 3, on computed styles, box, attributes and pseudo-elements of every node, with the base (`26a6a89`, 0.4.0) and the tip served side by side, in both themes at 1440 and 390 px:
+
+- **The build** (`vite build --mode showcase`, SCENES_BUILD scenes): Home, Tickets, Customers (directory and a customer), Team, Reports, Knowledge (home, an article and the new-article editor), New ticket, a ticket, the four Settings pages, the global search, the sidebar with its workspace mark and profile, collapsed and as the drawer. On Tickets, Customers and Team, each filter chip at rest, with hover, with keyboard focus, with its menu open and with a filter applied; each search field with hover, focus and text; and the focused native controls (`select`, `textarea`, `input`) of every page.
+- **`/catalogo`** (development server, SCENES_CATALOG scenes), with the same chip states, search fields and controls.
+- **The mobile drawer's «Buscar espacio»** needs 8 workspaces or more and the demo admin has four, so it is not in the dump. It is covered by the contrast e2e test with 9 workspaces (above) and by the base and tip computed colour of the field.
+
+**Result: no computed property, box, attribute or pseudo-element differs**, apart from the new custom properties, which the dump lists on every node, and the clock of the `datetime` attributes. That includes the native buttons, fields, selects and textareas of every page (the reset), the hero of Knowledge and the sidebar (the workspace mark with `initialsOf` from the package).
+
+**FilterChip.** The differences the package announced, measured:
+
+- **The box.** `min-height` is `--choice-min-height` (36px) instead of a literal `36px`, and below 768px `--touch-target` (44px), as before. Both draw `box-sizing: border-box` (Resolve's global rule; the package's chip sets none), so the 36px includes the border in both. Measured height: 36px at 1440 and 44px at 390, on the base and on the tip, for every chip.
+- **The focus ring.** The chip has its own `:focus-visible { outline: var(--focus-ring); outline-offset: 2px }`. The base chip took the same two values from the global `:focus-visible` rule, so the computed outline is identical (checked on every chip with keyboard focus).
+- **`:disabled`.** The package's chip has a disabled look (background `--color-disabled`, text `--color-muted`, transparent border, `cursor: not-allowed`) that the base chip did not have. **No screen of Resolve disables a chip**, so nothing a person sees changes; to measure it the dump forces `disabled` by hand on each chip: `rgb(255, 255, 255)` to `rgb(210, 218, 231)` for the background and `rgb(23, 36, 61)` to `rgb(97, 109, 129)` for the text in light, `rgb(20, 31, 50)` to `rgb(52, 68, 92)` and `rgb(231, 237, 248)` to `rgb(160, 175, 197)` in dark. Screenshots of before and after are in the task evidence. A screen that disables a chip in the future gets this look.
+- **Hover** (`--color-surface-hover`) and the applied look (`--color-blue-*`) are the same. With a filter applied, the Tickets and Customers chip stays and only changes colour; in Team the chip gives way to the «Quitar el filtro» pill, as before.
+
+### Additions Resolve does not use yet
+
+`Badge` takes `tone="purple"` and `shape="pill"`, and `Button` takes `size="compact"` (36px, `--button-height-compact`). Nothing in Resolve passes them: a `Badge` or `Button` without the props renders the same markup and styles (the dump finds no difference), so there is nothing to adopt now.
+
+### Weight
+
+Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build`), before and after: JavaScript 670 219 → 670 091 bytes (−128; gzip 203 417 → 203 245, −172) and CSS 126 451 → 127 287 bytes (+836; gzip 22 381 → 22 493, +112). The chip's code and styles now come from the package, with the purple tone and the compact button in `styles.css`.
+
+### Pending
+
+- **Resolve, when it adopts Forma UI 0.6.0** (Menu and Alert): the same method, with `Menu` as the component that all five chips and the global search depend on.
+- **Forma UI:** nothing from this pull request. A disabled chip, and `Badge purple`, `Badge pill` and `Button compact`, wait for a screen that needs them.
+- **Checkbox and Switch** are still the next family of the same base (`shared/choice.module.css`).
