@@ -75,12 +75,18 @@ ol[role='list'] {
   list-style: none;
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
+/* El reset de los controles va en `@layer base`, como pide el README de @yelison/forma-ui: una regla sin capa tiene la
+ * especificidad de un elemento y ganaría a la caja de los controles del paquete (`:where()`, sin especificidad) y a la de
+ * `shared/control.module.css`. En una capa, cualquier regla sin capa gana a esta sin importar el orden, y ella sigue
+ * ganando a la hoja de estilos del navegador: los botones y campos nativos heredan la fuente y el color. */
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
 }
 
 a {

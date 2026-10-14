@@ -178,3 +178,52 @@ test('en el build, la clase de Resolve de los radios del tema gana por orden a l
   await expect(row).toBeVisible()
   expect(await row.evaluate((el) => getComputedStyle(el).minHeight)).toBe('44px')
 })
+
+/**
+ * El reset de los controles (`button, input, select, textarea { font: inherit; color: inherit }`) va en `@layer base`,
+ * como pide el README del paquete: sin capa tiene la especificidad de un elemento y gana a la caja de los controles del
+ * paquete (`:where(.forma-field-control)`), que solo lleva la fuente y el relleno. Se mide en el build, con un contenedor
+ * de fuente y color propios: un control nativo sin clase los hereda (la capa gana al navegador) y uno del paquete usa su
+ * fuente y su tinta (la capa pierde ante cualquier regla sin capa).
+ */
+test('en el build, el reset de los controles está en @layer base y cede ante las reglas del paquete', async ({
+  page,
+}) => {
+  const resetRule = /(?:^|[}\s])button\s*,\s*input\s*,\s*select\s*,\s*textarea\s*\{[^}]*font:\s*inherit/
+  const sheets = readdirSync(assets).filter((name) => name.endsWith('.css'))
+  const layered = sheets.filter((name) =>
+    /@layer\s+base\s*\{\s*button\s*,\s*input\s*,\s*select\s*,\s*textarea\s*\{/.test(
+      readFileSync(resolve(assets, name), 'utf8'),
+    ),
+  )
+  expect(layered, 'hojas con el reset dentro de @layer base').toHaveLength(1)
+  const css = readFileSync(resolve(assets, layered[0] ?? ''), 'utf8')
+  expect(
+    css.replace(/@layer\s+base\s*\{[^{}]*\{[^}]*\}\s*\}/, '').match(resetRule),
+    'el reset fuera de la capa',
+  ).toBeNull()
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/clientes')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  const probe = await page.evaluate(() => {
+    const host = document.createElement('div')
+    host.style.cssText = 'font: italic 700 21px/30px serif; color: rgb(1, 2, 3)'
+    host.innerHTML =
+      '<button id="p-button">a</button><textarea id="p-area"></textarea><input id="p-field" class="forma-field-control" />'
+    document.body.append(host)
+    const read = (id: string) => {
+      const cs = getComputedStyle(document.getElementById(id)!)
+      return { font: `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize}`, color: cs.color }
+    }
+    const result = { button: read('p-button'), area: read('p-area'), field: read('p-field') }
+    host.remove()
+    return result
+  })
+  // Nativos sin clase: heredan la fuente y el color del contenedor.
+  expect(probe.button).toEqual({ font: 'italic 700 21px', color: 'rgb(1, 2, 3)' })
+  expect(probe.area).toEqual({ font: 'italic 700 21px', color: 'rgb(1, 2, 3)' })
+  // Control del paquete: su `font: var(--font-body)` (en `:where()`) gana al reset en capa, y su tinta es la del token.
+  expect(probe.field.font).not.toBe('italic 700 21px')
+  expect(probe.field.color).not.toBe('rgb(1, 2, 3)')
+})

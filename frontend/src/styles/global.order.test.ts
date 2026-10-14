@@ -31,6 +31,28 @@ describe('global.css · hojas del paquete', () => {
   })
 })
 
+/* El README del paquete pide el reset de los controles en `@layer base`: sin capa tiene la especificidad de un elemento y
+ * gana a la caja de los controles del paquete, que va en `:where()`. Aquí se fija el fuente; `e2e/production-bundle.spec.ts`
+ * comprueba que el build conserva la capa. */
+describe('global.css · reset de los controles en @layer base', () => {
+  const body = withoutComments(read('src/styles/global.css'))
+  const RESET = /(?:^|[}\s])button\s*,\s*input\s*,\s*select\s*,\s*textarea\s*\{[^}]*\}/g
+  /** El contenido de cada `@layer base { … }` de nivel superior. */
+  const layerBase = [...body.matchAll(/@layer\s+base\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g)].map(([, inner]) => inner ?? '')
+
+  it('declara el reset `font: inherit; color: inherit` dentro de `@layer base`', () => {
+    const resets = layerBase.flatMap((inner) => inner.match(RESET) ?? [])
+    expect(resets).toHaveLength(1)
+    expect(resets[0]).toMatch(/font:\s*inherit/)
+    expect(resets[0]).toMatch(/color:\s*inherit/)
+  })
+
+  it('no deja una copia del reset fuera de la capa', () => {
+    const outside = layerBase.reduce((css, inner) => css.replace(inner, ''), body)
+    expect(outside.match(RESET) ?? []).toEqual([])
+  })
+})
+
 describe('components/ui/index.ts · styles.css del paquete', () => {
   it('es la primera sentencia del barrel, antes de cualquier componente de Resolve', () => {
     const statements = withoutComments(read('src/components/ui/index.ts').replace(/^\s*\/\/.*$/gm, ''))
