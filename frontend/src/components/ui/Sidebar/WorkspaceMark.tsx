@@ -1,5 +1,5 @@
 import { cx } from '../../../lib/cx'
-import { initialsOf } from '../Avatar/initials'
+import { initialsOf } from '../Avatar/Avatar'
 import styles from './WorkspaceMark.module.css'
 
 export type WorkspaceMarkSize = 'small' | 'medium' | 'large' | 'touch'
