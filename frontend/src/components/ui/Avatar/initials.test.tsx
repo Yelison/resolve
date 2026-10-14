@@ -1,48 +1,47 @@
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { Avatar } from './Avatar'
-import { initialsOf } from './initials'
+import { WorkspaceMark } from '../Sidebar/WorkspaceMark'
+import { Avatar, initialsOf } from './Avatar'
 
-describe('initialsOf', () => {
-  it.each([
-    ['Laura Méndez', 'LM'],
-    ['María Pérez Gómez', 'MG'],
-    ['yelisson', 'Y'],
-    ['  Ana   Ruiz  ', 'AR'],
-    ['', ''],
-    ['   ', ''],
-  ])('%j → %j', (name, expected) => {
-    expect(initialsOf(name)).toBe(expected)
-  })
-
-  it('no parte una letra con el acento combinado: «e» + U+0301 sigue entera', () => {
-    expect(initialsOf('émile durand')).toBe('ÉD')
-  })
-
-  it('no parte un emoji compuesto', () => {
-    expect(initialsOf('👩‍💻 dev')).toBe('👩‍💻D')
-  })
-
-  it('deja «ß» como está: su mayúscula son dos letras', () => {
-    expect(initialsOf('ßeta Ruiz')).toBe('ßR')
-  })
+// `initialsOf` y la lógica de las iniciales son de @yelison/forma-ui. Lo que se fija aquí es lo de Resolve: que el
+// cuadro de un espacio (`WorkspaceMark`) y el `<Avatar>` pintan las mismas letras para el mismo nombre.
+const draw = (name: string) => ({
+  mark: render(<WorkspaceMark name={name} />).container.firstElementChild?.textContent,
+  avatar: render(<Avatar name={name} />).container.firstElementChild?.textContent,
 })
 
-describe('initialsOf frente al Avatar del paquete', () => {
-  // El paquete no exporta su ayudante. Si su lógica cambia, este test avisa de que el espacio y el avatar se separan.
+describe('iniciales de WorkspaceMark frente a las del Avatar', () => {
+  // Los cuatro espacios de la demostración (`src/showcase/install.test.ts`: Acme, Kora, Lumen y Norte).
+  describe.each([
+    ['Acme Studio', 'AS'],
+    ['Kora Fitness', 'KF'],
+    ['Lumen Diseño', 'LD'],
+    ['Norte Viajes', 'NV'],
+  ])('espacio de la demo %j', (name, initials) => {
+    it(`el espacio y el avatar pintan «${initials}»`, () => {
+      expect(draw(name)).toEqual({ mark: initials, avatar: initials })
+      expect(initialsOf(name)).toBe(initials)
+    })
+  })
+
+  // Casos de la lógica del paquete (cortar por carácter percibido, no partir un acento ni un emoji, dejar `ß`): no son
+  // espacios de la demo, sino nombres con los que el espacio y el avatar podrían separarse.
   it.each([
-    'Laura Méndez',
-    'María Pérez Gómez',
-    'yelisson',
-    '  Ana   Ruiz  ',
-    'émile durand',
-    '👩‍💻 dev',
-    'ßeta Ruiz',
-    'ǆuro Ǆurić',
-    'Zoë Ångström Öberg',
-    '李 小龙',
-  ])('%j pinta lo mismo que el avatar', (name) => {
-    const { container } = render(<Avatar name={name} />)
-    expect(container.firstElementChild?.textContent).toBe(initialsOf(name))
+    ['ßeta Ruiz', 'ßR'],
+    ['ǆuro Ǆurić', 'ǄǄ'],
+    // «Émile» con la É precompuesta (U+00C9), y con el acento combinado (E + U+0301), en mayúscula y en minúscula.
+    ['\u00c9mile Durand', '\u00c9D'],
+    ['E\u0301mile Durand', 'E\u0301D'],
+    ['e\u0301mile durand', 'E\u0301D'],
+    ['👩‍💻 dev', '👩‍💻D'],
+    ['Zoë Ångström Öberg', 'ZÖ'],
+    ['李 小龙', '李小'],
+    ['  Ana   Ruiz  ', 'AR'],
+    ['Mío', 'M'],
+  ])('nombre %j: el espacio y el avatar pintan lo mismo', (name, expected) => {
+    const { mark, avatar } = draw(name)
+    expect(mark).toBe(avatar)
+    expect(mark).toBe(initialsOf(name))
+    expect(mark).toBe(expected)
   })
 })

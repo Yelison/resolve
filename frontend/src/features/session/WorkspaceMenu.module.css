@@ -19,11 +19,6 @@
   margin-bottom: var(--space-4);
 }
 
-/* El campo es una superficie dentro del panel oscuro: el texto no hereda el color claro del drawer. */
-.panel .searchInput {
-  color: var(--color-ink);
-}
-
 .list {
   display: flex;
   flex-direction: column;

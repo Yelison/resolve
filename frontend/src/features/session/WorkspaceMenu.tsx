@@ -160,7 +160,6 @@ export function WorkspaceDisclosure({ me, card }: { me: Me; card: SidebarWorkspa
               value={query}
               onValueChange={setQuery}
               fieldClassName={styles.search}
-              className={styles.searchInput}
             />
           )}
           <ul className={styles.list}>

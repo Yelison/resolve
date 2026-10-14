@@ -59,14 +59,10 @@
   flex: 100 1 16rem;
 }
 
-/*
- * La caja es el `<input>` (`className`), no el contenedor. El texto se fija aquí: la banda lo pone claro y el campo, de
- * fondo `--color-surface`, lo heredaría (la regla del paquete va en `:where()` y no gana a la herencia del reset).
- */
+/* La caja es el `<input>` (`className`), no el contenedor. El color del texto es el del paquete (`--color-ink`), aunque la banda sea oscura. */
 .search .input {
   min-height: calc(var(--touch-target) + var(--space-8));
   border-color: var(--hero-field-border);
-  color: var(--color-ink);
   text-align: left;
 }
 
