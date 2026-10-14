@@ -3,9 +3,11 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /*
- * `Input` es del paquete; `Select`, `Textarea` y `Combobox` comparten la caja de `shared/control.module.css`, que es una
- * copia de la del paquete (ADR 0002). Este test compara, regla a regla, lo que declaran las dos para que no se separen:
- * el anillo de foco, el estado de solo lectura, el de deshabilitado, el hover y el movimiento reducido.
+ * `Input` y `Select` son del paquete; `Textarea` y `Combobox` comparten la caja de `shared/control.module.css`, que es una
+ * copia de la del paquete (ADR 0002). Este test compara las dos hojas para que no se separen: que ninguna regla del
+ * paquete falte en la copia ni al revés, que vayan en el mismo orden (a igual especificidad decide el orden) y, regla a
+ * regla, lo que declaran: el anillo de foco, el estado de solo lectura, el de deshabilitado, el hover y el movimiento
+ * reducido.
  */
 const packageCss = readFileSync(
   resolve(import.meta.dirname, '../../../../node_modules/@yelison/forma-ui/dist/styles.css'),
@@ -67,10 +69,15 @@ describe('caja de control de Resolve frente a la del paquete', () => {
   const mirror = parse(packageCss)
     .filter((rule) => rule.selector.includes('forma-field-control'))
     .map((rule) => ({ ...rule, selector: rule.selector.replaceAll('.forma-field-control', '.control') }))
-  const own = new Map(parse(resolveCss).map((rule) => [key(rule), rule]))
+  const ownRules = parse(resolveCss)
+  const own = new Map(ownRules.map((rule) => [key(rule), rule]))
 
   it('la hoja del paquete tiene reglas del control (la comparación no está vacía)', () => {
     expect(mirror.length).toBeGreaterThanOrEqual(8)
+  })
+
+  it('la copia no tiene reglas que el paquete no tenga, ni le falta ninguna, y van en el mismo orden', () => {
+    expect(ownRules.map(key)).toEqual(mirror.map(key))
   })
 
   for (const rule of mirror) {
