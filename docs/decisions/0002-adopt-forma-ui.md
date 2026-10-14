@@ -331,7 +331,7 @@ Measured as in Amendments 1 and 3, on computed styles, box, attributes and pseud
 
 ### Weight
 
-Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build`), before and after: JavaScript 670 219 → 670 091 bytes (−128; gzip 203 417 → 203 245, −172) and CSS 126 451 → 127 287 bytes (+836; gzip 22 381 → 22 493, +112). The chip's code and styles now come from the package, with the purple tone and the compact button in `styles.css`.
+Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build`), before and after: JavaScript 670 219 → 670 091 bytes (−128; gzip 203 417 → 203 239, −178) and CSS 126 451 → 127 305 bytes (+854; gzip 22 381 → 22 499, +118). The chip's code and styles now come from the package, with the purple tone and the compact button in `styles.css`.
 
 ### Pending
 
