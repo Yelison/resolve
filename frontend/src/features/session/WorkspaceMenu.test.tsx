@@ -86,11 +86,17 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     renderShell()
     const menu = await openSwitcher()
     const rows = within(menu).getAllByRole('menuitemradio')
-    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
-      'Acme Studio, Administrador',
-      'Northwind, Agente',
-      'Norte Viajes, Cliente',
-    ])
+    // El nombre accesible de cada fila es el del espacio; su rol es la descripción (`aria-describedby`).
+    const spaces = [
+      ['Acme Studio', 'Administrador'],
+      ['Northwind', 'Agente'],
+      ['Norte Viajes', 'Cliente'],
+    ] as const
+    expect(rows).toHaveLength(spaces.length)
+    spaces.forEach(([name, role], index) => {
+      expect(rows[index]).toHaveAccessibleName(name)
+      expect(rows[index]).toHaveAccessibleDescription(role)
+    })
     expect(rows.map((row) => row.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false'])
     // Un solo separador: el de «Crear espacio», que abre el bloque de acciones.
     expect(within(menu).getAllByRole('separator')).toHaveLength(1)
@@ -144,7 +150,8 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     mockApi({ 'GET /api/me': { body: me } })
     renderShell()
     const menu = await openSwitcher(long)
-    const row = within(menu).getByRole('menuitemradio', { name: `${long}, Administrador` })
+    const row = within(menu).getByRole('menuitemradio', { name: long })
+    expect(row).toHaveAccessibleDescription('Administrador')
     expect(row).toHaveAttribute('title', long)
     expect(await card(long)).toHaveAttribute('title', long)
   })
@@ -158,7 +165,9 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     const { queryClient, router } = renderShell('/tickets/1046')
     queryClient.setQueryData(['tickets', 'detail', 1046], { subject: 'Ticket de Acme' })
     const menu = await openSwitcher()
-    await userEvent.click(within(menu).getByRole('menuitemradio', { name: 'Northwind, Agente' }))
+    const northwind = within(menu).getByRole('menuitemradio', { name: 'Northwind' })
+    expect(northwind).toHaveAccessibleDescription('Agente')
+    await userEvent.click(northwind)
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
     const post = requests(spy).find((request) => request.url.endsWith('/api/session/organization'))!
@@ -176,7 +185,9 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     const spy = mockApi({ 'GET /api/me': { body: meInAcme } })
     renderShell()
     const menu = await openSwitcher()
-    await userEvent.click(within(menu).getByRole('menuitemradio', { name: 'Acme Studio, Administrador' }))
+    const acme = within(menu).getByRole('menuitemradio', { name: 'Acme Studio' })
+    expect(acme).toHaveAccessibleDescription('Administrador')
+    await userEvent.click(acme)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(requests(spy).some((request) => request.method === 'POST')).toBe(false)
     expect(await card()).toHaveFocus()
@@ -293,11 +304,10 @@ describe('selector de espacios · muchos espacios', () => {
     expect(menu).not.toContainElement(search)
     await waitFor(() => expect(search).toHaveFocus())
     await userEvent.keyboard('clinica')
-    expect(
-      within(menu)
-        .getAllByRole('menuitemradio')
-        .map((row) => row.getAttribute('aria-label')),
-    ).toEqual(['Clínica Sonrisa, Agente'])
+    const found = within(menu).getAllByRole('menuitemradio')
+    expect(found).toHaveLength(1)
+    expect(found[0]).toHaveAccessibleName('Clínica Sonrisa')
+    expect(found[0]).toHaveAccessibleDescription('Agente')
     expect(within(menu).getByRole('menuitem', { name: 'Tus espacios' })).toBeInTheDocument()
     await userEvent.clear(search)
     await userEvent.keyboard('zzz')
@@ -380,8 +390,30 @@ describe('selector de espacios · barra colapsada y drawer', () => {
     expect(within(trigger).getByText('AS')).toHaveAttribute('data-color', 'green')
     await userEvent.click(trigger)
     const group = within(drawer).getByRole('group', { name: 'Cambiar de espacio' })
-    const row = within(group).getByRole('button', { name: 'Northwind, Agente' })
+    const row = within(group).getByRole('button', { name: 'Northwind' })
     expect(row.querySelector('[data-color]')).toHaveAttribute('data-color', 'magenta')
+  })
+
+  it('en el drawer, cada fila se anuncia como la del menú de escritorio: el espacio es su nombre y el rol su descripción', async () => {
+    mockApi({ 'GET /api/me': { body: meInAcme } })
+    renderShell('/tickets', undefined, undefined, 390)
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
+    await userEvent.click(
+      await within(drawer).findByRole('button', { name: 'Espacio: Acme Studio. Cambiar de espacio' }),
+    )
+    const group = within(drawer).getByRole('group', { name: 'Cambiar de espacio' })
+    const spaces = [
+      ['Acme Studio', 'Administrador'],
+      ['Northwind', 'Agente'],
+      ['Norte Viajes', 'Cliente'],
+    ] as const
+    for (const [name, role] of spaces) {
+      const row = within(group).getByRole('button', { name })
+      expect(row).toHaveAccessibleName(name)
+      expect(row).toHaveAccessibleDescription(role)
+      expect(row).not.toHaveAttribute('aria-label')
+    }
   })
 
   it('en el drawer el selector se despliega dentro del menú y elegir otro espacio cierra el drawer', async () => {
@@ -397,12 +429,9 @@ describe('selector de espacios · barra colapsada y drawer', () => {
     await userEvent.click(trigger)
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     const group = within(drawer).getByRole('group', { name: 'Cambiar de espacio' })
-    expect(within(group).getByRole('button', { name: 'Acme Studio, Administrador' })).toHaveAttribute(
-      'aria-current',
-      'true',
-    )
+    expect(within(group).getByRole('button', { name: 'Acme Studio' })).toHaveAttribute('aria-current', 'true')
     expect(within(group).getByRole('link', { name: 'Tus espacios' })).toHaveAttribute('href', '/configuracion/espacios')
-    await userEvent.click(within(group).getByRole('button', { name: 'Northwind, Agente' }))
+    await userEvent.click(within(group).getByRole('button', { name: 'Northwind' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Menú principal' })).not.toBeInTheDocument())
     expect(document.body).not.toHaveFocus()
@@ -415,7 +444,7 @@ describe('selector de espacios · barra colapsada y drawer', () => {
     const drawer = screen.getByRole('dialog', { name: 'Menú principal' })
     const trigger = await within(drawer).findByRole('button', { name: 'Espacio: Acme Studio. Cambiar de espacio' })
     await userEvent.click(trigger)
-    await userEvent.click(within(drawer).getByRole('button', { name: 'Acme Studio, Administrador' }))
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Acme Studio' }))
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(within(drawer).queryByRole('group', { name: 'Cambiar de espacio' })).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
@@ -432,11 +461,10 @@ describe('selector de espacios · barra colapsada y drawer', () => {
     await userEvent.click(await within(drawer).findByRole('button', { name: /Cambiar de espacio/ }))
     await userEvent.type(within(drawer).getByRole('searchbox', { name: 'Buscar espacio' }), 'clinica')
     const group = within(drawer).getByRole('group', { name: 'Cambiar de espacio' })
-    expect(
-      within(group)
-        .getAllByRole('button', { name: /, (Administrador|Agente|Cliente)$/ })
-        .map((row) => row.getAttribute('aria-label')),
-    ).toEqual(['Clínica Sonrisa, Agente'])
+    const rows = within(group).getAllByRole('button', { name: /^Cl/ })
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toHaveAccessibleName('Clínica Sonrisa')
+    expect(rows[0]).toHaveAccessibleDescription('Agente')
   })
 
   it('en el drawer, desde 8 espacios hay buscador que filtra la lista', async () => {
@@ -448,7 +476,7 @@ describe('selector de espacios · barra colapsada y drawer', () => {
     await userEvent.click(await within(drawer).findByRole('button', { name: /Cambiar de espacio/ }))
     await userEvent.type(within(drawer).getByRole('searchbox', { name: 'Buscar espacio' }), 'Espacio 8')
     const group = within(drawer).getByRole('group', { name: 'Cambiar de espacio' })
-    expect(within(group).getAllByRole('button', { name: /, (Administrador|Agente|Cliente)$/ })).toHaveLength(1)
+    expect(within(group).getAllByRole('listitem')).toHaveLength(1)
   })
 
   it('en el drawer, «Crear espacio» abre el diálogo sobre el menú y Escape cierra solo el diálogo', async () => {

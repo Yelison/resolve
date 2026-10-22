@@ -267,7 +267,10 @@ test.describe('selector de espacios', () => {
     await trigger.click()
     const group = page.getByRole('group', { name: 'Cambiar de espacio' })
     const green = await tokenColor(page, 'green')
-    const lumen = group.getByRole('button', { name: 'Lumen Diseño, Agente' }).locator('[aria-hidden="true"]').first()
+    const lumen = group
+      .getByRole('button', { name: 'Lumen Diseño', exact: true })
+      .locator('[aria-hidden="true"]')
+      .first()
     expect(await lumen.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe(green)
     expect(await trigger.evaluate((node) => getComputedStyle(node.firstElementChild!).backgroundColor)).toBe(
       await tokenColor(page, 'blue'),
@@ -296,6 +299,28 @@ test.describe('selector de espacios', () => {
     expect(box.y + box.height).toBeLessThanOrEqual(800)
   })
 
+  test('móvil: cada fila del drawer se anuncia como la del menú de escritorio: el espacio es su nombre y el rol su descripción', async ({
+    page,
+  }) => {
+    await mockApi(page, 'admin', { organizations: spaces })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/tickets')
+    await page.getByRole('button', { name: 'Abrir menú' }).click()
+    await card(page).click()
+    const group = page.getByRole('group', { name: 'Cambiar de espacio' })
+    const rows = [
+      ['Acme Studio', 'Administrador'],
+      ['Kora Fitness', 'Administrador'],
+      ['Lumen Diseño', 'Agente'],
+      ['Norte Viajes', 'Cliente'],
+    ] as const
+    for (const [name, role] of rows) {
+      const row = group.getByRole('button', { name, exact: true })
+      await expect(row).toHaveAccessibleName(name)
+      await expect(row).toHaveAccessibleDescription(role)
+    }
+  })
+
   test('móvil: dentro del drawer se despliega la lista; elegir otro espacio cierra el drawer', async ({ page }) => {
     await mockApi(page, 'admin', { organizations: spaces })
     await page.setViewportSize({ width: 390, height: 844 })
@@ -308,7 +333,7 @@ test.describe('selector de espacios', () => {
     const group = page.getByRole('group', { name: 'Cambiar de espacio' })
     for (const row of await group.getByRole('button').all()) await expectTouchTarget(row, 390)
     await expect(group.getByRole('link', { name: 'Tus espacios' })).toBeVisible()
-    await group.getByRole('button', { name: 'Lumen Diseño, Agente' }).click()
+    await group.getByRole('button', { name: 'Lumen Diseño', exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByRole('dialog', { name: 'Menú principal' })).toBeHidden()
     await page.getByRole('button', { name: 'Abrir menú' }).click()
@@ -349,7 +374,7 @@ test.describe('selector de espacios', () => {
     const group = page.getByRole('group', { name: 'Cambiar de espacio' })
     const search = group.getByRole('searchbox', { name: 'Buscar espacio' })
     await search.fill('Espacio 7')
-    await expect(group.getByRole('button', { name: /^Espacio 7,/ })).toHaveCount(1)
+    await expect(group.getByRole('button', { name: 'Espacio 7', exact: true })).toHaveCount(1)
     // El primer Escape solo vacía el campo: ni el drawer ni la lista se cierran.
     await search.press('Escape')
     await expect(search).toHaveValue('')
