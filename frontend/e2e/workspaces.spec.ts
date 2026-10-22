@@ -374,7 +374,7 @@ test.describe('selector de espacios', () => {
     const group = page.getByRole('group', { name: 'Cambiar de espacio' })
     const search = group.getByRole('searchbox', { name: 'Buscar espacio' })
     await search.fill('Espacio 7')
-    await expect(group.getByRole('button', { name: /^Espacio 7,/ })).toHaveCount(1)
+    await expect(group.getByRole('button', { name: 'Espacio 7', exact: true })).toHaveCount(1)
     // El primer Escape solo vacía el campo: ni el drawer ni la lista se cierran.
     await search.press('Escape')
     await expect(search).toHaveValue('')
