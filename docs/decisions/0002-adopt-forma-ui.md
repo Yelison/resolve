@@ -407,7 +407,7 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 
 ## Amendment 6 · 0.7.0: the dialog fix and new icons
 
-- **Status:** accepted, 2026-10-22, in this pull request (the coordinator confirms the number). Resolve moves to `@yelison/forma-ui@0.7.0` for a version and the icons; it adopts no new component.
+- **Status:** accepted, 2026-10-22, in #166. Resolve moves to `@yelison/forma-ui@0.7.0` for a version and the icons; it adopts no new component.
 
 ### What the release brings
 
