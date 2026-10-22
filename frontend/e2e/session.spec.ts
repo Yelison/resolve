@@ -555,11 +555,11 @@ test.describe('menú de la cuenta', () => {
     await page.getByRole('button', { name: 'Abrir menú' }).click()
     await workspaceCard(page).click()
     const group = page.getByRole('group', { name: 'Cambiar de espacio' })
-    await expect(group.getByRole('button', { name: 'Acme Studio, Administrador' })).toHaveAttribute(
+    await expect(group.getByRole('button', { name: 'Acme Studio', exact: true })).toHaveAttribute(
       'aria-current',
       'true',
     )
-    await group.getByRole('button', { name: 'Northwind, Agente' }).click()
+    await group.getByRole('button', { name: 'Northwind', exact: true }).click()
 
     await expect(page).toHaveURL(/\/$/)
     await expect(page.getByRole('dialog')).toHaveCount(0)

@@ -116,7 +116,8 @@ function WorkspaceSwitcher({ me, card, onCreate }: { me: Me; card: SidebarWorksp
 /**
  * El selector dentro del drawer móvil: la tarjeta del espacio despliega la lista debajo, en el propio menú, sin una
  * capa flotante encima de otra capa modal. Elegir un espacio lo cambia (la navegación cierra el drawer); «Crear espacio»
- * abre su diálogo (una hoja inferior sobre el drawer) y «Tus espacios» es un enlace.
+ * abre su diálogo (una hoja inferior sobre el drawer) y «Tus espacios» es un enlace. Cada fila se anuncia como la del
+ * `Menu` de escritorio: el nombre del espacio es su nombre accesible y el rol, su descripción.
  */
 export function WorkspaceDisclosure({ me, card }: { me: Me; card: SidebarWorkspace }) {
   const { switchOrganization } = useSessionActions()
@@ -169,15 +170,20 @@ export function WorkspaceDisclosure({ me, card }: { me: Me; card: SidebarWorkspa
                   type="button"
                   className={styles.row}
                   aria-current={workspace.current || undefined}
-                  aria-label={`${workspace.name}, ${workspaceRoleLabel(workspace)}`}
+                  aria-labelledby={`${panelId}-name-${workspace.id}`}
+                  aria-describedby={`${panelId}-role-${workspace.id}`}
                   title={workspace.name}
                   disabled={switchOrganization.isPending && !workspace.current}
                   onClick={() => choose(workspace)}
                 >
                   <WorkspaceMark name={workspace.name} color={workspace.color} size="small" />
                   <span className={styles.text}>
-                    <span className={styles.name}>{workspace.name}</span>
-                    <span className={styles.role}>{workspaceRoleLabel(workspace)}</span>
+                    <span id={`${panelId}-name-${workspace.id}`} className={styles.name}>
+                      {workspace.name}
+                    </span>
+                    <span id={`${panelId}-role-${workspace.id}`} className={styles.role}>
+                      {workspaceRoleLabel(workspace)}
+                    </span>
                   </span>
                   {workspace.current && <Icon name="check" className={styles.mark} />}
                 </button>
