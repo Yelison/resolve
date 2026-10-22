@@ -1,7 +1,7 @@
 # 0002 · Adopt Forma UI for the shared components
 
 - **Status:** accepted, 2026-10-10. It landed with the adoption, in #120 (Button, IconButton, Icon) and #121 (the rest); the tokens came in #114.
-- **Supersedes:** [0001](0001-forma-ui-extraction.md), in part: for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal. [Amendment 1](#amendment-1--020-tabs-and-radio) adds Tabs and Radio, [Amendment 3](#amendment-3--040-avatar-searchfield-and-select) adds Avatar, SearchField and Select, [Amendment 4](#amendment-4--050-filterchip-initialsof-and-the-reset-layer) adds FilterChip, and [Amendment 5](#amendment-5--060-menu-and-alert) adds Menu and Alert (Amendment 2 moves literal sizes into tokens and adds no component). 0001 still applies to every component in `frontend/src/components/ui` that none of the amendments lists.
+- **Supersedes:** [0001](0001-forma-ui-extraction.md), in part: for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal. [Amendment 1](#amendment-1--020-tabs-and-radio) adds Tabs and Radio, [Amendment 3](#amendment-3--040-avatar-searchfield-and-select) adds Avatar, SearchField and Select, [Amendment 4](#amendment-4--050-filterchip-initialsof-and-the-reset-layer) adds FilterChip, and [Amendment 5](#amendment-5--060-menu-and-alert) adds Menu and Alert [Amendment 6](#amendment-6--070-the-dialog-fix-and-new-icons) adopts no component (a dialog fix and thirteen icons), and Amendment 2 moves literal sizes into tokens and adds no component. 0001 still applies to every component in `frontend/src/components/ui` that none of the amendments lists.
 
 ## Context
 
@@ -129,7 +129,7 @@ Nothing else differs, measured twice: on the development server with all the pro
 - **Domain and shell components stay here, under 0001.** That covers TicketRow, Message, Editor, Timeline, Sidebar, Topbar and the rest of the catalog. Tabs and Radio were measured and recorded in Amendment 1; the next families to extract (Checkbox, Switch, NavItem) will be measured against 0001's criteria and recorded by amending this ADR in the same way.
 - **0001 is marked «Superseded in part by 0002»** for the eight components above, in the same pull request.
 - **One scroll lock.** The drawer of the shell (`shared/useModalDialog.ts`) locks the page scroll with the package's public `useScrollLock`, the same counter and the same class (`forma-scroll-locked`, from `base.css`) as the package's `Dialog`. A dialog opened over the open drawer (the account menu lives in the drawer on mobile) and closed again leaves the lock and the scrollbar compensation as the drawer needs them; an e2e with classic scrollbars checks it. Resolve's own `lib/scrollLock` and `html.scroll-locked` are gone.
-- **Copies of helpers the package does not export.** Until the drawer has a counterpart in the package, Resolve keeps its own `useModalDialog` (the drawer's, which also uses the package's `useScrollLock`), next to the copies inside the package's `Dialog` and `Tooltip`. They are part of the initial JavaScript and the reason it does not shrink with the extraction. *`useFloating` and `position`, the helpers of `Menu`, were deleted when `Menu` came from the package (Amendment 5).*
+- **Copies of helpers the package does not export.** Until the drawer has a counterpart in the package, Resolve keeps its own `useModalDialog` (the drawer's, which also uses the package's `useScrollLock`), next to the copies inside the package's `Dialog` and `Tooltip`. They are part of the initial JavaScript and the reason it does not shrink with the extraction. _`useFloating` and `position`, the helpers of `Menu`, were deleted when `Menu` came from the package (Amendment 5)._
 
 ## Amendment 1 · 0.2.0: Tabs and Radio
 
@@ -265,9 +265,9 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 
 ### Pending
 
-- **Forma UI:** export the initials helper; let `:where()` rules not lose to an inherited colour; say in the changelog that `fieldClassName` of SearchField moved from the box to its container. *Done in 0.5.0 (Amendment 4): `initialsOf` is exported, the colour of a control has the specificity of a class, and the changelog and README say where each class goes.*
+- **Forma UI:** export the initials helper; let `:where()` rules not lose to an inherited colour; say in the changelog that `fieldClassName` of SearchField moved from the box to its container. _Done in 0.5.0 (Amendment 4): `initialsOf` is exported, the colour of a control has the specificity of a class, and the changelog and README say where each class goes._
 - **Checkbox and Switch** are still the next family of the same base.
-- **Resolve, when it adopts Forma UI 0.5.0:** *all three done in Amendment 4.*
+- **Resolve, when it adopts Forma UI 0.5.0:** _all three done in Amendment 4._
   - Remove `color: var(--color-ink)` from `.search .input` in `KnowledgeHero.module.css`, and the `.panel .searchInput` rule with its `className` in `WorkspaceMenu`: the package will give the control a colour of its own. The contrast e2e tests of both stay.
   - Move the element reset of `styles/global.css` into `@layer base`.
   - Delete `Avatar/initials.ts` and its guardian, because the package will export `initialsOf`; `WorkspaceMark` imports it from there.
@@ -281,9 +281,9 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 
 Same columns and rules as Amendments 1 and 3, measured on the code of this pull request (script `measure-adr-050.mjs` in the task evidence): areas, JSDoc over the members declared in the props type, imports of the published modules, `px` literals in the published `styles.css`, tests of the package at the `@yelison/forma-ui@0.5.0` tag, entry in `/catalogo`.
 
-| Component  | 1 · areas (of 3 needed)        | 1 · stable for a phase                | 2 · API documented (JSDoc) | 3 · no domain types                          | 4 · token-only values                                                              | 5 · own test and catalog entry |
-| ---------- | ------------------------------ | ------------------------------------- | -------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------ |
-| FilterChip | 3 (customers, team, tickets)   | no (new in 0.5.0, no earlier release) | 1/1                        | yes (imports only react and its own modules) | yes (no `px` literals: the height is `--choice-min-height`, then `--touch-target`) | test: yes; catalog: yes        |
+| Component  | 1 · areas (of 3 needed)      | 1 · stable for a phase                | 2 · API documented (JSDoc) | 3 · no domain types                          | 4 · token-only values                                                              | 5 · own test and catalog entry |
+| ---------- | ---------------------------- | ------------------------------------- | -------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------ |
+| FilterChip | 3 (customers, team, tickets) | no (new in 0.5.0, no earlier release) | 1/1                        | yes (imports only react and its own modules) | yes (no `px` literals: the height is `--choice-min-height`, then `--touch-target`) | test: yes; catalog: yes        |
 
 - **Areas.** It reaches 3 by itself, with five uses: one in tickets, one in customers, two in team (role and status) and one in `/catalogo`, which does not count.
 - **Stability.** As in the earlier amendments the clause cannot be met: the package has no earlier release of the component.
@@ -335,7 +335,7 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 
 ### Pending
 
-- **Resolve, when it adopts Forma UI 0.6.0** (Menu and Alert): the same method, with `Menu` as the component that all five chips and the global search depend on. *Done in Amendment 5.*
+- **Resolve, when it adopts Forma UI 0.6.0** (Menu and Alert): the same method, with `Menu` as the component that all five chips and the global search depend on. _Done in Amendment 5._
 - **Forma UI:** nothing from this pull request. A disabled chip, and `Badge purple`, `Badge pill` and `Button compact`, wait for a screen that needs them.
 - **Checkbox and Switch** are still the next family of the same base (`shared/choice.module.css`).
 
@@ -404,3 +404,41 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 - **Resolve, code in articles.** When Knowledge allows code blocks and inline code, `pre` takes `--font-code` and inline `code` `font-family: var(--font-family-mono)` at `0.93em`, as the package documents. Nothing to do while `ArticleBody` disallows both elements.
 - **Forma UI:** nothing blocks. The README could say that a `Menu` item is named by its `label` alone and described by its `description`, and that a `Tab` from the menu continues from the trigger.
 - **Checkbox and Switch** are still the next family of the same base (`shared/choice.module.css`).
+
+## Amendment 6 · 0.7.0: the dialog fix and new icons
+
+- **Status:** accepted, 2026-10-22, in this pull request (the coordinator confirms the number). Resolve moves to `@yelison/forma-ui@0.7.0` for a version and the icons; it adopts no new component.
+
+### What the release brings
+
+- **#84, `Dialog` opens again after a forced close.** Chromium closes a native `<dialog>` on the third `Escape` in a row, with a `cancel` event that cannot be cancelled. The package now shows the dialog again a frame later, as a modal with the focus inside, while `open` is still `true`, and `onClose` is called once per close.
+- **#86, thirteen icons** (44 in all): `trash`, `share`, `folder-plus`, `pencil`, `eye`, `monitor`, `bold`, `italic`, `code`, `heading-2`, `heading-3`, `list-ordered` and `star-filled`. `star-filled` is the only filled icon and is for a state, so a button that shows it must carry `aria-pressed`. `iconNames` stays alphabetical, which moves the index of some names; nothing in Resolve depends on an index.
+- **#85, `iconButtonClassName`, and #87, `Disclosure`.** Not adopted (see below).
+- **Tokens:** none. `npm run sync:forma-tokens` changes only the header line of the three generated files (`tokens.css` in the frontend, its copy in the Keycloak theme and `themePalettes.generated.ts`).
+
+### Decision
+
+1. **Dependency.** Exact version `0.7.0` (integrity `sha512-KvMFIzEVbAbWHTQbVwA+ulR5edVTTjApuAIh7sgo+Hm+2hKS9mD4Q8wQw1hTOu9hiezgqVckdalNvoG+IzjbyQ==`, published with SLSA v1 provenance). In `package-lock.json` only the entry of the package changes (version, `resolved`, `integrity` and the line of the root dependencies); no `libc` field was lost this time.
+2. **The dialog fix does not affect Resolve today, and no test was added for it.** It matters to an application that keeps `open={true}` while a request runs and ignores `onClose`. No dialog of Resolve does: `LeaveWorkspaceDialog`, `CancelInvitationDialog`, `RemoveMemberDialog` and `InviteMemberDialog` pass `onClose` straight to `Modal`, their parents set `open` to `false` in it, and their `isPending` checks only prevent a second submission. So Escape, three times or once, closes them during a request, as before. The package covers the case with its own browser test; if a dialog of Resolve ever keeps `open` while a request runs, it is already protected and gets an end-to-end test then.
+3. **Icons.** `/catalogo` already lists `iconNames`, so the thirteen appear with no change to the page (44 icons, `star-filled` among them, at 1440 and 390 px in both themes). The catalog parity test passes. No screen uses them yet.
+4. **Not adopted.**
+   - **`Disclosure` waits for the owner.** The only candidate is `WorkspaceDisclosure`, the workspace selector of the mobile drawer. Its card already draws a chevron; with `Disclosure` the card would carry the package's chevron too, and the gap between the card and the list shrinks by 8 px. A capture of both versions at 390 px in the two themes was made from a temporary copy and is not in the branch.
+   - **`ChartTable` stays local.** Its table has to remain in the DOM for screen readers, and `Disclosure` keeps its region mounted but `hidden`, which removes it from the accessibility tree.
+   - **`iconButtonClassName` has no use yet.** Resolve has no link that looks like an `IconButton`.
+
+### Visual and behavioural differences
+
+Measured as in the earlier amendments, on the computed style, box, attributes and pseudo-elements of every node, with the base (`539ddbf`, 0.6.0) and the tip served side by side (the `showcase` build), in both themes at 1440 and 390 px.
+
+- **Screens:** Home, Tickets, Customers (directory and a customer), Team, Reports, Knowledge (home, an article and the editor), New ticket, a ticket, the four Settings pages, the sidebar (expanded and collapsed) and the drawer with the workspace selector open: 88 scenes.
+- **The four dialogs:** invite (empty and with the error of an empty submit), remove a member, cancel an invitation and leave a workspace, plus the action sheet of a workspace at 390 px: 26 scenes.
+- **Result: no computed property, box, pseudo-element or attribute differs**, apart from the `datetime` attribute of `<time>` elements, which carries the clock of the run (milliseconds apart between the two pages). No screen was found whose `Icon` or `IconButton` changes: the existing icons did not move, in spite of the new indexes.
+
+### Weight
+
+Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build`): JavaScript 669 224 → 670 598 bytes (+1 374; gzip 202 764 → 203 354, +590) and CSS 127 882 → 129 319 bytes (+1 437; gzip 22 580 → 22 753, +173). The package goes from 10.24 to 11.34 kB, most of it the table of icons; the CSS grows with the rules of `Disclosure`, which no screen uses yet.
+
+### Pending
+
+- **Owner:** whether the drawer selector adopts `Disclosure` (it would gain a second chevron unless the card's own is removed).
+- **Resolve:** nothing else. The first screen that needs a toggle for a formatting button (`bold`, `italic`) or a favourite (`star-filled`, with `aria-pressed`) can use the new icons.
