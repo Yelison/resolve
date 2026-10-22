@@ -6,7 +6,7 @@
 # Sin secretos en las capas: la base de datos (KC_DB_URL, KC_DB_USERNAME, KC_DB_PASSWORD),
 # RESOLVE_OIDC_CLIENT_SECRET y RESOLVE_PUBLIC_URL se dan en tiempo de ejecución (docs/deploy/README.md).
 
-# Keycloak 26.8.0-1, índice multiarquitectura fijado por digest (Dependabot, ecosistema docker, propone el siguiente).
+# Keycloak, índice multiarquitectura fijado por digest; la versión es la de la etiqueta del FROM (Dependabot, ecosistema docker, propone la siguiente).
 FROM quay.io/keycloak/keycloak:26.8.1-0@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244 AS builder
 
 # Sin superficie de administración: ni la consola ni la API REST de administración ni la consola de cuenta. El realm vive
