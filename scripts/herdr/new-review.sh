@@ -136,7 +136,8 @@ if [ -z "$ROUND" ]; then
   # Checked once up front, so a loaded machine cannot leave a half-created review: the scripts below skip it.
   check_load "$IGNORE_LOAD"
   BRANCH="review/$ID-$SHA7"
-  new_args=(--id "$RID" --branch "$BRANCH" --base "$SHA" --advisor none --effort "$EFFORT"
+  # Reviewers run Opus 5.5 without an advisor: pass the model explicitly, never inherit the owner's default.
+  new_args=(--id "$RID" --branch "$BRANCH" --base "$SHA" --model "${HERDR_REVIEW_MODEL:-claude-opus-5-5}" --advisor none --effort "$EFFORT"
     --effort-reason "independent review of $ID at $SHA7" --install --ignore-load)
   [ -z "$SLOT" ] || new_args+=(--slot "$SLOT")
   "$SCRIPT_DIR/new-task.sh" "${new_args[@]}" >/dev/null
