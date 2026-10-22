@@ -590,6 +590,22 @@ describe('TeamPage', () => {
       )
     })
 
+    it('tras pulsar «Retirar del equipo» deshabilitado, la flecha arriba sale de él al elemento habilitado anterior', async () => {
+      mockApi(baseRoutes)
+      renderTeam()
+      await userEvent.click(await screen.findByRole('button', { name: 'Acciones de Yelisson Ortiz' }))
+      const menu = screen.getByRole('menu')
+      const changeRole = within(menu).getByRole('menuitem', { name: 'Cambiar rol' })
+      const remove = within(menu).getByRole('menuitem', { name: 'Retirar del equipo' })
+      await waitFor(() => expect(changeRole).toHaveFocus())
+      // Un elemento con `aria-disabled` sigue siendo enfocable: pulsarlo lleva el foco a él y no cierra el menú.
+      await userEvent.click(remove)
+      expect(screen.getByRole('menu')).toBeInTheDocument()
+      expect(remove).toHaveFocus()
+      await userEvent.keyboard('{ArrowUp}')
+      expect(changeRole).toHaveFocus()
+    })
+
     it('un administrador invitado o retirado no cuenta: con otro solo invitado sigue siendo el único', async () => {
       const invitedAdmin = { ...otherAdmin, status: 'invited' as const }
       mockApi({ ...baseRoutes, 'GET /api/members': { body: [...team, invitedAdmin] } })

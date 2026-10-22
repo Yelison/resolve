@@ -86,11 +86,17 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     renderShell()
     const menu = await openSwitcher()
     const rows = within(menu).getAllByRole('menuitemradio')
-    expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
-      'Acme Studio, Administrador',
-      'Northwind, Agente',
-      'Norte Viajes, Cliente',
-    ])
+    // El nombre accesible de cada fila es el del espacio; su rol es la descripción (`aria-describedby`).
+    const spaces = [
+      ['Acme Studio', 'Administrador'],
+      ['Northwind', 'Agente'],
+      ['Norte Viajes', 'Cliente'],
+    ] as const
+    expect(rows).toHaveLength(spaces.length)
+    spaces.forEach(([name, role], index) => {
+      expect(rows[index]).toHaveAccessibleName(name)
+      expect(rows[index]).toHaveAccessibleDescription(role)
+    })
     expect(rows.map((row) => row.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false'])
     // Un solo separador: el de «Crear espacio», que abre el bloque de acciones.
     expect(within(menu).getAllByRole('separator')).toHaveLength(1)
@@ -144,7 +150,8 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     mockApi({ 'GET /api/me': { body: me } })
     renderShell()
     const menu = await openSwitcher(long)
-    const row = within(menu).getByRole('menuitemradio', { name: `${long}, Administrador` })
+    const row = within(menu).getByRole('menuitemradio', { name: long })
+    expect(row).toHaveAccessibleDescription('Administrador')
     expect(row).toHaveAttribute('title', long)
     expect(await card(long)).toHaveAttribute('title', long)
   })
@@ -158,7 +165,9 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     const { queryClient, router } = renderShell('/tickets/1046')
     queryClient.setQueryData(['tickets', 'detail', 1046], { subject: 'Ticket de Acme' })
     const menu = await openSwitcher()
-    await userEvent.click(within(menu).getByRole('menuitemradio', { name: 'Northwind, Agente' }))
+    const northwind = within(menu).getByRole('menuitemradio', { name: 'Northwind' })
+    expect(northwind).toHaveAccessibleDescription('Agente')
+    await userEvent.click(northwind)
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
     const post = requests(spy).find((request) => request.url.endsWith('/api/session/organization'))!
@@ -176,7 +185,9 @@ describe('selector de espacios · tarjeta del sidebar', () => {
     const spy = mockApi({ 'GET /api/me': { body: meInAcme } })
     renderShell()
     const menu = await openSwitcher()
-    await userEvent.click(within(menu).getByRole('menuitemradio', { name: 'Acme Studio, Administrador' }))
+    const acme = within(menu).getByRole('menuitemradio', { name: 'Acme Studio' })
+    expect(acme).toHaveAccessibleDescription('Administrador')
+    await userEvent.click(acme)
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(requests(spy).some((request) => request.method === 'POST')).toBe(false)
     expect(await card()).toHaveFocus()
@@ -293,11 +304,10 @@ describe('selector de espacios · muchos espacios', () => {
     expect(menu).not.toContainElement(search)
     await waitFor(() => expect(search).toHaveFocus())
     await userEvent.keyboard('clinica')
-    expect(
-      within(menu)
-        .getAllByRole('menuitemradio')
-        .map((row) => row.getAttribute('aria-label')),
-    ).toEqual(['Clínica Sonrisa, Agente'])
+    const found = within(menu).getAllByRole('menuitemradio')
+    expect(found).toHaveLength(1)
+    expect(found[0]).toHaveAccessibleName('Clínica Sonrisa')
+    expect(found[0]).toHaveAccessibleDescription('Agente')
     expect(within(menu).getByRole('menuitem', { name: 'Tus espacios' })).toBeInTheDocument()
     await userEvent.clear(search)
     await userEvent.keyboard('zzz')

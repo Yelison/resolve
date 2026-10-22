@@ -85,9 +85,9 @@ test.describe('espacios', () => {
       await signIn(jordi, accounts.jordi.email)
       const current = (await (await jordi.request.get('/api/me')).json()).organization.name as string
       const target = current === 'Acme Studio' ? 'Northwind Soporte' : 'Acme Studio'
-      // La tarjeta del espacio abre el selector; cada fila es una opción «{nombre}, {rol}» (como en e2e/session.spec.ts).
+      // La tarjeta del espacio abre el selector; cada fila es una opción cuyo nombre es el del espacio y cuyo rol es su descripción.
       await jordi.getByRole('button', { name: `Espacio: ${current}. Cambiar de espacio` }).click()
-      await jordi.getByRole('menuitemradio', { name: new RegExp(`^${target}, `) }).click()
+      await jordi.getByRole('menuitemradio', { name: target, exact: true }).click()
 
       await expect(jordi.getByText(`Ahora trabajas en ${target}`)).toBeVisible()
       await expect(account(jordi)).toHaveAccessibleName(`Cuenta: ${accounts.jordi.name}, ${target}`)
