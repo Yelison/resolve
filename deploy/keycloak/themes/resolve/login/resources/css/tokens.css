@@ -1,4 +1,4 @@
-/* Generado desde `@yelison/forma-ui@0.5.0` (la versión de la última sincronía): no lo edites a mano.
+/* Generado desde `@yelison/forma-ui@0.6.0` (la versión de la última sincronía): no lo edites a mano.
  * Ejecuta `npm run sync:forma-tokens` para regenerarlo; la misma orden escribe la copia del tema de Keycloak
  * (`deploy/keycloak/themes/resolve/login/resources/css/tokens.css`), que debe ser idéntica a este archivo.
  * Debajo va, sin cambios, el `tokens.css` del paquete. Los tokens propios de Resolve están en `global.css` (diseño de
@@ -40,8 +40,10 @@
   --color-progress-track: var(--color-line);
 
   --font-family: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-family-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
   --font-caption: 400 12px/17px var(--font-family);
   --font-body: 400 14px/20px var(--font-family);
+  --font-code: 400 13px/20px var(--font-family-mono);
   --font-label: 500 14px/20px var(--font-family);
   --font-strong: 600 14px/20px var(--font-family);
   --font-section: 600 17px/24px var(--font-family);
@@ -84,6 +86,10 @@
   --tabs-panel-focus-offset: 4px;
   --dialog-enter-offset: 8px;
   --tooltip-max-width: 240px;
+  --menu-min-width: 200px;
+  --menu-min-width-wide: 280px;
+  --menu-max-width: 320px;
+  --menu-item-min-height: 36px;
   --dialog-width: 440px;
   --dialog-width-wide: 640px;
 
