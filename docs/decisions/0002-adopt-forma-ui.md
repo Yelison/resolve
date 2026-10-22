@@ -1,7 +1,7 @@
 # 0002 · Adopt Forma UI for the shared components
 
 - **Status:** accepted, 2026-10-10. It landed with the adoption, in #120 (Button, IconButton, Icon) and #121 (the rest); the tokens came in #114.
-- **Supersedes:** [0001](0001-forma-ui-extraction.md), in part: for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal. [Amendment 1](#amendment-1--020-tabs-and-radio) adds Tabs and Radio, [Amendment 3](#amendment-3--040-avatar-searchfield-and-select) adds Avatar, SearchField and Select, and [Amendment 4](#amendment-4--050-filterchip-initialsof-and-the-reset-layer) adds FilterChip (Amendment 2 moves literal sizes into tokens and adds no component). 0001 still applies to every component in `frontend/src/components/ui` that none of the amendments lists.
+- **Supersedes:** [0001](0001-forma-ui-extraction.md), in part: for Button, IconButton, Badge, Field, Input, Icon, Tooltip and Modal. [Amendment 1](#amendment-1--020-tabs-and-radio) adds Tabs and Radio, [Amendment 3](#amendment-3--040-avatar-searchfield-and-select) adds Avatar, SearchField and Select, [Amendment 4](#amendment-4--050-filterchip-initialsof-and-the-reset-layer) adds FilterChip, and [Amendment 5](#amendment-5--060-menu-and-alert) adds Menu and Alert (Amendment 2 moves literal sizes into tokens and adds no component). 0001 still applies to every component in `frontend/src/components/ui` that none of the amendments lists.
 
 ## Context
 

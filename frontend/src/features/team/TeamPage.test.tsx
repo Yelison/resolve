@@ -606,6 +606,22 @@ describe('TeamPage', () => {
       expect(changeRole).toHaveFocus()
     })
 
+    it('Tab desde un elemento del menú lo cierra y sigue por el control que viene después del disparador', async () => {
+      mockApi(twoAdminsRoutes)
+      renderTeam()
+      const triggers = await screen.findAllByRole('button', { name: /^Acciones de / })
+      expect(triggers.length).toBeGreaterThan(1)
+      await userEvent.click(triggers[0]!)
+      expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Cambiar rol' })).toHaveFocus()
+      await userEvent.tab()
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+      // El foco no se pierde en `body` ni vuelve al principio de la página: sigue desde el disparador, hacia delante.
+      expect(document.body).not.toHaveFocus()
+      expect(
+        triggers[0]!.compareDocumentPosition(document.activeElement!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    })
+
     it('un administrador invitado o retirado no cuenta: con otro solo invitado sigue siendo el único', async () => {
       const invitedAdmin = { ...otherAdmin, status: 'invited' as const }
       mockApi({ ...baseRoutes, 'GET /api/members': { body: [...team, invitedAdmin] } })
