@@ -341,7 +341,7 @@ Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build
 
 ## Amendment 5 · 0.6.0: Menu and Alert
 
-- **Status:** accepted, 2026-10-22. It lands in (este PR), which adopts `@yelison/forma-ui` 0.6.0 (Forma UI changesets `a3a775b` Menu, `086be64` Alert, `0c5efdf` the monospace tokens and `f1bd1cd` the fixes found while adopting 0.5.0).
+- **Status:** accepted, 2026-10-22. It lands in #165, which adopts `@yelison/forma-ui` 0.6.0 (Forma UI changesets `a3a775b` Menu, `086be64` Alert, `0c5efdf` the monospace tokens and `f1bd1cd` the fixes found while adopting 0.5.0).
 - **Scope:** it adds Menu and Alert to the components that 0001 no longer covers. With them the extraction that was agreed after the first adoption (Avatar, SearchField and Select, FilterChip, Menu and Alert) is complete. Every other component stays under 0001.
 
 ### The readiness criteria of 0001, measured
@@ -397,7 +397,7 @@ The focus ring of an item (the package's own `:focus-visible { outline: var(--fo
 
 ### Weight
 
-Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build`), before and after: JavaScript 670 076 → 669 136 bytes (−940; gzip 203 245 → 202 748, −497) and CSS 127 305 → 127 882 bytes (+577; gzip 22 499 → 22 580, +81). Resolve's `Menu`, `Alert`, `useFloating` and `position` leave the bundle and the package's come in, with the `--menu-*` and mono tokens and the `.forma-menu` and `.forma-alert` rules in `styles.css`.
+Initial JavaScript and CSS (`index-*` and the preloaded `ui-*` of `npm run build`), before and after: JavaScript 670 076 → 669 224 bytes (−852; gzip 203 245 → 202 764, −481) and CSS 127 305 → 127 882 bytes (+577; gzip 22 499 → 22 580, +81). Resolve's `Menu`, `Alert`, `useFloating` and `position` leave the bundle and the package's come in, with the `--menu-*` and mono tokens and the `.forma-menu` and `.forma-alert` rules in `styles.css`.
 
 ### Pending
 
