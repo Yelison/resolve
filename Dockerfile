@@ -27,7 +27,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q -Dmaven.test.skip=true package
     && cp target/resolve-api-*.jar /app.jar
 
 # --- Ejecución ----------------------------------------------------------------------------------------------------
-FROM eclipse-temurin:25-jre@sha256:fcd7fd7b387f94bb2ac461478a7436ad8e349924c374ea8313919624dceae636
+FROM eclipse-temurin:25-jre@sha256:dbb43d81099eec91e0800226ed2296d03146ee7857165b95112372ad0d67e87f
 # Un usuario sin privilegios y sin shell de inicio de sesión: la aplicación no necesita escribir en el sistema de archivos.
 RUN groupadd --system --gid 10001 resolve \
     && useradd --system --uid 10001 --gid resolve --no-create-home --shell /usr/sbin/nologin resolve
