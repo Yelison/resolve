@@ -7,7 +7,7 @@
 # RESOLVE_OIDC_CLIENT_SECRET y RESOLVE_PUBLIC_URL se dan en tiempo de ejecución (docs/deploy/README.md).
 
 # Keycloak, índice multiarquitectura fijado por digest; la versión es la de la etiqueta del FROM (Dependabot, ecosistema docker, propone la siguiente).
-FROM quay.io/keycloak/keycloak:26.8.1-0@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244 AS builder
+FROM quay.io/keycloak/keycloak:26.8.2-2@sha256:c68e286cacd87b942ac1939a0a1481461109d6acd3a57dc496969a319a76bbf0 AS builder
 
 # Sin superficie de administración: ni la consola ni la API REST de administración ni la consola de cuenta. El realm vive
 # en el repositorio y se importa al arrancar; un cambio de urgencia se hace en el realm y se redespliega (docs/deploy).
@@ -22,7 +22,7 @@ ENV KC_DB=postgres \
 COPY deploy/keycloak/themes /opt/keycloak/themes
 RUN /opt/keycloak/bin/kc.sh build
 
-FROM quay.io/keycloak/keycloak:26.8.1-0@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
+FROM quay.io/keycloak/keycloak:26.8.2-2@sha256:c68e286cacd87b942ac1939a0a1481461109d6acd3a57dc496969a319a76bbf0
 
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 # En Fly el realm lo aplica la release_command de fly.toml (`import --override true`) en cada despliegue. --import-realm,
